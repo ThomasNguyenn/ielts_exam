@@ -1,0 +1,16 @@
+# Bỏ qua node_modules ở tất cả các thư mục con
+node_modules/
+**/node_modules/
+
+# Bỏ qua file môi trường (chứa mật khẩu/API key) - Rất quan trọng
+.env
+.env.local
+.env.*
+
+# Bỏ qua thư mục build (kết quả biên dịch)
+dist/
+build/
+.next/
+
+# Bỏ qua file hệ thống
+.DS_Store
