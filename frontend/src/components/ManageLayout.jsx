@@ -14,6 +14,9 @@ export default function ManageLayout() {
         <Link to={`${base}/sections`} className={location.pathname.startsWith(`${base}/sections`) ? 'active' : ''}>
           Sections (Listening)
         </Link>
+        <Link to={`${base}/writings`} className={location.pathname.startsWith(`${base}/writings`) ? 'active' : ''}>
+          Writing
+        </Link>
         <Link to={`${base}/tests`} className={location.pathname.startsWith(`${base}/tests`) ? 'active' : ''}>
           Tests
         </Link>

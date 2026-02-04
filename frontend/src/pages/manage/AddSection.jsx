@@ -35,7 +35,7 @@ function emptyQuestionGroup() {
 }
 
 function sectionToForm(s) {
-  if (!s) return { _id: '', title: '', content: '', source: '', question_groups: [emptyQuestionGroup()] };
+  if (!s) return { _id: '', title: '', content: '', audio_url: '', source: '', question_groups: [emptyQuestionGroup()] };
   const groups = s.question_groups && s.question_groups.length
     ? s.question_groups.map((g) => ({
         type: g.type || 'mult_choice',
@@ -57,6 +57,7 @@ function sectionToForm(s) {
     _id: s._id || '',
     title: s.title || '',
     content: s.content || '',
+    audio_url: s.audio_url || '',
     source: s.source || '',
     question_groups: groups,
   };
@@ -70,14 +71,45 @@ export default function AddSection() {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  const [existingSearch, setExistingSearch] = useState('');
 
   const [form, setForm] = useState({
     _id: '',
     title: '',
     content: '',
+    audio_url: '',
     source: '',
     question_groups: [emptyQuestionGroup()],
   });
+
+  // Collapsible state for question groups and questions
+  const [collapsedGroups, setCollapsedGroups] = useState(new Set());
+  const [collapsedQuestions, setCollapsedQuestions] = useState(new Set());
+
+  const toggleGroupCollapse = (groupIndex) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(groupIndex)) {
+        next.delete(groupIndex);
+      } else {
+        next.add(groupIndex);
+      }
+      return next;
+    });
+  };
+
+  const toggleQuestionCollapse = (groupIndex, questionIndex) => {
+    const key = `${groupIndex}-${questionIndex}`;
+    setCollapsedQuestions(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (editId) {
@@ -90,7 +122,7 @@ export default function AddSection() {
         .finally(() => setLoading(false));
     } else {
       setLoading(false);
-      setForm({ _id: `section-${Date.now()}`, title: '', content: '', source: '', question_groups: [emptyQuestionGroup()] });
+      setForm({ _id: `section-${Date.now()}`, title: '', content: '', audio_url: '', source: '', question_groups: [emptyQuestionGroup()] });
     }
   }, [editId]);
 
@@ -99,6 +131,17 @@ export default function AddSection() {
   }, [success, editId]);
 
   const updateForm = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+
+  const matchSearch = (item, query) => {
+    if (!query.trim()) return true;
+    const q = query.trim().toLowerCase();
+    return (
+      (item.title || '').toLowerCase().includes(q) ||
+      (item._id || '').toLowerCase().includes(q)
+    );
+  };
+
+  const filteredSections = sections.filter((s) => matchSearch(s, existingSearch));
 
   const updateQuestionGroup = (groupIndex, key, value) => {
     setForm((prev) => ({
@@ -254,6 +297,7 @@ export default function AddSection() {
       _id: form._id.trim(),
       title: form.title.trim(),
       content: form.content.trim(),
+      audio_url: form.audio_url?.trim() || undefined,
       source: form.source.trim() || undefined,
       question_groups: form.question_groups.map((g) => ({
         type: g.type,
@@ -291,6 +335,7 @@ export default function AddSection() {
           _id: `section-${Date.now()}`,
           title: '',
           content: '',
+          audio_url: '',
           source: '',
           question_groups: [emptyQuestionGroup()],
         });
@@ -302,7 +347,7 @@ export default function AddSection() {
     }
   };
 
-  if (editId && loading) return <div className="manage-section"><p className="muted">Loading section…</p></div>;
+  if (editId && loading) return <div className="manage-section"><p className="muted">Loading section...</p></div>;
   if (editId && loadError) return <div className="manage-section"><p className="form-error">{loadError}</p><Link to="/manage/sections">Back to sections</Link></div>;
 
   return (
@@ -342,6 +387,18 @@ export default function AddSection() {
           />
         </div>
         <div className="form-row">
+          <label>Audio URL (MP3 file for listening)</label>
+          <input
+            type="url"
+            value={form.audio_url}
+            onChange={(e) => updateForm('audio_url', e.target.value)}
+            placeholder="https://example.com/audio.mp3"
+          />
+          <small className="form-hint">
+            Enter the URL to the MP3 audio file for this listening section
+          </small>
+        </div>
+        <div className="form-row">
           <label>Source</label>
           <input
             value={form.source}
@@ -351,139 +408,181 @@ export default function AddSection() {
         </div>
 
         <h3>Question groups</h3>
-        {form.question_groups.map((group, gi) => (
-          <div key={gi} className="question-group-block">
-            <div className="block-header">
-              <span>Group {gi + 1}</span>
-              <button type="button" className="btn btn-ghost" onClick={() => removeQuestionGroup(gi)} disabled={form.question_groups.length <= 1}>
-                Remove group
-              </button>
-            </div>
-            <div className="form-row">
-              <label>Type</label>
-              <select
-                value={group.type}
-                onChange={(e) => updateQuestionGroup(gi, 'type', e.target.value)}
-              >
-                {QUESTION_GROUP_TYPES.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
-            <div className="form-row">
-              <label>Instructions</label>
-              <textarea
-                value={group.instructions}
-                onChange={(e) => updateQuestionGroup(gi, 'instructions', e.target.value)}
-                rows={2}
-              />
-            </div>
-
-            {group.type === 'matching_features' && (
-              <>
-                <h4>Features (list to match – e.g. i, ii, iii or A, B, C)</h4>
-                <p className="form-hint">Add options that will be shown. Each question’s correct answer is the option id (e.g. i, ii, iii).</p>
-                {(group.headings || []).map((h, hi) => (
-                  <div key={hi} className="heading-row">
-                    <input
-                      value={h.id}
-                      onChange={(e) => updateHeading(gi, hi, 'id', e.target.value)}
-                      placeholder="e.g. i, ii, iii"
-                      className="heading-id"
-                    />
-                    <input
-                      value={h.text}
-                      onChange={(e) => updateHeading(gi, hi, 'text', e.target.value)}
-                      placeholder="Feature text"
-                      className="heading-text"
-                    />
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm"
-                      onClick={() => removeHeading(gi, hi)}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ))}
-                <button type="button" className="btn btn-ghost" onClick={() => addHeading(gi)}>
-                  + Add feature
-                </button>
-              </>
-            )}
-
-            <h4>Questions</h4>
-            {group.questions.map((q, qi) => (
-              <div key={qi} className="question-block">
-                <div className="form-row">
-                  <label>Q{q.q_number} – Question text *</label>
-                  <textarea
-                    value={q.text}
-                    onChange={(e) => updateQuestion(gi, qi, 'text', e.target.value)}
-                    rows={2}
-                  />
+        {form.question_groups.map((group, gi) => {
+          const isGroupCollapsed = collapsedGroups.has(gi);
+          return (
+            <div key={gi} className={`question-group-block ${isGroupCollapsed ? 'collapsed' : ''}`}>
+              <div className="block-header">
+                <span className="group-title">Group {gi + 1}</span>
+                <div className="block-actions">
+                  <button type="button" className="btn btn-ghost btn-sm collapse-btn" onClick={() => toggleGroupCollapse(gi)}>
+                    {isGroupCollapsed ? '▼ Expand' : '▲ Collapse'}
+                  </button>
+                  <button type="button" className="btn btn-ghost" onClick={() => removeQuestionGroup(gi)} disabled={form.question_groups.length <= 1}>
+                    Remove group
+                  </button>
                 </div>
-                {(group.type === 'mult_choice' || group.type === 'true_false_notgiven') && (
-                  <div className="form-row options-row">
-                    <label>Options</label>
-                    {q.option?.map((opt, oi) => (
-                      <input
-                        key={oi}
-                        value={opt.text}
-                        onChange={(e) => setQuestionOption(gi, qi, oi, e.target.value)}
-                        placeholder={`Option ${opt.label}`}
-                      />
-                    ))}
-                  </div>
-                )}
-                <div className="form-row">
-                  <label>Correct answer(s) * (comma-separated)</label>
-                  <input
-                    value={q.correct_answers?.join(', ') ?? ''}
-                    onChange={(e) => setCorrectAnswers(gi, qi, e.target.value)}
-                  />
-                </div>
-                <div className="form-row">
-                  <label>Explanation</label>
-                  <input
-                    value={q.explanation ?? ''}
-                    onChange={(e) => updateQuestion(gi, qi, 'explanation', e.target.value)}
-                  />
-                </div>
-                <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeQuestion(gi, qi)} disabled={group.questions.length <= 1}>
-                  Remove question
-                </button>
               </div>
-            ))}
-            <button type="button" className="btn btn-ghost" onClick={() => addQuestion(gi)}>
-              + Add question
-            </button>
-          </div>
-        ))}
+              {!isGroupCollapsed && (
+                <>
+                  <div className="form-row">
+                    <label>Type</label>
+                    <select
+                      value={group.type}
+                      onChange={(e) => updateQuestionGroup(gi, 'type', e.target.value)}
+                    >
+                      {QUESTION_GROUP_TYPES.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-row">
+                    <label>Instructions</label>
+                    <textarea
+                      value={group.instructions}
+                      onChange={(e) => updateQuestionGroup(gi, 'instructions', e.target.value)}
+                      rows={2}
+                    />
+                  </div>
+
+                  {group.type === 'matching_features' && (
+                    <>
+                      <h4>Features (list to match - e.g. i, ii, iii or A, B, C)</h4>
+                      <p className="form-hint">Add options that will be shown. Each question's correct answer is the option id (e.g. i, ii, iii).</p>
+                      {(group.headings || []).map((h, hi) => (
+                        <div key={hi} className="heading-row">
+                          <input
+                            value={h.id}
+                            onChange={(e) => updateHeading(gi, hi, 'id', e.target.value)}
+                            placeholder="e.g. i, ii, iii"
+                            className="heading-id"
+                          />
+                          <input
+                            value={h.text}
+                            onChange={(e) => updateHeading(gi, hi, 'text', e.target.value)}
+                            placeholder="Feature text"
+                            className="heading-text"
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => removeHeading(gi, hi)}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                      <button type="button" className="btn btn-ghost" onClick={() => addHeading(gi)}>
+                        + Add feature
+                      </button>
+                    </>
+                  )}
+
+                  <h4>Questions</h4>
+                  {group.questions.map((q, qi) => {
+                    const isQuestionCollapsed = collapsedQuestions.has(`${gi}-${qi}`);
+                    return (
+                      <div key={qi} className={`question-block ${isQuestionCollapsed ? 'collapsed' : ''}`}>
+                        <div className="question-block-header">
+                          <span className="question-label">Q{q.q_number}</span>
+                          <button type="button" className="btn btn-ghost btn-sm collapse-btn" onClick={() => toggleQuestionCollapse(gi, qi)}>
+                            {isQuestionCollapsed ? '▼ Expand' : '▲ Collapse'}
+                          </button>
+                        </div>
+                        {!isQuestionCollapsed && (
+                          <>
+                            <div className="form-row">
+                              <label>Q{q.q_number} - Question text *</label>
+                              <textarea
+                                value={q.text}
+                                onChange={(e) => updateQuestion(gi, qi, 'text', e.target.value)}
+                                rows={2}
+                              />
+                            </div>
+                            {(group.type === 'mult_choice' || group.type === 'true_false_notgiven') && (
+                              <div className="form-row options-row">
+                                <label>Options</label>
+                                {q.option?.map((opt, oi) => (
+                                  <input
+                                    key={oi}
+                                    value={opt.text}
+                                    onChange={(e) => setQuestionOption(gi, qi, oi, e.target.value)}
+                                    placeholder={`Option ${opt.label}`}
+                                  />
+                                ))}
+                              </div>
+                            )}
+                            <div className="form-row">
+                              <label>Correct answer(s) * (comma-separated)</label>
+                              <input
+                                value={q.correct_answers?.join(', ') ?? ''}
+                                onChange={(e) => setCorrectAnswers(gi, qi, e.target.value)}
+                              />
+                            </div>
+                            <div className="form-row">
+                              <label>Explanation</label>
+                              <input
+                                value={q.explanation ?? ''}
+                                onChange={(e) => updateQuestion(gi, qi, 'explanation', e.target.value)}
+                              />
+                            </div>
+                          </>
+                        )}
+                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeQuestion(gi, qi)} disabled={group.questions.length <= 1}>
+                          Remove question
+                        </button>
+                      </div>
+                    );
+                  })}
+                  <button type="button" className="btn btn-ghost" onClick={() => addQuestion(gi)}>
+                    + Add question
+                  </button>
+                </>
+              )}
+            </div>
+          );
+        })}
         <button type="button" className="btn btn-ghost" onClick={addQuestionGroup}>
           + Add question group
         </button>
 
         <div className="form-actions">
           <button type="submit" className="btn btn-primary" disabled={submitLoading}>
-            {submitLoading ? (editId ? 'Saving…' : 'Creating…') : (editId ? 'Update section' : 'Create section')}
+            {submitLoading ? (editId ? 'Saving...' : 'Creating...') : (editId ? 'Update section' : 'Create section')}
           </button>
           {editId && <Link to="/manage/sections" className="btn btn-ghost" style={{ marginLeft: '0.5rem' }}>Cancel</Link>}
         </div>
       </form>
 
       <h3>Existing sections</h3>
-      {!editId && (loading ? <p className="muted">Loading…</p> : (
-        <ul className="manage-list">
-          {sections.length === 0 ? <li className="muted">No sections yet.</li> : sections.map((s) => (
-            <li key={s._id}>
-              <span>{s.title}</span>
-              <code>{s._id}</code>
-              <Link to={`/manage/sections/${s._id}`} className="edit-link">Edit</Link>
-              <button type="button" className="btn btn-ghost btn-sm delete-link" onClick={() => handleDeleteSection(s._id)}>Delete</button>
-            </li>
-          ))}
-        </ul>
+      {!editId && (loading ? <p className="muted">Loading...</p> : (
+        <>
+          <input
+            type="search"
+            value={existingSearch}
+            onChange={(e) => setExistingSearch(e.target.value)}
+            placeholder="Search sections by title or ID..."
+            className="search-input"
+            aria-label="Search existing sections"
+          />
+          {existingSearch.trim() && (
+            <p className="search-hint">
+              Showing {filteredSections.length} of {sections.length} section{sections.length !== 1 ? 's' : ''}
+            </p>
+          )}
+          <ul className="manage-list">
+            {sections.length === 0 ? <li className="muted">No sections yet.</li> : filteredSections.length === 0 ? (
+              <li className="muted">No sections match your search.</li>
+            ) : filteredSections.map((s) => (
+              <li key={s._id}>
+                <span>{s.title}</span>
+                <code>{s._id}</code>
+                <Link to={`/manage/sections/${s._id}`} className="edit-link">Edit</Link>
+                <button type="button" className="btn btn-ghost btn-sm delete-link" onClick={() => handleDeleteSection(s._id)}>Delete</button>
+              </li>
+            ))}
+          </ul>
+        </>
       ))}
     </div>
   );

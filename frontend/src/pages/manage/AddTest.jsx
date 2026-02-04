@@ -1,40 +1,82 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { api } from '../../api/client';
 
 function testToForm(t) {
-  if (!t) return { _id: '', title: '', type: 'reading', reading_passages: [], listening_sections: [] };
+  if (!t) return { _id: '', title: '', category: '', type: 'reading', duration: 60, reading_passages: [], listening_sections: [], writing_tasks: [] };
   const toId = (x) => (typeof x === 'object' && x && x._id ? x._id : x);
   return {
     _id: t._id || '',
     title: t.title || '',
+    category: t.category || 'Uncategorized',
     type: t.type || 'reading',
+    duration: t.duration || (t.type === 'reading' ? 60 : t.type === 'listening' ? 35 : 45),
     reading_passages: (t.reading_passages || []).map(toId),
     listening_sections: (t.listening_sections || []).map(toId),
+    writing_tasks: (t.writing_tasks || []).map(toId),
   };
+}
+
+function SortableItem({ id, title, subtitle, onRemove, type }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+  
+  return (
+    <li ref={setNodeRef} style={style} className="sortable-item">
+      <div className="drag-handle" {...attributes} {...listeners}>
+        <span className="drag-icon">⋮⋮</span>
+      </div>
+      <div className="sortable-item-content">
+        <span className="sortable-item-title">{title}</span>
+        <code className="sortable-item-id">{subtitle}</code>
+      </div>
+      <button type="button" className="btn btn-ghost btn-sm" onClick={() => onRemove(id)}>
+        Remove
+      </button>
+    </li>
+  );
 }
 
 export default function AddTest() {
   const { id: editId } = useParams();
   const [passages, setPassages] = useState([]);
   const [sections, setSections] = useState([]);
+  const [writings, setWritings] = useState([]);
   const [tests, setTests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
+  const [existingSearch, setExistingSearch] = useState('');
 
   const [form, setForm] = useState({
     _id: '',
     title: '',
+    category: '',
     type: 'reading',
+    duration: 60,
     reading_passages: [],
     listening_sections: [],
+    writing_tasks: [],
   });
 
   const [passageSearch, setPassageSearch] = useState('');
   const [sectionSearch, setSectionSearch] = useState('');
+  const [writingSearch, setWritingSearch] = useState('');
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
   useEffect(() => {
     setLoading(true);
@@ -43,24 +85,27 @@ export default function AddTest() {
       Promise.all([
         api.getPassages(),
         api.getSections(),
+        api.getWritings(),
         api.getTests(),
         api.getTestById(editId),
       ])
-        .then(([pRes, sRes, tRes, testRes]) => {
+        .then(([pRes, sRes, wRes, tRes, testRes]) => {
           setPassages(pRes.data || []);
           setSections(sRes.data || []);
+          setWritings(wRes.data || []);
           setTests(tRes.data || []);
           setForm(testToForm(testRes.data));
         })
         .catch((err) => setLoadError(err.message))
         .finally(() => setLoading(false));
     } else {
-      Promise.all([api.getPassages(), api.getSections(), api.getTests()])
-        .then(([pRes, sRes, tRes]) => {
+      Promise.all([api.getPassages(), api.getSections(), api.getWritings(), api.getTests()])
+        .then(([pRes, sRes, wRes, tRes]) => {
           setPassages(pRes.data || []);
           setSections(sRes.data || []);
+          setWritings(wRes.data || []);
           setTests(tRes.data || []);
-          setForm({ _id: `test-${Date.now()}`, title: '', type: 'reading', reading_passages: [], listening_sections: [] });
+          setForm({ _id: `test-${Date.now()}`, title: '', category: '', type: 'reading', duration: 60, reading_passages: [], listening_sections: [], writing_tasks: [] });
         })
         .catch(() => {})
         .finally(() => setLoading(false));
@@ -93,17 +138,99 @@ export default function AddTest() {
     }));
   };
 
+  const toggleWriting = (id) => {
+    setForm((prev) => ({
+      ...prev,
+      writing_tasks: prev.writing_tasks.includes(id)
+        ? prev.writing_tasks.filter((x) => x !== id)
+        : [...prev.writing_tasks, id],
+    }));
+  };
+
+  const removePassage = (id) => {
+    setForm((prev) => ({
+      ...prev,
+      reading_passages: prev.reading_passages.filter((x) => x !== id),
+    }));
+  };
+
+  const removeSection = (id) => {
+    setForm((prev) => ({
+      ...prev,
+      listening_sections: prev.listening_sections.filter((x) => x !== id),
+    }));
+  };
+
+  const removeWriting = (id) => {
+    setForm((prev) => ({
+      ...prev,
+      writing_tasks: prev.writing_tasks.filter((x) => x !== id),
+    }));
+  };
+
+  const handleDragEndPassages = (event) => {
+    const { active, over } = event;
+    if (active && over && active.id !== over.id) {
+      setForm((prev) => {
+        const oldIndex = prev.reading_passages.indexOf(active.id);
+        const newIndex = prev.reading_passages.indexOf(over.id);
+        return {
+          ...prev,
+          reading_passages: arrayMove(prev.reading_passages, oldIndex, newIndex),
+        };
+      });
+    }
+  };
+
+  const handleDragEndSections = (event) => {
+    const { active, over } = event;
+    if (active && over && active.id !== over.id) {
+      setForm((prev) => {
+        const oldIndex = prev.listening_sections.indexOf(active.id);
+        const newIndex = prev.listening_sections.indexOf(over.id);
+        return {
+          ...prev,
+          listening_sections: arrayMove(prev.listening_sections, oldIndex, newIndex),
+        };
+      });
+    }
+  };
+
+  const handleDragEndWritings = (event) => {
+    const { active, over } = event;
+    if (active && over && active.id !== over.id) {
+      setForm((prev) => {
+        const oldIndex = prev.writing_tasks.indexOf(active.id);
+        const newIndex = prev.writing_tasks.indexOf(over.id);
+        return {
+          ...prev,
+          writing_tasks: arrayMove(prev.writing_tasks, oldIndex, newIndex),
+        };
+      });
+    }
+  };
+
   const matchSearch = (item, query) => {
     if (!query.trim()) return true;
     const q = query.trim().toLowerCase();
     return (
       (item.title || '').toLowerCase().includes(q) ||
-      (item._id || '').toLowerCase().includes(q)
+      (item._id || '').toLowerCase().includes(q) ||
+      (item.category || '').toLowerCase().includes(q)
     );
   };
 
   const filteredPassages = passages.filter((p) => matchSearch(p, passageSearch));
   const filteredSections = sections.filter((s) => matchSearch(s, sectionSearch));
+  const filteredWritings = writings.filter((w) => matchSearch(w, writingSearch));
+  const filteredTests = tests.filter((t) => matchSearch(t, existingSearch));
+
+  const getPassageTitle = (id) => passages.find((p) => p._id === id)?.title || id;
+  const getPassageSubtitle = (id) => passages.find((p) => p._id === id)?._id || id;
+  const getSectionTitle = (id) => sections.find((s) => s._id === id)?.title || id;
+  const getSectionSubtitle = (id) => sections.find((s) => s._id === id)?._id || id;
+  const getWritingTitle = (id) => writings.find((w) => w._id === id)?.title || id;
+  const getWritingSubtitle = (id) => writings.find((w) => w._id === id)?._id || id;
 
   const handleDeleteTest = async (testId) => {
     if (!window.confirm('Delete this test? This cannot be undone.')) return;
@@ -121,8 +248,8 @@ export default function AddTest() {
     e.preventDefault();
     setError(null);
     setSuccess(null);
-    if (!form._id.trim() || !form.title.trim()) {
-      setError('ID and title are required.');
+    if (!form._id.trim() || !form.title.trim() || !form.category.trim()) {
+      setError('ID, title, and category are required.');
       return;
     }
     setSubmitLoading(true);
@@ -130,9 +257,12 @@ export default function AddTest() {
       const payload = {
         _id: form._id.trim(),
         title: form.title.trim(),
+        category: form.category.trim() || 'Uncategorized',
         type: form.type || 'reading',
+        duration: parseInt(form.duration) || 60,
         reading_passages: form.type === 'reading' ? form.reading_passages : [],
         listening_sections: form.type === 'listening' ? form.listening_sections : [],
+        writing_tasks: form.type === 'writing' ? form.writing_tasks : [],
       };
       if (editId) {
         await api.updateTest(editId, payload);
@@ -143,8 +273,12 @@ export default function AddTest() {
         setForm({
           _id: `test-${Date.now()}`,
           title: '',
+          category: '',
+          type: form.type,
+          duration: form.type === 'reading' ? 60 : form.type === 'listening' ? 35 : 45,
           reading_passages: [],
           listening_sections: [],
+          writing_tasks: [],
         });
       }
     } catch (err) {
@@ -183,21 +317,55 @@ export default function AddTest() {
             required
           />
         </div>
+        <div className="form-row">
+          <label>Category (book/series) *</label>
+          <input
+            value={form.category}
+            onChange={(e) => updateForm('category', e.target.value)}
+            placeholder="e.g. Cambridge 18"
+            required
+          />
+          <small className="form-hint">
+            Used to group tests from the same book.
+          </small>
+        </div>
 
         <div className="form-row">
           <label>Test type (skill focus) *</label>
           <select
             value={form.type || 'reading'}
-            onChange={(e) => updateForm('type', e.target.value)}
+            onChange={(e) => {
+              const newType = e.target.value;
+              updateForm('type', newType);
+              const defaultDuration = newType === 'reading' ? 60 : newType === 'listening' ? 35 : 45;
+              updateForm('duration', defaultDuration);
+            }}
           >
             <option value="reading">Reading only</option>
             <option value="listening">Listening only</option>
+            <option value="writing">Writing only</option>
           </select>
+        </div>
+
+        <div className="form-row">
+          <label>Duration (minutes) *</label>
+          <input
+            type="number"
+            min="1"
+            max="180"
+            value={form.duration}
+            onChange={(e) => updateForm('duration', e.target.value)}
+            placeholder="e.g. 60"
+            required
+          />
+          <small className="form-hint">
+            Default: Reading = 60 min, Listening = 35 min, Writing = 45 min
+          </small>
         </div>
 
         {form.type === 'reading' && (
         <div className="form-row multi-select-block">
-          <label>Reading passages (order = display order)</label>
+          <label>Reading passages (drag to reorder)</label>
           <input
             type="search"
             value={passageSearch}
@@ -230,15 +398,27 @@ export default function AddTest() {
               ))
             )}
           </div>
+          
           {form.reading_passages.length > 0 && (
-            <p className="selected-hint">{form.reading_passages.length} passage{form.reading_passages.length !== 1 ? 's' : ''} selected</p>
+            <>
+              <p className="selected-hint">Selected passages (drag ⋮⋮ to reorder):</p>
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndPassages}>
+                <SortableContext items={form.reading_passages} strategy={verticalListSortingStrategy}>
+                  <ul className="sortable-list">
+                    {form.reading_passages.map((id) => (
+                      <SortableItem key={id} id={id} title={getPassageTitle(id)} subtitle={getPassageSubtitle(id)} onRemove={removePassage} type="passage" />
+                    ))}
+                  </ul>
+                </SortableContext>
+              </DndContext>
+            </>
           )}
         </div>
         )}
 
         {form.type === 'listening' && (
         <div className="form-row multi-select-block">
-          <label>Listening sections (order = display order)</label>
+          <label>Listening sections (drag to reorder)</label>
           <input
             type="search"
             value={sectionSearch}
@@ -271,8 +451,73 @@ export default function AddTest() {
               ))
             )}
           </div>
+          
           {form.listening_sections.length > 0 && (
-            <p className="selected-hint">{form.listening_sections.length} section{form.listening_sections.length !== 1 ? 's' : ''} selected</p>
+            <>
+              <p className="selected-hint">Selected sections (drag ⋮⋮ to reorder):</p>
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndSections}>
+                <SortableContext items={form.listening_sections} strategy={verticalListSortingStrategy}>
+                  <ul className="sortable-list">
+                    {form.listening_sections.map((id) => (
+                      <SortableItem key={id} id={id} title={getSectionTitle(id)} subtitle={getSectionSubtitle(id)} onRemove={removeSection} type="section" />
+                    ))}
+                  </ul>
+                </SortableContext>
+              </DndContext>
+            </>
+          )}
+        </div>
+        )}
+
+        {form.type === 'writing' && (
+        <div className="form-row multi-select-block">
+          <label>Writing tasks (drag to reorder)</label>
+          <input
+            type="search"
+            value={writingSearch}
+            onChange={(e) => setWritingSearch(e.target.value)}
+            placeholder="Search writing tasks by title or ID..."
+            className="search-input"
+            aria-label="Search writing tasks"
+          />
+          {writingSearch.trim() && (
+            <p className="search-hint">
+              Showing {filteredWritings.length} of {writings.length} writing task{writings.length !== 1 ? 's' : ''}
+            </p>
+          )}
+          <div className="checkbox-group">
+            {writings.length === 0 ? (
+              <p className="muted">No writing tasks yet. Create writing tasks first.</p>
+            ) : filteredWritings.length === 0 ? (
+              <p className="muted">No writing tasks match your search.</p>
+            ) : (
+              filteredWritings.map((w) => (
+                <label key={w._id} className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={form.writing_tasks.includes(w._id)}
+                    onChange={() => toggleWriting(w._id)}
+                  />
+                  <span>{w.title}</span>
+                  <code>{w._id}</code>
+                </label>
+              ))
+            )}
+          </div>
+          
+          {form.writing_tasks.length > 0 && (
+            <>
+              <p className="selected-hint">Selected writing tasks (drag ⋮⋮ to reorder):</p>
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndWritings}>
+                <SortableContext items={form.writing_tasks} strategy={verticalListSortingStrategy}>
+                  <ul className="sortable-list">
+                    {form.writing_tasks.map((id) => (
+                      <SortableItem key={id} id={id} title={getWritingTitle(id)} subtitle={getWritingSubtitle(id)} onRemove={removeWriting} type="writing" />
+                    ))}
+                  </ul>
+                </SortableContext>
+              </DndContext>
+            </>
           )}
         </div>
         )}
@@ -287,16 +532,34 @@ export default function AddTest() {
 
       <h3>Existing tests</h3>
       {!editId && (
-        <ul className="manage-list">
-          {tests.length === 0 ? <li className="muted">No tests yet.</li> : tests.map((t) => (
-            <li key={t._id}>
-              <span>{t.title}</span>
-              <code>{t._id}</code>
-              <Link to={`/manage/tests/${t._id}`} className="edit-link">Edit</Link>
-              <button type="button" className="btn btn-ghost btn-sm delete-link" onClick={() => handleDeleteTest(t._id)}>Delete</button>
-            </li>
-          ))}
-        </ul>
+        <>
+          <input
+            type="search"
+            value={existingSearch}
+            onChange={(e) => setExistingSearch(e.target.value)}
+            placeholder="Search tests by title or ID..."
+            className="search-input"
+            aria-label="Search existing tests"
+          />
+          {existingSearch.trim() && (
+            <p className="search-hint">
+              Showing {filteredTests.length} of {tests.length} test{tests.length !== 1 ? 's' : ''}
+            </p>
+          )}
+          <ul className="manage-list">
+            {tests.length === 0 ? <li className="muted">No tests yet.</li> : filteredTests.length === 0 ? (
+              <li className="muted">No tests match your search.</li>
+            ) : filteredTests.map((t) => (
+              <li key={t._id}>
+                <span>{t.title}</span>
+                <code>{t._id}</code>
+                <span className="muted">{t.category || 'Uncategorized'}</span>
+                <Link to={`/manage/tests/${t._id}`} className="edit-link">Edit</Link>
+                <button type="button" className="btn btn-ghost btn-sm delete-link" onClick={() => handleDeleteTest(t._id)}>Delete</button>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </div>
   );

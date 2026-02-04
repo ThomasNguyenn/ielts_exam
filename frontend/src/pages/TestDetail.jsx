@@ -2,6 +2,48 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../api/client';
 
+function getTestTypeInfo(test) {
+  const readingCount = test.reading_passages?.length ?? 0;
+  const listeningCount = test.listening_sections?.length ?? 0;
+  const writingCount = test.writing_tasks?.length ?? 0;
+  
+  const type = test.type || 'reading';
+  
+  let metaItems = [];
+  let description = '';
+  
+  if (type === 'reading') {
+    metaItems = [
+      { label: 'Reading', count: readingCount, unit: 'passage' }
+    ];
+    description = `Take the reading test: ${readingCount} passage${readingCount !== 1 ? 's' : ''} with questions.`;
+  } else if (type === 'listening') {
+    metaItems = [
+      { label: 'Listening', count: listeningCount, unit: 'section' }
+    ];
+    description = `Take the listening test: ${listeningCount} section${listeningCount !== 1 ? 's' : ''} with questions.`;
+  } else if (type === 'writing') {
+    metaItems = [
+      { label: 'Writing', count: writingCount, unit: 'task' }
+    ];
+    description = `Take the writing test: ${writingCount} task${writingCount !== 1 ? 's' : ''} with prompts.`;
+  } else {
+    // Fallback - show all available
+    if (readingCount > 0) {
+      metaItems.push({ label: 'Reading', count: readingCount, unit: 'passage' });
+    }
+    if (listeningCount > 0) {
+      metaItems.push({ label: 'Listening', count: listeningCount, unit: 'section' });
+    }
+    if (writingCount > 0) {
+      metaItems.push({ label: 'Writing', count: writingCount, unit: 'task' });
+    }
+    description = 'Take the full test.';
+  }
+  
+  return { metaItems, description };
+}
+
 export default function TestDetail() {
   const { id } = useParams();
   const [test, setTest] = useState(null);
@@ -21,18 +63,20 @@ export default function TestDetail() {
   if (error) return <div className="page"><p className="error">Error: {error}</p></div>;
   if (!test) return <div className="page"><p className="muted">Test not found.</p></div>;
 
-  const readingCount = test.reading_passages?.length ?? 0;
-  const listeningCount = test.listening_sections?.length ?? 0;
+  const { metaItems, description } = getTestTypeInfo(test);
 
   return (
     <div className="page test-detail">
       <h1>{test.title}</h1>
       <div className="test-meta">
-        <span>Reading: {readingCount} passage{readingCount !== 1 ? 's' : ''}</span>
-        <span>Listening: {listeningCount} section{listeningCount !== 1 ? 's' : ''}</span>
+        {metaItems.map((item, index) => (
+          <span key={index}>
+            {item.label}: {item.count} {item.unit}{item.count !== 1 ? 's' : ''}
+          </span>
+        ))}
       </div>
       <section className="exam-start">
-        <p>Take the full test: reading passages and listening sections with questions.</p>
+        <p>{description}</p>
         <Link to={`/tests/${id}/exam`} className="btn btn-primary">
           Start exam
         </Link>
