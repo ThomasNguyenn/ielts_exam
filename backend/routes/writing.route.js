@@ -1,9 +1,10 @@
-import { getAllWritings, createWriting, updateWriting, deleteWriting, getWritingById, getWritingExam, submitWriting, getPendingSubmissions, getSubmissionById, scoreSubmission } from '../controllers/writing.controller.js';
+import { getAllWritings, createWriting, updateWriting, deleteWriting, getWritingById, getWritingExam, submitWriting, getSubmissions, getSubmissionById, scoreSubmission } from '../controllers/writing.controller.js';
+import { verifyToken, optionalVerifyToken } from '../middleware/auth.middleware.js';
 import express from 'express';
 const router = express.Router();
 
 router.get("/", getAllWritings);
-router.get("/submissions/pending", getPendingSubmissions); // New route for teachers
+router.get("/submissions", verifyToken, getSubmissions); // New route for teachers
 router.get("/submissions/:id", getSubmissionById); // New route for grading detail
 router.post("/", createWriting);
 router.get("/:id", getWritingById);

@@ -96,18 +96,31 @@ export default function TestHistory() {
               <tr style={{ background: '#f8fafc', color: '#64748b', fontSize: '0.9rem', fontWeight: 600 }}>
                 <th style={{ padding: '1rem', textAlign: 'left' }}>Tên bài</th>
                 <th style={{ padding: '1rem' }}>Thời gian<br />nộp bài</th>
-                <th style={{ padding: '1rem' }}>Thời gian<br />làm bài</th>
-                <th style={{ padding: '1rem' }}>Tổng<br />số câu</th>
-                <th style={{ padding: '1rem', background: '#22c55e', color: 'white' }}>Đúng</th>
-                <th style={{ padding: '1rem' }}>Sai</th>
-                <th style={{ padding: '1rem' }}>Bỏ qua</th>
-                <th style={{ padding: '1rem', width: '150px' }}>Tỉ lệ đúng</th>
+                {test?.type === 'writing' ? (
+                  <>
+                     <th style={{ padding: '1rem' }}>Task 1</th>
+                     <th style={{ padding: '1rem' }}>Task 2</th>
+                     <th style={{ padding: '1rem' }}>Overall (Band)</th>
+                     <th style={{ padding: '1rem' }}>Teacher Feedback</th>
+                  </>
+                ) : (
+                  <>
+                    <th style={{ padding: '1rem' }}>Thời gian<br />làm bài</th>
+                    <th style={{ padding: '1rem' }}>Tổng<br />số câu</th>
+                    <th style={{ padding: '1rem', background: '#22c55e', color: 'white' }}>Đúng</th>
+                    <th style={{ padding: '1rem' }}>Sai</th>
+                    <th style={{ padding: '1rem' }}>Bỏ qua</th>
+                    <th style={{ padding: '1rem', width: '150px' }}>Tỉ lệ đúng</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody>
               {scoredAttempts.map((a, index) => {
                 const { date, time } = formatDateParts(a.submitted_at);
                 const duration = formatDuration(a.time_taken_ms);
+                const isWriting = test?.type === 'writing';
+                const w = a.writing_details || {};
 
                 return (
                   <tr key={a._id || index} style={{ borderTop: '1px solid #e2e8f0' }}>
@@ -118,61 +131,81 @@ export default function TestHistory() {
                       <div style={{ fontWeight: 500, color: '#334155' }}>{date}</div>
                       <div>{time}</div>
                     </td>
-                    <td style={{ padding: '1rem', color: '#64748b' }}>
-                      {duration}
-                    </td>
-                    <td style={{ padding: '1rem', color: '#334155' }}>
-                      {a.total || 0}
-                    </td>
-                    <td style={{ padding: '1rem' }}>
-                      <span style={{
-                        color: '#22c55e',
-                        fontWeight: 600,
-                        background: '#dcfce7',
-                        padding: '0.25rem 0.75rem',
-                        borderRadius: '999px',
-                        display: 'inline-block',
-                        minWidth: '2rem'
-                      }}>
-                        {a.score || 0}
-                      </span>
-                    </td>
-                    <td style={{ padding: '1rem' }}>
-                      <span style={{
-                        color: '#ef4444',
-                        fontWeight: 600,
-                        background: '#fee2e2',
-                        padding: '0.25rem 0.75rem',
-                        borderRadius: '999px',
-                        display: 'inline-block',
-                        minWidth: '2rem'
-                      }}>
-                        {a.calculatedWrong}
-                      </span>
-                    </td>
-                    <td style={{ padding: '1rem' }}>
-                      <span style={{
-                        color: '#64748b',
-                        fontWeight: 600,
-                        background: '#f1f5f9',
-                        padding: '0.25rem 0.75rem',
-                        borderRadius: '999px',
-                        display: 'inline-block',
-                        minWidth: '2rem'
-                      }}>
-                        {a.calculatedSkipped}
-                      </span>
-                    </td>
-                    <td style={{ padding: '1rem', verticalAlign: 'middle' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                        <span style={{ fontWeight: 700, color: '#334155', textAlign: 'left' }}>
-                          {a.pct}%
-                        </span>
-                        <div style={{ height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
-                          <div style={{ width: `${a.pct}%`, height: '100%', background: '#22c55e' }} />
-                        </div>
-                      </div>
-                    </td>
+                    
+                    {isWriting ? (
+                      <>
+                        <td style={{ padding: '1rem' }}>{w.task1_score ?? '--'}</td>
+                        <td style={{ padding: '1rem' }}>{w.task2_score ?? '--'}</td>
+                        <td style={{ padding: '1rem' }}>
+                           <span style={{ fontWeight: 'bold', color: '#2563eb' }}>{a.score ?? '--'}</span>
+                        </td>
+                         <td style={{ padding: '1rem', fontSize: '0.9rem', textAlign: 'left', maxWidth: '300px' }}>
+                           {w.feedback ? (
+                             <div style={{maxHeight:'60px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'pre-wrap'}}>
+                               {w.feedback}
+                             </div>
+                           ) : <span className="muted">No feedback yet</span>}
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td style={{ padding: '1rem', color: '#64748b' }}>
+                          {duration}
+                        </td>
+                        <td style={{ padding: '1rem', color: '#334155' }}>
+                          {a.total || 0}
+                        </td>
+                        <td style={{ padding: '1rem' }}>
+                          <span style={{
+                            color: '#22c55e',
+                            fontWeight: 600,
+                            background: '#dcfce7',
+                            padding: '0.25rem 0.75rem',
+                            borderRadius: '999px',
+                            display: 'inline-block',
+                            minWidth: '2rem'
+                          }}>
+                            {a.score || 0}
+                          </span>
+                        </td>
+                        <td style={{ padding: '1rem' }}>
+                          <span style={{
+                            color: '#ef4444',
+                            fontWeight: 600,
+                            background: '#fee2e2',
+                            padding: '0.25rem 0.75rem',
+                            borderRadius: '999px',
+                            display: 'inline-block',
+                            minWidth: '2rem'
+                          }}>
+                            {a.calculatedWrong}
+                          </span>
+                        </td>
+                        <td style={{ padding: '1rem' }}>
+                          <span style={{
+                            color: '#64748b',
+                            fontWeight: 600,
+                            background: '#f1f5f9',
+                            padding: '0.25rem 0.75rem',
+                            borderRadius: '999px',
+                            display: 'inline-block',
+                            minWidth: '2rem'
+                          }}>
+                            {a.calculatedSkipped}
+                          </span>
+                        </td>
+                        <td style={{ padding: '1rem', verticalAlign: 'middle' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                            <span style={{ fontWeight: 700, color: '#334155', textAlign: 'left' }}>
+                              {a.pct}%
+                            </span>
+                            <div style={{ height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
+                              <div style={{ width: `${a.pct}%`, height: '100%', background: '#22c55e' }} />
+                            </div>
+                          </div>
+                        </td>
+                      </>
+                    )}
                   </tr>
                 );
               })}

@@ -78,6 +78,7 @@ export const api = {
   createTest: (body) => request('/api/tests', { method: 'POST', body: JSON.stringify(body) }),
   updateTest: (id, body) => request(`/api/tests/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteTest: (id) => request(`/api/tests/${id}`, { method: 'DELETE' }),
+  renumberTestQuestions: (id) => request(`/api/tests/${id}/renumber`, { method: 'POST' }),
 
   // Passages (Reading)
   getPassages: () => request('/api/passages'),
@@ -102,7 +103,7 @@ export const api = {
   updateWriting: (id, body) => request(`/api/writings/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteWriting: (id) => request(`/api/writings/${id}`, { method: 'DELETE' }),
   // Grading
-  getPendingSubmissions: () => request('/api/writings/submissions/pending'),
+  getSubmissions: (status) => request(`/api/writings/submissions${status ? `?status=${status}` : ''}`),
   getSubmissionById: (id) => request(`/api/writings/submissions/${id}`),
   scoreSubmission: (id, body) => request(`/api/writings/submissions/${id}/score`, { method: 'POST', body: JSON.stringify(body) }),
 

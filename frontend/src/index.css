@@ -12,7 +12,7 @@
   --color-text-muted: #64748b;
   --color-accent: #0284c7;
   --color-accent-hover: #0369a1;
-  --font-sans: 'DM Sans', system-ui, sans-serif;
+  --font-sans: 'Open Sans', system-ui, sans-serif;
 }
 
 body {
@@ -46,4 +46,18 @@ input,
 select,
 textarea {
   font-family: inherit;
+}
+
+/* Fix for highlight layout shifting */
+.ielts-highlight {
+  background-color: #fef08a !important;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.ielts-highlight:hover {
+  filter: brightness(0.95);
+}
+/* Ensure tokens don't break layout */
+.token-word {
+  display: inline;
 }
