@@ -40,7 +40,7 @@ const ResultPhase = ({ result, onRestart }) => {
             </div>
 
             <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1.5rem' }}>
-                <h3 className="section-title">Paraphrased Version (Band 8.0 Style)</h3>
+                <h3 className="section-title">Bài mẫu Band 8.0 (Model Essay)</h3>
                 <div className="paraphrase-box">
                     {result.corrected_essay}
                 </div>

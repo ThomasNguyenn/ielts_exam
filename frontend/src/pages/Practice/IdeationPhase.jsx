@@ -100,8 +100,8 @@ const IdeationPhase = ({ question, onNext }) => {
                 {feedback ? (
                     <div className="feedback-box">
                         <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1rem' }}>
-                            <span style={{ fontWeight: 600, marginRight: '1rem' }}>Coherence Score:</span>
-                            <span className="feedback-score">{feedback.coherence_score}/9.0</span>
+                            <span style={{ fontWeight: 600, marginRight: '1rem' }}>Score:</span>
+                            <span className="feedback-score">{feedback.coherence_score}/100</span>
                         </div>
 
                         <div style={{ marginBottom: '1rem' }}>

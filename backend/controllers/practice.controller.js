@@ -48,13 +48,21 @@ export const checkOutline = async (req, res) => {
       - Development Method: ${outline.developmentMethod}
       - Topic Sentences: ${outline.topicSentences.join(', ')}
       
-      Evaluate this outline for Coherence & Cohesion and Task Response.
-      Provide suggested improvements to reach Band 7+.
+      Tasks:
+      1. Evaluate the relevance and depth of the ideas. 
+      2. CRITICAL: If the outline is empty, vague, or off-topic, give a score < 30.
+      3. If the ideas are generic or lack development, give a score < 50.
+      
+      Output Requirements:
+      - Feedback in VIETNAMESE.
+      - Suggestions to improve depth and coherence (Band 7+).
+      - Score on a 0-100 scale based on Quality & Relevance.
+
       Return ONLY valid JSON in this format:
       {
-        "general_feedback": "string",
-        "improvements": ["string", "string"],
-        "coherence_score": number (0-9)
+        "general_feedback": "string (in Vietnamese)",
+        "improvements": ["string (in Vietnamese)", "string"],
+        "coherence_score": number (0-100)
       }
     `;
 
@@ -94,7 +102,7 @@ export const generateMaterials = async (req, res) => {
       Generate learning materials for an IELTS Band 7+ essay on this topic.
       Return ONLY valid JSON:
       {
-        "vocab": [ { "word": "string", "meaning": "string", "collocation": "string" } ] (10 items),
+        "vocab": [ { "word": "string", "meaning": "string (in Vietnamese)", "collocation": "string" } ] (10 items),
         "structures": [ { "structure": "string", "example": "string" } ] (3 items),
         "translations": [ { "vietnamese": "string", "english_ref": "string" } ] (5 items, related to topic)
       }
@@ -135,16 +143,17 @@ export const submitWriting = async (req, res) => {
       Student Essay: ${fullEssay}
       
       Tasks:
-      1. Estimate Band Score (0-9).
+      1. Estimate Band Score (0-9) strictly following official IELTS criteria.
       2. Score 4 criteria: Task Response, Cohesion, Lexical, Grammar.
-      3. Rewrite sentence text to Band 8.0 style (Paraphrasing).
+      3. Generate a complete Band 8.0 Model Essay for this topic (Ignore student's content for this part).
+      4. Provide detailed feedback in VIETNAMESE.
       
-      Return ONLY valid JSON:
+      Return ONLY valid JSON in this format:
       {
         "band_score": number,
         "criteria_scores": { "task_response": number, "coherence_cohesion": number, "lexical_resource": number, "grammatical_range_accuracy": number },
-        "corrected_essay": "string (the full rewritten essay)",
-        "feedback": ["string"]
+        "corrected_essay": "string (The complete Band 8.0 Model Essay)",
+        "feedback": ["string (in Vietnamese)"]
       }
     `;
 
