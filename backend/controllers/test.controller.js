@@ -185,6 +185,61 @@ export const deleteTest = async (req, res) => {
     }
 };
 
+export const renumberTestQuestions = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const test = await Test.findById(id)
+            .populate('reading_passages')
+            .populate('listening_sections');
+            
+        if (!test) {
+            return res.status(404).json({ success: false, message: "Test not found" });
+        }
+
+        let currentQNum = 1;
+        
+        // Helper to renumber an item (Passage or Section)
+        const renumberItem = async (item, modelName) => {
+             if (!item || !item.question_groups) return;
+             
+             let modified = false;
+             item.question_groups.forEach(g => {
+                 g.questions.forEach(q => {
+                     q.q_number = currentQNum++;
+                     modified = true;
+                 });
+             });
+             
+             if (modified) {
+                 // Save the underlying document
+                 if (modelName === 'Passage') {
+                      await mongoose.model('Passage').findByIdAndUpdate(item._id, { question_groups: item.question_groups });
+                 } else if (modelName === 'Section') {
+                      await mongoose.model('Section').findByIdAndUpdate(item._id, { question_groups: item.question_groups });
+                 }
+             }
+        };
+
+        const type = test.type || 'reading';
+        
+        if (type === 'reading') {
+            for (const p of test.reading_passages || []) {
+                await renumberItem(p, 'Passage');
+            }
+        } else if (type === 'listening') {
+            for (const s of test.listening_sections || []) {
+                await renumberItem(s, 'Section');
+            }
+        }
+
+        res.status(200).json({ success: true, message: `Renumbered questions 1 to ${currentQNum - 1}` });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ success: false, message: "Server Error: " + error.message });
+    }
+};
+
 export const getTheTestById = async (req, res) => {
     const { id } = req.params;
     try {
@@ -212,7 +267,9 @@ function stripForExam(item) {
         question_groups: (item.question_groups || []).map((g) => ({
             type: g.type,
             instructions: g.instructions,
+            text: g.text, // Include summary text
             headings: g.headings,
+            options: g.options, // Include summary options
             questions: (g.questions || []).map((q) => ({
                 q_number: q.q_number,
                 text: q.text,

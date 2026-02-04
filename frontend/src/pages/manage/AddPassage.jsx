@@ -8,6 +8,7 @@ const QUESTION_GROUP_TYPES = [
   { value: 'gap_fill', label: 'Gap fill' },
   { value: 'matching_headings', label: 'Matching headings' },
   { value: 'matching_features', label: 'Matching features' },
+  { value: 'summary_completion', label: 'Summary completion' },
 ];
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D'];
@@ -26,11 +27,17 @@ function emptyHeading() {
   return { id: '', text: '' };
 }
 
+function emptyOption() {
+  return { id: '', text: '' };
+}
+
 function emptyQuestionGroup() {
   return {
     type: 'mult_choice',
     instructions: '',
     headings: [],
+    options: [],
+    text: '',
     questions: [emptyQuestion(1)],
   };
 }
@@ -41,7 +48,9 @@ function passageToForm(p) {
     ? p.question_groups.map((g) => ({
         type: g.type || 'mult_choice',
         instructions: g.instructions || '',
+        text: g.text || '',
         headings: (g.headings || []).map((h) => ({ id: h.id || '', text: h.text || '' })),
+        options: (g.options || []).map((o) => ({ id: o.id || '', text: o.text || '' })),
         questions: (g.questions || []).map((q, i) => ({
           q_number: q.q_number ?? i + 1,
           text: q.text || '',
@@ -155,11 +164,29 @@ export default function AddPassage() {
     }));
   };
 
+  // Helper to find the next available question number across ALL groups
+  const getNextQuestionNumber = (currentQuestionGroups) => {
+    let maxNum = 0;
+    currentQuestionGroups.forEach(g => {
+      g.questions.forEach(q => {
+        if (q.q_number > maxNum) maxNum = q.q_number;
+      });
+    });
+    return maxNum + 1;
+  };
+
   const addQuestionGroup = () => {
-    setForm((prev) => ({
-      ...prev,
-      question_groups: [...prev.question_groups, emptyQuestionGroup()],
-    }));
+    setForm((prev) => {
+      const nextNum = getNextQuestionNumber(prev.question_groups);
+      // Create new group with start question number
+      const newGroup = emptyQuestionGroup();
+      newGroup.questions[0].q_number = nextNum;
+      
+      return {
+        ...prev,
+        question_groups: [...prev.question_groups, newGroup],
+      };
+    });
   };
 
   const removeQuestionGroup = (groupIndex) => {
@@ -191,7 +218,8 @@ export default function AddPassage() {
       ...prev,
       question_groups: prev.question_groups.map((g, gi) => {
         if (gi !== groupIndex) return g;
-        const nextNum = g.questions.length + 1;
+        // Find next number globally, not just local length
+        const nextNum = getNextQuestionNumber(prev.question_groups);
         return { ...g, questions: [...g.questions, emptyQuestion(nextNum)] };
       }),
     }));
@@ -276,6 +304,57 @@ export default function AddPassage() {
     }));
   };
 
+  // --- Handlers for Summary Options ---
+  const addOption = (groupIndex) => {
+    setForm((prev) => ({
+      ...prev,
+      question_groups: prev.question_groups.map((g, gi) =>
+        gi === groupIndex
+          ? { ...g, options: [...(g.options || []), emptyOption()] }
+          : g
+      ),
+    }));
+  };
+
+  const removeOption = (groupIndex, optionIndex) => {
+    setForm((prev) => ({
+      ...prev,
+      question_groups: prev.question_groups.map((g, gi) =>
+        gi === groupIndex
+          ? { ...g, options: (g.options || []).filter((_, oi) => oi !== optionIndex) }
+          : g
+      ),
+    }));
+  };
+
+  const updateOption = (groupIndex, optionIndex, key, value) => {
+    setForm((prev) => ({
+      ...prev,
+      question_groups: prev.question_groups.map((g, gi) =>
+        gi === groupIndex
+          ? {
+              ...g,
+              options: (g.options || []).map((o, oi) =>
+                oi === optionIndex ? { ...o, [key]: value } : o
+              ),
+            }
+          : g
+      ),
+    }));
+  };
+
+  const moveGroup = (index, direction) => {
+    setForm((prev) => {
+      const groups = [...prev.question_groups];
+      const newIndex = index + direction;
+      if (newIndex < 0 || newIndex >= groups.length) return prev;
+      
+      const [movedGroup] = groups.splice(index, 1);
+      groups.splice(newIndex, 0, movedGroup);
+      return { ...prev, question_groups: groups };
+    });
+  };
+
   const handleDeletePassage = async (passageId) => {
     if (!window.confirm('Delete this passage? This cannot be undone.')) return;
     try {
@@ -304,8 +383,12 @@ export default function AddPassage() {
       question_groups: form.question_groups.map((g) => ({
         type: g.type,
         instructions: g.instructions || undefined,
+        text: g.text || undefined,
         headings: (g.headings || []).filter((h) => h.id && h.text).length
           ? (g.headings || []).filter((h) => h.id && h.text)
+          : undefined,
+        options: (g.options || []).filter((o) => o.id && o.text).length
+          ? (g.options || []).filter((o) => o.id && o.text)
           : undefined,
         questions: g.questions.map((q) => ({
           q_number: q.q_number,
@@ -316,8 +399,19 @@ export default function AddPassage() {
         })),
       })),
     };
-    if (payload.question_groups.some((g) => !g.questions.length || g.questions.some((q) => !q.text || !q.correct_answers?.length))) {
-      setError('Each question group must have at least one question with text and correct answer(s).');
+    const invalidGroups = payload.question_groups.filter(g => {
+        if (!g.questions.length) return true;
+        
+        // For standard types, text is required. For summary, it's not.
+        if (g.type === 'summary_completion') {
+           return g.questions.some(q => !q.correct_answers?.length);
+        }
+        
+        return g.questions.some(q => !q.text || !q.correct_answers?.length);
+    });
+
+    if (invalidGroups.length > 0) {
+      setError('Each question group must have at least one question with correct answer(s). For standard questions, text is also required.');
       return;
     }
     const matchingTypeGroups = payload.question_groups.filter(
@@ -406,11 +500,17 @@ export default function AddPassage() {
               <div className="block-header">
                 <span className="group-title">Group {gi + 1}</span>
                 <div className="block-actions">
-                  <button type="button" className="btn btn-ghost btn-sm collapse-btn" onClick={() => toggleGroupCollapse(gi)}>
-                    {isGroupCollapsed ? '▼ Expand' : '▲ Collapse'}
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => moveGroup(gi, -1)} disabled={gi === 0} title="Move Up">
+                    ▲
                   </button>
-                  <button type="button" className="btn btn-ghost" onClick={() => removeQuestionGroup(gi)} disabled={form.question_groups.length <= 1}>
-                    Remove group
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => moveGroup(gi, 1)} disabled={gi === form.question_groups.length - 1} title="Move Down">
+                    ▼
+                  </button>
+                  <button type="button" className="btn btn-ghost btn-sm collapse-btn" onClick={() => toggleGroupCollapse(gi)}>
+                    {isGroupCollapsed ? 'Expand' : 'Collapse'}
+                  </button>
+                  <button type="button" className="btn btn-ghost" onClick={() => removeQuestionGroup(gi)} disabled={form.question_groups.length <= 1} style={{color: '#ef4444'}}>
+                    Remove
                   </button>
                 </div>
               </div>
@@ -436,6 +536,18 @@ export default function AddPassage() {
                       rows={2}
                     />
                   </div>
+                  
+                  {group.type === 'summary_completion' && (
+                    <div className="form-row">
+                      <label>Summary Text (Use [q_number] for gaps, e.g. "The umpire needed a [33] to decide.")</label>
+                      <textarea
+                        value={group.text}
+                        onChange={(e) => updateQuestionGroup(gi, 'text', e.target.value)}
+                        placeholder="Enter the summary text with gaps like [1], [2]..."
+                        rows={4}
+                      />
+                    </div>
+                  )}
 
                   {(group.type === 'matching_headings' || group.type === 'matching_features') && (
                     <>
@@ -470,68 +582,171 @@ export default function AddPassage() {
                     </>
                   )}
 
-                  <h4>Questions</h4>
-                  {group.questions.map((q, qi) => {
-                    const isQuestionCollapsed = collapsedQuestions.has(`${gi}-${qi}`);
-                    return (
-                      <div key={qi} className={`question-block ${isQuestionCollapsed ? 'collapsed' : ''}`}>
-                        <div className="question-block-header">
-                          <span className="question-label">Q{q.q_number}</span>
-                          <button type="button" className="btn btn-ghost btn-sm collapse-btn" onClick={() => toggleQuestionCollapse(gi, qi)}>
-                            {isQuestionCollapsed ? '▼ Expand' : '▲ Collapse'}
+                  {group.type === 'summary_completion' && (
+                    <>
+                      <h4>Options (list of phrases to fill in gaps)</h4>
+                      <p className="form-hint">Add the list of phrases/words. Use IDs like A, B, C... The correct answer for each gap will be this ID.</p>
+                      {(group.options || []).map((o, oi) => (
+                        <div key={oi} className="heading-row">
+                          <input
+                            value={o.id}
+                            onChange={(e) => updateOption(gi, oi, 'id', e.target.value)}
+                            placeholder="e.g. A, B, C"
+                            className="heading-id"
+                          />
+                          <input
+                            value={o.text}
+                            onChange={(e) => updateOption(gi, oi, 'text', e.target.value)}
+                            placeholder="Option phrase"
+                            className="heading-text"
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => removeOption(gi, oi)}
+                          >
+                            Remove
                           </button>
                         </div>
-                        {!isQuestionCollapsed && (
-                          <>
-                            <div className="form-row">
-                              <label>Q{q.q_number} - Question text *</label>
-                              <textarea
-                                value={q.text}
-                                onChange={(e) => updateQuestion(gi, qi, 'text', e.target.value)}
-                                placeholder="Question text"
-                                rows={2}
-                              />
+                      ))}
+                      <button type="button" className="btn btn-ghost" onClick={() => addOption(gi)}>
+                        + Add option
+                      </button>
+                    </>
+                  )}
+
+                  <h4>{group.type === 'summary_completion' ? 'Gap Answer Key' : 'Questions'}</h4>
+                  
+                  {/* SIMPLIFIED VIEW FOR SUMMARY COMPLETION */}
+                  {group.type === 'summary_completion' ? (
+                     <div className="gap-answers-list">
+                       <p className="form-hint">Define the answer key for each gap number (e.g. Q33, Q34). The Q number must match the [number] in the text.</p>
+                       <table className="gap-answers-table" style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '1rem' }}>
+                         <thead>
+                           <tr style={{ background: '#f3f4f6', textAlign: 'left' }}>
+                             <th style={{ padding: '8px', width: '80px' }}>Gap #</th>
+                             <th style={{ padding: '8px' }}>Correct Option ID</th>
+                             <th style={{ padding: '8px' }}>Explanation (Optional)</th>
+                             <th style={{ padding: '8px', width: '80px' }}>Action</th>
+                           </tr>
+                         </thead>
+                         <tbody>
+                           {group.questions.map((q, qi) => (
+                             <tr key={qi} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                               <td style={{ padding: '8px' }}>
+                                 <input
+                                   type="number"
+                                   value={q.q_number}
+                                   onChange={(e) => updateQuestion(gi, qi, 'q_number', parseInt(e.target.value) || 0)}
+                                   style={{ width: '60px', padding: '4px' }}
+                                 />
+                               </td>
+                               <td style={{ padding: '8px' }}>
+                                 <input
+                                   value={q.correct_answers?.join(', ') ?? ''}
+                                   onChange={(e) => setCorrectAnswers(gi, qi, e.target.value)}
+                                   placeholder="e.g. A"
+                                   style={{ width: '100%', padding: '4px' }}
+                                 />
+                               </td>
+                               <td style={{ padding: '8px' }}>
+                                 <input
+                                   value={q.explanation ?? ''}
+                                   onChange={(e) => updateQuestion(gi, qi, 'explanation', e.target.value)}
+                                   placeholder="Explanation"
+                                   style={{ width: '100%', padding: '4px' }}
+                                 />
+                               </td>
+                               <td style={{ padding: '8px' }}>
+                                 <button
+                                   type="button"
+                                   className="btn btn-ghost btn-sm"
+                                   onClick={() => removeQuestion(gi, qi)}
+                                   style={{ color: '#ef4444' }}
+                                 >
+                                   Remove
+                                 </button>
+                               </td>
+                             </tr>
+                           ))}
+                         </tbody>
+                       </table>
+                       <button type="button" className="btn btn-ghost btn-sm" onClick={() => addQuestion(gi)}>
+                         + Add Gap Answer
+                       </button>
+                     </div>
+                  ) : (
+                    /* STANDARD QUESTION LIST FOR OTHER TYPES */
+                    <>
+                      {group.questions.map((q, qi) => {
+                        const isQuestionCollapsed = collapsedQuestions.has(`${gi}-${qi}`);
+                        return (
+                          <div key={qi} className={`question-block ${isQuestionCollapsed ? 'collapsed' : ''}`}>
+                            <div className="question-block-header">
+                              <span className="question-label">Q{q.q_number}</span>
+                              <button type="button" className="btn btn-ghost btn-sm collapse-btn" onClick={() => toggleQuestionCollapse(gi, qi)}>
+                                {isQuestionCollapsed ? '▼ Expand' : '▲ Collapse'}
+                              </button>
                             </div>
-                            {(group.type === 'mult_choice' || group.type === 'true_false_notgiven') && (
-                              <div className="form-row options-row">
-                                <label>Options</label>
-                                {q.option?.map((opt, oi) => (
+                            {!isQuestionCollapsed && (
+                              <>
+                                <div className="form-row">
+                                  <label>Q{q.q_number} - Question text {group.type !== 'summary_completion' && '*'}</label>
+                                  {group.type === 'summary_completion' ? (
+                                    <p className="form-item-note" style={{ color: '#666', fontStyle: 'italic', margin: '0' }}>
+                                      (Not needed for Summary Completion. The question is the gap [{q.q_number}] in the summary text above.)
+                                    </p>
+                                  ) : (
+                                    <textarea
+                                      value={q.text}
+                                      onChange={(e) => updateQuestion(gi, qi, 'text', e.target.value)}
+                                      placeholder="Question text"
+                                      rows={2}
+                                    />
+                                  )}
+                                </div>
+                                {(group.type === 'mult_choice' || group.type === 'true_false_notgiven') && (
+                                  <div className="form-row options-row">
+                                    <label>Options</label>
+                                    {q.option?.map((opt, oi) => (
+                                      <input
+                                        key={oi}
+                                        value={opt.text}
+                                        onChange={(e) => setQuestionOption(gi, qi, oi, e.target.value)}
+                                        placeholder={`Option ${opt.label}`}
+                                      />
+                                    ))}
+                                  </div>
+                                )}
+                                <div className="form-row">
+                                  <label>Correct answer(s) * (comma-separated for multiple)</label>
                                   <input
-                                    key={oi}
-                                    value={opt.text}
-                                    onChange={(e) => setQuestionOption(gi, qi, oi, e.target.value)}
-                                    placeholder={`Option ${opt.label}`}
+                                    value={q.correct_answers?.join(', ') ?? ''}
+                                    onChange={(e) => setCorrectAnswers(gi, qi, e.target.value)}
+                                    placeholder="e.g. A or car, automobile"
                                   />
-                                ))}
-                              </div>
+                                </div>
+                                <div className="form-row">
+                                  <label>Explanation</label>
+                                  <input
+                                    value={q.explanation ?? ''}
+                                    onChange={(e) => updateQuestion(gi, qi, 'explanation', e.target.value)}
+                                    placeholder="Optional"
+                                  />
+                                </div>
+                              </>
                             )}
-                            <div className="form-row">
-                              <label>Correct answer(s) * (comma-separated for multiple)</label>
-                              <input
-                                value={q.correct_answers?.join(', ') ?? ''}
-                                onChange={(e) => setCorrectAnswers(gi, qi, e.target.value)}
-                                placeholder="e.g. A or car, automobile"
-                              />
-                            </div>
-                            <div className="form-row">
-                              <label>Explanation</label>
-                              <input
-                                value={q.explanation ?? ''}
-                                onChange={(e) => updateQuestion(gi, qi, 'explanation', e.target.value)}
-                                placeholder="Optional"
-                              />
-                            </div>
-                          </>
-                        )}
-                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeQuestion(gi, qi)} disabled={group.questions.length <= 1}>
-                          Remove question
-                        </button>
-                      </div>
-                    );
-                  })}
-                  <button type="button" className="btn btn-ghost" onClick={() => addQuestion(gi)}>
-                    + Add question
-                  </button>
+                            <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeQuestion(gi, qi)} disabled={group.questions.length <= 1}>
+                              Remove question
+                            </button>
+                          </div>
+                        );
+                      })}
+                      <button type="button" className="btn btn-ghost" onClick={() => addQuestion(gi)}>
+                        + Add question
+                      </button>
+                    </>
+                  )}
                 </>
               )}
             </div>

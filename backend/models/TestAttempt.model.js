@@ -11,6 +11,13 @@ const TestAttemptSchema = new mongoose.Schema({
   percentage: { type: Number, default: null },
   time_taken_ms: { type: Number, default: null },
   submitted_at: { type: Date, default: Date.now },
+  
+  // Extra details for writing attempts
+  writing_details: {
+    task1_score: Number,
+    task2_score: Number,
+    feedback: String
+  }
 }, { timestamps: true });
 
 TestAttemptSchema.index({ user_id: 1, test_id: 1, submitted_at: -1 });

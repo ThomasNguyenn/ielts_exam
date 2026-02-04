@@ -147,19 +147,21 @@ export const submitWriting = async (req, res) => {
 };
 
 /** Get pending submissions for teacher */
-export const getPendingSubmissions = async (req, res) => {
+/** Get submissions with status filtering */
+export const getSubmissions = async (req, res) => {
     try {
-        // dynamic import to avoid circular dependency issues if any, 
-        // though normally top-level import is fine. Using top-level is better practice usually.
-        // But for consistency with above correction:
+        const { status } = req.query; 
+        const filter = {};
+        if (status) filter.status = status;
+
         const WritingSubmission = (await import("../models/WritingSubmission.model.js")).default;
 
-        const submissions = await WritingSubmission.find({ status: 'pending' })
+        const submissions = await WritingSubmission.find(filter)
             .sort({ submitted_at: -1 });
 
         res.status(200).json({ success: true, data: submissions });
     } catch (error) {
-        console.error("Get pending submissions error:", error);
+        console.error("Get submissions error:", error);
         res.status(500).json({ success: false, message: "Server Error" });
     }
 };
@@ -212,20 +214,52 @@ export const scoreSubmission = async (req, res) => {
 
         // If linked to a TestAttempt, update it
         if (submission.attempt_id) {
-            // Calculate overall band score (simple average for now)
+            // Calculate overall band score
+            // Formula: (Task 2 * 2 + Task 1) / 3
+            // Note: We need to know which score corresponds to which task type.
+            // Writing Task 1 (task_type 1) vs Task 2 (task_type 2).
+            // But 'scores' array doesn't explicitly store 'task_type' unless we populate or infer it.
+            // Assuming task 1 is index 0 and task 2 is index 1 for standard 2-task tests.
+            // However, better to rely on task_type if available. 
+            // Since we don't have task_type easily here without population, we will rely on strict order OR title?
+            // Safer approach: Just average if unsure, but user requested specific formula.
+            // Let's assume standard IELTS order: Task 1 then Task 2.
+            
             const validScores = submission.scores.filter(s => typeof s.score === 'number');
+            
             if (validScores.length > 0) {
-                const totalScore = validScores.reduce((sum, s) => sum + s.score, 0);
-                const averageScore = totalScore / validScores.length;
-                // Round to nearest 0.5 for IELTS band? 
-                // Let's just store the raw average or round nicely.
-                const roundedScore = Math.round(averageScore * 2) / 2;
+                let finalScore = 0;
+                
+                // If we have exactly 2 scores, apply the formula assuming [Task 1, Task 2] order
+                if (validScores.length === 2) {
+                    const task1Score = validScores[0].score;
+                    const task2Score = validScores[1].score;
+                    // (Task 2 * 2 + Task 1) / 3
+                    const rawWeighted = (task2Score * 2 + task1Score) / 3;
+                    // Round to nearest 0.5
+                    finalScore = Math.round(rawWeighted * 2) / 2;
+                } else {
+                    // Fallback to simple average
+                    const sum = validScores.reduce((a, b) => a + b.score, 0);
+                    const avg = sum / validScores.length;
+                    finalScore = Math.round(avg * 2) / 2;
+                }
+
+                // Assume Task 1 is first, Task 2 is second in validScores if matched by title/order
+                // We will try to map by task_title or order if possible, but for now rely on index
+                const task1 = validScores[0];
+                const task2 = validScores[1];
 
                 await TestAttempt.findByIdAndUpdate(submission.attempt_id, {
-                    score: roundedScore,
-                    total: 9, // Total allowed band is 9
-                    percentage: Math.round((roundedScore / 9) * 100),
-                    status: 'scored'
+                    score: finalScore,
+                    total: 9, 
+                    percentage: Math.round((finalScore / 9) * 100),
+                    status: 'scored',
+                    writing_details: {
+                        task1_score: task1 ? task1.score : null,
+                        task2_score: task2 ? task2.score : null,
+                        feedback: (task1?.feedback || '') + (task2?.feedback ? '\n\n' + task2.feedback : '')
+                    }
                 });
             }
         }

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import parse from 'html-react-parser';
 import { api } from '../api/client';
+import IELTSAudioPlayer from '../components/IELTSAudioPlayer';
+import IELTSSettings from '../components/IELTSSettings';
 
 /** IELTS Band Score Calculator */
 function calculateIELTSBand(correctCount, testType) {
@@ -131,29 +133,63 @@ function QuestionInput({ slot, value, onChange, index }) {
     );
   }
 
-  // --- ĐIỀN TỪ (Gap Fill) ---
+  // --- ĐIỀN TỪ (Gap Fill) - Inline numbered box ---
   if (slot.type === 'gap_fill') {
     return (
       <input
         type="text"
-        className="exam-input text-center font-bold text-blue-700 border-b-2 border-gray-300 focus:border-blue-500 outline-none px-2"
-        placeholder={`(${index + 1})`}
+        className="gap-fill-input"
+        placeholder={`${index + 1}`}
         autoComplete="off"
         {...common}
       />
     );
   }
 
-  // --- NỐI TIÊU ĐỀ (Dropdown) ---
+  // --- MATCHING (Drag and Drop) - Just render drop zone, options pool is at group level ---
   if (slot.type === 'matching_headings' || slot.type === 'matching_features') {
     const options = slot.headings || [];
+    const selectedOption = options.find(h => h.id === value);
+    
+    const handleDrop = (e) => {
+      e.preventDefault();
+      const droppedId = e.dataTransfer.getData('headingId');
+      onChange(droppedId);
+    };
+
+    const handleDragOver = (e) => {
+      e.preventDefault();
+    };
+
+    const handleRemove = () => {
+      onChange('');
+    };
+
     return (
-      <select className="exam-select" {...common}>
-        <option value="">-- Choose --</option>
-        {options.map((h) => (
-          <option key={h.id} value={h.id}>{h.id}. {h.text}</option>
-        ))}
-      </select>
+      <div
+        className={`matching-dropzone ${selectedOption ? 'has-value' : ''}`}
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+      >
+        {selectedOption ? (
+          <div className="matching-selected">
+            <span className="matching-chip-id">{selectedOption.id}</span>
+            <span className="matching-chip-text">{selectedOption.text}</span>
+            <button
+              type="button"
+              className="matching-remove"
+              onClick={handleRemove}
+              title="Remove selection"
+            >
+              ✕
+            </button>
+          </div>
+        ) : (
+          <div className="matching-placeholder">
+            Drag here
+          </div>
+        )}
+      </div>
     );
   }
 
@@ -209,133 +245,370 @@ function ListeningAudioPlayer({ audioUrl }) {
   );
 }
 
+/** Inline Drop Zone for Summary Completion */
+function SummaryDropZone({ value, onChange, index, options, displayNumber }) {
+  const selectedOption = (options || []).find(o => o.id === value);
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    const droppedId = e.dataTransfer.getData('optionId');
+    if (droppedId) onChange(droppedId);
+  };
+
+  const handleDragOver = (e) => e.preventDefault();
+
+  return (
+    <span
+      className={`summary-dropzone ${selectedOption ? 'has-value' : ''}`}
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+      onClick={() => onChange('')} 
+      title={selectedOption ? "Click to remove" : "Drop answer here"}
+    >
+      {selectedOption ? (
+        <span className="summary-selected-chip">
+           <span className="summary-chip-id">{selectedOption.id}</span>
+           <span className="summary-chip-text">{selectedOption.text}</span>
+        </span>
+      ) : (
+        <span style={{color: '#9ca3af', fontSize: '0.9rem', fontWeight: 'bold'}}>{displayNumber || index + 1}</span>
+      )}
+    </span>
+  );
+}
+
+// ... (previous imports)
+import { useRef } from 'react';
+
+// ... (existing helper functions)
+
+import HighlightableContent from '../components/HighlightableContent';
+
 /** One step: passage/section content + its questions (with slot indices) */
-function StepContent({ step, slots, answers, setAnswer }) {
+function StepContent({ step, slots, answers, setAnswer, passageStates, setPassageState }) {
   const { item, startSlotIndex, endSlotIndex, type } = step;
   const isReading = type === 'reading';
   const isListening = type === 'listening';
   const hasAudio = isListening && item.audio_url;
   let slotIndex = startSlotIndex;
 
+  // Use persisted HTML if available, otherwise original content
+  const contentHtml = (passageStates && passageStates[item._id]) || (item.content || '').replace(/\n/g, '<br />');
+
+  const handleHtmlUpdate = (id, newHtml) => {
+      if (setPassageState) {
+          setPassageState(prev => ({ ...prev, [id]: newHtml }));
+      }
+  };
+
   const questionsBlock = (
     <div className="exam-step-questions">
-      {(item.question_groups || []).map((group, groupIdx) => (
-        <div key={group.type + slotIndex + groupIdx} className="exam-group">
+      {(item.question_groups || []).map((group, groupIdx) => {
+        // Check for special group types
+        const isMatching = group.type === 'matching_headings' || group.type === 'matching_features';
+        const isSummary = group.type === 'summary_completion';
 
-          {/* SỬA 1: Instruction hiển thị xuống dòng đúng */}
-          {group.instructions && (
-            <div
-              className="exam-instructions"
-              style={{ whiteSpace: 'pre-line' }}
-            >
-              {group.instructions}
-            </div>
-          )}
+        const groupStartIndex = slotIndex;
+        
+        return (
+          <div key={group.type + slotIndex + groupIdx} className="exam-group">
+            {/* Instructions */}
+            {group.instructions && (
+               <HighlightableContent
+                  id={`group_inst_${item._id}_${groupIdx}`}
+                  htmlContent={(passageStates && passageStates[`group_inst_${item._id}_${groupIdx}`]) || group.instructions}
+                  onUpdateHtml={(html) => handleHtmlUpdate(`group_inst_${item._id}_${groupIdx}`, html)}
+                  className="exam-instructions"
+                  tagName="div" 
+               />
+            )}
 
-          {(group.questions || []).map((q) => {
-            const slot = slots[slotIndex];
-            const currentIndex = slotIndex;
-            slotIndex++; // Tăng index cho câu tiếp theo
+            {/* Shared options pool for matching questions */}
+            {isMatching && group.questions && group.questions.length > 0 && (() => {
+              // Get headings from first question's slot
+              const firstSlot = slots[groupStartIndex];
+              const headings = firstSlot?.headings || [];
+              
+              return headings.length > 0 ? (
+                <div className="matching-options-pool">
+                  <div className="matching-options-label">Available Options - Drag to Questions Below:</div>
+                  <div className="matching-chips">
+                    {headings.map((h) => (
+                      <div
+                        key={h.id}
+                        className="matching-chip"
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('headingId', h.id);
+                          e.currentTarget.classList.add('dragging');
+                        }}
+                        onDragEnd={(e) => {
+                          e.currentTarget.classList.remove('dragging');
+                        }}
+                      >
+                        <span className="matching-chip-id">{h.id}</span>
+                        <span className="matching-chip-text">{h.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null;
+            })()}
 
-            // --- LOGIC GAP FILL MỚI (Dùng html-react-parser) ---
-            if (group.type === 'gap_fill') {
-              const gapRegex = /_{3,}|\.{3,}/; // Tìm ____ hoặc ....
+            {/* NEW: Shared options pool for Summary Completion (Single Use Logic) */}
+            {isSummary && group.options && group.options.length > 0 && (() => {
+               // Calculate which options are already used in this group
+               const usedValues = new Set();
+               let tempIdx = groupStartIndex;
+               group.questions.forEach(() => {
+                 if (answers[tempIdx]) usedValues.add(answers[tempIdx]);
+                 tempIdx++;
+               });
 
-              // Cấu hình Parser để thay thế "___" bằng Input
-              const parseOptions = {
-                replace: (domNode) => {
-                  if (domNode.type === 'text' && gapRegex.test(domNode.data)) {
-                    const parts = domNode.data.split(gapRegex);
-                    return (
-                      <>
-                        {parts.map((part, i) => (
-                          <span key={i}>
-                            {part}
-                            {i < parts.length - 1 && (
-                              <span className="inline-input-wrapper mx-1" style={{ display: 'inline-block', margin: '0 5px' }}>
-                                <QuestionInput
-                                  slot={slot}
-                                  value={answers[currentIndex]}
-                                  onChange={(v) => setAnswer(currentIndex, v)}
-                                  index={currentIndex}
-                                />
-                              </span>
-                            )}
-                          </span>
-                        ))}
-                      </>
-                    );
+               return (
+                <div className="matching-options-pool">
+                  <div className="matching-options-label">Choices (Drag to gaps below):</div>
+                  <div className="matching-chips">
+                    {group.options.map((opt) => {
+                      const isUsed = usedValues.has(opt.id);
+                      return (
+                        <div
+                          key={opt.id}
+                          className={`matching-chip ${isUsed ? 'used' : ''}`}
+                          draggable={!isUsed}
+                          onDragStart={(e) => {
+                            if (!isUsed) {
+                              e.dataTransfer.setData('optionId', opt.id);
+                              e.currentTarget.classList.add('dragging');
+                            }
+                          }}
+                          onDragEnd={(e) => {
+                            e.currentTarget.classList.remove('dragging');
+                          }}
+                        >
+                          <span className="matching-chip-id">{opt.id}</span>
+                          <span className="matching-chip-text">{opt.text}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+               );
+            })()}
+
+            {/* Questions Rendering (Summary Text or Standard List) */}
+            {(() => {
+              // --- SUMMARY COMPLETION RENDERER (Text with inline gaps) ---
+              if (isSummary) {
+                // We advance slotIndex for all questions in this group
+                const currentGroupStartIndex = slotIndex;
+                slotIndex += group.questions.length;
+
+                // Regex to find [33], [34], [Q33], [ 33 ] etc
+                const questionPlaceholderRegex = /\[\s*[Qq]?(\d+)\s*\]/g;
+                
+                const parseOptions = {
+                  replace: (domNode) => {
+                    if (domNode.type === 'text') {
+                       const text = domNode.data;
+                       // Split by regex
+                       const parts = text.split(questionPlaceholderRegex);
+                       if (parts.length === 1) return domNode;
+
+                       return (
+                         <>
+                           {parts.map((part, i) => {
+                             // Check if part is a number (it captures the group match)
+                             if (/^\d+$/.test(part)) {
+                               const qNum = parseInt(part);
+                               const qIndexInGroup = group.questions.findIndex(q => q.q_number === qNum);
+                               
+                               if (qIndexInGroup !== -1) {
+                                 const realSlotIndex = currentGroupStartIndex + qIndexInGroup;
+                                 return (
+                                   <SummaryDropZone
+                                     key={realSlotIndex}
+                                     index={realSlotIndex} 
+                                     displayNumber={qNum}
+                                     value={answers[realSlotIndex]}
+                                     onChange={(val) => setAnswer(realSlotIndex, val)}
+                                     options={group.options || []}
+                                   />
+                                 );
+                               }
+                               // Fallback: If number found but no matching question
+                               return <span style={{color: 'red', fontWeight: 'bold'}}>[Q{qNum}?]</span>;
+                             }
+                             return part;
+                           })}
+                         </>
+                       );
+                    }
                   }
+                };
+
+                return (
+                  <div className="exam-summary-text" style={{ lineHeight: '2.0', fontSize: '1.1rem', marginBottom: '2rem' }}>
+                    {group.text ? parse(group.text, parseOptions) : (
+                      <div style={{ padding: '1rem', background: '#fffbeb', border: '1px dashed #f59e0b', color: '#b45309' }}>
+                        <strong>Summary text is missing.</strong> Please update this question in the Manage interface and ensure "Summary Text" is filled.
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              // --- STANDARD QUESTION LOOP (for non-summary types) ---
+              return (group.questions || []).map((q) => {
+                const slot = slots[slotIndex];
+                const currentIndex = slotIndex;
+                slotIndex++;
+                
+                // --- GAP FILL ---
+                if (group.type === 'gap_fill') {
+                   const gapRegex = /_{3,}|\.{3,}/; 
+                   const parseOptions = {
+                    replace: (domNode) => {
+                      if (domNode.type === 'text' && gapRegex.test(domNode.data)) {
+                        const parts = domNode.data.split(gapRegex);
+                        return (
+                          <>
+                            {parts.map((part, i) => (
+                              <span key={i}>
+                                {part}
+                                {i < parts.length - 1 && (
+                                  <span className="inline-input-wrapper mx-1" style={{ display: 'inline-block', margin: '0 5px' }}>
+                                    <QuestionInput
+                                      slot={slot}
+                                      value={answers[currentIndex]}
+                                      onChange={(v) => setAnswer(currentIndex, v)}
+                                      index={currentIndex}
+                                    />
+                                  </span>
+                                )}
+                              </span>
+                            ))}
+                          </>
+                        );
+                      }
+                    }
+                  };
+
+                  return (
+                    <div key={currentIndex} className="exam-question inline-text mb-3" style={{ lineHeight: '2.2' }}>
+                      <strong style={{ marginRight: '8px', color: '#666' }}>({q.q_number})</strong>
+                      <span>{parse(q.text || '', parseOptions)}</span>
+                    </div>
+                  );
                 }
-              };
+                
+                // --- MATCHING QUESTIONS (horizontal layout) ---
+                else if (isMatching) {
+                  const qKey = `qtext_${item._id}_${q.q_number}`;
+                  return (
+                    <div key={currentIndex} className="matching-question-row">
+                      <div className="matching-question-text">
+                         <HighlightableContent
+                            id={qKey}
+                            htmlContent={(passageStates && passageStates[qKey]) || (q.text || '').replace(/\n/g, '<br />')}
+                            onUpdateHtml={(html) => handleHtmlUpdate(qKey, html)}
+                            tagName="span"
+                         />
+                      </div>
+                      <div className="matching-question-number">{q.q_number}</div>
+                      <QuestionInput
+                        slot={slot}
+                        value={answers[currentIndex]}
+                        onChange={(v) => setAnswer(currentIndex, v)}
+                        index={currentIndex}
+                      />
+                    </div>
+                  );
+                }
 
-              return (
-                <div key={currentIndex} className="exam-question inline-text mb-3" style={{ lineHeight: '2.2' }}>
-                  <strong style={{ marginRight: '8px', color: '#666' }}>({q.q_number})</strong>
-                  <span>{parse(q.text || '', parseOptions)}</span>
-                </div>
-              );
-            }
-
-            // --- LOGIC CÁC LOẠI CÂU HỎI KHÁC ---
-            else {
-              return (
-                <div key={currentIndex} className="exam-question mb-4">
-                  <label className="exam-question-label" style={{ display: 'block', marginBottom: '8px' }}>
-                    <strong style={{ marginRight: '5px' }}>Q{q.q_number}.</strong>
-                    <span dangerouslySetInnerHTML={{ __html: (q.text || '').replace(/\n/g, '<br />') }} />
-                  </label>
-                  <QuestionInput
-                    slot={slot}
-                    value={answers[currentIndex]}
-                    onChange={(v) => setAnswer(currentIndex, v)}
-                    index={currentIndex}
-                  />
-                </div>
-              );
-            }
-          })}
-        </div>
-      ))}
+                // --- OTHER QUESTION TYPES ---
+                else {
+                  const qKey = `qtext_${item._id}_${q.q_number}`;
+                  return (
+                    <div key={currentIndex} className="exam-question mb-4">
+                      <label className="exam-question-label" style={{ display: 'block', marginBottom: '8px' }}>
+                        <strong style={{ marginRight: '5px' }}>Q{q.q_number}.</strong>
+                        <HighlightableContent
+                            id={qKey}
+                            htmlContent={(passageStates && passageStates[qKey]) || (q.text || '').replace(/\n/g, '<br />')}
+                            onUpdateHtml={(html) => handleHtmlUpdate(qKey, html)}
+                            tagName="span"
+                            style={{ display: 'inline' }}
+                         />
+                      </label>
+                      <QuestionInput
+                        slot={slot}
+                        value={answers[currentIndex]}
+                        onChange={(v) => setAnswer(currentIndex, v)}
+                        index={currentIndex}
+                      />
+                    </div>
+                  );
+                }
+              });
+            })()}
+          </div>
+        );
+      })}
     </div>
   );
 
-  // Listening layout: title at top, questions in middle, audio at bottom
+  // ==========================================================
+  // IELTS LISTENING LAYOUT: Centered questions with audio at bottom
+  // ==========================================================
   if (isListening && hasAudio) {
     return (
-      <div className="exam-step-layout exam-step-layout--listening">
-        <div className="listening-header">
-          <div
-            className="exam-content-inner"
-            dangerouslySetInnerHTML={{ __html: (item.content || '').replace(/\n/g, '<br />') }}
-          />
+      <div className="ielts-listening-layout">
+        <div className="listening-content-area">
+          {item.content && (
+            <HighlightableContent 
+                htmlContent={contentHtml} 
+                onUpdateHtml={(html) => handleHtmlUpdate(item._id, html)} 
+                id={item._id}
+            />
+          )}
+          <div className="listening-questions-centered">
+            {questionsBlock}
+          </div>
         </div>
-        <div className="listening-questions">
-          {questionsBlock}
-        </div>
-        <div className="listening-audio-player">
-          <ListeningAudioPlayer audioUrl={item.audio_url} />
+        <div className="ielts-audio-controls">
+          <IELTSAudioPlayer audioUrl={item.audio_url} />
         </div>
       </div>
     );
   }
 
-  // Default layout for reading (two columns)
-  const contentBlock = (
-    <div className="exam-step-content">
-      <div
-        className="exam-content-inner"
-        dangerouslySetInnerHTML={{ __html: (item.content || '').replace(/\n/g, '<br />') }}
-      />
-    </div>
-  );
+  // ==========================================================
+  // IELTS READING LAYOUT: True split-screen (passage left, questions right)
+  // ==========================================================
+  if (isReading) {
+    return (
+      <div className="ielts-reading-layout">
+        <div className="ielts-passage-panel">
+          <div className="passage-scrollable">
+            <HighlightableContent 
+                htmlContent={contentHtml} 
+                onUpdateHtml={(html) => handleHtmlUpdate(item._id, html)} 
+                id={item._id}
+            />
+          </div>
+        </div>
+        <div className="ielts-questions-panel">
+          <div className="questions-scrollable">
+            {questionsBlock}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-  return (
-    <div className="exam-step-layout exam-step-layout--two-col">
-      <div className="exam-step-passage">{contentBlock}</div>
-      <div className="exam-step-questions-col">{questionsBlock}</div>
-    </div>
-  );
+  // Fallback for other content types
+  return questionsBlock;
 }
 
 /** Writing step content with big textarea and real-time word count */
@@ -542,6 +815,11 @@ export default function Exam() {
   const [showReview, setShowReview] = useState(false);
   const [fontSize, setFontSize] = useState(100); // 100% = default
   const [startTime] = useState(() => Date.now()); // Track when exam started
+  
+  // IELTS Theme & Settings
+  const [theme, setTheme] = useState('light');
+  const [textSize, setTextSize] = useState('regular');
+  const [brightness, setBrightness] = useState(100);
 
   useEffect(() => {
     if (!id) return;
@@ -772,8 +1050,23 @@ export default function Exam() {
     );
   }
 
+  // Determine timer flash class
+  const getTimerClass = () => {
+    if (timeRemaining === null) return 'exam-timer';
+    if (timeRemaining <= 300) return 'exam-timer exam-timer--flash-5'; // 5 min
+    if (timeRemaining <= 600) return 'exam-timer exam-timer--flash-10'; // 10 min
+    return 'exam-timer';
+  };
+
   return (
-    <div className="page exam-page exam-page--stepper" style={{ '--exam-font-size': `${fontSize}%` }}>
+    <div 
+      className={`page exam-page exam-page--stepper text-size-${textSize}`} 
+      data-theme={theme}
+      style={{ 
+        '--exam-font-size': `${fontSize}%`,
+        filter: `brightness(${brightness}%)`
+      }}
+    >
       <header className="exam-header">
         <div className="exam-header-left">
           <h1 className="exam-title">{exam.title}</h1>
@@ -787,36 +1080,19 @@ export default function Exam() {
         </div>
         <div className="exam-header-right">
           {timeRemaining !== null && (
-            <div className={`exam-timer ${timeWarning ? 'exam-timer--warning' : ''}`}>
+            <div className={getTimerClass()}>
               <span className="exam-timer-icon">⏱</span>
               <span className="exam-timer-text">{formatTime(timeRemaining)}</span>
             </div>
           )}
-          <div className="font-size-controls">
-            <button
-              className="btn btn-ghost btn-sm font-size-btn"
-              onClick={() => setFontSize(Math.max(75, fontSize - 25))}
-              title="Decrease font size"
-              disabled={fontSize <= 75}
-            >
-              A-
-            </button>
-            <button
-              className="btn btn-ghost btn-sm font-size-btn"
-              onClick={() => setFontSize(100)}
-              title="Default font size"
-            >
-              A
-            </button>
-            <button
-              className="btn btn-ghost btn-sm font-size-btn"
-              onClick={() => setFontSize(Math.min(200, fontSize + 25))}
-              title="Increase font size"
-              disabled={fontSize >= 200}
-            >
-              A+
-            </button>
-          </div>
+          <IELTSSettings 
+            brightness={brightness}
+            setBrightness={setBrightness}
+            textSize={textSize}
+            setTextSize={setTextSize}
+            theme={theme}
+            setTheme={setTheme}
+          />
           <Link to={`/tests/${id}`} className="btn btn-ghost btn-sm">Leave exam</Link>
         </div>
       </header>

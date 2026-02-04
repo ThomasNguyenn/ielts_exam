@@ -244,6 +244,21 @@ export default function AddTest() {
     }
   };
 
+  const handleRenumber = async () => {
+    if (!editId) return;
+    if (!window.confirm('Auto-renumber all questions in this test sequentially (1-40)? This will modify the Passages/Sections globally.')) return;
+    
+    setSubmitLoading(true);
+    try {
+      const res = await api.renumberTestQuestions(editId);
+      setSuccess(res.message || 'Questions renumbered successfully.');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
@@ -526,6 +541,19 @@ export default function AddTest() {
           <button type="submit" className="btn btn-primary" disabled={submitLoading}>
             {submitLoading ? (editId ? 'Saving…' : 'Creating…') : (editId ? 'Update test' : 'Create test')}
           </button>
+          
+          {editId && (
+            <button
+              type="button" 
+              className="btn btn-secondary" 
+              onClick={handleRenumber} 
+              disabled={submitLoading}
+              style={{ marginLeft: '0.5rem', background: '#eab308', borderColor: '#ca8a04', color: 'white' }}
+            >
+              Auto Renumber Questions
+            </button>
+          )}
+
           {editId && <Link to="/manage/tests" className="btn btn-ghost" style={{ marginLeft: '0.5rem' }}>Cancel</Link>}
         </div>
       </form>

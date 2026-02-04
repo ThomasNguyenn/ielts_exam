@@ -28,71 +28,76 @@ export default function Layout() {
     setUser(api.getUser());
   }, [location.pathname]);
 
+  // Hide header on exam pages for full-screen experience
+  const isExamPage = location.pathname.includes('/exam');
+
   return (
     <div className="layout">
-      <header className="layout-header">
-        <div className="nav-container">
-          <NavLink to="/" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-            <Icons.Home /> My Homepage
-          </NavLink>
-          <div className="nav-divider"></div>
+      {!isExamPage && (
+        <header className="layout-header">
+          <div className="nav-container">
+            <NavLink to="/" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+              <Icons.Home /> My Homepage
+            </NavLink>
+            <div className="nav-divider"></div>
 
-          <NavLink to="/tests" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-            <Icons.Skills /> Luyện tập các kỹ năng
-          </NavLink>
-          <div className="nav-divider"></div>
-          <NavLink to="/practice" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-            <Icons.Writing /> Writing Practice
-          </NavLink>
+            <NavLink to="/tests" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+              <Icons.Skills /> Luyện tập các kỹ năng
+            </NavLink>
+            <div className="nav-divider"></div>
+            <NavLink to="/practice" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+              <Icons.Writing /> Writing Practice
+            </NavLink>
 
-          <div style={{ flex: 1 }}></div>
+            <div style={{ flex: 1 }}></div>
 
-          {user && (
-            <>
-              <div className="nav-divider"></div>
-              <NavLink to="/profile" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-                <Icons.Profile /> Profile
-              </NavLink>
-            </>
-          )}
+            {user && (
+              <>
+                <div className="nav-divider"></div>
+                <NavLink to="/profile" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                  <Icons.Profile /> Profile
+                </NavLink>
+              </>
+            )}
 
-          {(user?.role === 'teacher' || user?.role === 'admin') && (
-            <>
-              <div className="nav-divider"></div>
-              <NavLink to="/grading" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-                <Icons.Results /> Grading
-              </NavLink>
-              <div className="nav-divider"></div>
-              <NavLink to="/manage" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-                <Icons.Manage /> Manage
-              </NavLink>
-            </>
-          )}
+            {(user?.role === 'teacher' || user?.role === 'admin') && (
+              <>
+                <div className="nav-divider"></div>
+                <NavLink to="/grading" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                  <Icons.Results /> Grading
+                </NavLink>
+                <div className="nav-divider"></div>
+                <NavLink to="/manage" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                  <Icons.Manage /> Manage
+                </NavLink>
+              </>
+            )}
 
-          <div className="nav-divider"></div>
+            <div className="nav-divider"></div>
 
-          {user ? (
-            <div className="nav-item" style={{ cursor: 'pointer' }} onClick={() => {
-              api.removeToken();
-              api.removeUser();
-              window.location.href = '/login';
-            }}>
-              <Icons.Logout /> Logout ({user.name})
-            </div>
-          ) : (
-            <>
-              <NavLink to="/login" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-                <Icons.Login /> Login
-              </NavLink>
-              <div className="nav-divider"></div>
-              <NavLink to="/register" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-                <Icons.Register /> Register
-              </NavLink>
-            </>
-          )}
-        </div>
-      </header>
-      <main className="layout-main">
+            {user ? (
+              <div className="nav-item" style={{ cursor: 'pointer' }} onClick={() => {
+                api.removeToken();
+                api.removeUser();
+                window.location.href = '/login';
+              }}>
+                <Icons.Logout /> Logout ({user.name})
+              </div>
+            ) : (
+              <>
+                <NavLink to="/login" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                  <Icons.Login /> Login
+                </NavLink>
+                <div className="nav-divider"></div>
+                <NavLink to="/register" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                  <Icons.Register /> Register
+                </NavLink>
+              </>
+            )}
+          </div>
+        </header>
+      )}
+      <main className={`layout-main ${isExamPage ? 'layout-main--fullscreen' : ''}`}>
         <Outlet />
       </main>
     </div>
