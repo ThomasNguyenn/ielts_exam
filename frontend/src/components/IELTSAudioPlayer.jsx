@@ -64,11 +64,11 @@ export default function IELTSAudioPlayer({ audioUrl }) {
           <div className="audio-progress-fill" style={{ width: `${progress}%` }} />
         </div>
         <div className="audio-time-display">
-          <span>{formatTime(currentTime)}</span>
+          <span>{formatTime(currentTime)} </span>
           <span style={{ color: isPlaying ? '#22c55e' : '#6b7280' }}>
             {isPlaying ? '▶ Playing...' : '⏸ Paused'}
           </span>
-          <span>{formatTime(duration)}</span>
+          <span> {formatTime(duration)}</span>
         </div>
       </div>
       

@@ -9,6 +9,7 @@ const QUESTION_GROUP_TYPES = [
   { value: 'gap_fill', label: 'Gap fill' },
   { value: 'matching_features', label: 'Matching features' },
   { value: 'summary_completion', label: 'Summary completion' },
+  { value: 'listening_map', label: 'Listening Map' },
 ];
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D'];
@@ -359,11 +360,11 @@ export default function AddSection() {
       question_groups: form.question_groups.map((g) => ({
         type: g.type,
         instructions: g.instructions || undefined,
-        headings: (g.headings || []).filter((h) => h.id && h.text).length
-          ? (g.headings || []).filter((h) => h.id && h.text)
+        headings: (g.headings || []).filter((h) => h.id || h.text).length
+          ? (g.headings || []).filter((h) => h.id || h.text)
           : undefined,
-        options: (g.options || []).filter((o) => o.id && o.text).length
-          ? (g.options || []).filter((o) => o.id && o.text)
+        options: (g.options || []).filter((o) => o.id || o.text).length
+          ? (g.options || []).filter((o) => o.id || o.text)
           : undefined,
         text: g.text || undefined,
         questions: g.questions.map((q) => ({
@@ -528,6 +529,22 @@ export default function AddSection() {
                     </div>
                   )}
 
+                  {group.type === 'listening_map' && (
+                    <div className="form-row">
+                      <label>Map Image URL</label>
+                      <input
+                        value={group.text}
+                        onChange={(e) => updateQuestionGroup(gi, 'text', e.target.value)}
+                        placeholder="https://example.com/map.png"
+                      />
+                      {group.text && (
+                        <div style={{ marginTop: '0.5rem' }}>
+                          <img src={group.text} alt="Map Preview" style={{ maxWidth: '100%', maxHeight: '200px', borderRadius: '0.5rem' }} />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {(group.type === 'matching_headings' || group.type === 'matching_features') && (
                     <div className="form-section">
                       <h4>{group.type === 'matching_headings' ? 'Danh sách Headings' : 'Danh sách Features'}</h4>
@@ -588,7 +605,26 @@ export default function AddSection() {
                     </div>
                   )}
 
-                  <h4>{group.type === 'summary_completion' || group.type === 'gap_fill' ? 'Gap Answer Key' : 'Questions'}</h4>
+                  {group.type === 'listening_map' && (
+                    <div className="form-section">
+                      <h4>Map Labels (Columns)</h4>
+                      <p className="form-hint">Enter labels that appear on the map (e.g., A, B, C, D...). These will be the grid columns.</p>
+                      {(group.options || []).map((o, oi) => (
+                        <div key={oi} className="heading-row">
+                          <input
+                            value={o.id}
+                            onChange={(e) => updateOption(gi, oi, 'id', e.target.value)}
+                            placeholder="ID (e.g. A)"
+                            className="heading-id"
+                          />
+                          <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeOption(gi, oi)} style={{ color: '#ef4444' }}>Xóa</button>
+                        </div>
+                      ))}
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => addOption(gi)}>+ Thêm Label</button>
+                    </div>
+                  )}
+
+                  <h4>{group.type === 'summary_completion' || group.type === 'gap_fill' ? 'Gap Answer Key' : group.type === 'listening_map' ? 'Locations (Rows)' : 'Questions'}</h4>
 
                   {/* SIMPLIFIED VIEW FOR SUMMARY COMPLETION & GAP FILL */}
                   {(group.type === 'summary_completion' || group.type === 'gap_fill') ? (
@@ -654,56 +690,61 @@ export default function AddSection() {
                       {group.questions.map((q, qi) => {
                         const isQuestionCollapsed = collapsedQuestions.has(`${gi}-${qi}`);
                         return (
-                          <div key={qi} className={`question-block ${isQuestionCollapsed ? 'collapsed' : ''}`}>
-                            <div className="question-block-header">
-                              <span className="question-label">Q{q.q_number}</span>
-                              <button type="button" className="btn btn-ghost btn-sm collapse-btn" onClick={() => toggleQuestionCollapse(gi, qi)}>
-                                {isQuestionCollapsed ? '▼ Expand' : '▲ Collapse'}
-                              </button>
+                      <div key={qi} className="question-block" style={{ border: '1px solid #f1f5f9', padding: '1rem', borderRadius: '0.75rem', marginBottom: '1rem' }}>
+                        <div className="group-header" onClick={() => toggleQuestionCollapse(gi, qi)} style={{ padding: '0.5rem 0.3rem', borderRadius: '0.5rem'}}>
+                          <span style={{ fontWeight: 700 }}>Câu {q.q_number}</span>
+                          <span>{isQuestionCollapsed ? '▼' : '▲'}</span>
+                        </div>
+                        {!isQuestionCollapsed && (
+                          <>
+                            <div className="form-row">
+                              <label>Câu hỏi</label>
+                              <textarea
+                                value={q.text}
+                                onChange={(e) => updateQuestion(gi, qi, 'text', e.target.value)}
+                                rows={2}
+                              />
                             </div>
-                            {!isQuestionCollapsed && (
-                              <>
-                                <div className="form-row">
-                                  <label>Q{q.q_number} - Question text *</label>
-                                  <textarea
-                                    value={q.text}
-                                    onChange={(e) => updateQuestion(gi, qi, 'text', e.target.value)}
-                                    rows={2}
-                                  />
-                                </div>
-                                {(group.type === 'mult_choice' || group.type === 'true_false_notgiven') && (
-                                  <div className="form-row options-row">
-                                    <label>Options</label>
-                                    {q.option?.map((opt, oi) => (
+                            
+                            {(group.type === 'mult_choice' || group.type === 'true_false_notgiven') && (
+                              <div className='form-row'>
+                                <label>Các lựa chọn (Options)</label>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                                  {(q.option || []).map((o, oi) => (
+                                    <div key={o.label} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                      <span style={{ fontWeight: 600 }}>[{o.label}]</span>
                                       <input
-                                        key={oi}
-                                        value={opt.text}
+                                        value={o.text}
                                         onChange={(e) => setQuestionOption(gi, qi, oi, e.target.value)}
-                                        placeholder={`Option ${opt.label}`}
+                                        placeholder={`Answer ${o.label}`}
                                       />
-                                    ))}
-                                  </div>
-                                )}
-                                <div className="form-row">
-                                  <label>Correct answer(s) * (comma-separated)</label>
-                                  <input
-                                    value={q.correct_answers?.join(', ') ?? ''}
-                                    onChange={(e) => setCorrectAnswers(gi, qi, e.target.value)}
-                                  />
+                                    </div>
+                                  ))}
                                 </div>
-                                <div className="form-row">
-                                  <label>Explanation</label>
-                                  <input
-                                    value={q.explanation ?? ''}
-                                    onChange={(e) => updateQuestion(gi, qi, 'explanation', e.target.value)}
-                                  />
-                                </div>
-                              </>
+                              </div>
                             )}
-                            <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeQuestion(gi, qi)} disabled={group.questions.length <= 1}>
-                              Remove question
-                            </button>
-                          </div>
+
+                            <div className="form-row" style={{margin: '0.5rem 0'}}>
+                              <label>Đáp án đúng (ngăn cách bởi dấu phẩy)</label>
+                              <input
+                                value={q.correct_answers?.join(', ') ?? ''}
+                                onChange={(e) => setCorrectAnswers(gi, qi, e.target.value)}
+                              />
+                            </div>
+                            <div className="form-row">
+                              <label>Giải thích</label>
+                              <textarea
+                                value={q.explanation ?? ''}
+                                onChange={(e) => updateQuestion(gi, qi, 'explanation', e.target.value)}
+                                rows={2}
+                              />
+                            </div>
+                          </>
+                        )}
+                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeQuestion(gi, qi)} disabled={group.questions.length <= 1} style={{ color: '#ef4444', marginTop: '0.5rem' }}>
+                          Xóa câu hỏi
+                        </button>
+                      </div>
                         );
                       })}
                       <button type="button" className="btn btn-ghost" onClick={() => addQuestion(gi)}>

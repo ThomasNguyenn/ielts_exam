@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import parse from 'html-react-parser';
 import { api } from '../api/client';
@@ -6,6 +6,7 @@ import './Exam.css';
 import IELTSAudioPlayer from '../components/IELTSAudioPlayer';
 import IELTSSettings from '../components/IELTSSettings';
 import VocabHighlighter from '../components/VocabHighlighter';
+import HighlightableContent, { HighlightableWrapper, tokenizeHtml } from '../components/HighlightableContent';
 
 /** IELTS Band Score Calculator */
 function calculateIELTSBand(correctCount, testType) {
@@ -325,16 +326,69 @@ function SummaryDropZone({ value, onChange, index, options, displayNumber }) {
   );
 }
 
-// ... (previous imports)
-import { useRef } from 'react';
+/** Component for IELTS Listening Map questions with Image + Matching Grid */
+function ListeningMapGrid({ group, slots, answers, setAnswer, startSlotIndex }) {
+  const options = group.options || []; // e.g. [{id: 'A', text: ''}, ...]
+  const questions = group.questions || []; // e.g. [{q_number: 5, text: 'hotel'}, ...]
 
-// ... (existing helper functions)
+  return (
+    <div className="listening-map-container">
+      {group.text && (
+        <div className="listening-map-image-wrapper">
+          <img src={group.text} alt="IELTS Map" className="listening-map-image" />
+        </div>
+      )}
+      
+      <div className="listening-map-grid-wrapper">
+        <table className="listening-map-table">
+          <thead>
+            <tr>
+              <th className="row-label-header"></th>
+              {options.map(opt => (
+                <th key={opt.id} className="col-label">{opt.id}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {questions.map((q, qi) => {
+              const currentSlotIndex = startSlotIndex + qi;
+              return (
+                <tr key={qi}>
+                  <td className="row-label">
+                    <strong>{q.q_number}</strong> {q.text}
+                  </td>
+                  {options.map(opt => {
+                    const id = `map-${currentSlotIndex}-${opt.id}`;
+                    return (
+                      <td key={opt.id} className="grid-cell">
+                        <label className="grid-radio-label" htmlFor={id}>
+                          <input
+                            type="checkbox"
+                            id={id}
+                            checked={answers[currentSlotIndex] === opt.id}
+                            onChange={() => setAnswer(currentSlotIndex, answers[currentSlotIndex] === opt.id ? '' : opt.id)}
+                          />
+                          <span className="radio-custom" />
+                        </label>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
-import HighlightableContent, { HighlightableWrapper, tokenizeHtml } from '../components/HighlightableContent';
+
 
 /** One step: passage/section content + its questions (with slot indices) */
 function StepContent({ step, slots, answers, setAnswer, passageStates, setPassageState, testId }) {
   const { item, startSlotIndex, endSlotIndex, type } = step;
+  console.log("Rendering StepContent for:", type, item.title, "Group types:", (item.question_groups || []).map(g => g.type));
   const isReading = type === 'reading';
   const isListening = type === 'listening';
   const hasAudio = isListening && item.audio_url;
@@ -444,8 +498,25 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
               );
             })()}
 
+
+
             {/* Questions Rendering (Summary Text or Standard List) */}
             {(() => {
+              // --- LISTENING MAP GRID RENDERER ---
+              if (group.type === 'listening_map') {
+                const currentGroupStartIndex = slotIndex;
+                slotIndex += group.questions.length;
+                return (
+                  <ListeningMapGrid 
+                    group={group} 
+                    slots={slots} 
+                    answers={answers} 
+                    setAnswer={setAnswer} 
+                    startSlotIndex={currentGroupStartIndex} 
+                  />
+                );
+              }
+
               // --- SUMMARY & GAP FILL TEXT BLOCK RENDERER ---
               if (isSummary || (group.type === 'gap_fill' && group.text)) {
                 // We advance slotIndex for all questions in this group
@@ -655,10 +726,10 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
     return (
       <div className="ielts-listening-layout">
         <div className="ielts-audio-controls top-sticky">
-          <div className="audio-label-wrapper">
+          {/* <div className="audio-label-wrapper">
             <span className="audio-icon">🎧</span>
             <span className="audio-text">IELTS Listening Audio</span>
-          </div>
+          </div> */}
           <IELTSAudioPlayer audioUrl={item.audio_url} />
         </div>
         <div className="listening-content-area-top-padded">
@@ -835,7 +906,8 @@ function ResultReview({ submitted, exam }) {
       'matching_headings': 'Matching Headings',
       'matching_features': 'Matching Features',
       'matching_information': 'Matching Information',
-      'summary_completion': 'Summary Completion'
+      'summary_completion': 'Summary Completion',
+      'listening_map': 'Map Labeling'
     };
     return labels[type] || 'Question';
   };
@@ -1307,10 +1379,10 @@ export default function Exam() {
 
         {showReview && (
           <div className="review-container">
-            <div className="result-actions" style={{ justifyContent: 'flex-end', marginBottom: '1rem', gap: '1rem', display: 'flex' }}>
+            {/* <div className="result-actions" style={{ justifyContent: 'flex-end', marginBottom: '1rem', gap: '1rem', display: 'flex' }}>
               <button className="btn btn-ghost" onClick={() => setShowReview(false)}>Ẩn giải thích</button>
               <Link to="/tests" className="btn btn-ghost">Thoát kết quả</Link>
-            </div>
+            </div> */}
             {submitted.question_review && submitted.question_review.length > 0 && (
               <ResultReview submitted={submitted} exam={exam} />
             )}
