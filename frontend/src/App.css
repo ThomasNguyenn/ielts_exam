@@ -117,6 +117,7 @@ a {
 
 .btn-primary:hover:not(:disabled) {
   background: var(--color-accent-hover);
+  color:#ffc926;
 }
 
 .btn-ghost {

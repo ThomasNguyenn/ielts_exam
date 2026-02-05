@@ -18,6 +18,7 @@ const QUESTION_GROUP_TYPES = [
   { value: 'matching_headings', label: 'Matching headings' },
   { value: 'matching_features', label: 'Matching features' },
   { value: 'summary_completion', label: 'Summary completion' },
+  { value: 'listening_map', label: 'Listening Map' },
 ];
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D'];
@@ -387,11 +388,11 @@ export default function AddPassage() {
           type: g.type,
           instructions: g.instructions || undefined,
           text: g.text || undefined,
-          headings: (g.headings || []).filter((h) => h.id && h.text).length
-            ? (g.headings || []).filter((h) => h.id && h.text)
+          headings: (g.headings || []).filter((h) => h.id || h.text).length
+            ? (g.headings || []).filter((h) => h.id || h.text)
             : undefined,
-          options: (g.options || []).filter((o) => o.id && o.text).length
-            ? (g.options || []).filter((o) => o.id && o.text)
+          options: (g.options || []).filter((o) => o.id || o.text).length
+            ? (g.options || []).filter((o) => o.id || o.text)
             : undefined,
           questions: g.questions.map((q) => ({
             q_number: q.q_number,
@@ -449,7 +450,7 @@ export default function AddPassage() {
           const isGroupCollapsed = collapsedGroups.has(gi);
           return (
             <div key={gi} className="question-group-block">
-              <div className="group-header" onClick={() => toggleGroupCollapse(gi)}>
+              <div className="group-header" onClick={() => toggleGroupCollapse(gi)} style={{ padding: '0.5rem 0.3rem', borderRadius: '0.5rem'}} >
                 <div className="group-title">
                   <Icons.Writing /> Question Group {gi + 1} ({group.type})
                 </div>
@@ -546,7 +547,7 @@ export default function AddPassage() {
                     const isQuestionCollapsed = collapsedQuestions.has(`${gi}-${qi}`);
                     return (
                       <div key={qi} className="question-block" style={{ border: '1px solid #f1f5f9', padding: '1rem', borderRadius: '0.75rem', marginBottom: '1rem' }}>
-                        <div className="group-header" onClick={() => toggleQuestionCollapse(gi, qi)} style={{ padding: '0.5rem 0', border: 'none' }}>
+                        <div className="group-header" onClick={() => toggleQuestionCollapse(gi, qi)} style={{ padding: '0.5rem 0.3rem', borderRadius: '0.5rem'}}>
                           <span style={{ fontWeight: 700 }}>Câu {q.q_number}</span>
                           <span>{isQuestionCollapsed ? '▼' : '▲'}</span>
                         </div>
@@ -554,6 +555,24 @@ export default function AddPassage() {
                           <div className="form-row">
                             <label>Câu hỏi</label>
                             <textarea value={q.text} onChange={(e) => updateQuestion(gi, qi, 'text', e.target.value)} rows={2} />
+                            
+                            {(group.type === 'mult_choice' || group.type === 'true_false_notgiven') && (
+                              <div style={{ marginTop: '0.5rem', marginBottom: '0.5rem' }}>
+                                <label>Các lựa chọn (Options)</label>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                                  {(q.option || []).map((o, oi) => (
+                                    <div key={o.label} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                      <span style={{ fontWeight: 600 }}>[{o.label}]</span>
+                                      <input
+                                        value={o.text}
+                                        onChange={(e) => setQuestionOption(gi, qi, oi, e.target.value)}
+                                        placeholder={`Answer ${o.label}`}
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                             <label>Đáp án đúng (ngăn cách bởi dấu phẩy)</label>
                             <input value={q.correct_answers.join(', ')} onChange={(e) => setCorrectAnswers(gi, qi, e.target.value)} />
                             <label>Giải thích</label>
