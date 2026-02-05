@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import parse from 'html-react-parser';
 import { api } from '../api/client';
+import './Exam.css';
 import IELTSAudioPlayer from '../components/IELTSAudioPlayer';
 import IELTSSettings from '../components/IELTSSettings';
+import VocabHighlighter from '../components/VocabHighlighter';
 
 /** IELTS Band Score Calculator */
 function calculateIELTSBand(correctCount, testType) {
@@ -104,8 +106,13 @@ function buildSteps(exam) {
   return steps;
 }
 
-function QuestionInput({ slot, value, onChange, index }) {
+function QuestionInput({ slot, value, onChange, index, onHighlightUpdate }) {
   const id = `q-${index}`;
+  const [strikethroughOptions, setStrikethroughOptions] = useState(() => {
+    // Load from localStorage if available
+    const saved = localStorage.getItem(`strikethrough_${id}`);
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  });
 
   // 1. Định nghĩa logic chung (Binding dữ liệu)
   const common = {
@@ -114,21 +121,62 @@ function QuestionInput({ slot, value, onChange, index }) {
     disabled: false
   };
 
+  // Handle right-click to toggle strikethrough
+  const handleRightClick = (e, optionLabel) => {
+    e.preventDefault();
+    setStrikethroughOptions(prev => {
+      const next = new Set(prev);
+      if (next.has(optionLabel)) {
+        next.delete(optionLabel);
+      } else {
+        next.add(optionLabel);
+      }
+      // Save to localStorage
+      localStorage.setItem(`strikethrough_${id}`, JSON.stringify([...next]));
+      return next;
+    });
+  };
+
   // --- TRẮC NGHIỆM (Radio) ---
   if (slot.type === 'mult_choice' || slot.type === 'true_false_notgiven') {
     return (
       <div className="exam-options">
-        {(slot.option || []).filter((o) => o.text).map((opt) => (
-          <label key={opt.label} className="exam-option-label">
-            <input
-              type="radio"
-              name={id}
-              checked={(value || '').trim() === (opt.text || '').trim()}
-              onChange={() => onChange(opt.text)}
-            />
-            <span>{opt.label}. {opt.text}</span>
-          </label>
-        ))}
+        {(slot.option || []).filter((o) => o.text).map((opt) => {
+          // Unique key for this option's highlighted state
+          const optKey = `opt_${index}_${opt.label}`;
+          // Initial tokenized HTML or persisted state
+          const html = (window.__passageStates && window.__passageStates[optKey]) || tokenizeHtml(opt.text);
+          const isStrikethrough = strikethroughOptions.has(opt.label);
+
+          return (
+            <label
+              key={opt.label}
+              className={`exam-option-label ${isStrikethrough ? 'option-strikethrough' : ''}`}
+              onContextMenu={(e) => handleRightClick(e, opt.label)}
+              title="Right-click to eliminate this option"
+            >
+              <input
+                type="radio"
+                name={id}
+                checked={(value || '').trim() === (opt.text || '').trim()}
+                onChange={() => onChange(opt.text)}
+              />
+              <span className="opt-id">{opt.label}.</span>
+              <span className="opt-text">
+                <HighlightableWrapper
+                  onUpdateHtml={(newHtml) => {
+                    if (onHighlightUpdate) {
+                      onHighlightUpdate(optKey, newHtml);
+                    }
+                  }}
+                  tagName="span"
+                >
+                  {parse(html)}
+                </HighlightableWrapper>
+              </span>
+            </label>
+          );
+        })}
       </div>
     );
   }
@@ -150,7 +198,7 @@ function QuestionInput({ slot, value, onChange, index }) {
   if (slot.type === 'matching_headings' || slot.type === 'matching_features') {
     const options = slot.headings || [];
     const selectedOption = options.find(h => h.id === value);
-    
+
     const handleDrop = (e) => {
       e.preventDefault();
       const droppedId = e.dataTransfer.getData('headingId');
@@ -173,7 +221,7 @@ function QuestionInput({ slot, value, onChange, index }) {
       >
         {selectedOption ? (
           <div className="matching-selected">
-            <span className="matching-chip-id">{selectedOption.id}</span>
+            {/* <span className="matching-chip-id">{selectedOption.id}</span> */}
             <span className="matching-chip-text">{selectedOption.text}</span>
             <button
               type="button"
@@ -262,16 +310,16 @@ function SummaryDropZone({ value, onChange, index, options, displayNumber }) {
       className={`summary-dropzone ${selectedOption ? 'has-value' : ''}`}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
-      onClick={() => onChange('')} 
+      onClick={() => onChange('')}
       title={selectedOption ? "Click to remove" : "Drop answer here"}
     >
       {selectedOption ? (
         <span className="summary-selected-chip">
-           <span className="summary-chip-id">{selectedOption.id}</span>
-           <span className="summary-chip-text">{selectedOption.text}</span>
+          {/* <span className="summary-chip-id">{selectedOption.id}</span> */}
+          <span className="summary-chip-text">{selectedOption.text}</span>
         </span>
       ) : (
-        <span style={{color: '#9ca3af', fontSize: '0.9rem', fontWeight: 'bold'}}>{displayNumber || index + 1}</span>
+        <span style={{ color: '#9ca3af', fontSize: '0.9rem', fontWeight: 'bold' }}>{displayNumber || index + 1}</span>
       )}
     </span>
   );
@@ -282,10 +330,10 @@ import { useRef } from 'react';
 
 // ... (existing helper functions)
 
-import HighlightableContent from '../components/HighlightableContent';
+import HighlightableContent, { HighlightableWrapper, tokenizeHtml } from '../components/HighlightableContent';
 
 /** One step: passage/section content + its questions (with slot indices) */
-function StepContent({ step, slots, answers, setAnswer, passageStates, setPassageState }) {
+function StepContent({ step, slots, answers, setAnswer, passageStates, setPassageState, testId }) {
   const { item, startSlotIndex, endSlotIndex, type } = step;
   const isReading = type === 'reading';
   const isListening = type === 'listening';
@@ -296,9 +344,9 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
   const contentHtml = (passageStates && passageStates[item._id]) || (item.content || '').replace(/\n/g, '<br />');
 
   const handleHtmlUpdate = (id, newHtml) => {
-      if (setPassageState) {
-          setPassageState(prev => ({ ...prev, [id]: newHtml }));
-      }
+    if (setPassageState) {
+      setPassageState(prev => ({ ...prev, [id]: newHtml }));
+    }
   };
 
   const questionsBlock = (
@@ -309,18 +357,18 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
         const isSummary = group.type === 'summary_completion';
 
         const groupStartIndex = slotIndex;
-        
+
         return (
           <div key={group.type + slotIndex + groupIdx} className="exam-group">
             {/* Instructions */}
             {group.instructions && (
-               <HighlightableContent
-                  id={`group_inst_${item._id}_${groupIdx}`}
-                  htmlContent={(passageStates && passageStates[`group_inst_${item._id}_${groupIdx}`]) || group.instructions}
-                  onUpdateHtml={(html) => handleHtmlUpdate(`group_inst_${item._id}_${groupIdx}`, html)}
-                  className="exam-instructions"
-                  tagName="div" 
-               />
+              <HighlightableContent
+                id={`group_inst_${item._id}_${groupIdx}`}
+                htmlContent={(passageStates && passageStates[`group_inst_${item._id}_${groupIdx}`]) || group.instructions}
+                onUpdateHtml={(html) => handleHtmlUpdate(`group_inst_${item._id}_${groupIdx}`, html)}
+                className="exam-instructions"
+                tagName="div"
+              />
             )}
 
             {/* Shared options pool for matching questions */}
@@ -328,10 +376,10 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
               // Get headings from first question's slot
               const firstSlot = slots[groupStartIndex];
               const headings = firstSlot?.headings || [];
-              
+
               return headings.length > 0 ? (
                 <div className="matching-options-pool">
-                  <div className="matching-options-label">Available Options - Drag to Questions Below:</div>
+                  {/* <div className="matching-options-label">Available Options - Drag to Questions Below:</div> */}
                   <div className="matching-chips">
                     {headings.map((h) => (
                       <div
@@ -346,7 +394,7 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                           e.currentTarget.classList.remove('dragging');
                         }}
                       >
-                        <span className="matching-chip-id">{h.id}</span>
+                        {/* <span className="matching-chip-id">{h.id}</span> */}
                         <span className="matching-chip-text">{h.text}</span>
                       </div>
                     ))}
@@ -357,17 +405,17 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
 
             {/* NEW: Shared options pool for Summary Completion (Single Use Logic) */}
             {isSummary && group.options && group.options.length > 0 && (() => {
-               // Calculate which options are already used in this group
-               const usedValues = new Set();
-               let tempIdx = groupStartIndex;
-               group.questions.forEach(() => {
-                 if (answers[tempIdx]) usedValues.add(answers[tempIdx]);
-                 tempIdx++;
-               });
+              // Calculate which options are already used in this group
+              const usedValues = new Set();
+              let tempIdx = groupStartIndex;
+              group.questions.forEach(() => {
+                if (answers[tempIdx]) usedValues.add(answers[tempIdx]);
+                tempIdx++;
+              });
 
-               return (
+              return (
                 <div className="matching-options-pool">
-                  <div className="matching-options-label">Choices (Drag to gaps below):</div>
+                  {/* <div className="matching-options-label">Choices (Drag to gaps below):</div> */}
                   <div className="matching-chips">
                     {group.options.map((opt) => {
                       const isUsed = usedValues.has(opt.id);
@@ -386,72 +434,97 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                             e.currentTarget.classList.remove('dragging');
                           }}
                         >
-                          <span className="matching-chip-id">{opt.id}</span>
+                          {/* <span className="matching-chip-id">{opt.id}</span> */}
                           <span className="matching-chip-text">{opt.text}</span>
                         </div>
                       );
                     })}
                   </div>
                 </div>
-               );
+              );
             })()}
 
             {/* Questions Rendering (Summary Text or Standard List) */}
             {(() => {
-              // --- SUMMARY COMPLETION RENDERER (Text with inline gaps) ---
-              if (isSummary) {
+              // --- SUMMARY & GAP FILL TEXT BLOCK RENDERER ---
+              if (isSummary || (group.type === 'gap_fill' && group.text)) {
                 // We advance slotIndex for all questions in this group
                 const currentGroupStartIndex = slotIndex;
                 slotIndex += group.questions.length;
 
                 // Regex to find [33], [34], [Q33], [ 33 ] etc
                 const questionPlaceholderRegex = /\[\s*[Qq]?(\d+)\s*\]/g;
-                
+
                 const parseOptions = {
                   replace: (domNode) => {
                     if (domNode.type === 'text') {
-                       const text = domNode.data;
-                       // Split by regex
-                       const parts = text.split(questionPlaceholderRegex);
-                       if (parts.length === 1) return domNode;
+                      const text = domNode.data;
+                      // Split by regex
+                      const parts = text.split(questionPlaceholderRegex);
+                      if (parts.length === 1) return domNode;
 
-                       return (
-                         <>
-                           {parts.map((part, i) => {
-                             // Check if part is a number (it captures the group match)
-                             if (/^\d+$/.test(part)) {
-                               const qNum = parseInt(part);
-                               const qIndexInGroup = group.questions.findIndex(q => q.q_number === qNum);
-                               
-                               if (qIndexInGroup !== -1) {
-                                 const realSlotIndex = currentGroupStartIndex + qIndexInGroup;
-                                 return (
-                                   <SummaryDropZone
-                                     key={realSlotIndex}
-                                     index={realSlotIndex} 
-                                     displayNumber={qNum}
-                                     value={answers[realSlotIndex]}
-                                     onChange={(val) => setAnswer(realSlotIndex, val)}
-                                     options={group.options || []}
-                                   />
-                                 );
-                               }
-                               // Fallback: If number found but no matching question
-                               return <span style={{color: 'red', fontWeight: 'bold'}}>[Q{qNum}?]</span>;
-                             }
-                             return part;
-                           })}
-                         </>
-                       );
+                      return (
+                        <>
+                          {parts.map((part, i) => {
+                            // Check if part is a number (it captures the group match)
+                            if (/^\d+$/.test(part)) {
+                              const qNum = parseInt(part);
+                              const qIndexInGroup = group.questions.findIndex(q => q.q_number === qNum);
+
+                              if (qIndexInGroup !== -1) {
+                                const realSlotIndex = currentGroupStartIndex + qIndexInGroup;
+
+                                if (isSummary) {
+                                  return (
+                                    <SummaryDropZone
+                                      key={realSlotIndex}
+                                      index={realSlotIndex}
+                                      displayNumber={qNum}
+                                      value={answers[realSlotIndex]}
+                                      onChange={(val) => setAnswer(realSlotIndex, val)}
+                                      options={group.options || []}
+                                    />
+                                  );
+                                } else {
+                                  return (
+                                    <input
+                                      key={realSlotIndex}
+                                      type="text"
+                                      className="gap-fill-input"
+                                      placeholder={`${qNum}`}
+                                      value={answers[realSlotIndex] || ''}
+                                      onChange={(e) => setAnswer(realSlotIndex, e.target.value)}
+                                      autoComplete="off"
+                                    />
+                                  );
+                                }
+                              }
+                              // Fallback: If number found but no matching question
+                              return <span style={{ color: 'red', fontWeight: 'bold' }}>[Q{qNum}?]</span>;
+                            }
+                            return part;
+                          })}
+                        </>
+                      );
                     }
                   }
                 };
 
                 return (
-                  <div className="exam-summary-text" style={{ lineHeight: '2.0', fontSize: '1.1rem', marginBottom: '2rem' }}>
-                    {group.text ? parse(group.text, parseOptions) : (
-                      <div style={{ padding: '1rem', background: '#fffbeb', border: '1px dashed #f59e0b', color: '#b45309' }}>
-                        <strong>Summary text is missing.</strong> Please update this question in the Manage interface and ensure "Summary Text" is filled.
+                  <div className="exam-summary-text">
+                    {group.text ? (
+                      <HighlightableWrapper
+                        onUpdateHtml={(html) => handleHtmlUpdate(`group_text_${item._id}_${groupIdx}`, html)}
+                        tagName="div"
+                      >
+                        {parse(
+                          (passageStates && passageStates[`group_text_${item._id}_${groupIdx}`]) || tokenizeHtml(group.text.replace(/\n/g, '<br />')),
+                          parseOptions
+                        )}
+                      </HighlightableWrapper>
+                    ) : (
+                      <div className="summary-missing-warning">
+                        <strong>{isSummary ? 'Summary' : 'Gap Fill'} text is missing.</strong> Please update this question in the Manage interface.
                       </div>
                     )}
                   </div>
@@ -459,15 +532,29 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
               }
 
               // --- STANDARD QUESTION LOOP (for non-summary types) ---
-              return (group.questions || []).map((q) => {
+              return (group.questions || []).map((q, qIndex) => {
                 const slot = slots[slotIndex];
                 const currentIndex = slotIndex;
                 slotIndex++;
-                
-                // --- GAP FILL ---
+
+                // --- GAP FILL (Unified Logic) ---
                 if (group.type === 'gap_fill') {
-                   const gapRegex = /_{3,}|\.{3,}/; 
-                   const parseOptions = {
+                  // Case A: Text Block Gap Fill (New Style similar to Summary)
+                  if (group.text) {
+                    // We advance slotIndex for all questions in this group
+                    // NOTE: This logic assumes the [q_number] placeholders match questions in order or ID
+                    if (qIndex === 0) { // Only render the text block once for the whole group (simulated by checking first question of group logic, but here we are in a map... wait.
+                      // The structure of this map is iterating over questions.
+                      // For Summary Completion, we used a separate block (if isSummary) outside this map.
+                      // We should do the same for Gap Fill if group.text exists.
+                      return null; // Don't render per-question items if we are rendering a text block.
+                    }
+                    return null;
+                  }
+
+                  // Case B: Standard Line-by-Line Gap Fill (Old Style)
+                  const gapRegex = /_{3,}|\.{3,}/;
+                  const parseOptions = {
                     replace: (domNode) => {
                       if (domNode.type === 'text' && gapRegex.test(domNode.data)) {
                         const parts = domNode.data.split(gapRegex);
@@ -477,12 +564,13 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                               <span key={i}>
                                 {part}
                                 {i < parts.length - 1 && (
-                                  <span className="inline-input-wrapper mx-1" style={{ display: 'inline-block', margin: '0 5px' }}>
+                                  <span className="inline-input-wrapper">
                                     <QuestionInput
                                       slot={slot}
                                       value={answers[currentIndex]}
                                       onChange={(v) => setAnswer(currentIndex, v)}
                                       index={currentIndex}
+                                      onHighlightUpdate={handleHtmlUpdate}
                                     />
                                   </span>
                                 )}
@@ -495,25 +583,25 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                   };
 
                   return (
-                    <div key={currentIndex} className="exam-question inline-text mb-3" style={{ lineHeight: '2.2' }}>
-                      <strong style={{ marginRight: '8px', color: '#666' }}>({q.q_number})</strong>
+                    <div key={currentIndex} className="exam-question inline-text">
+                      <strong>({q.q_number})</strong>
                       <span>{parse(q.text || '', parseOptions)}</span>
                     </div>
                   );
                 }
-                
+
                 // --- MATCHING QUESTIONS (horizontal layout) ---
                 else if (isMatching) {
                   const qKey = `qtext_${item._id}_${q.q_number}`;
                   return (
                     <div key={currentIndex} className="matching-question-row">
                       <div className="matching-question-text">
-                         <HighlightableContent
-                            id={qKey}
-                            htmlContent={(passageStates && passageStates[qKey]) || (q.text || '').replace(/\n/g, '<br />')}
-                            onUpdateHtml={(html) => handleHtmlUpdate(qKey, html)}
-                            tagName="span"
-                         />
+                        <HighlightableContent
+                          id={qKey}
+                          htmlContent={(passageStates && passageStates[qKey]) || (q.text || '').replace(/\n/g, '<br />')}
+                          onUpdateHtml={(html) => handleHtmlUpdate(qKey, html)}
+                          tagName="span"
+                        />
                       </div>
                       <div className="matching-question-number">{q.q_number}</div>
                       <QuestionInput
@@ -521,6 +609,7 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                         value={answers[currentIndex]}
                         onChange={(v) => setAnswer(currentIndex, v)}
                         index={currentIndex}
+                        onHighlightUpdate={handleHtmlUpdate}
                       />
                     </div>
                   );
@@ -534,18 +623,19 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                       <label className="exam-question-label" style={{ display: 'block', marginBottom: '8px' }}>
                         <strong style={{ marginRight: '5px' }}>Q{q.q_number}.</strong>
                         <HighlightableContent
-                            id={qKey}
-                            htmlContent={(passageStates && passageStates[qKey]) || (q.text || '').replace(/\n/g, '<br />')}
-                            onUpdateHtml={(html) => handleHtmlUpdate(qKey, html)}
-                            tagName="span"
-                            style={{ display: 'inline' }}
-                         />
+                          id={qKey}
+                          htmlContent={(passageStates && passageStates[qKey]) || (q.text || '').replace(/\n/g, '<br />')}
+                          onUpdateHtml={(html) => handleHtmlUpdate(qKey, html)}
+                          tagName="span"
+                          style={{ display: 'inline' }}
+                        />
                       </label>
                       <QuestionInput
                         slot={slot}
                         value={answers[currentIndex]}
                         onChange={(v) => setAnswer(currentIndex, v)}
                         index={currentIndex}
+                        onHighlightUpdate={handleHtmlUpdate}
                       />
                     </div>
                   );
@@ -564,20 +654,24 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
   if (isListening && hasAudio) {
     return (
       <div className="ielts-listening-layout">
-        <div className="listening-content-area">
+        <div className="ielts-audio-controls top-sticky">
+          <div className="audio-label-wrapper">
+            <span className="audio-icon">🎧</span>
+            <span className="audio-text">IELTS Listening Audio</span>
+          </div>
+          <IELTSAudioPlayer audioUrl={item.audio_url} />
+        </div>
+        <div className="listening-content-area-top-padded">
           {item.content && (
-            <HighlightableContent 
-                htmlContent={contentHtml} 
-                onUpdateHtml={(html) => handleHtmlUpdate(item._id, html)} 
-                id={item._id}
+            <HighlightableContent
+              htmlContent={contentHtml}
+              onUpdateHtml={(html) => handleHtmlUpdate(item._id, html)}
+              id={item._id}
             />
           )}
           <div className="listening-questions-centered">
             {questionsBlock}
           </div>
-        </div>
-        <div className="ielts-audio-controls">
-          <IELTSAudioPlayer audioUrl={item.audio_url} />
         </div>
       </div>
     );
@@ -591,10 +685,11 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
       <div className="ielts-reading-layout">
         <div className="ielts-passage-panel">
           <div className="passage-scrollable">
-            <HighlightableContent 
-                htmlContent={contentHtml} 
-                onUpdateHtml={(html) => handleHtmlUpdate(item._id, html)} 
-                id={item._id}
+            {/* VocabHighlighter temporarily disabled */}
+            <HighlightableContent
+              htmlContent={contentHtml}
+              onUpdateHtml={(html) => handleHtmlUpdate(item._id, html)}
+              id={item._id}
             />
           </div>
         </div>
@@ -683,23 +778,40 @@ function ResultReview({ submitted, exam }) {
 
   const questionReview = submitted.question_review || [];
 
-  // Group questions by type for accordion sections
-  const questionsByType = {};
-  questionReview.forEach((q, index) => {
-    const typeLabel = q.type === 'mult_choice' ? 'Multiple Choice' :
-      q.type === 'true_false_notgiven' ? 'True/False/Not Given' :
-        q.type === 'gap_fill' ? 'Gap Fill' :
-          q.type === 'matching_headings' ? 'Matching Headings' :
-            q.type === 'matching_features' ? 'Matching Features' : 'Questions';
-    if (!questionsByType[typeLabel]) {
-      questionsByType[typeLabel] = [];
-    }
-    questionsByType[typeLabel].push({ ...q, index });
-  });
+  // Helper function to get heading text from correct_answer ID
+  const getHeadingText = (q) => {
+    if (!q.headings || !q.correct_answer) return q.correct_answer;
+    const headingObj = q.headings.find(h => h.id === q.correct_answer);
+    return headingObj ? `${q.correct_answer}. ${headingObj.text}` : q.correct_answer;
+  };
+
+  const getYourHeadingText = (q) => {
+    if (!q.headings || !q.your_answer) return q.your_answer || '(No answer)';
+    const headingObj = q.headings.find(h => h.id === q.your_answer);
+    return headingObj ? `${q.your_answer}. ${headingObj.text}` : q.your_answer;
+  };
+
+  const getSummaryOptionText = (q, answerId) => {
+    if (!q.options || !answerId) return answerId || '(No answer)';
+    const optionObj = q.options.find(o => o.id === answerId);
+    return optionObj ? `${answerId}. ${optionObj.text}` : answerId;
+  };
+
+  // Robust comparison for highlighting
+  const normalizeForReview = (val) => {
+    if (!val) return '';
+    const n = val.trim().toLowerCase().replace(/\s+/g, ' ');
+    const mapping = { 'not': 'not given', 'ng': 'not given' };
+    return mapping[n] || n;
+  };
 
   const getOptionClass = (opt, q) => {
-    const isYourAnswer = (q.your_answer || '').trim().toLowerCase() === (opt.text || '').trim().toLowerCase();
-    const isCorrect = (q.correct_answer || '').trim().toLowerCase() === (opt.text || '').trim().toLowerCase();
+    const normUser = normalizeForReview(q.your_answer);
+    const normCorrect = normalizeForReview(q.correct_answer);
+    const normOpt = normalizeForReview(opt.text);
+
+    const isYourAnswer = normUser === normOpt;
+    const isCorrect = normCorrect === normOpt;
 
     if (isCorrect) return 'result-option result-option--correct';
     if (isYourAnswer) return 'result-option result-option--wrong';
@@ -714,88 +826,115 @@ function ResultReview({ submitted, exam }) {
     );
   };
 
+  const getQuestionTypeLabel = (type) => {
+    const labels = {
+      'mult_choice': 'Multiple Choice',
+      'true_false_notgiven': 'True/False/Not Given',
+      'yes_no_notgiven': 'Yes/No/Not Given',
+      'gap_fill': 'Gap Fill',
+      'matching_headings': 'Matching Headings',
+      'matching_features': 'Matching Features',
+      'matching_information': 'Matching Information',
+      'summary_completion': 'Summary Completion'
+    };
+    return labels[type] || 'Question';
+  };
+
   return (
     <div className="result-review">
-      <h3 className="result-review-title">Question Review</h3>
+      <h3 className="result-review-title">Question Review ({questionReview.length})</h3>
 
-      {Object.entries(questionsByType).map(([typeLabel, questions]) => (
-        <div key={typeLabel} className="result-section">
-          <h4 className="result-section-title">{typeLabel}</h4>
-          <div className="result-accordion">
-            {questions.map((q) => {
-              const isExpanded = expandedItems.has(q.index);
-              return (
-                <div key={q.index} className={`result-item ${q.is_correct ? 'result-item--correct' : 'result-item--wrong'}`}>
-                  <button
-                    className="result-item-header"
-                    onClick={() => toggleExpand(q.index)}
-                    aria-expanded={isExpanded}
-                  >
-                    <div className="result-item-info">
-                      {getResultIcon(q.is_correct)}
-                      <span className="result-question-number">Question {q.question_number}</span>
-                      <span className="result-item-status">
-                        {q.is_correct ? 'Correct' : 'Incorrect'}
-                      </span>
+      <div className="result-accordion">
+        {questionReview.map((q, index) => {
+          const isExpanded = expandedItems.has(index);
+          return (
+            <div key={index} className={`result-item ${q.is_correct ? 'result-item--correct' : 'result-item--wrong'}`}>
+              <button
+                className="result-item-header"
+                onClick={() => toggleExpand(index)}
+                aria-expanded={isExpanded}
+              >
+                <div className="result-item-info">
+                  {getResultIcon(q.is_correct)}
+                  <span className="result-question-number">Question {q.question_number}</span>
+                  <span className="result-question-type">{getQuestionTypeLabel(q.type)}</span>
+                  <span className="result-item-status">
+                    {q.is_correct ? 'Correct' : 'Incorrect'}
+                  </span>
+                </div>
+                <span className={`result-expand-icon ${isExpanded ? 'expanded' : ''}`}>
+                  ▼
+                </span>
+              </button>
+
+              {isExpanded && (
+                <div className="result-item-details">
+                  <div className="result-question-text">
+                    <p className="result-label">Question:</p>
+                    <p>{q.question_text}</p>
+                  </div>
+
+                  {(q.type === 'mult_choice' || q.type === 'true_false_notgiven' || q.type === 'yes_no_notgiven') && (
+                    <div className="result-options">
+                      <p className="result-label">Options:</p>
+                      {q.options.filter(o => o.text).map((opt, oi) => (
+                        <div key={oi} className={getOptionClass(opt, q)}>
+                          <span className="option-label">{opt.label}.</span>
+                          <span className="option-text">{opt.text}</span>
+                          {normalizeForReview(opt.text) === normalizeForReview(q.your_answer) && <span className="your-badge">(Your answer)</span>}
+                          {normalizeForReview(opt.text) === normalizeForReview(q.correct_answer) && <span className="correct-badge">(Correct)</span>}
+                        </div>
+                      ))}
                     </div>
-                    <span className={`result-expand-icon ${isExpanded ? 'expanded' : ''}`}>
-                      ▼
-                    </span>
-                  </button>
+                  )}
 
-                  {isExpanded && (
-                    <div className="result-item-details">
-                      <div className="result-question-text">
-                        <p className="result-label">Question:</p>
-                        <p>{q.question_text}</p>
-                      </div>
+                  {q.type === 'gap_fill' && (
+                    <div className="result-gap-answer">
+                      <p className="result-label">Your Answer:</p>
+                      <p className="answer-text">{q.your_answer || '(No answer)'}</p>
+                      <p className="result-label">Correct Answer:</p>
+                      <p className="correct-text">{q.correct_answer || '(No correct answer)'}</p>
+                    </div>
+                  )}
 
-                      {(q.type === 'mult_choice' || q.type === 'true_false_notgiven') && (
-                        <div className="result-options">
-                          <p className="result-label">Your Answer:</p>
-                          {q.options.filter(o => o.text).map((opt, oi) => (
-                            <div key={oi} className={getOptionClass(opt, q)}>
-                              <span className="option-label">{opt.label}.</span>
-                              <span className="option-text">{opt.text}</span>
-                              {opt.text === q.your_answer && <span className="your-badge">(Your answer)</span>}
-                              {opt.text === q.correct_answer && <span className="correct-badge">(Correct)</span>}
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                  {q.type === 'summary_completion' && (
+                    <div className="result-gap-answer">
+                      <p className="result-label">Your Answer:</p>
+                      <p className="answer-text">
+                        {q.options && q.options.length > 0
+                          ? getSummaryOptionText(q, q.your_answer)
+                          : (q.your_answer || '(No answer)')}
+                      </p>
+                      <p className="result-label">Correct Answer:</p>
+                      <p className="correct-text">
+                        {q.options && q.options.length > 0
+                          ? getSummaryOptionText(q, q.correct_answer)
+                          : (q.correct_answer || '(No correct answer)')}
+                      </p>
+                    </div>
+                  )}
 
-                      {q.type === 'gap_fill' && (
-                        <div className="result-gap-answer">
-                          <p className="result-label">Your Answer:</p>
-                          <p className="answer-text">{q.your_answer || '(No answer)'}</p>
-                          <p className="result-label">Correct Answer:</p>
-                          <p className="correct-text">{q.correct_answer || '(No correct answer)'}</p>
-                        </div>
-                      )}
+                  {(q.type === 'matching_headings' || q.type === 'matching_features' || q.type === 'matching_information') && (
+                    <div className="result-matching-answer">
+                      <p className="result-label">Your Answer:</p>
+                      <p className="answer-text">{getYourHeadingText(q)}</p>
+                      <p className="result-label">Correct Answer:</p>
+                      <p className="correct-text">{getHeadingText(q)}</p>
+                    </div>
+                  )}
 
-                      {(q.type === 'matching_headings' || q.type === 'matching_features') && (
-                        <div className="result-matching-answer">
-                          <p className="result-label">Your Answer:</p>
-                          <p className="answer-text">{q.your_answer || '(No answer)'}</p>
-                          <p className="result-label">Correct Answer:</p>
-                          <p className="correct-text">{q.correct_answer || '(No correct answer)'}</p>
-                        </div>
-                      )}
-
-                      {q.explanation && (
-                        <div className="result-explanation">
-                          <p className="result-label">Explanation:</p>
-                          <p>{q.explanation}</p>
-                        </div>
-                      )}
+                  {q.explanation && (
+                    <div className="result-explanation">
+                      <p className="result-label">Explanation:</p>
+                      <p>{q.explanation}</p>
                     </div>
                   )}
                 </div>
-              );
-            })}
-          </div>
-        </div>
-      ))}
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -815,11 +954,15 @@ export default function Exam() {
   const [showReview, setShowReview] = useState(false);
   const [fontSize, setFontSize] = useState(100); // 100% = default
   const [startTime] = useState(() => Date.now()); // Track when exam started
-  
+
   // IELTS Theme & Settings
   const [theme, setTheme] = useState('light');
   const [textSize, setTextSize] = useState('regular');
   const [brightness, setBrightness] = useState(100);
+
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const isSingleMode = searchParams.get('mode') === 'single';
 
   useEffect(() => {
     if (!id) return;
@@ -836,10 +979,20 @@ export default function Exam() {
         // Initialize timer based on duration (in minutes)
         const duration = res.data.duration || 60;
         setTimeRemaining(duration * 60); // Convert to seconds
+
+        // Handle deep link to specific part
+        const searchParams = new URLSearchParams(location.search);
+        const partParam = searchParams.get('part');
+        if (partParam !== null) {
+          const partIndex = parseInt(partParam, 10);
+          if (!isNaN(partIndex)) {
+            setCurrentStep(partIndex);
+          }
+        }
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, location.search]);
 
   // Timer countdown effect
   useEffect(() => {
@@ -934,9 +1087,65 @@ export default function Exam() {
     e.preventDefault();
     setSubmitLoading(true);
     const timeTaken = Date.now() - startTime;
+
+    // Clear all strikethrough localStorage entries for this exam
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('strikethrough_q-')) {
+        localStorage.removeItem(key);
+      }
+    });
+
+    // If in single mode, we might want to prevent backend from saving history, 
+    // OR we submit as normal but ignore the result history on frontend. 
+    // Backend creates TestAttempt. 
+    // Ideally we add a flag 'simulated' or 'practice' to backend.
+    // For now, let's submit and let backend save it (unless we edit backend).
+    // User asked "Khong can luu lich su". So we must tell backend NOT to save.
+
     api
-      .submitExam(id, { answers, writing: writingAnswers, timeTaken })
-      .then((res) => setSubmitted(res.data))
+      .submitExam(id, { answers, writing: writingAnswers, timeTaken, isPractice: isSingleMode })
+      .then((res) => {
+        // If single mode, recalculate score based only on current part
+        if (isSingleMode && steps[currentStep]) {
+          const step = steps[currentStep];
+          const start = step.startSlotIndex;
+          const end = step.endSlotIndex;
+
+          // Filter answers to only this part
+          // Backend result.question_review contains all info.
+          // We can re-calculate checks here or filter backend response?
+          // Backend response has 'score' (total).
+          // Let's rely on backend check but filter the result manually for display.
+
+          // Filter answers to only this part by index mapping
+          const partReview = res.data.question_review.filter((_, idx) => idx >= start && idx < end);
+
+          // Actually, let's just use the returned 'question_review' array, 
+          // and count correct items which fall within [start, end).
+          // But 'question_review' structure in backend might not be 1:1 if filtered? 
+          // Looking at backend: "const questionReview = []; ... for (const g of question_groups)..."
+          // It builds it in order. So index matches slot index.
+
+          let partScore = 0;
+          let partTotal = 0;
+
+          partReview.forEach((q) => {
+            partTotal++;
+            if (q.is_correct) partScore++;
+          });
+
+          setSubmitted({
+            ...res.data,
+            question_review: partReview,
+            score: partScore,
+            total: partTotal,
+            wrong: partTotal - partScore,
+            isSingleMode: true
+          });
+        } else {
+          setSubmitted(res.data);
+        }
+      })
       .catch((err) => setError(err.message))
       .finally(() => setSubmitLoading(false));
   };
@@ -946,74 +1155,162 @@ export default function Exam() {
   if (!exam) return <div className="page"><p className="muted">Exam not found.</p></div>;
 
   if (submitted) {
-    const { score, total, wrong, writingCount } = submitted;
+    const { score, total, wrong, writingCount, isSingleMode } = submitted;
     const wrongCount = wrong ?? (total - score);
     const pct = total ? Math.round((score / total) * 100) : 0;
     const correctPct = total ? (score / total) * 100 : 0;
 
     // Calculate IELTS Band Score (only for Reading and Listening)
     const examType = exam.type || 'reading';
-    const showBandScore = examType !== 'writing';
+    const showBandScore = !isSingleMode && examType !== 'writing';
     const bandScore = showBandScore ? calculateIELTSBand(score, examType) : null;
 
     // Get time taken
     const timeTaken = getTimeTaken();
 
+    // Detailed Stats for Table
+    const resultsByType = {};
+    const questionReview = (submitted.question_review || []).map(q => {
+      // Basic q.type mapping for labeling
+      const typeLabel = q.type === 'mult_choice' ? 'Multiple Choice (One Answer)' :
+        q.type === 'true_false_notgiven' ? 'True - False - Not Given' :
+          q.type === 'yes_no_notgiven' ? 'Yes - No - Not Given' :
+            q.type === 'gap_fill' ? 'Gap Fill' :
+              q.type === 'matching_headings' ? 'Matching Headings' :
+                q.type === 'matching_features' ? 'Matching Features' :
+                  q.type === 'matching_information' ? 'Matching Information' :
+                    q.type === 'summary_completion' ? 'Summary Completion' : 'Other';
+
+      if (!resultsByType[typeLabel]) {
+        resultsByType[typeLabel] = { total: 0, correct: 0, wrong: 0, skipped: 0 };
+      }
+      resultsByType[typeLabel].total++;
+      if (q.is_correct) resultsByType[typeLabel].correct++;
+      else if (!q.your_answer) resultsByType[typeLabel].skipped++;
+      else resultsByType[typeLabel].wrong++;
+
+      return { ...q, typeLabel };
+    });
+
+    const wrongPct = total ? (wrongCount / total) * 100 : 0;
+
     return (
-      <div className="page exam-result">
-        <h1 className="result-test-name">{exam.title}</h1>
-        <div className="result-card">
-          <div className="result-stats">
-            <p className="result-stat"><strong>{total}</strong> questions</p>
-            <p className="result-stat result-stat--correct"><strong>{score}</strong> correct</p>
-            <p className="result-stat result-stat--wrong"><strong>{wrongCount}</strong> wrong</p>
-            {writingCount > 0 && (
-              <p className="result-stat"><strong>{writingCount}</strong> writing tasks</p>
+      <div className="page exam-result-new">
+        <div className="result-top-grid">
+          <div className="result-left-col">
+            <div className="result-test-info-card">
+              <h1 className="result-test-name">{exam.title}</h1>
+            </div>
+            {showBandScore && (
+              <div className="band-score-card">
+                <div className="band-score-label">Band Score:</div>
+                <div className="band-score-value">{bandScore}</div>
+              </div>
+            )}
+            {!showBandScore && writingCount > 0 && (
+              <div className="band-score-card" style={{ background: '#4e6a97' }}>
+                <div className="band-score-label">Practice Mode</div>
+                <div className="band-score-value" style={{ fontSize: '2rem' }}>Writing Tasks</div>
+              </div>
             )}
           </div>
-          <div className="result-donut-wrap">
-            <div
-              className="result-donut"
-              style={{
-                background: `conic-gradient(#22c55e 0% ${correctPct}%, #ef4444 ${correctPct}% 100%)`,
-              }}
-              aria-hidden
-            />
-            <div className="result-donut-center">
-              <span className="result-donut-value">{score}/{total}</span>
-              <span className="result-donut-pct">{pct}%</span>
+
+          <div className="result-summary-card">
+            <div className="result-card-header">
+              <h2>Kết quả làm bài</h2>
+              <div className="time-taken-small">
+                <span>Thời gian làm bài</span>
+                <strong>{timeTaken}</strong>
+              </div>
+            </div>
+
+            <div className="result-card-content">
+              <div className="doughnut-container">
+                <div
+                  className="doughnut-chart"
+                  style={{
+                    '--correct-pct': `${correctPct}%`,
+                    '--wrong-pct': `${wrongPct}%`
+                  }}
+                >
+                  <div className="doughnut-inner">
+                    <span className="doughnut-score">{score}/{total}</span>
+                    <span className="doughnut-subtext">câu đúng</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="stats-legend">
+                <div className="legend-item">
+                  <span className="dot dot-correct"></span>
+                  <span className="label">Đúng:</span>
+                  <span className="value">{score} câu</span>
+                </div>
+                <div className="legend-item">
+                  <span className="dot dot-wrong"></span>
+                  <span className="label">Sai:</span>
+                  <span className="value">{wrongCount} câu</span>
+                </div>
+                <div className="legend-item">
+                  <span className="dot dot-skipped"></span>
+                  <span className="label">Bỏ qua:</span>
+                  <span className="value">{total - score - wrongCount} câu</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="result-card-footer">
+              <button className="btn-orange-round" onClick={() => setShowReview(!showReview)}>
+                {showReview ? 'Ẩn giải thích chi tiết' : 'Xem giải thích chi tiết'}
+              </button>
+              <Link to="/tests" className="btn-exit-result">
+                Thoát kết quả
+              </Link>
             </div>
           </div>
-          <p className="result-score">{score} / {total} ({pct}%)</p>
-          {showBandScore && (
-            <div className="ielts-band-score">
-              <span className="ielts-band-label">IELTS Band Score</span>
-              <span className="ielts-band-value">{bandScore}</span>
-            </div>
-          )}
-          <div className="time-taken">
-            <span className="time-taken-label">Thời Gian Làm Bài</span>
-            <span className="time-taken-value">{timeTaken}</span>
-          </div>
-          {!showBandScore && (
-            <p className="result-note">
-              Your writing tasks will be scored by your teacher.
+        </div>
+
+        <div className="feedback-dashed-container">
+          {/* Feedback placeholder or note */}
+          {!showBandScore && writingCount > 0 && (
+            <p style={{ padding: '1rem', margin: 0, textAlign: 'center', color: '#059669', fontWeight: 'bold' }}>
+              Your writing tasks have been submitted successfully.
             </p>
           )}
         </div>
 
-        <div className="result-actions">
-          <button
-            className="btn btn-primary"
-            onClick={() => setShowReview(!showReview)}
-          >
-            {showReview ? 'Hide Review' : 'Show Review'}
-          </button>
-          <Link to="/tests" className="btn btn-ghost">Back to tests</Link>
+        <div className="detailed-stats-section">
+          <h3>Bảng dữ liệu chi tiết</h3>
+          <table className="stats-table">
+            <thead>
+              <tr>
+                <th>Loại câu hỏi</th>
+                <th>Số câu hỏi</th>
+                <th className="th-correct">Đúng</th>
+                <th>Sai</th>
+                <th>Bỏ qua</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(resultsByType).map(([label, stats], idx) => (
+                <tr key={idx}>
+                  <td>{label}</td>
+                  <td>{stats.total}</td>
+                  <td className="td-correct">{stats.correct}</td>
+                  <td className="td-wrong">{stats.wrong}</td>
+                  <td className="td-skipped">{stats.skipped}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
 
         {showReview && (
           <div className="review-container">
+            <div className="result-actions" style={{ justifyContent: 'flex-end', marginBottom: '1rem', gap: '1rem', display: 'flex' }}>
+              <button className="btn btn-ghost" onClick={() => setShowReview(false)}>Ẩn giải thích</button>
+              <Link to="/tests" className="btn btn-ghost">Thoát kết quả</Link>
+            </div>
             {submitted.question_review && submitted.question_review.length > 0 && (
               <ResultReview submitted={submitted} exam={exam} />
             )}
@@ -1059,10 +1356,10 @@ export default function Exam() {
   };
 
   return (
-    <div 
-      className={`page exam-page exam-page--stepper text-size-${textSize}`} 
+    <div
+      className={`page exam-page exam-page--stepper text-size-${textSize}`}
       data-theme={theme}
-      style={{ 
+      style={{
         '--exam-font-size': `${fontSize}%`,
         filter: `brightness(${brightness}%)`
       }}
@@ -1070,22 +1367,30 @@ export default function Exam() {
       <header className="exam-header">
         <div className="exam-header-left">
           <h1 className="exam-title">{exam.title}</h1>
-          {step && (
-            <span className="exam-step-badge">
-              {step.type === 'reading' && `Reading — ${step.label} of ${steps.filter((s) => s.type === 'reading').length}`}
-              {step.type === 'listening' && `Listening — ${step.label} of ${steps.filter((s) => s.type === 'listening').length}`}
-              {step.type === 'writing' && `Writing — ${step.label} of ${steps.filter((s) => s.type === 'writing').length}`}
-            </span>
-          )}
+          <div className="exam-timer-wrapper">
+            {timeRemaining !== null && (
+              <div className={getTimerClass()}>
+                <span className="exam-timer-icon">⏱</span>
+                <span className="exam-timer-text">{formatTime(timeRemaining)} minutes remaining</span>
+              </div>
+            )}
+          </div>
+          <Link to={`/tests/${id}`} className="btn-exit-test">
+            Exit Test
+          </Link>
         </div>
+
         <div className="exam-header-right">
-          {timeRemaining !== null && (
-            <div className={getTimerClass()}>
-              <span className="exam-timer-icon">⏱</span>
-              <span className="exam-timer-text">{formatTime(timeRemaining)}</span>
-            </div>
-          )}
-          <IELTSSettings 
+          <button
+            type="button"
+            className="btn-finish-test"
+            onClick={handleSubmit}
+            disabled={submitLoading}
+          >
+            {submitLoading ? 'Submitting...' : 'Finish Test'}
+          </button>
+
+          <IELTSSettings
             brightness={brightness}
             setBrightness={setBrightness}
             textSize={textSize}
@@ -1093,37 +1398,14 @@ export default function Exam() {
             theme={theme}
             setTheme={setTheme}
           />
-          <Link to={`/tests/${id}`} className="btn btn-ghost btn-sm">Leave exam</Link>
         </div>
       </header>
 
-      {hasSteps && (
-        <div className="exam-stepper-nav">
-          {steps.map((s, i) => (
-            <button
-              key={i}
-              type="button"
-              className={`exam-stepper-dot ${i === currentStep ? 'active' : ''} ${s.type === 'writing' ? 'writing-dot' : ''}`}
-              onClick={() => setCurrentStep(i)}
-              title={`${s.label}`}
-              aria-label={`Go to ${s.label}`}
-            >
-              {i + 1}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div className="exam-step-heading">
-        <h2>{step.label}</h2>
-        {step.item.title && !isWriting && <span className="exam-step-meta">— {step.item.title}</span>}
-        {isWriting && step.item.title && <span className="exam-step-meta">— {step.item.title}</span>}
-        <span className="exam-step-meta">
-          {step.type === 'reading' && 'Reading'}
-          {step.type === 'listening' && 'Listening'}
-          {step.type === 'writing' && 'Writing'}
-        </span>
-      </div>
+      {/* Part Title Bar (below header, above split content) */}
+      <div className="exam-part-bar">
+        <span className="exam-part-label">{step.label}</span>
+        <span className="exam-part-title-text">{step.item.title || "Read the text and answer questions"}</span>
+      </div >
 
       <form onSubmit={handleSubmit} className="exam-form" onKeyDown={(e) => {
         // Prevent Enter key from submitting the form when typing in textarea
@@ -1139,40 +1421,89 @@ export default function Exam() {
             setWritingAnswer={setWritingAnswer}
           />
         ) : (
-          <StepContent step={step} slots={slots} answers={answers} setAnswer={setAnswer} />
+          <StepContent step={step} slots={slots} answers={answers} setAnswer={setAnswer} testId={id} />
         )}
-
-        <nav className="exam-step-actions">
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
-            disabled={isFirst}
-          >
-            ← Previous
-          </button>
-          <span className="step-indicator">
-            Step {currentStep + 1} of {steps.length}
-          </span>
-          {isLast ? (
-            <button type="submit" className="btn btn-primary" disabled={submitLoading}>
-              {submitLoading ? 'Submitting…' : 'Submit answers'}
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setCurrentStep(currentStep + 1);
-              }}
-            >
-              Next →
-            </button>
-          )}
-        </nav>
       </form>
-    </div>
+
+      {/* Fixed Bottom Footer */}
+      <footer className="exam-footer">
+        <div className="exam-footer-left">
+          <span className="footer-part-text">{step.label}</span>
+        </div>
+
+        <div className="exam-footer-center">
+          {/* Question Palette for CURRENT step only (or all? Screenshot implies specific range for part) */}
+          {/* Usually IELTS shows all questions or just current part. Let's show current Part's questions. */}
+          <div className="footer-question-nav">
+            {slots.map((s, idx) => {
+              // Only show questions relevant to current step?
+              // Actually standard UI shows ALL questions 1-40 sometimes, but filtered by visible.
+              // Let's filter by the range of the current step to avoid clutter if test is huge?
+              // Or mapping all is fine. The screenshot shows "Question 1-6" in title, and footer has "1 2 ... 13".
+              // If step has startSlotIndex and endSlotIndex, let's render those.
+              if (idx < step.startSlotIndex || idx >= step.endSlotIndex) return null;
+
+              const isAnswered = !!answers[idx];
+              const qNum = s.q_number;
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  className={`footer-q-btn ${isAnswered ? 'answered' : ''}`}
+                  onClick={() => {
+                    // Scroll to specific question logic is tricky without refs.
+                    // For now, simple focus interaction or just visual indicator
+                    document.getElementById(`q-${idx}`)?.focus();
+                  }}
+                >
+                  {qNum}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="exam-footer-right">
+          {/* Part Tabs (Previous/Next Part basically) */}
+          {!isSingleMode && hasSteps && (
+            <div className="footer-step-nav">
+              {steps.map((s, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className={`footer-step-btn ${i === currentStep ? 'active' : ''}`}
+                  onClick={() => setCurrentStep(i)}
+                >
+                  {s.label.replace('Passage ', 'Part ')}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {!isSingleMode && (
+            <>
+              <button
+                type="button"
+                className="footer-nav-arrow"
+                onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
+                disabled={isFirst}
+                title="Previous Part"
+              >
+                ◀
+              </button>
+              <button
+                type="button"
+                className="footer-nav-arrow"
+                onClick={() => setCurrentStep(Math.min(steps.length - 1, currentStep + 1))}
+                disabled={isLast}
+                title="Next Part"
+              >
+                ▶
+              </button>
+            </>
+          )}
+        </div>
+      </footer>
+    </div >
   );
 }

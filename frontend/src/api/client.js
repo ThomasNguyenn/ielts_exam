@@ -112,4 +112,13 @@ export const api = {
   checkOutline: (body) => request('/api/practice/outline-check', { method: 'POST', body: JSON.stringify(body) }),
   getMaterials: (questionId) => request(`/api/practice/materials/${questionId}`),
   submitPracticeWriting: (body) => request('/api/practice/submit', { method: 'POST', body: JSON.stringify(body) }),
+
+  // Vocabulary
+  getVocabulary: (params) => request(`/api/vocabulary${params ? `?${new URLSearchParams(params)}` : ''}`),
+  getDueVocabulary: () => request('/api/vocabulary/due'),
+  getVocabularyStats: () => request('/api/vocabulary/stats'),
+  addVocabulary: (body) => request('/api/vocabulary', { method: 'POST', body: JSON.stringify(body) }),
+  updateVocabulary: (id, body) => request(`/api/vocabulary/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  reviewVocabulary: (id, difficulty) => request(`/api/vocabulary/${id}/review`, { method: 'PUT', body: JSON.stringify({ difficulty }) }),
+  deleteVocabulary: (id) => request(`/api/vocabulary/${id}`, { method: 'DELETE' }),
 };

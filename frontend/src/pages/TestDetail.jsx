@@ -1,17 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../api/client';
+import './TestDetail.css';
 
 function getTestTypeInfo(test) {
   const readingCount = test.reading_passages?.length ?? 0;
   const listeningCount = test.listening_sections?.length ?? 0;
   const writingCount = test.writing_tasks?.length ?? 0;
-  
+
   const type = test.type || 'reading';
-  
+
   let metaItems = [];
   let description = '';
-  
+
   if (type === 'reading') {
     metaItems = [
       { label: 'Reading', count: readingCount, unit: 'passage' }
@@ -40,7 +41,7 @@ function getTestTypeInfo(test) {
     }
     description = 'Take the full test.';
   }
-  
+
   return { metaItems, description };
 }
 

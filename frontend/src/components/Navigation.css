@@ -1,91 +1,131 @@
 :root {
-    --nav-bg: #86d9b0;
-    --nav-text: #1f2937;
-    --nav-active-bg: #ffffff;
-    --nav-active-text: #111827;
-    --nav-hover: rgba(255, 255, 255, 0.2);
+    --nav-bg: #ffffff;
+    --nav-text: #475569;
+    --nav-active-bg: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+    --nav-active-text: #ffffff;
+    --nav-hover-bg: #f1f5f9;
+    --nav-hover-text: #1e293b;
+    --nav-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    --nav-height: 70px;
 }
 
 .layout-header {
-    background-color: var(--nav-bg) !important;
-    padding: 0;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-    height: 74px;
+    background-color: rgba(255, 255, 255, 0.9) !important;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    height: var(--nav-height);
     display: flex;
     align-items: center;
-    border-bottom: none;
-    /* Override App.css */
-    position: relative;
-    z-index: 10;
-}
-
-.layout-brand {
-    display: none !important;
-    /* Hiding the old brand text as per design */
+    border-bottom: 1px solid #e2e8f0;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    box-shadow: var(--nav-shadow);
+    padding: 0 1.5rem;
 }
 
 .nav-container {
     display: flex;
     align-items: center;
-    height: 100%;
     width: 100%;
-    padding: 0 1rem;
-    overflow-x: auto;
-    overflow-y: hidden;
-    /* Prevent vertical scrollbar "buttons" */
-    scrollbar-width: none;
-    /* Hide scrollbar for Firefox */
-    -ms-overflow-style: none;
-    /* Hide scrollbar for IE/Edge */
+    max-width: 1400px;
+    margin: 0 auto;
+    gap: 0.5rem;
+    height: 100%;
 }
 
-.nav-container::-webkit-scrollbar {
-    display: none;
-    /* Hide scrollbar for Chrome/Safari */
+.nav-brand {
+    font-size: 1.5rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, #1e3a8a 0%, #10b981 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-right: 2rem;
+    text-transform: uppercase;
+    letter-spacing: -0.5px;
+    text-decoration: none;
 }
 
 .nav-item {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.4rem 1rem;
-    height: auto;
+    gap: 0.6rem;
+    padding: 0.6rem 1.25rem;
     color: var(--nav-text);
-    font-weight: 700;
+    font-weight: 600;
     font-size: 0.95rem;
     text-decoration: none;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 50px;
     white-space: nowrap;
-    position: relative;
-    transition: all 0.2s ease;
-    border-radius: 10px;
-    margin: 0.35rem 0;
-    border: 2px solid transparent;
-    background: var(--nav-bg);
+    border: 1px solid transparent;
 }
 
 .nav-item:hover {
-    background-color: #ffe7d6;
-    color: #1a202c;
-    border-color: rgba(255, 255, 255, 0.5);
+    background-color: var(--nav-hover-bg);
+    color: var(--nav-hover-text);
+    transform: translateY(-1px);
 }
 
 .nav-item.active {
-    background-color: var(--nav-active-bg) !important;
-    color: var(--nav-active-text);
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.08);
+    background: var(--nav-active-bg) !important;
+    color: var(--nav-active-text) !important;
+    box-shadow: 0 4px 12px rgba(30, 58, 138, 0.25);
     font-weight: 700;
-    border-color: rgba(0, 0, 0, 0.08);
+}
+
+.nav-item.active .nav-icon {
+    filter: brightness(0) invert(1);
+}
+
+.nav-spacer {
+    flex: 1;
 }
 
 .nav-divider {
     width: 1px;
-    height: 20px;
-    background-color: rgba(0, 0, 0, 0.1);
-    margin: 0 0.25rem;
+    height: 24px;
+    background-color: #e2e8f0;
+    margin: 0 0.5rem;
 }
 
-/* Icons */
 .nav-icon {
     width: 20px;
     height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.3s ease;
+}
+
+.nav-item:hover .nav-icon {
+    transform: scale(1.1);
+}
+
+.user-badge {
+    padding: 0.4rem 1rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 50px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #475569;
+    margin-left: 0.5rem;
+}
+
+/* Auth Buttons */
+.btn-login {
+    background: #f1f5f9;
+    color: #1e3a8a;
+}
+
+.btn-register {
+    background: #1e3a8a;
+    color: white;
+}
+
+.btn-register:hover {
+    background: #1e40af;
+    color: white;
 }

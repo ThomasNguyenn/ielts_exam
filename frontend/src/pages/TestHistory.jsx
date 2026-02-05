@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api/client';
+import './TestHistory.css';
 
 // Helper to separate date and time
 function formatDateParts(val) {
@@ -82,8 +83,8 @@ export default function TestHistory() {
           <p className="muted">{test?.type ? `${test.type[0].toUpperCase() + test.type.slice(1)} test` : ''}</p>
         </div>
         <div className="test-history-actions">
-          <Link to={`/tests/${id}`} className="btn btn-primary">Start test</Link>
-          <Link to="/tests" className="btn btn-ghost">Back to tests</Link>
+          <Link to={`/tests/${id}`} className="btn btn-primary">Bắt đầu bài thi</Link>
+          <Link to="/tests" className="btn btn-ghost">Quay lại danh sách bài thi</Link>
         </div>
       </div>
 
@@ -98,10 +99,10 @@ export default function TestHistory() {
                 <th style={{ padding: '1rem' }}>Thời gian<br />nộp bài</th>
                 {test?.type === 'writing' ? (
                   <>
-                     <th style={{ padding: '1rem' }}>Task 1</th>
-                     <th style={{ padding: '1rem' }}>Task 2</th>
-                     <th style={{ padding: '1rem' }}>Overall (Band)</th>
-                     <th style={{ padding: '1rem' }}>Teacher Feedback</th>
+                    <th style={{ padding: '1rem' }}>Task 1</th>
+                    <th style={{ padding: '1rem' }}>Task 2</th>
+                    <th style={{ padding: '1rem' }}>Overall (Band)</th>
+                    <th style={{ padding: '1rem' }}>Nhận xét</th>
                   </>
                 ) : (
                   <>
@@ -131,20 +132,20 @@ export default function TestHistory() {
                       <div style={{ fontWeight: 500, color: '#334155' }}>{date}</div>
                       <div>{time}</div>
                     </td>
-                    
+
                     {isWriting ? (
                       <>
                         <td style={{ padding: '1rem' }}>{w.task1_score ?? '--'}</td>
                         <td style={{ padding: '1rem' }}>{w.task2_score ?? '--'}</td>
                         <td style={{ padding: '1rem' }}>
-                           <span style={{ fontWeight: 'bold', color: '#2563eb' }}>{a.score ?? '--'}</span>
+                          <span style={{ fontWeight: 'bold', color: '#2563eb' }}>{a.score ?? '--'}</span>
                         </td>
-                         <td style={{ padding: '1rem', fontSize: '0.9rem', textAlign: 'left', maxWidth: '300px' }}>
-                           {w.feedback ? (
-                             <div style={{maxHeight:'60px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'pre-wrap'}}>
-                               {w.feedback}
-                             </div>
-                           ) : <span className="muted">No feedback yet</span>}
+                        <td style={{ padding: '1rem', fontSize: '0.9rem', textAlign: 'left', maxWidth: '300px' }}>
+                          {w.feedback ? (
+                            <div style={{ maxHeight: '60px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'pre-wrap' }}>
+                              {w.feedback}
+                            </div>
+                          ) : <span className="muted">No feedback yet</span>}
                         </td>
                       </>
                     ) : (

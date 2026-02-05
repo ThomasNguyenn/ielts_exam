@@ -1,6 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../../api/client';
+import './Manage.css';
+
+const Icons = {
+  Writing: () => (
+    <svg className="manage-nav-icon" style={{ width: '18px', height: '18px' }} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
+    </svg>
+  )
+};
 
 function writingToForm(w) {
   if (!w) return {
@@ -75,14 +84,14 @@ export default function AddWriting() {
           setWritings(wRes.data || []);
           setForm({ _id: `writing-${Date.now()}`, title: '', type: 'academic', prompt: '', task_type: 'both', image_url: '', word_limit: 250, essay_word_limit: 250, time_limit: 60, sample_answer: '', band_score: '' });
         })
-        .catch(() => {})
+        .catch(() => { })
         .finally(() => setLoading(false));
     }
   }, [editId]);
 
   useEffect(() => {
     if (!editId && success) {
-      api.getWritings().then((res) => setWritings(res.data || [])).catch(() => {});
+      api.getWritings().then((res) => setWritings(res.data || [])).catch(() => { });
     }
   }, [success, editId]);
 
@@ -161,12 +170,12 @@ export default function AddWriting() {
     }
   };
 
-  if (loading) return <div className="manage-section"><p className="muted">Loading…</p></div>;
+  if (loading) return <p className="muted">Loading…</p>;
   if (editId && loadError) return <div className="manage-section"><p className="form-error">{loadError}</p><Link to="/manage/writings">Back to writings</Link></div>;
 
   return (
-    <div className="manage-section">
-      <h2>{editId ? 'Edit writing' : 'Add writing'}</h2>
+    <div className="manage-container">
+      <h1>{editId ? 'Sửa bài Writing' : 'Thêm bài Writing'}</h1>
       {error && <p className="form-error">{error}</p>}
       {success && <p className="form-success">{success}</p>}
 
@@ -239,9 +248,9 @@ export default function AddWriting() {
             </small>
             {form.image_url && (
               <div style={{ marginTop: '0.5rem' }}>
-                <img 
-                  src={form.image_url} 
-                  alt="Preview" 
+                <img
+                  src={form.image_url}
+                  alt="Preview"
                   style={{ maxWidth: '100%', maxHeight: '300px', border: '1px solid #ddd', borderRadius: '4px' }}
                   onError={(e) => { e.target.style.display = 'none'; }}
                 />
@@ -311,36 +320,43 @@ export default function AddWriting() {
         </div>
       </form>
 
-      <h3>Existing writings</h3>
-      {!editId && (
-        <>
-          <input
-            type="search"
-            value={existingSearch}
-            onChange={(e) => setExistingSearch(e.target.value)}
-            placeholder="Search writings by title or ID..."
-            className="search-input"
-            aria-label="Search existing writings"
-          />
-          {existingSearch.trim() && (
-            <p className="search-hint">
-              Showing {filteredWritings.length} of {writings.length} writing{writings.length !== 1 ? 's' : ''}
-            </p>
-          )}
-          <ul className="manage-list">
-            {writings.length === 0 ? <li className="muted">No writings yet.</li> : filteredWritings.length === 0 ? (
-              <li className="muted">No writings match your search.</li>
-            ) : filteredWritings.map((w) => (
-              <li key={w._id}>
-                <span>{w.title}</span>
-                <code>{w._id}</code>
-                <Link to={`/manage/writings/${w._id}`} className="edit-link">Edit</Link>
-                <button type="button" className="btn btn-ghost btn-sm delete-link" onClick={() => handleDeleteWriting(w._id)}>Delete</button>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+      <div className="search-container">
+        <h3>Các bài Writing hiện có</h3>
+        {!editId && (
+          <>
+            <div className="search-box">
+              <input
+                type="search"
+                value={existingSearch}
+                onChange={(e) => setExistingSearch(e.target.value)}
+                placeholder="Tìm kiếm theo tiêu đề hoặc ID..."
+                className="test-search-input"
+              />
+            </div>
+            {existingSearch.trim() && (
+              <p className="search-hint">
+                Đang hiện {filteredWritings.length} trên {writings.length} bài
+              </p>
+            )}
+            <div className="manage-list">
+              {writings.length === 0 ? <p className="muted">Chưa có bài Writing nào.</p> : filteredWritings.length === 0 ? (
+                <p className="muted">Không tìm thấy bài phù hợp.</p>
+              ) : filteredWritings.map((w) => (
+                <div key={w._id} className="list-item">
+                  <div className="item-info">
+                    <span className="item-title">{w.title}</span>
+                    <span className="item-meta">ID: {w._id}</span>
+                  </div>
+                  <div className="item-actions">
+                    <Link to={`/manage/writings/${w._id}`} className="btn btn-ghost btn-sm">Sửa</Link>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleDeleteWriting(w._id)} style={{ color: '#ef4444' }}>Xóa</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

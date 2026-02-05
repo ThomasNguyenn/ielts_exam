@@ -59,32 +59,44 @@
     opacity: 0.8;
 }
 
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    width: 100%;
+}
+
 .score-card.overall .card-value {
     color: #FF6B35;
     font-size: 3.5rem;
     line-height: 1;
-    margin-top: 0.5rem;
+    margin-top: 1rem;
+    text-align: right;
+    /* Right align the value for better aesthetics */
+    align-self: flex-end;
 }
 
 /* Edit Icon */
 .edit-btn {
-    position: absolute;
-    bottom: 1.5rem;
-    right: 1.5rem;
-    background: none;
-    border: none;
+    background: white;
+    border: 1px solid rgba(255, 107, 53, 0.2);
     cursor: pointer;
-    padding: 4px;
-    border-radius: 50%;
+    padding: 6px;
+    border-radius: 8px;
     color: #FF6B35;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background-color 0.2s;
+    transition: all 0.2s;
+    margin-left: 0.5rem;
 }
 
 .edit-btn:hover {
-    background-color: rgba(255, 107, 53, 0.1);
+    background-color: #FF6B35;
+    color: white;
+    border-color: #FF6B35;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(255, 107, 53, 0.2);
 }
 
 /* Skill Card Specifics */

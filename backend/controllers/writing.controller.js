@@ -150,7 +150,7 @@ export const submitWriting = async (req, res) => {
 /** Get submissions with status filtering */
 export const getSubmissions = async (req, res) => {
     try {
-        const { status } = req.query; 
+        const { status } = req.query;
         const filter = {};
         if (status) filter.status = status;
 
@@ -224,12 +224,12 @@ export const scoreSubmission = async (req, res) => {
             // Since we don't have task_type easily here without population, we will rely on strict order OR title?
             // Safer approach: Just average if unsure, but user requested specific formula.
             // Let's assume standard IELTS order: Task 1 then Task 2.
-            
+
             const validScores = submission.scores.filter(s => typeof s.score === 'number');
-            
+
             if (validScores.length > 0) {
                 let finalScore = 0;
-                
+
                 // If we have exactly 2 scores, apply the formula assuming [Task 1, Task 2] order
                 if (validScores.length === 2) {
                     const task1Score = validScores[0].score;
@@ -250,9 +250,13 @@ export const scoreSubmission = async (req, res) => {
                 const task1 = validScores[0];
                 const task2 = validScores[1];
 
+                // Update the submission object itself with the overall score
+                submission.score = finalScore;
+                await submission.save();
+
                 await TestAttempt.findByIdAndUpdate(submission.attempt_id, {
                     score: finalScore,
-                    total: 9, 
+                    total: 9,
                     percentage: Math.round((finalScore / 9) * 100),
                     status: 'scored',
                     writing_details: {
@@ -261,6 +265,8 @@ export const scoreSubmission = async (req, res) => {
                         feedback: (task1?.feedback || '') + (task2?.feedback ? '\n\n' + task2.feedback : '')
                     }
                 });
+            } else {
+                await submission.save();
             }
         }
 

@@ -1,15 +1,25 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../../api/client';
+import './Manage.css';
 
 const QUESTION_GROUP_TYPES = [
   { value: 'mult_choice', label: 'Multiple choice' },
   { value: 'true_false_notgiven', label: 'True / False / Not given' },
   { value: 'gap_fill', label: 'Gap fill' },
   { value: 'matching_features', label: 'Matching features' },
+  { value: 'summary_completion', label: 'Summary completion' },
 ];
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D'];
+
+const Icons = {
+  Listening: () => (
+    <svg className="manage-nav-icon" style={{ width: '18px', height: '18px' }} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7zm1-11h-2v3H8v2h3v3h2v-3h3v-2h-3V8z" />
+    </svg>
+  )
+};
 
 function emptyQuestion(qNumber = 1) {
   return {
@@ -25,11 +35,18 @@ function emptyHeading() {
   return { id: '', text: '' };
 }
 
+function emptyOption() {
+  return { id: '', text: '' };
+}
+
+
+
 function emptyQuestionGroup() {
   return {
     type: 'mult_choice',
     instructions: '',
     headings: [],
+    options: [],
     questions: [emptyQuestion(1)],
   };
 }
@@ -38,20 +55,22 @@ function sectionToForm(s) {
   if (!s) return { _id: '', title: '', content: '', audio_url: '', source: '', question_groups: [emptyQuestionGroup()] };
   const groups = s.question_groups && s.question_groups.length
     ? s.question_groups.map((g) => ({
-        type: g.type || 'mult_choice',
-        instructions: g.instructions || '',
-        headings: (g.headings || []).map((h) => ({ id: h.id || '', text: h.text || '' })),
-        questions: (g.questions || []).map((q, i) => ({
-          q_number: q.q_number ?? i + 1,
-          text: q.text || '',
-          option: OPTION_LABELS.map((label) => {
-            const o = (q.option || []).find((x) => x.label === label);
-            return { label, text: o?.text ?? '' };
-          }),
-          correct_answers: (q.correct_answers && q.correct_answers.length) ? [...q.correct_answers] : [''],
-          explanation: q.explanation || '',
-        })),
-      }))
+      type: g.type || 'mult_choice',
+      instructions: g.instructions || '',
+      headings: (g.headings || []).map((h) => ({ id: h.id || '', text: h.text || '' })),
+      options: (g.options || []).map((o) => ({ id: o.id || '', text: o.text || '' })),
+      text: g.text || '', // Ensure text is mapped for gap_fill/summary
+      questions: (g.questions || []).map((q, i) => ({
+        q_number: q.q_number ?? i + 1,
+        text: q.text || '',
+        option: OPTION_LABELS.map((label) => {
+          const o = (q.option || []).find((x) => x.label === label);
+          return { label, text: o?.text ?? '' };
+        }),
+        correct_answers: (q.correct_answers && q.correct_answers.length) ? [...q.correct_answers] : [''],
+        explanation: q.explanation || '',
+      })),
+    }))
     : [emptyQuestionGroup()];
   return {
     _id: s._id || '',
@@ -173,11 +192,11 @@ export default function AddSection() {
       question_groups: prev.question_groups.map((g, gi) =>
         gi === groupIndex
           ? {
-              ...g,
-              questions: g.questions.map((q, qi) =>
-                qi === questionIndex ? { ...q, [key]: value } : q
-              ),
-            }
+            ...g,
+            questions: g.questions.map((q, qi) =>
+              qi === questionIndex ? { ...q, [key]: value } : q
+            ),
+          }
           : g
       ),
     }));
@@ -213,18 +232,18 @@ export default function AddSection() {
       question_groups: prev.question_groups.map((g, gi) =>
         gi === groupIndex
           ? {
-              ...g,
-              questions: g.questions.map((q, qi) =>
-                qi === questionIndex
-                  ? {
-                      ...q,
-                      option: q.option.map((o, oi) =>
-                        oi === optionIndex ? { ...o, text } : o
-                      ),
-                    }
-                  : q
-              ),
-            }
+            ...g,
+            questions: g.questions.map((q, qi) =>
+              qi === questionIndex
+                ? {
+                  ...q,
+                  option: q.option.map((o, oi) =>
+                    oi === optionIndex ? { ...o, text } : o
+                  ),
+                }
+                : q
+            ),
+          }
           : g
       ),
     }));
@@ -263,11 +282,49 @@ export default function AddSection() {
       question_groups: prev.question_groups.map((g, gi) =>
         gi === groupIndex
           ? {
-              ...g,
-              headings: (g.headings || []).map((h, hi) =>
-                hi === headingIndex ? { ...h, [key]: value } : h
-              ),
-            }
+            ...g,
+            headings: (g.headings || []).map((h, hi) =>
+              hi === headingIndex ? { ...h, [key]: value } : h
+            ),
+          }
+          : g
+      ),
+    }));
+  };
+
+  const addOption = (groupIndex) => {
+    setForm((prev) => ({
+      ...prev,
+      question_groups: prev.question_groups.map((g, gi) =>
+        gi === groupIndex
+          ? { ...g, options: [...(g.options || []), emptyOption()] }
+          : g
+      ),
+    }));
+  };
+
+  const removeOption = (groupIndex, optionIndex) => {
+    setForm((prev) => ({
+      ...prev,
+      question_groups: prev.question_groups.map((g, gi) =>
+        gi === groupIndex
+          ? { ...g, options: (g.options || []).filter((_, oi) => oi !== optionIndex) }
+          : g
+      ),
+    }));
+  };
+
+  const updateOption = (groupIndex, optionIndex, key, value) => {
+    setForm((prev) => ({
+      ...prev,
+      question_groups: prev.question_groups.map((g, gi) =>
+        gi === groupIndex
+          ? {
+            ...g,
+            options: (g.options || []).map((o, oi) =>
+              oi === optionIndex ? { ...o, [key]: value } : o
+            ),
+          }
           : g
       ),
     }));
@@ -305,6 +362,10 @@ export default function AddSection() {
         headings: (g.headings || []).filter((h) => h.id && h.text).length
           ? (g.headings || []).filter((h) => h.id && h.text)
           : undefined,
+        options: (g.options || []).filter((o) => o.id && o.text).length
+          ? (g.options || []).filter((o) => o.id && o.text)
+          : undefined,
+        text: g.text || undefined,
         questions: g.questions.map((q) => ({
           q_number: q.q_number,
           text: q.text,
@@ -314,8 +375,18 @@ export default function AddSection() {
         })),
       })),
     };
-    if (payload.question_groups.some((g) => !g.questions.length || g.questions.some((q) => !q.text || !q.correct_answers?.length))) {
-      setError('Each question group must have at least one question with text and correct answer(s).');
+    if (payload.question_groups.some((g) => {
+      if (!g.questions.length) return true;
+
+      // Gap Fill and Summary Completion don't require Question Text
+      if (g.type === 'summary_completion' || g.type === 'gap_fill') {
+        return g.questions.some(q => !q.correct_answers?.length);
+      }
+
+      // Others require text
+      return g.questions.some(q => !q.text || !q.correct_answers?.length);
+    })) {
+      setError('Each question group must have at least one question with correct answer(s). For standard questions, text is also required.');
       return;
     }
     const matchingFeaturesGroups = payload.question_groups.filter((g) => g.type === 'matching_features');
@@ -347,12 +418,12 @@ export default function AddSection() {
     }
   };
 
-  if (editId && loading) return <div className="manage-section"><p className="muted">Loading section...</p></div>;
+  if (editId && loading) return <p className="muted">Loading section...</p>;
   if (editId && loadError) return <div className="manage-section"><p className="form-error">{loadError}</p><Link to="/manage/sections">Back to sections</Link></div>;
 
   return (
-    <div className="manage-section">
-      <h2>{editId ? 'Edit section (Listening)' : 'Add section (Listening)'}</h2>
+    <div className="manage-container">
+      <h1>{editId ? 'Sửa Listening Section' : 'Thêm Listening Section'}</h1>
       {error && <p className="form-error">{error}</p>}
       {success && <p className="form-success">{success}</p>}
 
@@ -411,16 +482,16 @@ export default function AddSection() {
         {form.question_groups.map((group, gi) => {
           const isGroupCollapsed = collapsedGroups.has(gi);
           return (
-            <div key={gi} className={`question-group-block ${isGroupCollapsed ? 'collapsed' : ''}`}>
-              <div className="block-header">
-                <span className="group-title">Group {gi + 1}</span>
-                <div className="block-actions">
-                  <button type="button" className="btn btn-ghost btn-sm collapse-btn" onClick={() => toggleGroupCollapse(gi)}>
-                    {isGroupCollapsed ? '▼ Expand' : '▲ Collapse'}
+            <div key={gi} className="question-group-block">
+              <div className="group-header" onClick={() => toggleGroupCollapse(gi)}>
+                <div className="group-title">
+                  <Icons.Listening /> Question Group {gi + 1} ({group.type})
+                </div>
+                <div className="item-actions">
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); removeQuestionGroup(gi); }} disabled={form.question_groups.length <= 1} style={{ color: '#ef4444' }}>
+                    Remove
                   </button>
-                  <button type="button" className="btn btn-ghost" onClick={() => removeQuestionGroup(gi)} disabled={form.question_groups.length <= 1}>
-                    Remove group
-                  </button>
+                  <span>{isGroupCollapsed ? '▼' : '▲'}</span>
                 </div>
               </div>
               {!isGroupCollapsed && (
@@ -445,100 +516,204 @@ export default function AddSection() {
                     />
                   </div>
 
-                  {group.type === 'matching_features' && (
-                    <>
-                      <h4>Features (list to match - e.g. i, ii, iii or A, B, C)</h4>
-                      <p className="form-hint">Add options that will be shown. Each question's correct answer is the option id (e.g. i, ii, iii).</p>
+                  {(group.type === 'summary_completion' || group.type === 'gap_fill') && (
+                    <div className="form-row">
+                      <label>{group.type === 'summary_completion' ? 'Summary' : 'Gap Fill'} Text (Use [q_number] for gaps, e.g. "The umpire needed a [33] to decide.")</label>
+                      <textarea
+                        value={group.text}
+                        onChange={(e) => updateQuestionGroup(gi, 'text', e.target.value)}
+                        placeholder="Enter the text with gaps like [1], [2]..."
+                        rows={4}
+                      />
+                    </div>
+                  )}
+
+                  {(group.type === 'matching_headings' || group.type === 'matching_features') && (
+                    <div className="form-section">
+                      <h4>{group.type === 'matching_headings' ? 'Danh sách Headings' : 'Danh sách Features'}</h4>
+                      <p className="form-hint">Thêm các lựa chọn để học viên nối. Đáp án đúng của mỗi câu hỏi sẽ là ID (ví dụ: i, ii, iii hoặc A, B, C).</p>
                       {(group.headings || []).map((h, hi) => (
                         <div key={hi} className="heading-row">
                           <input
                             value={h.id}
                             onChange={(e) => updateHeading(gi, hi, 'id', e.target.value)}
-                            placeholder="e.g. i, ii, iii"
+                            placeholder="ID"
                             className="heading-id"
                           />
-                          <input
+                          <textarea
                             value={h.text}
                             onChange={(e) => updateHeading(gi, hi, 'text', e.target.value)}
-                            placeholder="Feature text"
+                            placeholder="Nội dung heading hoặc feature..."
                             className="heading-text"
+                            rows={1}
+                            onInput={(e) => {
+                              e.target.style.height = 'auto';
+                              e.target.style.height = e.target.scrollHeight + 'px';
+                            }}
                           />
-                          <button
-                            type="button"
-                            className="btn btn-ghost btn-sm"
-                            onClick={() => removeHeading(gi, hi)}
-                          >
-                            Remove
-                          </button>
+                          <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeHeading(gi, hi)} style={{ color: '#ef4444' }}>Xóa</button>
                         </div>
                       ))}
-                      <button type="button" className="btn btn-ghost" onClick={() => addHeading(gi)}>
-                        + Add feature
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => addHeading(gi)}>+ Thêm hàng mới</button>
+                    </div>
+                  )}
+
+                  {group.type === 'summary_completion' && (
+                    <div className="form-section">
+                      <h4>Danh sách lựa chọn (nếu có)</h4>
+                      <p className="form-hint">Nếu bài điền từ có danh sách từ cho sẵn, hãy thêm ở đây.</p>
+                      {(group.options || []).map((o, oi) => (
+                        <div key={oi} className="heading-row">
+                          <input
+                            value={o.id}
+                            onChange={(e) => updateOption(gi, oi, 'id', e.target.value)}
+                            placeholder="ID"
+                            className="heading-id"
+                          />
+                          <textarea
+                            value={o.text}
+                            onChange={(e) => updateOption(gi, oi, 'text', e.target.value)}
+                            placeholder="Nội dung lựa chọn..."
+                            className="heading-text"
+                            rows={1}
+                            onInput={(e) => {
+                              e.target.style.height = 'auto';
+                              e.target.style.height = e.target.scrollHeight + 'px';
+                            }}
+                          />
+                          <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeOption(gi, oi)} style={{ color: '#ef4444' }}>Xóa</button>
+                        </div>
+                      ))}
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => addOption(gi)}>+ Thêm lựa chọn</button>
+                    </div>
+                  )}
+
+                  <h4>{group.type === 'summary_completion' || group.type === 'gap_fill' ? 'Gap Answer Key' : 'Questions'}</h4>
+
+                  {/* SIMPLIFIED VIEW FOR SUMMARY COMPLETION & GAP FILL */}
+                  {(group.type === 'summary_completion' || group.type === 'gap_fill') ? (
+                    <div className="gap-answers-list">
+                      <p className="form-hint">Define the answer key for each gap number (e.g. Q33, Q34). The Q number must match the [number] in the text.</p>
+                      <table className="gap-answers-table" style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '1rem' }}>
+                        <thead>
+                          <tr style={{ background: '#f3f4f6', textAlign: 'left' }}>
+                            <th style={{ padding: '8px', width: '80px' }}>Gap #</th>
+                            <th style={{ padding: '8px' }}>Correct Answer(s)</th>
+                            <th style={{ padding: '8px' }}>Explanation (Optional)</th>
+                            <th style={{ padding: '8px', width: '80px' }}>Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {group.questions.map((q, qi) => (
+                            <tr key={qi} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                              <td style={{ padding: '8px' }}>
+                                <input
+                                  type="number"
+                                  value={q.q_number}
+                                  onChange={(e) => updateQuestion(gi, qi, 'q_number', parseInt(e.target.value) || 0)}
+                                  style={{ width: '60px', padding: '4px' }}
+                                />
+                              </td>
+                              <td style={{ padding: '8px' }}>
+                                <input
+                                  value={q.correct_answers?.join(', ') ?? ''}
+                                  onChange={(e) => setCorrectAnswers(gi, qi, e.target.value)}
+                                  placeholder={group.type === 'summary_completion' ? "e.g. A" : "e.g. car, automobile"}
+                                  style={{ width: '100%', padding: '4px' }}
+                                />
+                              </td>
+                              <td style={{ padding: '8px' }}>
+                                <input
+                                  value={q.explanation ?? ''}
+                                  onChange={(e) => updateQuestion(gi, qi, 'explanation', e.target.value)}
+                                  placeholder="Explanation"
+                                  style={{ width: '100%', padding: '4px' }}
+                                />
+                              </td>
+                              <td style={{ padding: '8px' }}>
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost btn-sm"
+                                  onClick={() => removeQuestion(gi, qi)}
+                                  style={{ color: '#ef4444' }}
+                                >
+                                  Remove
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => addQuestion(gi)}>
+                        + Add Gap Answer
+                      </button>
+                    </div>
+                  ) : (
+                    /* STANDARD QUESTION LIST FOR OTHER TYPES */
+                    <>
+                      {group.questions.map((q, qi) => {
+                        const isQuestionCollapsed = collapsedQuestions.has(`${gi}-${qi}`);
+                        return (
+                          <div key={qi} className={`question-block ${isQuestionCollapsed ? 'collapsed' : ''}`}>
+                            <div className="question-block-header">
+                              <span className="question-label">Q{q.q_number}</span>
+                              <button type="button" className="btn btn-ghost btn-sm collapse-btn" onClick={() => toggleQuestionCollapse(gi, qi)}>
+                                {isQuestionCollapsed ? '▼ Expand' : '▲ Collapse'}
+                              </button>
+                            </div>
+                            {!isQuestionCollapsed && (
+                              <>
+                                <div className="form-row">
+                                  <label>Q{q.q_number} - Question text *</label>
+                                  <textarea
+                                    value={q.text}
+                                    onChange={(e) => updateQuestion(gi, qi, 'text', e.target.value)}
+                                    rows={2}
+                                  />
+                                </div>
+                                {(group.type === 'mult_choice' || group.type === 'true_false_notgiven') && (
+                                  <div className="form-row options-row">
+                                    <label>Options</label>
+                                    {q.option?.map((opt, oi) => (
+                                      <input
+                                        key={oi}
+                                        value={opt.text}
+                                        onChange={(e) => setQuestionOption(gi, qi, oi, e.target.value)}
+                                        placeholder={`Option ${opt.label}`}
+                                      />
+                                    ))}
+                                  </div>
+                                )}
+                                <div className="form-row">
+                                  <label>Correct answer(s) * (comma-separated)</label>
+                                  <input
+                                    value={q.correct_answers?.join(', ') ?? ''}
+                                    onChange={(e) => setCorrectAnswers(gi, qi, e.target.value)}
+                                  />
+                                </div>
+                                <div className="form-row">
+                                  <label>Explanation</label>
+                                  <input
+                                    value={q.explanation ?? ''}
+                                    onChange={(e) => updateQuestion(gi, qi, 'explanation', e.target.value)}
+                                  />
+                                </div>
+                              </>
+                            )}
+                            <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeQuestion(gi, qi)} disabled={group.questions.length <= 1}>
+                              Remove question
+                            </button>
+                          </div>
+                        );
+                      })}
+                      <button type="button" className="btn btn-ghost" onClick={() => addQuestion(gi)}>
+                        + Add question
                       </button>
                     </>
                   )}
-
-                  <h4>Questions</h4>
-                  {group.questions.map((q, qi) => {
-                    const isQuestionCollapsed = collapsedQuestions.has(`${gi}-${qi}`);
-                    return (
-                      <div key={qi} className={`question-block ${isQuestionCollapsed ? 'collapsed' : ''}`}>
-                        <div className="question-block-header">
-                          <span className="question-label">Q{q.q_number}</span>
-                          <button type="button" className="btn btn-ghost btn-sm collapse-btn" onClick={() => toggleQuestionCollapse(gi, qi)}>
-                            {isQuestionCollapsed ? '▼ Expand' : '▲ Collapse'}
-                          </button>
-                        </div>
-                        {!isQuestionCollapsed && (
-                          <>
-                            <div className="form-row">
-                              <label>Q{q.q_number} - Question text *</label>
-                              <textarea
-                                value={q.text}
-                                onChange={(e) => updateQuestion(gi, qi, 'text', e.target.value)}
-                                rows={2}
-                              />
-                            </div>
-                            {(group.type === 'mult_choice' || group.type === 'true_false_notgiven') && (
-                              <div className="form-row options-row">
-                                <label>Options</label>
-                                {q.option?.map((opt, oi) => (
-                                  <input
-                                    key={oi}
-                                    value={opt.text}
-                                    onChange={(e) => setQuestionOption(gi, qi, oi, e.target.value)}
-                                    placeholder={`Option ${opt.label}`}
-                                  />
-                                ))}
-                              </div>
-                            )}
-                            <div className="form-row">
-                              <label>Correct answer(s) * (comma-separated)</label>
-                              <input
-                                value={q.correct_answers?.join(', ') ?? ''}
-                                onChange={(e) => setCorrectAnswers(gi, qi, e.target.value)}
-                              />
-                            </div>
-                            <div className="form-row">
-                              <label>Explanation</label>
-                              <input
-                                value={q.explanation ?? ''}
-                                onChange={(e) => updateQuestion(gi, qi, 'explanation', e.target.value)}
-                              />
-                            </div>
-                          </>
-                        )}
-                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeQuestion(gi, qi)} disabled={group.questions.length <= 1}>
-                          Remove question
-                        </button>
-                      </div>
-                    );
-                  })}
-                  <button type="button" className="btn btn-ghost" onClick={() => addQuestion(gi)}>
-                    + Add question
-                  </button>
                 </>
-              )}
+              )
+              }
             </div>
           );
         })}
@@ -552,38 +727,47 @@ export default function AddSection() {
           </button>
           {editId && <Link to="/manage/sections" className="btn btn-ghost" style={{ marginLeft: '0.5rem' }}>Cancel</Link>}
         </div>
-      </form>
+      </form >
 
-      <h3>Existing sections</h3>
-      {!editId && (loading ? <p className="muted">Loading...</p> : (
-        <>
-          <input
-            type="search"
-            value={existingSearch}
-            onChange={(e) => setExistingSearch(e.target.value)}
-            placeholder="Search sections by title or ID..."
-            className="search-input"
-            aria-label="Search existing sections"
-          />
-          {existingSearch.trim() && (
-            <p className="search-hint">
-              Showing {filteredSections.length} of {sections.length} section{sections.length !== 1 ? 's' : ''}
-            </p>
-          )}
-          <ul className="manage-list">
-            {sections.length === 0 ? <li className="muted">No sections yet.</li> : filteredSections.length === 0 ? (
-              <li className="muted">No sections match your search.</li>
-            ) : filteredSections.map((s) => (
-              <li key={s._id}>
-                <span>{s.title}</span>
-                <code>{s._id}</code>
-                <Link to={`/manage/sections/${s._id}`} className="edit-link">Edit</Link>
-                <button type="button" className="btn btn-ghost btn-sm delete-link" onClick={() => handleDeleteSection(s._id)}>Delete</button>
-              </li>
-            ))}
-          </ul>
-        </>
-      ))}
-    </div>
+      <div className="search-container">
+        <h3>Các bài Section hiện có</h3>
+        {!editId && (
+          loading ? <p className="muted">Đang tải...</p> : (
+            <>
+              <div className="search-box">
+                <input
+                  type="search"
+                  value={existingSearch}
+                  onChange={(e) => setExistingSearch(e.target.value)}
+                  placeholder="Tìm kiếm theo tiêu đề hoặc ID..."
+                  className="test-search-input"
+                />
+              </div>
+              {existingSearch.trim() && (
+                <p className="search-hint">
+                  Đang hiện {filteredSections.length} trên {sections.length} bài
+                </p>
+              )}
+              <div className="manage-list">
+                {sections.length === 0 ? <p className="muted">Chưa có bài nào.</p> : filteredSections.length === 0 ? (
+                  <p className="muted">Không tìm thấy bài phù hợp.</p>
+                ) : filteredSections.map((s) => (
+                  <div key={s._id} className="list-item">
+                    <div className="item-info">
+                      <span className="item-title">{s.title}</span>
+                      <span className="item-meta">ID: {s._id}</span>
+                    </div>
+                    <div className="item-actions">
+                      <Link to={`/manage/sections/${s._id}`} className="btn btn-ghost btn-sm">Sửa</Link>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleDeleteSection(s._id)} style={{ color: '#ef4444' }}>Xóa</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )
+        )}
+      </div>
+    </div >
   );
 }

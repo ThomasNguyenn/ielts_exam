@@ -8,6 +8,7 @@ import testRoutes from './routes/test.route.js';
 import writingRoutes from './routes/writing.route.js';
 import practiceRoutes from './routes/practiceRoutes.js';
 import authRoutes from './routes/auth.route.js';
+import vocabularyRoutes from './routes/vocabularyRoutes.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -21,6 +22,7 @@ app.use("/api/sections", sectionRoutes);
 app.use("/api/tests", testRoutes);
 app.use("/api/writings", writingRoutes);
 app.use("/api/practice", practiceRoutes);
+app.use("/api/vocabulary", vocabularyRoutes);
 
 app.listen(PORT, () => {
     connectDB();

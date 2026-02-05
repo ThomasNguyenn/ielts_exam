@@ -4,6 +4,9 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { api } from '../../api/client';
+import { useNotification } from '../../components/NotificationContext';
+import ConfirmationModal from '../../components/ConfirmationModal';
+import './Manage.css';
 
 function testToForm(t) {
   if (!t) return { _id: '', title: '', category: '', type: 'reading', duration: 60, reading_passages: [], listening_sections: [], writing_tasks: [] };
@@ -20,15 +23,23 @@ function testToForm(t) {
   };
 }
 
+const Icons = {
+  Tests: () => (
+    <svg className="manage-nav-icon" style={{ width: '18px', height: '18px' }} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" />
+    </svg>
+  )
+};
+
 function SortableItem({ id, title, subtitle, onRemove, type }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
-  
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
   };
-  
+
   return (
     <li ref={setNodeRef} style={style} className="sortable-item">
       <div className="drag-handle" {...attributes} {...listeners}>
@@ -55,7 +66,8 @@ export default function AddTest() {
   const [loadError, setLoadError] = useState(null);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
+  const { showNotification } = useNotification();
+  const [modalConfig, setModalConfig] = useState({ isOpen: false, title: '', message: '', onConfirm: () => { }, isDanger: false });
   const [existingSearch, setExistingSearch] = useState('');
 
   const [form, setForm] = useState({
@@ -107,16 +119,12 @@ export default function AddTest() {
           setTests(tRes.data || []);
           setForm({ _id: `test-${Date.now()}`, title: '', category: '', type: 'reading', duration: 60, reading_passages: [], listening_sections: [], writing_tasks: [] });
         })
-        .catch(() => {})
+        .catch(() => { })
         .finally(() => setLoading(false));
     }
   }, [editId]);
 
-  useEffect(() => {
-    if (!editId && success) {
-      api.getTests().then((res) => setTests(res.data || [])).catch(() => {});
-    }
-  }, [success, editId]);
+
 
   const updateForm = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -232,39 +240,52 @@ export default function AddTest() {
   const getWritingTitle = (id) => writings.find((w) => w._id === id)?.title || id;
   const getWritingSubtitle = (id) => writings.find((w) => w._id === id)?._id || id;
 
-  const handleDeleteTest = async (testId) => {
-    if (!window.confirm('Delete this test? This cannot be undone.')) return;
-    try {
-      await api.deleteTest(testId);
-      setSuccess('Test deleted.');
-      const res = await api.getTests();
-      setTests(res.data || []);
-    } catch (err) {
-      setError(err.message);
-    }
+  const handleDeleteTest = (testId) => {
+    setModalConfig({
+      isOpen: true,
+      title: 'Delete Test',
+      message: 'Are you sure you want to delete this test? This cannot be undone.',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          await api.deleteTest(testId);
+          showNotification('Test deleted.', 'success');
+          const res = await api.getTests();
+          setTests(res.data || []);
+        } catch (err) {
+          showNotification(err.message, 'error');
+        }
+      }
+    });
   };
 
-  const handleRenumber = async () => {
+  const handleRenumber = () => {
     if (!editId) return;
-    if (!window.confirm('Auto-renumber all questions in this test sequentially (1-40)? This will modify the Passages/Sections globally.')) return;
-    
-    setSubmitLoading(true);
-    try {
-      const res = await api.renumberTestQuestions(editId);
-      setSuccess(res.message || 'Questions renumbered successfully.');
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSubmitLoading(false);
-    }
+
+    setModalConfig({
+      isOpen: true,
+      title: 'Tự động đánh số lại câu hỏi',
+      message: 'Đây sẽ tự động đánh số lại tất cả các câu hỏi trong bài thi (1-40) và cập nhật tất cả các bài đọc/section toàn cục. Tiếp tục?',
+      isDanger: false,
+      onConfirm: async () => {
+        setSubmitLoading(true);
+        try {
+          const res = await api.renumberTestQuestions(editId);
+          showNotification(res.message || 'Câu hỏi đã được đánh số lại thành công.', 'success');
+        } catch (err) {
+          showNotification(err.message, 'error');
+        } finally {
+          setSubmitLoading(false);
+        }
+      }
+    });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
-    setSuccess(null);
     if (!form._id.trim() || !form.title.trim() || !form.category.trim()) {
-      setError('ID, title, and category are required.');
+      showNotification('ID, title, and category are required.', 'warning');
       return;
     }
     setSubmitLoading(true);
@@ -281,10 +302,11 @@ export default function AddTest() {
       };
       if (editId) {
         await api.updateTest(editId, payload);
-        setSuccess('Test updated.');
+        showNotification('Test updated.', 'success');
       } else {
         await api.createTest(payload);
-        setSuccess('Test created.');
+        showNotification('Test created.', 'success');
+        api.getTests().then((res) => setTests(res.data || [])).catch(() => { });
         setForm({
           _id: `test-${Date.now()}`,
           title: '',
@@ -297,20 +319,21 @@ export default function AddTest() {
         });
       }
     } catch (err) {
-      setError(err.message);
+      showNotification(err.message, 'error');
     } finally {
       setSubmitLoading(false);
     }
   };
 
-  if (loading) return <div className="manage-section"><p className="muted">Loading…</p></div>;
+  if (loading) return <p className="muted">Loading…</p>;
   if (editId && loadError) return <div className="manage-section"><p className="form-error">{loadError}</p><Link to="/manage/tests">Back to tests</Link></div>;
 
   return (
-    <div className="manage-section">
-      <h2>{editId ? 'Edit test' : 'Add test'}</h2>
+    <div className="manage-container">
+      <h1>{editId ? 'Sửa bài thi (Full Test)' : 'Thêm bài thi (Full Test)'}</h1>
       {error && <p className="form-error">{error}</p>}
-      {success && <p className="form-success">{success}</p>}
+
+
 
       <form onSubmit={handleSubmit} className="manage-form">
         <div className="form-row">
@@ -379,174 +402,174 @@ export default function AddTest() {
         </div>
 
         {form.type === 'reading' && (
-        <div className="form-row multi-select-block">
-          <label>Reading passages (drag to reorder)</label>
-          <input
-            type="search"
-            value={passageSearch}
-            onChange={(e) => setPassageSearch(e.target.value)}
-            placeholder="Search passages by title or ID..."
-            className="search-input"
-            aria-label="Search passages"
-          />
-          {passageSearch.trim() && (
-            <p className="search-hint">
-              Showing {filteredPassages.length} of {passages.length} passage{passages.length !== 1 ? 's' : ''}
-            </p>
-          )}
-          <div className="checkbox-group">
-            {passages.length === 0 ? (
-              <p className="muted">No passages yet. Create passages first.</p>
-            ) : filteredPassages.length === 0 ? (
-              <p className="muted">No passages match your search.</p>
-            ) : (
-              filteredPassages.map((p) => (
-                <label key={p._id} className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={form.reading_passages.includes(p._id)}
-                    onChange={() => togglePassage(p._id)}
-                  />
-                  <span>{p.title} </span>
-                  <code>{p._id}</code>
-                </label>
-              ))
+          <div className="form-row multi-select-block">
+            <label>Reading passages (drag to reorder)</label>
+            <input
+              type="search"
+              value={passageSearch}
+              onChange={(e) => setPassageSearch(e.target.value)}
+              placeholder="Search passages by title or ID..."
+              className="search-input"
+              aria-label="Search passages"
+            />
+            {passageSearch.trim() && (
+              <p className="search-hint">
+                Showing {filteredPassages.length} of {passages.length} passage{passages.length !== 1 ? 's' : ''}
+              </p>
+            )}
+            <div className="checkbox-group">
+              {passages.length === 0 ? (
+                <p className="muted">Chưa có bài đọc nào. Tạo bài đọc trước.</p>
+              ) : filteredPassages.length === 0 ? (
+                <p className="muted">Không có bài đọc nào khớp với tìm kiếm của bạn.</p>
+              ) : (
+                filteredPassages.map((p) => (
+                  <label key={p._id} className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={form.reading_passages.includes(p._id)}
+                      onChange={() => togglePassage(p._id)}
+                    />
+                    <span>{p.title} </span>
+                    <code>{p._id}</code>
+                  </label>
+                ))
+              )}
+            </div>
+
+            {form.reading_passages.length > 0 && (
+              <>
+                <p className="selected-hint">Selected passages (drag ⋮⋮ to reorder):</p>
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndPassages}>
+                  <SortableContext items={form.reading_passages} strategy={verticalListSortingStrategy}>
+                    <ul className="sortable-list">
+                      {form.reading_passages.map((id) => (
+                        <SortableItem key={id} id={id} title={getPassageTitle(id)} subtitle={getPassageSubtitle(id)} onRemove={removePassage} type="passage" />
+                      ))}
+                    </ul>
+                  </SortableContext>
+                </DndContext>
+              </>
             )}
           </div>
-          
-          {form.reading_passages.length > 0 && (
-            <>
-              <p className="selected-hint">Selected passages (drag ⋮⋮ to reorder):</p>
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndPassages}>
-                <SortableContext items={form.reading_passages} strategy={verticalListSortingStrategy}>
-                  <ul className="sortable-list">
-                    {form.reading_passages.map((id) => (
-                      <SortableItem key={id} id={id} title={getPassageTitle(id)} subtitle={getPassageSubtitle(id)} onRemove={removePassage} type="passage" />
-                    ))}
-                  </ul>
-                </SortableContext>
-              </DndContext>
-            </>
-          )}
-        </div>
         )}
 
         {form.type === 'listening' && (
-        <div className="form-row multi-select-block">
-          <label>Listening sections (drag to reorder)</label>
-          <input
-            type="search"
-            value={sectionSearch}
-            onChange={(e) => setSectionSearch(e.target.value)}
-            placeholder="Search sections by title or ID..."
-            className="search-input"
-            aria-label="Search sections"
-          />
-          {sectionSearch.trim() && (
-            <p className="search-hint">
-              Showing {filteredSections.length} of {sections.length} section{sections.length !== 1 ? 's' : ''}
-            </p>
-          )}
-          <div className="checkbox-group">
-            {sections.length === 0 ? (
-              <p className="muted">No sections yet. Create sections first.</p>
-            ) : filteredSections.length === 0 ? (
-              <p className="muted">No sections match your search.</p>
-            ) : (
-              filteredSections.map((s) => (
-                <label key={s._id} className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={form.listening_sections.includes(s._id)}
-                    onChange={() => toggleSection(s._id)}
-                  />
-                  <span>{s.title}</span>
-                  <code>{s._id}</code>
-                </label>
-              ))
+          <div className="form-row multi-select-block">
+            <label>Listening sections (drag to reorder)</label>
+            <input
+              type="search"
+              value={sectionSearch}
+              onChange={(e) => setSectionSearch(e.target.value)}
+              placeholder="Search sections by title or ID..."
+              className="search-input"
+              aria-label="Search sections"
+            />
+            {sectionSearch.trim() && (
+              <p className="search-hint">
+                Showing {filteredSections.length} of {sections.length} section{sections.length !== 1 ? 's' : ''}
+              </p>
+            )}
+            <div className="checkbox-group">
+              {sections.length === 0 ? (
+                <p className="muted">No sections yet. Create sections first.</p>
+              ) : filteredSections.length === 0 ? (
+                <p className="muted">No sections match your search.</p>
+              ) : (
+                filteredSections.map((s) => (
+                  <label key={s._id} className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={form.listening_sections.includes(s._id)}
+                      onChange={() => toggleSection(s._id)}
+                    />
+                    <span>{s.title}</span>
+                    <code>{s._id}</code>
+                  </label>
+                ))
+              )}
+            </div>
+
+            {form.listening_sections.length > 0 && (
+              <>
+                <p className="selected-hint">Selected sections (drag ⋮⋮ to reorder):</p>
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndSections}>
+                  <SortableContext items={form.listening_sections} strategy={verticalListSortingStrategy}>
+                    <ul className="sortable-list">
+                      {form.listening_sections.map((id) => (
+                        <SortableItem key={id} id={id} title={getSectionTitle(id)} subtitle={getSectionSubtitle(id)} onRemove={removeSection} type="section" />
+                      ))}
+                    </ul>
+                  </SortableContext>
+                </DndContext>
+              </>
             )}
           </div>
-          
-          {form.listening_sections.length > 0 && (
-            <>
-              <p className="selected-hint">Selected sections (drag ⋮⋮ to reorder):</p>
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndSections}>
-                <SortableContext items={form.listening_sections} strategy={verticalListSortingStrategy}>
-                  <ul className="sortable-list">
-                    {form.listening_sections.map((id) => (
-                      <SortableItem key={id} id={id} title={getSectionTitle(id)} subtitle={getSectionSubtitle(id)} onRemove={removeSection} type="section" />
-                    ))}
-                  </ul>
-                </SortableContext>
-              </DndContext>
-            </>
-          )}
-        </div>
         )}
 
         {form.type === 'writing' && (
-        <div className="form-row multi-select-block">
-          <label>Writing tasks (drag to reorder)</label>
-          <input
-            type="search"
-            value={writingSearch}
-            onChange={(e) => setWritingSearch(e.target.value)}
-            placeholder="Search writing tasks by title or ID..."
-            className="search-input"
-            aria-label="Search writing tasks"
-          />
-          {writingSearch.trim() && (
-            <p className="search-hint">
-              Showing {filteredWritings.length} of {writings.length} writing task{writings.length !== 1 ? 's' : ''}
-            </p>
-          )}
-          <div className="checkbox-group">
-            {writings.length === 0 ? (
-              <p className="muted">No writing tasks yet. Create writing tasks first.</p>
-            ) : filteredWritings.length === 0 ? (
-              <p className="muted">No writing tasks match your search.</p>
-            ) : (
-              filteredWritings.map((w) => (
-                <label key={w._id} className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={form.writing_tasks.includes(w._id)}
-                    onChange={() => toggleWriting(w._id)}
-                  />
-                  <span>{w.title}</span>
-                  <code>{w._id}</code>
-                </label>
-              ))
+          <div className="form-row multi-select-block">
+            <label>Writing tasks (drag to reorder)</label>
+            <input
+              type="search"
+              value={writingSearch}
+              onChange={(e) => setWritingSearch(e.target.value)}
+              placeholder="Search writing tasks by title or ID..."
+              className="search-input"
+              aria-label="Search writing tasks"
+            />
+            {writingSearch.trim() && (
+              <p className="search-hint">
+                Showing {filteredWritings.length} of {writings.length} writing task{writings.length !== 1 ? 's' : ''}
+              </p>
+            )}
+            <div className="checkbox-group">
+              {writings.length === 0 ? (
+                <p className="muted">Chưa có bài viết nào. Tạo bài viết trước.</p>
+              ) : filteredWritings.length === 0 ? (
+                <p className="muted">Không có bài viết nào khớp với tìm kiếm của bạn.</p>
+              ) : (
+                filteredWritings.map((w) => (
+                  <label key={w._id} className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={form.writing_tasks.includes(w._id)}
+                      onChange={() => toggleWriting(w._id)}
+                    />
+                    <span>{w.title}</span>
+                    <code>{w._id}</code>
+                  </label>
+                ))
+              )}
+            </div>
+
+            {form.writing_tasks.length > 0 && (
+              <>
+                <p className="selected-hint">Selected writing tasks (drag ⋮⋮ to reorder):</p>
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndWritings}>
+                  <SortableContext items={form.writing_tasks} strategy={verticalListSortingStrategy}>
+                    <ul className="sortable-list">
+                      {form.writing_tasks.map((id) => (
+                        <SortableItem key={id} id={id} title={getWritingTitle(id)} subtitle={getWritingSubtitle(id)} onRemove={removeWriting} type="writing" />
+                      ))}
+                    </ul>
+                  </SortableContext>
+                </DndContext>
+              </>
             )}
           </div>
-          
-          {form.writing_tasks.length > 0 && (
-            <>
-              <p className="selected-hint">Selected writing tasks (drag ⋮⋮ to reorder):</p>
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndWritings}>
-                <SortableContext items={form.writing_tasks} strategy={verticalListSortingStrategy}>
-                  <ul className="sortable-list">
-                    {form.writing_tasks.map((id) => (
-                      <SortableItem key={id} id={id} title={getWritingTitle(id)} subtitle={getWritingSubtitle(id)} onRemove={removeWriting} type="writing" />
-                    ))}
-                  </ul>
-                </SortableContext>
-              </DndContext>
-            </>
-          )}
-        </div>
         )}
 
         <div className="form-actions">
           <button type="submit" className="btn btn-primary" disabled={submitLoading}>
             {submitLoading ? (editId ? 'Saving…' : 'Creating…') : (editId ? 'Update test' : 'Create test')}
           </button>
-          
+
           {editId && (
             <button
-              type="button" 
-              className="btn btn-secondary" 
-              onClick={handleRenumber} 
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleRenumber}
               disabled={submitLoading}
               style={{ marginLeft: '0.5rem', background: '#eab308', borderColor: '#ca8a04', color: 'white' }}
             >
@@ -558,37 +581,51 @@ export default function AddTest() {
         </div>
       </form>
 
-      <h3>Existing tests</h3>
-      {!editId && (
-        <>
-          <input
-            type="search"
-            value={existingSearch}
-            onChange={(e) => setExistingSearch(e.target.value)}
-            placeholder="Search tests by title or ID..."
-            className="search-input"
-            aria-label="Search existing tests"
-          />
-          {existingSearch.trim() && (
-            <p className="search-hint">
-              Showing {filteredTests.length} of {tests.length} test{tests.length !== 1 ? 's' : ''}
-            </p>
-          )}
-          <ul className="manage-list">
-            {tests.length === 0 ? <li className="muted">No tests yet.</li> : filteredTests.length === 0 ? (
-              <li className="muted">No tests match your search.</li>
-            ) : filteredTests.map((t) => (
-              <li key={t._id}>
-                <span>{t.title}</span>
-                <code>{t._id}</code>
-                <span className="muted">{t.category || 'Uncategorized'}</span>
-                <Link to={`/manage/tests/${t._id}`} className="edit-link">Edit</Link>
-                <button type="button" className="btn btn-ghost btn-sm delete-link" onClick={() => handleDeleteTest(t._id)}>Delete</button>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+      <div className="search-container">
+        <h3>Các bài thi hiện có</h3>
+        {!editId && (
+          <>
+            <div className="search-box">
+              <input
+                type="search"
+                value={existingSearch}
+                onChange={(e) => setExistingSearch(e.target.value)}
+                placeholder="Tìm kiếm theo tiêu đề hoặc ID..."
+                className="test-search-input"
+              />
+            </div>
+            {existingSearch.trim() && (
+              <p className="search-hint">
+                Đang hiện {filteredTests.length} trên {tests.length} bài
+              </p>
+            )}
+            <div className="manage-list">
+              {tests.length === 0 ? <p className="muted">Chưa có bài thi nào.</p> : filteredTests.length === 0 ? (
+                <p className="muted">Không tìm thấy bài thi nào phù hợp.</p>
+              ) : filteredTests.map((t) => (
+                <div key={t._id} className="list-item">
+                  <div className="item-info">
+                    <span className="item-title">{t.title}</span>
+                    <span className="item-meta">ID: {t._id} | {t.category || 'Uncategorized'}</span>
+                  </div>
+                  <div className="item-actions">
+                    <Link to={`/manage/tests/${t._id}`} className="btn btn-ghost btn-sm">Sửa</Link>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleDeleteTest(t._id)} style={{ color: '#ef4444' }}>Xóa</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+      <ConfirmationModal
+        isOpen={modalConfig.isOpen}
+        title={modalConfig.title}
+        message={modalConfig.message}
+        onConfirm={modalConfig.onConfirm}
+        onClose={() => setModalConfig(prev => ({ ...prev, isOpen: false }))}
+        isDanger={modalConfig.isDanger}
+      />
     </div>
   );
 }

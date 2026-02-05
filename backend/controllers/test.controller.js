@@ -5,7 +5,9 @@ import WritingSubmission from "../models/WritingSubmission.model.js";
 
 export const getAllTests = async (req, res) => {
     try {
-        const tests = await Test.find({});
+        const tests = await Test.find({})
+            .populate('reading_passages', 'title')
+            .populate('listening_sections', 'title');
         res.status(200).json({ success: true, data: tests });
     } catch (error) {
         res.status(500).json({ success: false, message: "Server Error" });
@@ -191,37 +193,37 @@ export const renumberTestQuestions = async (req, res) => {
         const test = await Test.findById(id)
             .populate('reading_passages')
             .populate('listening_sections');
-            
+
         if (!test) {
             return res.status(404).json({ success: false, message: "Test not found" });
         }
 
         let currentQNum = 1;
-        
+
         // Helper to renumber an item (Passage or Section)
         const renumberItem = async (item, modelName) => {
-             if (!item || !item.question_groups) return;
-             
-             let modified = false;
-             item.question_groups.forEach(g => {
-                 g.questions.forEach(q => {
-                     q.q_number = currentQNum++;
-                     modified = true;
-                 });
-             });
-             
-             if (modified) {
-                 // Save the underlying document
-                 if (modelName === 'Passage') {
-                      await mongoose.model('Passage').findByIdAndUpdate(item._id, { question_groups: item.question_groups });
-                 } else if (modelName === 'Section') {
-                      await mongoose.model('Section').findByIdAndUpdate(item._id, { question_groups: item.question_groups });
-                 }
-             }
+            if (!item || !item.question_groups) return;
+
+            let modified = false;
+            item.question_groups.forEach(g => {
+                g.questions.forEach(q => {
+                    q.q_number = currentQNum++;
+                    modified = true;
+                });
+            });
+
+            if (modified) {
+                // Save the underlying document
+                if (modelName === 'Passage') {
+                    await mongoose.model('Passage').findByIdAndUpdate(item._id, { question_groups: item.question_groups });
+                } else if (modelName === 'Section') {
+                    await mongoose.model('Section').findByIdAndUpdate(item._id, { question_groups: item.question_groups });
+                }
+            }
         };
 
         const type = test.type || 'reading';
-        
+
         if (type === 'reading') {
             for (const p of test.reading_passages || []) {
                 await renumberItem(p, 'Passage');
@@ -329,12 +331,25 @@ export const getExamData = async (req, res) => {
 
 /** Normalize answer for comparison */
 function normalizeAnswer(val) {
-    const normalized = String(val || '').trim().toLowerCase();
-    // For true_false_notgiven questions, treat "not given" as equivalent to "not"
-    if (normalized === 'not given' || normalized === 'not') {
-        return 'not';
-    }
-    return normalized;
+    if (val === null || val === undefined) return '';
+    const normalized = String(val).trim().toLowerCase().replace(/\s+/g, ' ');
+
+    // Mapping for common IELTS abbreviations and variations to canonical values
+    const mapping = {
+        'not given': 'not given',
+        'not': 'not given',
+        'ng': 'not given',
+        'true': 'true',
+        't': 'true',
+        'false': 'false',
+        'f': 'false',
+        'yes': 'yes',
+        'y': 'yes',
+        'no': 'no',
+        'n': 'no'
+    };
+
+    return mapping[normalized] || normalized;
 }
 
 /** Build flat list of correct_answers (one per question) in exam order; optional type filter */
@@ -374,8 +389,14 @@ export const submitExam = async (req, res) => {
         }
         const examType = test.type || 'reading';
 
+
+
         const userId = req.user?.userId;
         const attemptId = userId ? new mongoose.Types.ObjectId() : null;
+
+        // Check if this is a practice run (don't save history)
+        const isPractice = req.body.isPractice === true;
+        const shouldSave = userId && attemptId && !isPractice;
 
         let studentName = 'Anonymous';
         let studentEmail = '';
@@ -402,7 +423,7 @@ export const submitExam = async (req, res) => {
                 };
             }).filter(w => w.answer_text.trim()); // Only save non-empty answers
 
-            if (writingAnswers.length > 0) {
+            if (writingAnswers.length > 0 && shouldSave) {
                 await WritingSubmission.create({
                     test_id: id,
                     writing_answers: writingAnswers,
@@ -432,13 +453,22 @@ export const submitExam = async (req, res) => {
                     const isCorrect = correctOptions.length && correctOptions.includes(userAnswer);
                     if (isCorrect) score++;
 
+                    const finalCorrectAnswer = (q.correct_answers && q.correct_answers.length > 0) ? q.correct_answers[0] : (correctOptions[0] || "");
+
+                    // Persistent file logging
+                    import('fs').then(fs => {
+                        const logData = `[${new Date().toISOString()}] Q${q.q_number}: type=${g.type}, userAnswer="${userAnswer}", correctAlternatives=${JSON.stringify(correctOptions)}, finalCorrectAnswer="${finalCorrectAnswer}", matches=${isCorrect}\n`;
+                        fs.appendFileSync('exam_debug.log', logData);
+                    });
+
                     questionReview.push({
                         question_number: q.q_number,
                         type: g.type,
                         question_text: q.text,
                         your_answer: answers[qIndex] || "",
-                        correct_answer: correctOptions[0] || "",
-                        options: q.option || [],
+                        correct_answer: finalCorrectAnswer,
+                        options: (q.option && q.option.length > 0) ? q.option : (g.options || []),
+                        headings: g.headings || [], // Include headings for matching questions
                         is_correct: isCorrect,
                         explanation: q.explanation || "",
                         item_type: itemType,
@@ -472,8 +502,8 @@ export const submitExam = async (req, res) => {
         const listeningTotal = examType === 'listening' ? total : 0;
         const writingCount = examType === 'writing' ? (test.writing_tasks || []).length : 0;
 
-        // Store attempt for logged-in users
-        if (userId && attemptId) {
+        // Store attempt for logged-in users (if not practice mode)
+        if (shouldSave) {
             const isWriting = examType === 'writing';
             await TestAttempt.create({
                 _id: attemptId,
@@ -488,6 +518,20 @@ export const submitExam = async (req, res) => {
                 time_taken_ms: typeof timeTaken === 'number' ? timeTaken : null,
                 submitted_at: new Date(),
             });
+
+            // Optimisation: Keep only latest 10 attempts
+            const attempts = await TestAttempt.find({ user_id: userId, test_id: id })
+                .sort({ submitted_at: -1 })
+                .select('_id');
+
+            if (attempts.length > 10) {
+                const toDelete = attempts.slice(10).map(a => a._id);
+                if (toDelete.length > 0) {
+                    await TestAttempt.deleteMany({ _id: { $in: toDelete } });
+                    // Also clean up related writing submissions if any
+                    await WritingSubmission.deleteMany({ attempt_id: { $in: toDelete } });
+                }
+            }
         }
 
         res.status(200).json({

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
+import './Auth.css';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -56,7 +57,7 @@ export default function Login() {
           </button>
         </form>
         <p className="auth-link">
-          Don't have an account? <Link to="/register">Register</Link>
+          Chưa có tài khoản? <Link to="/register">Đăng ký</Link>
         </p>
       </div>
     </div>

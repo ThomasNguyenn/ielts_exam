@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { api } from '../../api/client';
 import IdeationPhase from './IdeationPhase';
 import ScaffoldingPhase from './ScaffoldingPhase';
@@ -16,9 +17,28 @@ const PracticeFlow = () => {
     const [materials, setMaterials] = useState(null);
     const [gradingResult, setGradingResult] = useState(null);
 
+    const { id } = useParams(); // Get ID from URL
+
     useEffect(() => {
-        fetchRandomQuestion();
-    }, []);
+        if (id) {
+            fetchWritingById(id);
+        } else {
+            fetchRandomQuestion();
+        }
+    }, [id]);
+
+    const fetchWritingById = async (writingId) => {
+        try {
+            const res = await api.getWritingById(writingId);
+            if (res.success) {
+                setQuestion(res.data);
+            } else {
+                console.error("Failed to fetch writing task");
+            }
+        } catch (error) {
+            console.error("Error fetching writing task", error);
+        }
+    };
 
     const fetchRandomQuestion = async () => {
         try {

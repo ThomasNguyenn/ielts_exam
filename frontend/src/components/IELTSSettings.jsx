@@ -5,19 +5,26 @@ export default function IELTSSettings({ brightness, setBrightness, textSize, set
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="ielts-settings-btn">
-      <button 
-        className="btn btn-ghost btn-sm" 
+    <div className="ielts-settings-wrapper">
+      <button
+        className="btn-settings-toggle"
         onClick={() => setIsOpen(!isOpen)}
         title="Settings"
       >
-        ⚙️ Settings
+        <span>⚙️</span> Settings
       </button>
-      
-      {isOpen && (
-        <div className="ielts-settings-panel">
+
+      {isOpen && <div className="settings-overlay" onClick={() => setIsOpen(false)} />}
+
+      <div className={`ielts-settings-sidebar ${isOpen ? 'open' : ''}`}>
+        <div className="settings-header">
+          <h3>Settings</h3>
+          <button className="settings-close" onClick={() => setIsOpen(false)}>✕</button>
+        </div>
+
+        <div className="settings-content">
           <div className="settings-section">
-            <h4>Brightness</h4>
+            <label>Brightness</label>
             <div className="brightness-control">
               <input
                 type="range"
@@ -32,22 +39,22 @@ export default function IELTSSettings({ brightness, setBrightness, textSize, set
           </div>
 
           <div className="settings-section">
-            <h4>Text Size</h4>
+            <label>Text Size</label>
             <div className="text-size-options">
               <button
-                className={`settings-option ${textSize === 'regular' ? 'active' : ''}`}
+                className={`settings-option-btn ${textSize === 'regular' ? 'active' : ''}`}
                 onClick={() => setTextSize('regular')}
               >
                 Regular
               </button>
               <button
-                className={`settings-option ${textSize === 'large' ? 'active' : ''}`}
+                className={`settings-option-btn ${textSize === 'large' ? 'active' : ''}`}
                 onClick={() => setTextSize('large')}
               >
                 Large
               </button>
               <button
-                className={`settings-option ${textSize === 'extra-large' ? 'active' : ''}`}
+                className={`settings-option-btn ${textSize === 'extra-large' ? 'active' : ''}`}
                 onClick={() => setTextSize('extra-large')}
               >
                 Extra Large
@@ -56,22 +63,22 @@ export default function IELTSSettings({ brightness, setBrightness, textSize, set
           </div>
 
           <div className="settings-section">
-            <h4>Background Color</h4>
+            <label>Background Color</label>
             <div className="theme-options">
               <button
-                className={`settings-option ${theme === 'light' ? 'active' : ''}`}
+                className={`settings-option-btn ${theme === 'light' ? 'active' : ''}`}
                 onClick={() => setTheme('light')}
               >
                 Black on White
               </button>
               <button
-                className={`settings-option ${theme === 'dark' ? 'active' : ''}`}
+                className={`settings-option-btn ${theme === 'dark' ? 'active' : ''}`}
                 onClick={() => setTheme('dark')}
               >
                 White on Black
               </button>
               <button
-                className={`settings-option ${theme === 'yellow' ? 'active' : ''}`}
+                className={`settings-option-btn ${theme === 'yellow' ? 'active' : ''}`}
                 onClick={() => setTheme('yellow')}
               >
                 Yellow on Black
@@ -79,7 +86,7 @@ export default function IELTSSettings({ brightness, setBrightness, textSize, set
             </div>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

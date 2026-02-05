@@ -23,6 +23,7 @@ const WritingSubmissionSchema = new mongoose.Schema({
     scored_by: { type: String }, // Teacher name/ID
     scored_at: { type: Date },
   }],
+  score: { type: Number }, // Overall band score
 
   // Metadata
   submitted_at: { type: Date, default: Date.now },

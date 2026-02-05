@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { api } from '../../api/client';
+import { useNotification } from '../../components/NotificationContext';
+
 
 const IdeationPhase = ({ question, onNext }) => {
     const [outline, setOutline] = useState({
@@ -11,6 +13,8 @@ const IdeationPhase = ({ question, onNext }) => {
     const [loading, setLoading] = useState(false);
     const [savedSessionId, setSavedSessionId] = useState(null);
 
+    const { showNotification } = useNotification();
+
     const handleAIReview = async () => {
         setLoading(true);
         try {
@@ -19,7 +23,7 @@ const IdeationPhase = ({ question, onNext }) => {
             if (res.session_id) setSavedSessionId(res.session_id);
             return res.session_id;
         } catch (e) {
-            alert(e.message);
+            showNotification(e.message, "error");
         } finally {
             setLoading(false);
         }
@@ -29,34 +33,60 @@ const IdeationPhase = ({ question, onNext }) => {
         <div className="practice-grid-two">
             <div>
                 <h2 className="section-title">Topic</h2>
-                <div className="topic-box">
-                    {question.prompt}
+                <div className="topic-box" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {question.image_url && (
+                        <div className="task-image" style={{ textAlign: 'center', background: '#f8fafc', padding: '1rem', borderRadius: '8px' }}>
+                            <img
+                                src={question.image_url}
+                                alt="Task Graph/Chart"
+                                style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain' }}
+                            />
+                        </div>
+                    )}
+                    <div style={{ whiteSpace: 'pre-wrap' }}>{question.prompt}</div>
                 </div>
 
-                <h3 className="section-title">My Outline</h3>
+                <h3 className="section-title">Outline của tôi</h3>
                 <div className="practice-form">
                     <div className="form-group">
-                        <label className="form-label">Development Method</label>
-                        <select
-                            className="form-select"
-                            value={outline.developmentMethod}
-                            onChange={e => setOutline({ ...outline, developmentMethod: e.target.value })}
-                        >
-                            <option>Cause & Effect</option>
-                            <option>Problem & Solution</option>
-                            <option>Discussion (Agree/Disagree)</option>
-                            <option>Explanatory</option>
-                        </select>
+                        <label className="form-label">
+                            {question.task_type === 'task1' || question.task_type === 1
+                                ? 'Cấu trúc bài báo cáo (Overview)'
+                                : 'Phương pháp phát triển'}
+                        </label>
+                        {question.task_type === 'task1' || question.task_type === 1 ? (
+                            <input
+                                className="form-input"
+                                placeholder="E.g., Intro + Overview + Body 1 (Group A) + Body 2 (Group B)"
+                                value={outline.developmentMethod}
+                                onChange={e => setOutline({ ...outline, developmentMethod: e.target.value })}
+                            />
+                        ) : (
+                            <select
+                                className="form-select"
+                                value={outline.developmentMethod}
+                                onChange={e => setOutline({ ...outline, developmentMethod: e.target.value })}
+                            >
+                                <option>Cause & Effect</option>
+                                <option>Problem & Solution</option>
+                                <option>Discussion (Agree/Disagree)</option>
+                                <option>Explanatory</option>
+                            </select>
+                        )}
                     </div>
 
                     <div className="form-group">
-                        <label className="form-label">Main Ideas (3 key points)</label>
+                        <label className="form-label">
+                            {question.task_type === 'task1' || question.task_type === 1
+                                ? 'Key Features (Các đặc điểm chính)'
+                                : 'Main Ideas (3 key points)'}
+                        </label>
                         {outline.mainIdeas.map((idea, i) => (
                             <input
                                 key={i}
                                 className="form-input"
                                 style={{ marginBottom: '0.5rem' }}
-                                placeholder={`Idea ${i + 1}`}
+                                placeholder={question.task_type === 'task1' || question.task_type === 1 ? `Feature ${i + 1}` : `Idea ${i + 1}`}
                                 value={idea}
                                 onChange={e => {
                                     const newIdeas = [...outline.mainIdeas];
@@ -68,13 +98,17 @@ const IdeationPhase = ({ question, onNext }) => {
                     </div>
 
                     <div className="form-group">
-                        <label className="form-label">Topic Sentences</label>
+                        <label className="form-label">
+                            {question.task_type === 'task1' || question.task_type === 1
+                                ? 'Chi tiết triển khai (Grouping)'
+                                : 'Topic Sentences'}
+                        </label>
                         {outline.topicSentences.map((sent, i) => (
                             <input
                                 key={i}
                                 className="form-input"
                                 style={{ marginBottom: '0.5rem' }}
-                                placeholder={`Topic Sentence ${i + 1}`}
+                                placeholder={question.task_type === 'task1' || question.task_type === 1 ? `Detail Group ${i + 1}` : `Topic Sentence ${i + 1}`}
                                 value={sent}
                                 onChange={e => {
                                     const newSent = [...outline.topicSentences];
@@ -96,7 +130,7 @@ const IdeationPhase = ({ question, onNext }) => {
             </div>
 
             <div style={{ paddingLeft: '2rem', borderLeft: '1px solid var(--color-border)' }}>
-                <h3 className="section-title">AI Examiner Feedback</h3>
+                <h3 className="section-title">Phản hồi của AI</h3>
                 {feedback ? (
                     <div className="feedback-box">
                         <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1rem' }}>
@@ -105,12 +139,12 @@ const IdeationPhase = ({ question, onNext }) => {
                         </div>
 
                         <div style={{ marginBottom: '1rem' }}>
-                            <p style={{ fontWeight: 600 }}>General Feedback:</p>
+                            <p style={{ fontWeight: 600 }}>Phản hồi chung:</p>
                             <p>{feedback.general_feedback}</p>
                         </div>
 
                         <div>
-                            <p style={{ fontWeight: 600 }}>Improvements:</p>
+                            <p style={{ fontWeight: 600 }}>Nâng cao và cải thiện:</p>
                             <ul className="feedback-list">
                                 {feedback.improvements.map((imp, i) => (
                                     <li key={i}>{imp}</li>
@@ -123,13 +157,13 @@ const IdeationPhase = ({ question, onNext }) => {
                                 onClick={() => onNext({ outline, sessionId: savedSessionId })}
                                 className="btn-next"
                             >
-                                Continue to Scaffolding &rarr;
+                                Tiếp tục đến Scaffolding &rarr;
                             </button>
                         </div>
                     </div>
                 ) : (
                     <div className="muted" style={{ textAlign: 'center', marginTop: '3rem' }}>
-                        Submit your outline to get real-time feedback from the AI Examiner.
+                        Nộp bài của bạn để nhận phản hồi từ AI Examiner.
                     </div>
                 )}
             </div>

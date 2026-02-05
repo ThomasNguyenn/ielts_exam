@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
+import './TestList.css';
 
 function getTestDescription(test) {
   const readingCount = test.reading_passages?.length || 0;
   const listeningCount = test.listening_sections?.length || 0;
   const writingCount = test.writing_tasks?.length || 0;
-  
+
   const type = test.type || 'reading';
-  
+
   if (type === 'reading' && readingCount > 0) {
     return `Reading · ${readingCount} passage${readingCount !== 1 ? 's' : ''}`;
   }
@@ -18,7 +19,7 @@ function getTestDescription(test) {
   if (type === 'writing' && writingCount > 0) {
     return `Writing · ${writingCount} task${writingCount !== 1 ? 's' : ''}`;
   }
-  
+
   // Fallback based on available data
   if (readingCount > 0) {
     return `Reading · ${readingCount} passage${readingCount !== 1 ? 's' : ''}`;
@@ -29,7 +30,7 @@ function getTestDescription(test) {
   if (writingCount > 0) {
     return `Writing · ${writingCount} task${writingCount !== 1 ? 's' : ''}`;
   }
-  
+
   return 'Empty test';
 }
 
@@ -101,6 +102,7 @@ export default function TestList() {
   const [error, setError] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedType, setSelectedType] = useState('all');
+  const [viewMode, setViewMode] = useState('full'); // 'full' | 'parts'
   const [searchQuery, setSearchQuery] = useState('');
   const [attemptSummary, setAttemptSummary] = useState({});
   const isLoggedIn = api.isAuthenticated();
@@ -128,7 +130,7 @@ export default function TestList() {
           });
           setAttemptSummary(map);
         })
-        .catch(() => {});
+        .catch(() => { });
     }
   }, [isLoggedIn]);
 
@@ -139,9 +141,8 @@ export default function TestList() {
   const getType = (test) => (test.type || 'reading');
   const matchesType = (test) => selectedType === 'all' || getType(test) === selectedType;
 
+  // Primary filtering of tests
   const typeFilteredTests = tests.filter(matchesType);
-
-  // Filter tests by category and search query
   const filteredTests = typeFilteredTests
     .filter((test) => selectedCategory === 'all' || getCategory(test) === selectedCategory)
     .filter((test) => {
@@ -155,18 +156,77 @@ export default function TestList() {
       );
     });
 
-  const categories = Array.from(new Set(typeFilteredTests.map(getCategory))).sort((a, b) => a.localeCompare(b));
-  const categoryCounts = categories.reduce((acc, cat) => {
-    acc[cat] = typeFilteredTests.filter((t) => getCategory(t) === cat).length;
-    return acc;
-  }, {});
+  // Calculate stats for categories based on View Mode
+  let categories = [];
+  let categoryCounts = {};
+  let groupedTests = {};
+  let flattenedParts = [];
 
-  const groupedTests = filteredTests.reduce((acc, test) => {
-    const cat = getCategory(test);
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push(test);
-    return acc;
-  }, {});
+  if (viewMode === 'full') {
+    categories = Array.from(new Set(typeFilteredTests.map(getCategory))).sort((a, b) => a.localeCompare(b));
+    categoryCounts = categories.reduce((acc, cat) => {
+      acc[cat] = typeFilteredTests.filter((t) => getCategory(t) === cat).length;
+      return acc;
+    }, {});
+
+    groupedTests = filteredTests.reduce((acc, test) => {
+      const cat = getCategory(test);
+      if (!acc[cat]) acc[cat] = [];
+      acc[cat].push(test);
+      return acc;
+    }, {});
+  } else {
+    // Flatten parts
+    filteredTests.forEach(test => {
+      const cat = getCategory(test);
+
+      // Reading Passages
+      if (test.type === 'reading' && test.reading_passages) {
+        test.reading_passages.forEach((p, index) => {
+          flattenedParts.push({
+            uniqueId: `${test._id}_p${index}`,
+            testId: test._id,
+            title: p.title || `Passage ${index + 1}`,
+            testTitle: test.title,
+            category: cat,
+            type: 'reading',
+            partIndex: index,
+            label: `Passage ${index + 1}`
+          });
+        });
+      }
+
+      // Listening Sections
+      if (test.type === 'listening' && test.listening_sections) {
+        test.listening_sections.forEach((s, index) => {
+          flattenedParts.push({
+            uniqueId: `${test._id}_s${index}`,
+            testId: test._id,
+            title: s.title || `Section ${index + 1}`,
+            testTitle: test.title,
+            category: cat,
+            type: 'listening',
+            partIndex: index,
+            label: `Section ${index + 1}`
+          });
+        });
+      }
+    });
+
+    // Re-calculate categories based on parts
+    categories = Array.from(new Set(flattenedParts.map(p => p.category))).sort();
+    categoryCounts = categories.reduce((acc, cat) => {
+      acc[cat] = flattenedParts.filter(p => p.category === cat).length;
+      return acc;
+    }, {});
+
+    // Group parts
+    groupedTests = flattenedParts.reduce((acc, part) => {
+      if (!acc[part.category]) acc[part.category] = [];
+      acc[part.category].push(part);
+      return acc;
+    }, {});
+  }
 
   const formatDate = (val) => {
     if (!val) return '--';
@@ -177,10 +237,26 @@ export default function TestList() {
 
   return (
     <div className="page test-list">
-      <h1>Available tests</h1>
+      <h1>Danh sách bài thi</h1>
       <div className="test-list-layout">
         <aside className="test-sidebar">
-          <h2>Skill filter</h2>
+          <h2>Chế độ xem</h2>
+          <div className="view-mode-toggle">
+            <button
+              className={`btn-mode ${viewMode === 'full' ? 'active' : ''}`}
+              onClick={() => setViewMode('full')}
+            >
+              Trọn bộ (Full)
+            </button>
+            <button
+              className={`btn-mode ${viewMode === 'parts' ? 'active' : ''}`}
+              onClick={() => setViewMode('parts')}
+            >
+              Theo phần (Parts)
+            </button>
+          </div>
+
+          <h2>Lọc theo kỹ năng</h2>
           <div className="filter-group">
             {['all', 'reading', 'listening', 'writing'].map((type) => (
               <label key={type} className="filter-option">
@@ -198,115 +274,144 @@ export default function TestList() {
         </aside>
 
         <section className="test-main">
-      {/* Search box */}
-      <div className="test-search-box">
-        <input
-          type="search"
-          className="test-search-input"
-          placeholder="Search tests by title, ID, or category..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
-        {searchQuery && (
-          <button 
-            className="search-clear-btn"
-            onClick={() => setSearchQuery('')}
-            aria-label="Clear search"
-          >
-            x
-          </button>
-        )}
-      </div>
-      
-      {/* Category filter buttons */}
-      <div className="test-category-filter">
-        <button 
-          className={`category-btn ${selectedCategory === 'all' ? 'active' : ''}`}
-          onClick={() => setSelectedCategory('all')}
-        >
-          All Tests ({typeFilteredTests.length})
-        </button>
-        {categories.map((cat) => (
-          <button
-            key={cat}
-            className={`category-btn ${selectedCategory === cat ? 'active' : ''}`}
-            onClick={() => setSelectedCategory(cat)}
-          >
-            {cat} ({categoryCounts[cat] || 0})
-          </button>
-        ))}
-      </div>
+          {/* Search box */}
+          <div className="test-search-box">
+            <input
+              type="search"
+              className="test-search-input"
+              placeholder={viewMode === 'full' ? "Search tests..." : "Search passages/sections..."}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button
+                className="search-clear-btn"
+                onClick={() => setSearchQuery('')}
+                aria-label="Clear search"
+              >
+                x
+              </button>
+            )}
+          </div>
 
-      {filteredTests.length === 0 ? (
-        <p className="muted">
-          {selectedCategory === 'all' 
-            ? 'No tests yet. Add tests in the backend.' 
-            : `No tests available in "${selectedCategory}".`}
-        </p>
-      ) : (
-        Object.keys(groupedTests)
-          .sort((a, b) => a.localeCompare(b))
-          .map((cat) => (
-            <div key={cat} className="test-category-group">
-              <h2>{cat}</h2>
-              <ul className="test-cards">
-                {groupedTests[cat].map((test) => {
-                  const bestAttempt = attemptSummary[test._id]?.best;
-                  const canShowBand = bestAttempt?.total && (test.type === 'reading' || test.type === 'listening');
-                  const band = canShowBand ? calculateIELTSBand(bestAttempt.score, test.type) : null;
-                  return (
-                  <li key={test._id} className="test-card" data-type={test.type}>
-                    <div className="test-card-header">
-                      <h3>{test.title}</h3>
-                      <span className="test-type-badge">{getTestTypeLabel(test.type)}</span>
-                      {canShowBand && (
-                        <span className="test-best-badge">
-                          Band {band}
-                        </span>
-                      )}
-                    </div>
-                    <p className="muted">
-                      {getTestDescription(test)}
-                    </p>
-                    {isLoggedIn && (
-                      <div className="test-attempts">
-                        <p className="muted test-latest-score">
-                          {attemptSummary[test._id]?.latest?.total
-                            ? `Latest: ${attemptSummary[test._id].latest.score}/${attemptSummary[test._id].latest.total} (${attemptSummary[test._id].latest.percentage ?? Math.round((attemptSummary[test._id].latest.score / attemptSummary[test._id].latest.total) * 100)}%)`
-                            : attemptSummary[test._id]?.latest
-                              ? 'Latest: submitted'
-                              : 'Latest: --'}
-                          <span className="test-attempt-date">
-                            {attemptSummary[test._id]?.latest?.submitted_at ? ` • ${formatDate(attemptSummary[test._id].latest.submitted_at)}` : ''}
-                          </span>
-                        </p>
-                        <p className="muted test-best-score">
-                          {attemptSummary[test._id]?.best?.total
-                            ? `Best: ${attemptSummary[test._id].best.score}/${attemptSummary[test._id].best.total} (${attemptSummary[test._id].best.percentage ?? Math.round((attemptSummary[test._id].best.score / attemptSummary[test._id].best.total) * 100)}%)`
-                            : 'Best: --'}
-                        </p>
-                      </div>
-                    )}
-                    <div className="test-card-actions">
-                      <Link to={`/tests/${test._id}`} className="btn btn-primary">
-                        Start test
-                      </Link>
-                      {isLoggedIn && (
-                        <Link to={`/tests/${test._id}/history`} className="btn btn-ghost">
-                          My history
-                        </Link>
-                      )}
-                    </div>
-                  </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))
-      )}
+          {/* Category filter buttons */}
+          <div className="test-category-filter">
+            <button
+              className={`category-btn ${selectedCategory === 'all' ? 'active' : ''}`}
+              onClick={() => setSelectedCategory('all')}
+            >
+              All {viewMode === 'full' ? 'Tests' : 'Parts'} ({viewMode === 'full' ? typeFilteredTests.length : flattenedParts.length})
+            </button>
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                className={`category-btn ${selectedCategory === cat ? 'active' : ''}`}
+                onClick={() => setSelectedCategory(cat)}
+              >
+                {cat} ({categoryCounts[cat] || 0})
+              </button>
+            ))}
+          </div>
+
+          {Object.keys(groupedTests).length === 0 ? (
+            <p className="muted">
+              {selectedCategory === 'all'
+                ? `No ${viewMode === 'full' ? 'tests' : 'parts'} found.`
+                : `No content available in "${selectedCategory}".`}
+            </p>
+          ) : (
+            Object.keys(groupedTests)
+              .sort((a, b) => a.localeCompare(b))
+              .map((cat) => (
+                <div key={cat} className="test-category-group">
+                  <h2>{cat}</h2>
+                  <ul className="test-cards">
+                    {groupedTests[cat].map((item) => {
+                      // FULL TEST RENDER
+                      if (viewMode === 'full') {
+                        const test = item;
+                        const bestAttempt = attemptSummary[test._id]?.best;
+                        const canShowBand = bestAttempt?.total && (test.type === 'reading' || test.type === 'listening');
+                        const band = canShowBand ? calculateIELTSBand(bestAttempt.score, test.type) : null;
+
+                        return (
+                          <li key={test._id} className="test-card" data-type={test.type}>
+                            <div className="test-card-header">
+                              <h3>{test.title}</h3>
+                              <span className="test-type-badge">{getTestTypeLabel(test.type)}</span>
+                              {canShowBand && (
+                                <span className="test-best-badge">
+                                  Band {band}
+                                </span>
+                              )}
+                            </div>
+                            <p className="muted">
+                              {getTestDescription(test)}
+                            </p>
+                            {isLoggedIn && (
+                              <div className="test-attempts">
+                                <p className="muted test-latest-score">
+                                  {attemptSummary[test._id]?.latest?.total
+                                    ? `Latest: ${attemptSummary[test._id].latest.score}/${attemptSummary[test._id].latest.total} (${attemptSummary[test._id].latest.percentage ?? Math.round((attemptSummary[test._id].latest.score / attemptSummary[test._id].latest.total) * 100)}%)`
+                                    : attemptSummary[test._id]?.latest
+                                      ? 'Latest: submitted'
+                                      : 'Latest: --'}
+                                  <span className="test-attempt-date">
+                                    {attemptSummary[test._id]?.latest?.submitted_at ? ` • ${formatDate(attemptSummary[test._id].latest.submitted_at)}` : ''}
+                                  </span>
+                                </p>
+                                <p className="muted test-best-score">
+                                  {attemptSummary[test._id]?.best?.total
+                                    ? `Best: ${attemptSummary[test._id].best.score}/${attemptSummary[test._id].best.total} (${attemptSummary[test._id].best.percentage ?? Math.round((attemptSummary[test._id].best.score / attemptSummary[test._id].best.total) * 100)}%)`
+                                    : 'Best: --'}
+                                </p>
+                              </div>
+                            )}
+                            <div className="test-card-actions">
+                              <Link to={`/tests/${test._id}`} className="btn btn-primary">
+                                Bắt đầu bài thi
+                              </Link>
+                              {isLoggedIn && (
+                                <Link to={`/tests/${test._id}/history`} className="btn btn-ghost">
+                                  Lịch sử
+                                </Link>
+                              )}
+                            </div>
+                          </li>
+                        );
+                      }
+
+                      // SINGLE PART RENDER
+                      else {
+                        const part = item;
+                        return (
+                          <li key={part.uniqueId} className="test-card" data-type={part.type}>
+                            <div className="test-card-header">
+                              <h3>{part.title}</h3>
+                              <span className="test-type-badge">{part.label}</span>
+                            </div>
+                            <p className="muted">
+                              Thuộc bài thi: <strong>{part.testTitle}</strong>
+                            </p>
+                            <div className="test-card-actions">
+                              <Link
+                                to={`/tests/${part.testId}/exam?part=${part.partIndex}&mode=single`}
+                                className="btn btn-primary"
+                              >
+                                Làm bài ngay
+                              </Link>
+                            </div>
+                          </li>
+                        );
+                      }
+                    })}
+                  </ul>
+                </div>
+              ))
+          )}
         </section>
-      </div>
-    </div>
+      </div >
+    </div >
   );
 }
 

@@ -30,30 +30,39 @@ export default function Layout() {
 
   // Hide header on exam pages for full-screen experience
   const isExamPage = location.pathname.includes('/exam');
+  // Use wide layout for practice pages
+  const isPracticePage = location.pathname.includes('/practice');
+  // Use full width layout for manage pages and test list
+  const isManagePage = location.pathname.includes('/manage') || location.pathname === '/tests';
 
   return (
     <div className="layout">
       {!isExamPage && (
         <header className="layout-header">
           <div className="nav-container">
+            {/* <NavLink to="/" className="nav-brand">
+              IELTS MASTER
+            </NavLink> */}
+
             <NavLink to="/" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-              <Icons.Home /> My Homepage
+              <Icons.Home /> Trang chủ
             </NavLink>
-            <div className="nav-divider"></div>
 
             <NavLink to="/tests" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-              <Icons.Skills /> Luyện tập các kỹ năng
-            </NavLink>
-            <div className="nav-divider"></div>
-            <NavLink to="/practice" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-              <Icons.Writing /> Writing Practice
+              <Icons.Skills /> Luyện tập
             </NavLink>
 
-            <div style={{ flex: 1 }}></div>
+            <NavLink to="/practice" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+              <Icons.Writing /> Luyện viết
+            </NavLink>
+
+            <div className="nav-spacer"></div>
 
             {user && (
               <>
-                <div className="nav-divider"></div>
+                <NavLink to="/vocabulary" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                  <Icons.Vocab /> Vocabulary
+                </NavLink>
                 <NavLink to="/profile" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
                   <Icons.Profile /> Profile
                 </NavLink>
@@ -64,32 +73,30 @@ export default function Layout() {
               <>
                 <div className="nav-divider"></div>
                 <NavLink to="/grading" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-                  <Icons.Results /> Grading
+                  <Icons.Results /> Chấm Bài
                 </NavLink>
-                <div className="nav-divider"></div>
                 <NavLink to="/manage" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-                  <Icons.Manage /> Manage
+                  <Icons.Manage /> Quản Lý
                 </NavLink>
               </>
             )}
 
-            <div className="nav-divider"></div>
 
             {user ? (
-              <div className="nav-item" style={{ cursor: 'pointer' }} onClick={() => {
+              <div className="nav-item logout-btn" style={{ cursor: 'pointer' }} onClick={() => {
                 api.removeToken();
                 api.removeUser();
                 window.location.href = '/login';
               }}>
-                <Icons.Logout /> Logout ({user.name})
+                <Icons.Logout /> Logout <span className="user-badge">{user.name}</span>
               </div>
             ) : (
               <>
-                <NavLink to="/login" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                <div className="nav-divider"></div>
+                <NavLink to="/login" className={({ isActive }) => `nav-item btn-login ${isActive ? 'active' : ''}`}>
                   <Icons.Login /> Login
                 </NavLink>
-                <div className="nav-divider"></div>
-                <NavLink to="/register" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                <NavLink to="/register" className={({ isActive }) => `nav-item btn-register ${isActive ? 'active' : ''}`}>
                   <Icons.Register /> Register
                 </NavLink>
               </>
@@ -97,7 +104,7 @@ export default function Layout() {
           </div>
         </header>
       )}
-      <main className={`layout-main ${isExamPage ? 'layout-main--fullscreen' : ''}`}>
+      <main className={`layout-main ${isExamPage ? 'layout-main--fullscreen' : ''} ${isPracticePage ? 'layout-main--wide' : ''} ${isManagePage ? 'layout-main--manage' : ''}`}>
         <Outlet />
       </main>
     </div>

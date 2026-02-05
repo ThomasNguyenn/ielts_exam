@@ -39,32 +39,64 @@ export const checkOutline = async (req, res) => {
         if (!question) return res.status(404).json({ message: "Question not found" });
 
         // 2. Call AI
-        const prompt = `
-      Act as an IELTS Examiner Band 8.0.
-      Topic: ${question.prompt}
-      
-      Student Outline:
-      - Main Ideas: ${outline.mainIdeas.join(', ')}
-      - Development Method: ${outline.developmentMethod}
-      - Topic Sentences: ${outline.topicSentences.join(', ')}
-      
-      Tasks:
-      1. Evaluate the relevance and depth of the ideas. 
-      2. CRITICAL: If the outline is empty, vague, or off-topic, give a score < 30.
-      3. If the ideas are generic or lack development, give a score < 50.
-      
-      Output Requirements:
-      - Feedback in VIETNAMESE.
-      - Suggestions to improve depth and coherence (Band 7+).
-      - Score on a 0-100 scale based on Quality & Relevance.
+        let prompt;
 
-      Return ONLY valid JSON in this format:
-      {
-        "general_feedback": "string (in Vietnamese)",
-        "improvements": ["string (in Vietnamese)", "string"],
-        "coherence_score": number (0-100)
-      }
-    `;
+        if (question.task_type === 'task1' || question.type === 'task1') {
+            prompt = `
+              Act as an IELTS Examiner Band 8.0 for Writing Task 1 (Academic Report).
+              Topic/Chart Prompt: ${question.prompt}
+              
+              Student Outline:
+              - Report Structure (Overview strategy): ${outline.developmentMethod}
+              - Key Features Identified: ${outline.mainIdeas.join(', ')}
+              - Grouping Details (Body Paragraphs): ${outline.topicSentences.join(', ')}
+              
+              Tasks:
+              1. Evaluate if the "Key Features" accurately cover the main trends/contrasts in the chart (implied by topic).
+              2. Evaluate if the "Grouping Strategy" is logical (e.g. splitting by category or time).
+              3. CRITICAL: If the outline misses the 'Overview' or just lists random numbers, give a low score.
+              
+              Output Requirements:
+              - Feedback in VIETNAMESE.
+              - Suggestions to improve data selection and grouping (Band 7+).
+              - Score on a 0-100 scale based on Quality & Relevance.
+        
+              Return ONLY valid JSON in this format:
+              {
+                "general_feedback": "string (in Vietnamese)",
+                "improvements": ["string (in Vietnamese)", "string"],
+                "coherence_score": number (0-100)
+              }
+            `;
+        } else {
+            // Default to Task 2 (Essay)
+            prompt = `
+              Act as an IELTS Examiner Band 8.0.
+              Topic: ${question.prompt}
+              
+              Student Outline:
+              - Method: ${outline.developmentMethod}
+              - Main Ideas: ${outline.mainIdeas.join(', ')}
+              - Topic Sentences: ${outline.topicSentences.join(', ')}
+              
+              Tasks:
+              1. Evaluate the relevance and depth of the ideas. 
+              2. CRITICAL: If the outline is empty, vague, or off-topic, give a score < 30.
+              3. If the ideas are generic or lack development, give a score < 50.
+              
+              Output Requirements:
+              - Feedback in VIETNAMESE.
+              - Suggestions to improve depth and coherence (Band 7+).
+              - Score on a 0-100 scale based on Quality & Relevance.
+        
+              Return ONLY valid JSON in this format:
+              {
+                "general_feedback": "string (in Vietnamese)",
+                "improvements": ["string (in Vietnamese)", "string"],
+                "coherence_score": number (0-100)
+              }
+            `;
+        }
 
         const completion = await openai.chat.completions.create({
             model: "gpt-4o-mini",

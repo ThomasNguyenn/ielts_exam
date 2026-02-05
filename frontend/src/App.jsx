@@ -16,6 +16,8 @@ import Profile from './pages/Profile';
 import GradingDashboard from './pages/manage/GradingDashboard';
 import GradingInterface from './pages/manage/GradingInterface';
 import PracticeFlow from './pages/Practice/PracticeFlow';
+import PracticeList from './pages/Practice/PracticeList';
+import Vocabulary from './pages/Vocabulary';
 import { api } from './api/client';
 
 // Protected Route wrapper
@@ -43,51 +45,59 @@ function PublicRoute({ children }) {
   return children;
 }
 
+// ... (imports)
+import { NotificationProvider } from './components/NotificationContext';
+
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Layout />}>
-        <Route index element={<Home />} />
-        <Route path="tests" element={<TestList />} />
-        <Route path="tests/:id" element={<TestDetail />} />
-        <Route path="tests/:id/history" element={<ProtectedRoute><TestHistory /></ProtectedRoute>} />
-        <Route path="tests/:id/exam" element={<Exam />} />
+    <NotificationProvider>
+      <Routes>
+        <Route path="/" element={<Layout />}>
+          <Route index element={<Home />} />
+          <Route path="tests" element={<TestList />} />
+          <Route path="tests/:id" element={<TestDetail />} />
+          <Route path="tests/:id/history" element={<ProtectedRoute><TestHistory /></ProtectedRoute>} />
+          <Route path="tests/:id/exam" element={<Exam />} />
 
-        <Route path="practice" element={<ProtectedRoute><PracticeFlow /></ProtectedRoute>} />
+          <Route path="practice" element={<ProtectedRoute><PracticeList /></ProtectedRoute>} />
+          <Route path="practice/:id" element={<ProtectedRoute><PracticeFlow /></ProtectedRoute>} />
 
-        <Route path="profile" element={<Profile />} />
+          <Route path="vocabulary" element={<ProtectedRoute><Vocabulary /></ProtectedRoute>} />
 
-        {/* Auth Routes */}
-        <Route path="login" element={
-          <PublicRoute><Login /></PublicRoute>
-        } />
-        <Route path="register" element={
-          <PublicRoute><Register /></PublicRoute>
-        } />
+          <Route path="profile" element={<Profile />} />
 
-        {/* Protected Manage Routes (Teacher/Admin) */}
-        <Route path="manage" element={
-          <ManageRoute><ManageLayout /></ManageRoute>
-        }>
-          <Route index element={<Navigate to="/manage/passages" replace />} />
-          <Route path="passages" element={<AddPassage />} />
-          <Route path="passages/:id" element={<AddPassage />} />
-          <Route path="sections" element={<AddSection />} />
-          <Route path="sections/:id" element={<AddSection />} />
-          <Route path="tests" element={<AddTest />} />
-          <Route path="tests/:id" element={<AddTest />} />
-          <Route path="writings" element={<AddWriting />} />
-          <Route path="writings/:id" element={<AddWriting />} />
+          {/* Auth Routes */}
+          <Route path="login" element={
+            <PublicRoute><Login /></PublicRoute>
+          } />
+          <Route path="register" element={
+            <PublicRoute><Register /></PublicRoute>
+          } />
+
+          {/* Protected Manage Routes (Teacher/Admin) */}
+          <Route path="manage" element={
+            <ManageRoute><ManageLayout /></ManageRoute>
+          }>
+            <Route index element={<Navigate to="/manage/passages" replace />} />
+            <Route path="passages" element={<AddPassage />} />
+            <Route path="passages/:id" element={<AddPassage />} />
+            <Route path="sections" element={<AddSection />} />
+            <Route path="sections/:id" element={<AddSection />} />
+            <Route path="tests" element={<AddTest />} />
+            <Route path="tests/:id" element={<AddTest />} />
+            <Route path="writings" element={<AddWriting />} />
+            <Route path="writings/:id" element={<AddWriting />} />
+          </Route>
+
+          {/* Grading Routes (Top Level for Teachers) */}
+          <Route path="grading" element={
+            <ManageRoute><GradingDashboard /></ManageRoute>
+          } />
+          <Route path="grading/:id" element={
+            <ManageRoute><GradingInterface /></ManageRoute>
+          } />
         </Route>
-
-        {/* Grading Routes (Top Level for Teachers) */}
-        <Route path="grading" element={
-          <ManageRoute><GradingDashboard /></ManageRoute>
-        } />
-        <Route path="grading/:id" element={
-          <ManageRoute><GradingInterface /></ManageRoute>
-        } />
-      </Route>
-    </Routes>
+      </Routes>
+    </NotificationProvider>
   );
 }
