@@ -359,3 +359,27 @@
         margin-bottom: 2rem;
     }
 }
+/* Tablet */
+@media (max-width: 1024px){}
+
+/* Laptop nhỏ */
+@media (max-width: 1366px){
+
+}
+
+/* Laptop chuẩn */
+@media (max-width: 1440px){
+    .writing-prompt-text{
+        font-size: 1rem;
+    }
+    .btn-sidebar-start {
+        padding: 5px 7px;
+        border-radius: 8px;
+        font-size: 16px;
+    }
+}
+
+/* Desktop lớn */
+@media (min-width: 1920px){
+
+}

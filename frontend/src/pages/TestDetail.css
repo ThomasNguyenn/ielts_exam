@@ -42,7 +42,7 @@
     line-height: 1.6;
 }
 
-.exam-start .btn-testDetail-start {
+.btn-testDetail-start {
     font-size: 1.25rem;
     padding: 1rem 3rem;
 }
@@ -65,4 +65,24 @@
     background-color: #d03939;
     color: white;
     cursor: pointer;
+}
+@media (max-width: 1024px){}
+
+/* Laptop nhỏ */
+@media (max-width: 1366px){
+
+}
+
+/* Laptop chuẩn */
+@media (max-width: 1440px){
+    .btn-testDetail-start {
+        padding: 5px 7px;
+        border-radius: 8px;
+        font-size: 16px;
+    }
+}
+
+/* Desktop lớn */
+@media (min-width: 1920px){
+
 }

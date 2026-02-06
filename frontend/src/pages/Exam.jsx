@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
+import { PanelGroup, Panel, PanelResizeHandle } from 'react-resizable-panels';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import parse from 'html-react-parser';
 import { api } from '../api/client';
@@ -413,7 +414,7 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
         const groupStartIndex = slotIndex;
 
         return (
-          <div key={group.type + slotIndex + groupIdx} className="exam-group">
+          <div key={group.type + slotIndex + groupIdx} className={`exam-group ${group.type === 'summary_completion' ? 'summary-completion' : ''}`}>
             {/* Instructions */}
             {group.instructions && (
               <HighlightableContent
@@ -432,71 +433,33 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
               const headings = firstSlot?.headings || [];
 
               return headings.length > 0 ? (
-                <div className="matching-options-pool">
-                  {/* <div className="matching-options-label">Available Options - Drag to Questions Below:</div> */}
-                  <div className="matching-chips">
-                    {headings.map((h) => (
-                      <div
-                        key={h.id}
-                        className="matching-chip"
-                        draggable
-                        onDragStart={(e) => {
-                          e.dataTransfer.setData('headingId', h.id);
-                          e.currentTarget.classList.add('dragging');
-                        }}
-                        onDragEnd={(e) => {
-                          e.currentTarget.classList.remove('dragging');
-                        }}
-                      >
-                        {/* <span className="matching-chip-id">{h.id}</span> */}
-                        <span className="matching-chip-text">{h.text}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null;
-            })()}
-
-            {/* NEW: Shared options pool for Summary Completion (Single Use Logic) */}
-            {isSummary && group.options && group.options.length > 0 && (() => {
-              // Calculate which options are already used in this group
-              const usedValues = new Set();
-              let tempIdx = groupStartIndex;
-              group.questions.forEach(() => {
-                if (answers[tempIdx]) usedValues.add(answers[tempIdx]);
-                tempIdx++;
-              });
-
-              return (
-                <div className="matching-options-pool">
-                  {/* <div className="matching-options-label">Choices (Drag to gaps below):</div> */}
-                  <div className="matching-chips">
-                    {group.options.map((opt) => {
-                      const isUsed = usedValues.has(opt.id);
-                      return (
+                <div className="">
+                  <div className="matching-options-pool">
+                    {/* <div className="matching-options-label">Available Options - Drag to Questions Below:</div> */}
+                    <div className="matching-chips">
+                      {headings.map((h) => (
                         <div
-                          key={opt.id}
-                          className={`matching-chip ${isUsed ? 'used' : ''}`}
-                          draggable={!isUsed}
+                          key={h.id}
+                          className="matching-chip"
+                          draggable
                           onDragStart={(e) => {
-                            if (!isUsed) {
-                              e.dataTransfer.setData('optionId', opt.id);
-                              e.currentTarget.classList.add('dragging');
-                            }
+                            e.dataTransfer.setData('headingId', h.id);
+                            e.currentTarget.classList.add('dragging');
                           }}
                           onDragEnd={(e) => {
                             e.currentTarget.classList.remove('dragging');
                           }}
                         >
-                          {/* <span className="matching-chip-id">{opt.id}</span> */}
-                          <span className="matching-chip-text">{opt.text}</span>
+                          {/* <span className="matching-chip-id">{h.id}</span> */}
+                          <span className="matching-chip-text">{h.text}</span>
                         </div>
-                      );
-                    })}
+                      ))}
+                    </div>
                   </div>
                 </div>
-              );
+              ) : null;
             })()}
+
 
 
 
@@ -581,23 +544,61 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                   }
                 };
 
+                // NEW: Calculate used options for the pool (within the summary block)
+                const usedValues = new Set();
+                let tempIdx = currentGroupStartIndex;
+                group.questions.forEach(() => {
+                  if (answers[tempIdx]) usedValues.add(answers[tempIdx]);
+                  tempIdx++;
+                });
+
                 return (
-                  <div className="exam-summary-text">
-                    {group.text ? (
-                      <HighlightableWrapper
-                        onUpdateHtml={(html) => handleHtmlUpdate(`group_text_${item._id}_${groupIdx}`, html)}
-                        tagName="div"
-                      >
-                        {parse(
-                          (passageStates && passageStates[`group_text_${item._id}_${groupIdx}`]) || tokenizeHtml(group.text.replace(/\n/g, '<br />')),
-                          parseOptions
-                        )}
-                      </HighlightableWrapper>
-                    ) : (
-                      <div className="summary-missing-warning">
-                        <strong>{isSummary ? 'Summary' : 'Gap Fill'} text is missing.</strong> Please update this question in the Manage interface.
+                  <div className="summary-completion-wrapper">
+                    {isSummary && group.options && group.options.length > 0 && (
+                      <div className="matching-options-pool">
+                        <div className="matching-chips">
+                          {group.options.map((opt) => {
+                            const isUsed = usedValues.has(opt.id);
+                            return (
+                              <div
+                                key={opt.id}
+                                className={`matching-chip ${isUsed ? 'used' : ''}`}
+                                draggable={!isUsed}
+                                onDragStart={(e) => {
+                                  if (!isUsed) {
+                                    e.dataTransfer.setData('optionId', opt.id);
+                                    e.currentTarget.classList.add('dragging');
+                                  }
+                                }}
+                                onDragEnd={(e) => {
+                                  e.currentTarget.classList.remove('dragging');
+                                }}
+                              >
+                                <span className="matching-chip-text">{opt.text}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
+
+                    <div className="exam-summary-text">
+                      {group.text ? (
+                        <HighlightableWrapper
+                          onUpdateHtml={(html) => handleHtmlUpdate(`group_text_${item._id}_${groupIdx}`, html)}
+                          tagName="div"
+                        >
+                          {parse(
+                            (passageStates && passageStates[`group_text_${item._id}_${groupIdx}`]) || tokenizeHtml(group.text.replace(/\n/g, '<br />')),
+                            parseOptions
+                          )}
+                        </HighlightableWrapper>
+                      ) : (
+                        <div className="summary-missing-warning">
+                          <strong>{isSummary ? 'Summary' : 'Gap Fill'} text is missing.</strong> Please update this question in the Manage interface.
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               }
@@ -753,23 +754,27 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
   // ==========================================================
   if (isReading) {
     return (
-      <div className="ielts-reading-layout">
-        <div className="ielts-passage-panel">
+      <PanelGroup direction="horizontal" className="ielts-reading-layout">
+        <Panel defaultSize={50} minSize={20} className="ielts-passage-panel">
           <div className="passage-scrollable">
-            {/* VocabHighlighter temporarily disabled */}
             <HighlightableContent
               htmlContent={contentHtml}
               onUpdateHtml={(html) => handleHtmlUpdate(item._id, html)}
               id={item._id}
             />
           </div>
-        </div>
-        <div className="ielts-questions-panel">
+        </Panel>
+
+        <PanelResizeHandle className="ielts-resizer">
+          <div className="resizer-handle-button" />
+        </PanelResizeHandle>
+
+        <Panel defaultSize={50} minSize={20} className="ielts-questions-panel">
           <div className="questions-scrollable">
             {questionsBlock}
           </div>
-        </div>
-      </div>
+        </Panel>
+      </PanelGroup>
     );
   }
 

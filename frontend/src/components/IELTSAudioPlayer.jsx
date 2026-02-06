@@ -60,7 +60,7 @@ export default function IELTSAudioPlayer({ audioUrl }) {
   return (
     <div className="flex justify-center w-[100%]">
       <div className="ielts-audio-player w-[80%]">
-        <div className="audio-progress-container flex justify-center flex-col">
+        {/* <div className="audio-progress-container flex justify-center flex-col">
           <div className="audio-progress-bar">
             <div className="audio-progress-fill" style={{ width: `${progress}%` }} />
           </div>
@@ -71,7 +71,7 @@ export default function IELTSAudioPlayer({ audioUrl }) {
             </span>
             <span> {formatTime(duration)}</span>
           </div>
-        </div>
+        </div> */}
 
         <div className="audio-volume-control flex justify-center">
           <span className="volume-icon">{getVolumeIcon()}</span>
