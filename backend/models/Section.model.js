@@ -8,7 +8,7 @@ const QuestionSchema = new mongoose.Schema({
 
     option: [
         {label: { type: String, required: true }, // A, B, C, D
-        text: { type: String, required: true }  // Noi dung lua chon
+        text: { type: String }  // Noi dung lua chon
     }
     ],
 
