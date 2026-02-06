@@ -429,36 +429,36 @@ export default function AddPassage() {
 
       <form onSubmit={handleSubmit} className="manage-form">
         <div className="form-row">
-          <label>ID bài đọc *</label>
-          <input value={form._id} onChange={(e) => updateForm('_id', e.target.value)} required readOnly={!!editId} />
+          <label>Mã bài đọc (ID) *</label>
+          <input value={form._id} onChange={(e) => updateForm('_id', e.target.value)} required readOnly={!!editId} placeholder="e.g. passage-1" />
         </div>
         <div className="form-row">
           <label>Tiêu đề *</label>
-          <input value={form.title} onChange={(e) => updateForm('title', e.target.value)} required />
+          <input value={form.title} onChange={(e) => updateForm('title', e.target.value)} required placeholder="Tiêu đề bài đọc" />
         </div>
         <div className="form-row">
-          <label>Nội dung *</label>
-          <textarea value={form.content} onChange={(e) => updateForm('content', e.target.value)} rows={8} required />
+          <label>Nội dung * (Transcript/Content)</label>
+          <textarea value={form.content} onChange={(e) => updateForm('content', e.target.value)} rows={8} required placeholder="Nội dung bài đọc..." />
         </div>
         <div className="form-row">
-          <label>Nguồn (Source)</label>
-          <input value={form.source} onChange={(e) => updateForm('source', e.target.value)} />
+          <label>Nguồn bài đọc (Source)</label>
+          <input value={form.source} onChange={(e) => updateForm('source', e.target.value)} placeholder="e.g. Cambridge IELTS 18" />
         </div>
 
-        <h3>Nhóm câu hỏi</h3>
+        <h3 style={{ color: '#d03939', marginTop: '2rem' }}>Các nhóm câu hỏi</h3>
         {form.question_groups.map((group, gi) => {
           const isGroupCollapsed = collapsedGroups.has(gi);
           return (
             <div key={gi} className="question-group-block">
-              <div className="group-header" onClick={() => toggleGroupCollapse(gi)} style={{ padding: '0.5rem 0.3rem', borderRadius: '0.5rem'}} >
-                <div className="group-title">
+              <div className="group-header" onClick={() => toggleGroupCollapse(gi)} style={{ padding: '0.5rem 0.3rem', borderRadius: '0.5rem' }} >
+                <div className="group-title p-4">
                   <Icons.Writing /> Question Group {gi + 1} ({group.type})
                 </div>
                 <div className="item-actions">
                   <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); moveGroup(gi, -1); }} disabled={gi === 0}>▲</button>
                   <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); moveGroup(gi, 1); }} disabled={gi === form.question_groups.length - 1}>▼</button>
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); removeQuestionGroup(gi); }} disabled={form.question_groups.length <= 1} style={{ color: '#ef4444' }}>Remove</button>
-                  <span>{isGroupCollapsed ? '▼' : '▲'}</span>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); removeQuestionGroup(gi); }} disabled={form.question_groups.length <= 1} style={{ color: '#ef4444', fontWeight: 700 }}>Xóa nhóm</button>
+                  <span style={{ marginLeft: '0.5rem', opacity: 0.5 }}>{isGroupCollapsed ? '▼' : '▲'}</span>
                 </div>
               </div>
               {!isGroupCollapsed && (
@@ -546,40 +546,45 @@ export default function AddPassage() {
                   {group.questions.map((q, qi) => {
                     const isQuestionCollapsed = collapsedQuestions.has(`${gi}-${qi}`);
                     return (
-                      <div key={qi} className="question-block" style={{ border: '1px solid #f1f5f9', padding: '1rem', borderRadius: '0.75rem', marginBottom: '1rem' }}>
-                        <div className="group-header" onClick={() => toggleQuestionCollapse(gi, qi)} style={{ padding: '0.5rem 0.3rem', borderRadius: '0.5rem'}}>
-                          <span style={{ fontWeight: 700 }}>Câu {q.q_number}</span>
-                          <span>{isQuestionCollapsed ? '▼' : '▲'}</span>
+                      <div key={qi} className="question-block" style={{ border: '1px solid #fdf4e3', background: '#FFF9F1', padding: '1rem', borderRadius: '1rem', marginBottom: '1.5rem' }}>
+                        <div className="group-header" onClick={() => toggleQuestionCollapse(gi, qi)} style={{ padding: '0.5rem 0.3rem', borderRadius: '0.5rem', background: 'transparent', borderBottom: 'none' }}>
+                          <span style={{ fontWeight: 800, color: '#d03939' }}>Câu {q.q_number}</span>
+                          <span style={{ opacity: 0.5 }}>{isQuestionCollapsed ? '▼' : '▲'}</span>
                         </div>
                         {!isQuestionCollapsed && (
                           <div className="form-row">
-                            <label>Câu hỏi</label>
-                            <textarea value={q.text} onChange={(e) => updateQuestion(gi, qi, 'text', e.target.value)} rows={2} />
-                            
+                            <label>Nội dung câu hỏi</label>
+                            <textarea value={q.text} onChange={(e) => updateQuestion(gi, qi, 'text', e.target.value)} rows={2} placeholder="Nhập câu hỏi..." />
+
                             {(group.type === 'mult_choice' || group.type === 'true_false_notgiven') && (
-                              <div style={{ marginTop: '0.5rem', marginBottom: '0.5rem' }}>
-                                <label>Các lựa chọn (Options)</label>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
+                              <div style={{ marginTop: '1rem', marginBottom: '1rem' }}>
+                                <label style={{ color: '#64748b', fontSize: '0.8rem', textTransform: 'uppercase' }}>Các lựa chọn (Options)</label>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem', marginTop: '0.5rem' }}>
                                   {(q.option || []).map((o, oi) => (
-                                    <div key={o.label} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                      <span style={{ fontWeight: 600 }}>[{o.label}]</span>
+                                    <div key={o.label} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                      <span style={{ fontWeight: 800, color: '#d03939', width: '25px' }}>{o.label}</span>
                                       <input
                                         value={o.text}
                                         onChange={(e) => setQuestionOption(gi, qi, oi, e.target.value)}
-                                        placeholder={`Answer ${o.label}`}
+                                        placeholder={`Lựa chọn ${o.label}`}
+                                        style={{ background: '#ffffff' }}
                                       />
                                     </div>
                                   ))}
                                 </div>
                               </div>
                             )}
-                            <label>Đáp án đúng (ngăn cách bởi dấu phẩy)</label>
-                            <input value={q.correct_answers.join(', ')} onChange={(e) => setCorrectAnswers(gi, qi, e.target.value)} />
-                            <label>Giải thích</label>
-                            <textarea value={q.explanation} onChange={(e) => updateQuestion(gi, qi, 'explanation', e.target.value)} rows={2} />
+                            <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                              <label>Đáp án đúng (ngăn cách bởi dấu phẩy)</label>
+                              <input value={q.correct_answers.join(', ')} onChange={(e) => setCorrectAnswers(gi, qi, e.target.value)} placeholder="e.g. A hoặc Answer1, Answer2" style={{ background: '#ffffff' }} />
+                            </div>
+                            <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                              <label>Giải thích</label>
+                              <textarea value={q.explanation} onChange={(e) => updateQuestion(gi, qi, 'explanation', e.target.value)} rows={2} placeholder="Giải thích tại sao đây là đáp án đúng..." style={{ background: '#ffffff' }} />
+                            </div>
                           </div>
                         )}
-                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeQuestion(gi, qi)} style={{ color: '#ef4444', marginTop: '0.5rem' }}>Xóa câu hỏi</button>
+                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeQuestion(gi, qi)} style={{ color: '#ef4444', marginTop: '1rem', fontWeight: 700 }}>✕ Xóa câu hỏi</button>
                       </div>
                     );
                   })}
@@ -592,14 +597,14 @@ export default function AddPassage() {
         <button type="button" className="btn-manage-add" onClick={addQuestionGroup}>+ Thêm nhóm câu hỏi</button>
 
         <div className="form-section">
-          <button type="submit" className="btn-manage-add" disabled={submitLoading}>
-            {submitLoading ? 'Đang lưu...' : (editId ? 'Cập nhật passage' : 'Tạo passage')}
+          <button type="submit" className="btn-manage-add" disabled={submitLoading} style={{ width: '100%', justifyContent: 'center', fontSize: '1.1rem', padding: '1.25rem' }}>
+            {submitLoading ? 'Đang lưu...' : (editId ? 'Cập nhật bài đọc' : 'Tạo bài đọc mới')}
           </button>
         </div>
       </form>
 
-      <div className="search-container" style={{ marginTop: '3rem' }}>
-        <h3>Danh sách Passages</h3>
+      <div className="search-container" style={{ marginTop: '4rem', paddingTop: '3rem', borderTop: '2px solid #FFF9F1' }}>
+        <h3 style={{ color: '#d03939' }}>Danh sách bài Reading hiện có</h3>
         {!editId && (
           loading ? <p className="muted">Đang tải...</p> : (
             <>
@@ -624,6 +629,6 @@ export default function AddPassage() {
           )
         )}
       </div>
-    </div>
+    </div >
   );
 }

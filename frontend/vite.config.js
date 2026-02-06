@@ -12,4 +12,15 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    chunkSizeWarningLimit: 1000, // Tăng giới hạn cảnh báo lên 1000kB
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Tách các thư viện lớn ra thành chunk riêng
+          'react-vendor': ['react', 'react-dom', 'react-router-dom']
+        },
+      },
+    },
+  },
 });

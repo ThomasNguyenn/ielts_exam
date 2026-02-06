@@ -42,8 +42,27 @@
     line-height: 1.6;
 }
 
-.exam-start .btn-primary {
+.exam-start .btn-testDetail-start {
     font-size: 1.25rem;
     padding: 1rem 3rem;
-    border-radius: 9999px;
+}
+
+.btn-testDetail-start {
+    background-color: #FF4747;
+    color: white;
+    padding: 5px 7px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 18px;
+    line-height: 28px;
+    text-align: center;
+    justify-content: center;
+    align-items: center;
+    display: flex;
+}
+
+.btn-testDetail-start:hover {
+    background-color: #d03939;
+    color: white;
+    cursor: pointer;
 }

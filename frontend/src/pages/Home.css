@@ -1,18 +1,37 @@
 /* Home Page */
+.page.home {
+    max-width: 56rem;
+    margin: 0 auto;
+    width: 100%;
+}
+
 .hero {
     text-align: center;
     padding: 3rem 0;
 }
 
 .hero h1 {
-    font-size: 2.5rem;
     margin-bottom: 0.75rem;
 }
 
 .hero p {
-    color: var(--color-text-muted);
     margin-bottom: 1.5rem;
-    max-width: 32rem;
     margin-left: auto;
     margin-right: auto;
+}
+
+.btn-hero-start {
+    background-color: #FF4747;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 18px;
+    line-height: 28px;
+}
+
+.btn-hero-start:hover {
+    background-color: #d03939;
+    color: white;
+    cursor: pointer;
 }

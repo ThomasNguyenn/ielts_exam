@@ -4,15 +4,32 @@
   box-sizing: border-box;
 }
 
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+
 :root {
   --color-bg: #f8fafc;
   --color-surface: #ffffff;
   --color-border: #e2e8f0;
   --color-text: #0f172a;
   --color-text-muted: #64748b;
-  --color-accent: #0284c7;
-  --color-accent-hover: #0369a1;
-  --font-sans: 'Open Sans', system-ui, sans-serif;
+  --color-accent: #d03939;
+  --color-accent-hover: #b53232;
+  --font-sans: 'Inter', system-ui, sans-serif;
 }
 
 body {
@@ -54,9 +71,11 @@ textarea {
   cursor: pointer;
   border-radius: 2px;
 }
+
 .ielts-highlight:hover {
   filter: brightness(0.95);
 }
+
 /* Ensure tokens don't break layout */
 .token-word {
   display: inline;

@@ -333,11 +333,9 @@ export default function AddTest() {
       <h1>{editId ? 'Sửa bài thi (Full Test)' : 'Thêm bài thi (Full Test)'}</h1>
       {error && <p className="form-error">{error}</p>}
 
-
-
       <form onSubmit={handleSubmit} className="manage-form">
         <div className="form-row">
-          <label>Test ID *</label>
+          <label>Mã bài thi (ID) *</label>
           <input
             value={form._id}
             onChange={(e) => updateForm('_id', e.target.value)}
@@ -347,7 +345,7 @@ export default function AddTest() {
           />
         </div>
         <div className="form-row">
-          <label>Title *</label>
+          <label>Tiêu đề *</label>
           <input
             value={form.title}
             onChange={(e) => updateForm('title', e.target.value)}
@@ -356,20 +354,20 @@ export default function AddTest() {
           />
         </div>
         <div className="form-row">
-          <label>Category (book/series) *</label>
+          <label>Bộ đề / Danh mục *</label>
           <input
             value={form.category}
             onChange={(e) => updateForm('category', e.target.value)}
             placeholder="e.g. Cambridge 18"
             required
           />
-          <small className="form-hint">
-            Used to group tests from the same book.
+          <small className="form-hint" style={{ color: '#d03939' }}>
+            Dùng để nhóm các bài thi từ cùng một bộ sách.
           </small>
         </div>
 
         <div className="form-row">
-          <label>Test type (skill focus) *</label>
+          <label>Loại bài thi (Kỹ năng) *</label>
           <select
             value={form.type || 'reading'}
             onChange={(e) => {
@@ -386,7 +384,7 @@ export default function AddTest() {
         </div>
 
         <div className="form-row">
-          <label>Duration (minutes) *</label>
+          <label>Thời gian làm bài (Phút) *</label>
           <input
             type="number"
             min="1"
@@ -397,13 +395,13 @@ export default function AddTest() {
             required
           />
           <small className="form-hint">
-            Default: Reading = 60 min, Listening = 35 min, Writing = 45 min
+            Mặc định: Reading = 60p, Listening = 35p, Writing = 45p
           </small>
         </div>
 
         {form.type === 'reading' && (
-          <div className="form-row multi-select-block">
-            <label>Reading passages (drag to reorder)</label>
+          <div className="form-row multi-select-block" style={{ background: '#FFF9F1', padding: '1.5rem', borderRadius: '1.25rem', border: '1px solid #fdf4e3' }}>
+            <label style={{ color: '#d03939', fontSize: '1rem' }}>Chọn bài Reading (kéo để sắp xếp)</label>
             <input
               type="search"
               value={passageSearch}
@@ -424,7 +422,7 @@ export default function AddTest() {
                 <p className="muted">Không có bài đọc nào khớp với tìm kiếm của bạn.</p>
               ) : (
                 filteredPassages.map((p) => (
-                  <label key={p._id} className="checkbox-label">
+                  <label key={p._id} className="checkbox-label p-2">
                     <input
                       type="checkbox"
                       checked={form.reading_passages.includes(p._id)}
@@ -455,8 +453,8 @@ export default function AddTest() {
         )}
 
         {form.type === 'listening' && (
-          <div className="form-row multi-select-block">
-            <label>Listening sections (drag to reorder)</label>
+          <div className="form-row multi-select-block" style={{ background: '#FFF9F1', padding: '1.5rem', borderRadius: '1.25rem', border: '1px solid #fdf4e3' }}>
+            <label style={{ color: '#d03939', fontSize: '1rem' }}>Chọn bài Listening (kéo để sắp xếp)</label>
             <input
               type="search"
               value={sectionSearch}
@@ -477,7 +475,7 @@ export default function AddTest() {
                 <p className="muted">No sections match your search.</p>
               ) : (
                 filteredSections.map((s) => (
-                  <label key={s._id} className="checkbox-label">
+                  <label key={s._id} className="checkbox-label p-2">
                     <input
                       type="checkbox"
                       checked={form.listening_sections.includes(s._id)}
@@ -530,7 +528,7 @@ export default function AddTest() {
                 <p className="muted">Không có bài viết nào khớp với tìm kiếm của bạn.</p>
               ) : (
                 filteredWritings.map((w) => (
-                  <label key={w._id} className="checkbox-label">
+                  <label key={w._id} className="checkbox-label p-2">
                     <input
                       type="checkbox"
                       checked={form.writing_tasks.includes(w._id)}
@@ -560,29 +558,31 @@ export default function AddTest() {
           </div>
         )}
 
-        <div className="form-actions">
-          <button type="submit" className="btn btn-primary" disabled={submitLoading}>
-            {submitLoading ? (editId ? 'Saving…' : 'Creating…') : (editId ? 'Update test' : 'Create test')}
+        <div className="form-actions" style={{ marginTop: '2rem' }}>
+          <button type="submit" className="btn-manage-add" disabled={submitLoading} style={{ width: '100%', justifyContent: 'center', fontSize: '1.1rem', padding: '1.25rem' }}>
+            {submitLoading ? (editId ? 'Đang lưu…' : 'Đang tạo…') : (editId ? 'Cập nhật bài thi' : 'Tạo bài thi mới')}
           </button>
 
-          {editId && (
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={handleRenumber}
-              disabled={submitLoading}
-              style={{ marginLeft: '0.5rem', background: '#eab308', borderColor: '#ca8a04', color: 'white' }}
-            >
-              Auto Renumber Questions
-            </button>
-          )}
+          <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+            {editId && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleRenumber}
+                disabled={submitLoading}
+                style={{ flex: 1, background: '#FFF9F1', borderColor: '#fdf4e3', color: '#d03939', fontWeight: 700 }}
+              >
+                Auto Renumber Questions
+              </button>
+            )}
 
-          {editId && <Link to="/manage/tests" className="btn btn-ghost" style={{ marginLeft: '0.5rem' }}>Cancel</Link>}
+            {editId && <Link to="/manage/tests" className="btn btn-ghost" style={{ flex: 1, textAlign: 'center', border: '1px solid #e2e8f0' }}>Hủy bỏ</Link>}
+          </div>
         </div>
       </form>
 
-      <div className="search-container">
-        <h3>Các bài thi hiện có</h3>
+      <div className="search-container" style={{ marginTop: '4rem', paddingTop: '3rem', borderTop: '2px solid #FFF9F1' }}>
+        <h3 style={{ color: '#d03939' }}>Các bài thi hiện có trong hệ thống</h3>
         {!editId && (
           <>
             <div className="search-box">

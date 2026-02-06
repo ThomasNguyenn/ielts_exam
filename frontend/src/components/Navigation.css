@@ -1,16 +1,16 @@
 :root {
-    --nav-bg: #ffffff;
+    --nav-bg: #FFF9F1;
     --nav-text: #475569;
-    --nav-active-bg: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+    --nav-active-bg: #d03939;
     --nav-active-text: #ffffff;
-    --nav-hover-bg: #f1f5f9;
+    --nav-hover-bg: #fdf4e3;
     --nav-hover-text: #1e293b;
-    --nav-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    --nav-shadow: 0 4px 12px rgba(208, 57, 57, 0.1);
     --nav-height: 70px;
 }
 
 .layout-header {
-    background-color: rgba(255, 255, 255, 0.9) !important;
+    background-color: var(--nav-bg) !important;
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     height: var(--nav-height);
@@ -71,7 +71,7 @@
 .nav-item.active {
     background: var(--nav-active-bg) !important;
     color: var(--nav-active-text) !important;
-    box-shadow: 0 4px 12px rgba(30, 58, 138, 0.25);
+    box-shadow: 0 4px 12px rgba(208, 57, 57, 0.25);
     font-weight: 700;
 }
 
@@ -103,6 +103,14 @@
     transform: scale(1.1);
 }
 
+.nav-icon {
+    fill: currentColor !important;
+}
+
+.nav-item .nav-icon {
+    color: inherit;
+}
+
 .user-badge {
     padding: 0.4rem 1rem;
     background: #f8fafc;
@@ -116,16 +124,17 @@
 
 /* Auth Buttons */
 .btn-login {
-    background: #f1f5f9;
-    color: #1e3a8a;
+    background: #fdf4e3;
+    color: #d03939;
+    border: 1px solid #d03939;
 }
 
 .btn-register {
-    background: #1e3a8a;
+    background: #d03939;
     color: white;
 }
 
 .btn-register:hover {
-    background: #1e40af;
+    background: #b53232;
     color: white;
 }

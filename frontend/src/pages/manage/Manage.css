@@ -11,14 +11,14 @@
 
 /* Manage Sidebar Nav */
 .manage-sidebar {
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
+    background: #FFF9F1;
+    border: 1px solid #fdf4e3;
     border-radius: 1.25rem;
     padding: 1.5rem;
     height: fit-content;
     position: sticky;
     top: 90px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+    box-shadow: 0 4px 12px rgba(208, 57, 57, 0.05);
 }
 
 .manage-sidebar h2 {
@@ -50,13 +50,13 @@
 }
 
 .manage-nav-item:hover {
-    background: #f8fafc;
-    color: #1e3a8a;
+    background: #fdf4e3;
+    color: #d03939;
 }
 
 .manage-nav-item.active {
-    background: #eff6ff;
-    color: #1e3a8a;
+    background: #d03939;
+    color: #ffffff;
 }
 
 .manage-nav-icon {
@@ -81,7 +81,7 @@
 .manage-content h1 {
     font-size: 1.75rem;
     font-weight: 800;
-    color: #1e293b;
+    color: #d03939;
     margin-bottom: 2rem;
     letter-spacing: -0.5px;
 }
@@ -125,9 +125,9 @@
 .form-row select:focus,
 .form-row textarea:focus {
     outline: none;
-    border-color: #3b82f6;
+    border-color: #d03939;
     background: #ffffff;
-    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+    box-shadow: 0 0 0 4px rgba(208, 57, 57, 0.1);
 }
 
 /* Question Group Blocks */
@@ -156,7 +156,7 @@
 
 .group-title {
     font-weight: 800;
-    color: #1e3a8a;
+    color: #d03939;
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -212,7 +212,7 @@
 
 /* Buttons */
 .btn-manage-add {
-    background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+    background: #d03939;
     color: white;
     padding: 0.75rem 1.5rem;
     border-radius: 50px;
@@ -223,13 +223,14 @@
     align-items: center;
     gap: 0.5rem;
     transition: all 0.3s;
-    box-shadow: 0 4px 12px rgba(30, 58, 138, 0.2);
+    box-shadow: 0 4px 12px rgba(208, 57, 57, 0.2);
     text-decoration: none;
 }
 
 .btn-manage-add:hover {
+    background: #FF4747;
     transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(30, 58, 138, 0.3);
+    box-shadow: 0 6px 16px rgba(208, 57, 57, 0.3);
 }
 
 .search-container {
@@ -239,9 +240,9 @@
 
 .search-input-premium:focus {
     outline: none;
-    border-color: #3b82f6;
+    border-color: #d03939;
     background: #ffffff;
-    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+    box-shadow: 0 0 0 4px rgba(208, 57, 57, 0.1);
 }
 
 /* Heading & Option Rows */
@@ -268,9 +269,9 @@
     flex-shrink: 0;
     text-align: center;
     font-weight: 800;
-    color: #1e3a8a;
-    background: #eff6ff !important;
-    border-color: #bfdbfe !important;
+    color: #d03939;
+    background: #FFF9F1 !important;
+    border-color: #fdf4e3 !important;
 }
 
 .heading-text {

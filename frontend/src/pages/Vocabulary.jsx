@@ -209,7 +209,7 @@ export default function Vocabulary() {
                             <div className="vocab-stat-value">{stats.due}</div>
                             <div className="vocab-stat-label">Đang cần ôn tập</div>
                         </div>
-                        <button onClick={startFlashcards} className="btn btn-primary" disabled={vocabulary.length === 0}>
+                        <button onClick={startFlashcards} className="btn-vocab-primary" disabled={vocabulary.length === 0}>
                             📚 Bắt đầu ôn tập
                         </button>
                     </div>
@@ -274,7 +274,7 @@ export default function Vocabulary() {
                             rows="2"
                             required
                         />
-                        <button type="submit" className="btn btn-primary">
+                        <button type="submit" className="btn-vocab-primary">
                             ➕ Add Word
                         </button>
                     </form>

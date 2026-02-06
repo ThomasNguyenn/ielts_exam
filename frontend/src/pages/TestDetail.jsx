@@ -68,7 +68,7 @@ export default function TestDetail() {
 
   return (
     <div className="page test-detail">
-      <h1>{test.title}</h1>
+      <h1 className="text-black">{test.title}</h1>
       <div className="test-meta">
         {metaItems.map((item, index) => (
           <span key={index}>
@@ -78,7 +78,7 @@ export default function TestDetail() {
       </div>
       <section className="exam-start">
         <p>{description}</p>
-        <Link to={`/tests/${id}/exam`} className="btn btn-primary">
+        <Link to={`/tests/${id}/exam`} className="btn-testDetail-start">
           Start exam
         </Link>
       </section>

@@ -8,7 +8,7 @@
 .test-list h1 {
     font-size: 2.25rem;
     font-weight: 800;
-    color: #1e293b;
+    color: #0f172a;
     margin-bottom: 2.5rem;
     letter-spacing: -1px;
 }
@@ -22,20 +22,20 @@
 
 /* Sidebar Styling */
 .test-sidebar {
-    background: #ffffff;
+    background: #FFF9F1;
     border: 1px solid #e2e8f0;
     border-radius: 1.25rem;
     padding: 1.75rem;
     position: sticky;
     top: 90px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+    box-shadow: 0 4px 12px rgba(208, 57, 57, 0.05);
 }
 
 .test-sidebar h2 {
     margin: 0 0 1.25rem;
     font-size: 1.1rem;
     font-weight: 800;
-    color: #1e3a8a;
+    color: #000000;
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
@@ -43,7 +43,7 @@
 .view-mode-toggle {
     display: flex;
     gap: 0.5rem;
-    background: #f1f5f9;
+    background: #fdf4e3;
     padding: 0.4rem;
     border-radius: 0.75rem;
     margin-bottom: 2.5rem;
@@ -64,8 +64,8 @@
 
 .btn-mode.active {
     background: #ffffff;
-    color: #1e3a8a;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    color: #d03939;
+    box-shadow: 0 2px 8px rgba(208, 57, 57, 0.15);
 }
 
 .filter-group {
@@ -92,11 +92,11 @@
 }
 
 .filter-option input:checked+span {
-    color: #1e3a8a;
+    color: #d03939;
 }
 
 .filter-option input {
-    accent-color: #1e3a8a;
+    accent-color: #d03939;
     width: 1.1rem;
     height: 1.1rem;
 }
@@ -121,8 +121,8 @@
 
 .test-search-input:focus {
     outline: none;
-    border-color: #1e3a8a;
-    box-shadow: 0 0 0 4px rgba(30, 58, 138, 0.12);
+    border-color: #d03939;
+    box-shadow: 0 0 0 4px rgba(208, 57, 57, 0.1);
 }
 
 .search-clear-btn {
@@ -170,10 +170,10 @@
 }
 
 .category-btn.active {
-    background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+    background: #d03939;
     color: white;
     border-color: transparent;
-    box-shadow: 0 4px 12px rgba(30, 58, 138, 0.25);
+    box-shadow: 0 4px 12px rgba(208, 57, 57, 0.25);
 }
 
 /* Test Cards */
@@ -235,8 +235,8 @@
 .test-type-badge {
     display: inline-block;
     padding: 0.3rem 0.8rem;
-    background: #f1f5f9;
-    color: #1e3a8a;
+    background: #fdf4e3;
+    color: #d03939;
     border-radius: 50px;
     font-size: 0.75rem;
     font-weight: 800;
@@ -247,8 +247,9 @@
 
 .test-best-badge {
     display: inline-block;
-    padding: 0.3rem 0.8rem;
-    background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+    padding: 0.8rem 0.8rem;
+    /* background: linear-gradient(135deg, #10b981 0%, #34d399 100%); */
+    background-color: #FF3A3A;
     color: white;
     border-radius: 50px;
     font-size: 0.75rem;
@@ -305,15 +306,16 @@
 }
 
 .test-card-actions .btn-primary {
-    background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+    background: #d03939;
     color: white;
     border: none;
-    box-shadow: 0 4px 12px rgba(30, 58, 138, 0.2);
+    box-shadow: 0 4px 12px rgba(208, 57, 57, 0.2);
 }
 
 .test-card-actions .btn-primary:hover {
     transform: translateY(-1px);
-    box-shadow: 0 6px 16px rgba(30, 58, 138, 0.3);
+    background: #b53232;
+    box-shadow: 0 6px 16px rgba(208, 57, 57, 0.3);
 }
 
 .test-card-actions .btn-ghost {
@@ -325,6 +327,26 @@
 .test-card-actions .btn-ghost:hover {
     background: #e2e8f0;
     color: #1e293b;
+}
+
+.btn-sidebar-start {
+    background-color: #FF4747;
+    color: white;
+    padding: 5px 7px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 18px;
+    line-height: 28px;
+    text-align: center;
+    justify-content: center;
+    align-items: center;
+    display: flex;
+}
+
+.btn-sidebar-start:hover {
+    background-color: #d03939;
+    color: white;
+    cursor: pointer;
 }
 
 @media (max-width: 900px) {

@@ -30,8 +30,8 @@
 }
 
 .vocab-stat-card--due {
-    background: #fef3c7;
-    border-color: #f59e0b;
+    background: #fdf4e3;
+    border-color: #d03939;
 }
 
 .vocab-stat-value {
@@ -42,7 +42,7 @@
 }
 
 .vocab-stat-card--due .vocab-stat-value {
-    color: #d97706;
+    color: #d03939;
 }
 
 .vocab-stat-label {
@@ -92,11 +92,12 @@
 
 /* Manual Add Form */
 .vocab-add-form {
-    background: var(--color-surface);
-    border: 2px solid var(--color-accent);
-    border-radius: 8px;
+    background: #FFF9F1;
+    border: 2px solid #d03939;
+    border-radius: 12px;
     padding: 1.5rem;
     margin-bottom: 2rem;
+    box-shadow: 0 4px 12px rgba(208, 57, 57, 0.05);
 }
 
 .vocab-add-form h3 {
@@ -138,8 +139,8 @@
 .vocab-input:focus,
 .vocab-textarea:focus {
     outline: none;
-    border-color: var(--color-accent);
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    border-color: #d03939;
+    box-shadow: 0 0 0 3px rgba(208, 57, 57, 0.1);
 }
 
 
@@ -158,8 +159,9 @@
 }
 
 .vocab-card:hover {
-    border-color: var(--color-accent);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border-color: #d03939;
+    box-shadow: 0 4px 12px rgba(208, 57, 57, 0.1);
+    transform: translateY(-2px);
 }
 
 .vocab-card-header {
@@ -243,7 +245,7 @@
 
 /* Flashcard Mode */
 .vocab-flashcard-page {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: #FFF9F1;
     min-height: 100vh;
     display: flex;
     align-items: center;
@@ -264,18 +266,20 @@
 }
 
 .flashcard-header .btn {
-    background: rgba(255, 255, 255, 0.2);
-    color: white;
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: #ffffff;
+    color: #d03939;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .flashcard-header .btn:hover {
-    background: rgba(255, 255, 255, 0.3);
+    background: #fdf4e3;
+    border-color: #d03939;
 }
 
 .flashcard-progress {
-    color: white;
-    font-weight: 600;
+    color: #d03939;
+    font-weight: 800;
     font-size: 1.125rem;
 }
 
@@ -356,6 +360,36 @@
     gap: 1rem;
     margin-top: 2rem;
     justify-content: center;
+}
+
+.btn-vocab-primary {
+    background-color: #FF4747;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 1.1rem;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    box-shadow: 0 4px 12px rgba(255, 71, 71, 0.2);
+}
+
+.btn-vocab-primary:hover:not(:disabled) {
+    background-color: #d03939;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(208, 57, 57, 0.3);
+}
+
+.btn-vocab-primary:disabled {
+    background-color: #e2e8f0;
+    color: #94a3b8;
+    cursor: not-allowed;
+    box-shadow: none;
 }
 
 .btn-difficulty {
