@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import Banner from '../components/banner';
+import Banner from '../components/Banner';
 import './Home.css';
 import BannerTwo from '../components/BannerTwo';
 
