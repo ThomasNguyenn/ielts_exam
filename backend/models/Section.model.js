@@ -21,7 +21,7 @@ const QuestionSchema = new mongoose.Schema({
 
 const QuestionHeadingSchema = new mongoose.Schema({
     id: { type: String, required: true },
-    text: { type: String, required: true },
+    text: { type: String},
 });
 
 // Schema cho nhom cau hoi ( Question Group )
