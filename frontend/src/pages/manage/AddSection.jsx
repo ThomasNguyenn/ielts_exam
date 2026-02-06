@@ -343,6 +343,14 @@ export default function AddSection() {
     }
   };
 
+  const moveGroup = (idx, step) => {
+    const newIdx = idx + step;
+    if (newIdx < 0 || newIdx >= form.question_groups.length) return;
+    const groups = [...form.question_groups];
+    const item = groups.splice(idx, 1)[0];
+    groups.splice(newIdx, 0, item);
+    updateForm('question_groups', groups);
+  };
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
@@ -424,13 +432,13 @@ export default function AddSection() {
 
   return (
     <div className="manage-container">
-      <h1>{editId ? 'Sửa Listening Section' : 'Thêm Listening Section'}</h1>
+      <h1>{editId ? 'Sửa bài Listening' : 'Thêm bài Listening'}</h1>
       {error && <p className="form-error">{error}</p>}
       {success && <p className="form-success">{success}</p>}
 
       <form onSubmit={handleSubmit} className="manage-form">
         <div className="form-row">
-          <label>Section ID *</label>
+          <label>Mã bài nghe (ID) *</label>
           <input
             value={form._id}
             onChange={(e) => updateForm('_id', e.target.value)}
@@ -440,46 +448,46 @@ export default function AddSection() {
           />
         </div>
         <div className="form-row">
-          <label>Title *</label>
+          <label>Tiêu đề *</label>
           <input
             value={form.title}
             onChange={(e) => updateForm('title', e.target.value)}
-            placeholder="Section title"
+            placeholder="Tiêu đề bài nghe"
             required
           />
         </div>
         <div className="form-row">
-          <label>Content * (e.g. transcript or script)</label>
+          <label>Nội dung * (Transcript/Script)</label>
           <textarea
             value={form.content}
             onChange={(e) => updateForm('content', e.target.value)}
-            placeholder="Listening section content..."
+            placeholder="Nội dung bài nghe..."
             rows={6}
             required
           />
         </div>
         <div className="form-row">
-          <label>Audio URL (MP3 file for listening)</label>
+          <label>Đường dẫn Audio (MP3 URL) *</label>
           <input
             type="url"
             value={form.audio_url}
             onChange={(e) => updateForm('audio_url', e.target.value)}
             placeholder="https://example.com/audio.mp3"
           />
-          <small className="form-hint">
-            Enter the URL to the MP3 audio file for this listening section
+          <small className="form-hint" style={{ color: '#d03939' }}>
+            Nhập link file audio MP3 cho bài nghe này
           </small>
         </div>
         <div className="form-row">
-          <label>Source</label>
+          <label>Nguồn bài nghe (Source)</label>
           <input
             value={form.source}
             onChange={(e) => updateForm('source', e.target.value)}
-            placeholder="Optional"
+            placeholder="e.g. Cambridge IELTS 18"
           />
         </div>
 
-        <h3>Question groups</h3>
+        <h3 style={{ color: '#d03939', marginTop: '2rem' }}>Các nhóm câu hỏi</h3>
         {form.question_groups.map((group, gi) => {
           const isGroupCollapsed = collapsedGroups.has(gi);
           return (
@@ -489,16 +497,16 @@ export default function AddSection() {
                   <Icons.Listening /> Question Group {gi + 1} ({group.type})
                 </div>
                 <div className="item-actions">
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); removeQuestionGroup(gi); }} disabled={form.question_groups.length <= 1} style={{ color: '#ef4444' }}>
-                    Remove
-                  </button>
-                  <span>{isGroupCollapsed ? '▼' : '▲'}</span>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); moveGroup(gi, -1); }} disabled={gi === 0}>▲</button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); moveGroup(gi, 1); }} disabled={gi === form.question_groups.length - 1}>▼</button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); removeQuestionGroup(gi); }} disabled={form.question_groups.length <= 1} style={{ color: '#ef4444', fontWeight: 700 }}>Xóa nhóm</button>
+                  <span style={{ marginLeft: '0.5rem', opacity: 0.5 }}>{isGroupCollapsed ? '▼' : '▲'}</span>
                 </div>
               </div>
               {!isGroupCollapsed && (
-                <>
+                <div className="group-content">
                   <div className="form-row">
-                    <label>Type</label>
+                    <label>Loại câu hỏi</label>
                     <select
                       value={group.type}
                       onChange={(e) => updateQuestionGroup(gi, 'type', e.target.value)}
@@ -509,7 +517,7 @@ export default function AddSection() {
                     </select>
                   </div>
                   <div className="form-row">
-                    <label>Instructions</label>
+                    <label>Hướng dẫn (Instructions)</label>
                     <textarea
                       value={group.instructions}
                       onChange={(e) => updateQuestionGroup(gi, 'instructions', e.target.value)}
@@ -690,61 +698,67 @@ export default function AddSection() {
                       {group.questions.map((q, qi) => {
                         const isQuestionCollapsed = collapsedQuestions.has(`${gi}-${qi}`);
                         return (
-                      <div key={qi} className="question-block" style={{ border: '1px solid #f1f5f9', padding: '1rem', borderRadius: '0.75rem', marginBottom: '1rem' }}>
-                        <div className="group-header" onClick={() => toggleQuestionCollapse(gi, qi)} style={{ padding: '0.5rem 0.3rem', borderRadius: '0.5rem'}}>
-                          <span style={{ fontWeight: 700 }}>Câu {q.q_number}</span>
-                          <span>{isQuestionCollapsed ? '▼' : '▲'}</span>
-                        </div>
-                        {!isQuestionCollapsed && (
-                          <>
-                            <div className="form-row">
-                              <label>Câu hỏi</label>
-                              <textarea
-                                value={q.text}
-                                onChange={(e) => updateQuestion(gi, qi, 'text', e.target.value)}
-                                rows={2}
-                              />
+                          <div key={qi} className="question-block" style={{ border: '1px solid #fdf4e3', background: '#FFF9F1', padding: '1rem', borderRadius: '1rem', marginBottom: '1.5rem' }}>
+                            <div className="group-header" onClick={() => toggleQuestionCollapse(gi, qi)} style={{ padding: '0.5rem 0.3rem', borderRadius: '0.5rem', background: 'transparent', borderBottom: 'none' }}>
+                              <span style={{ fontWeight: 800, color: '#d03939' }}>Câu {q.q_number}</span>
+                              <span style={{ opacity: 0.5 }}>{isQuestionCollapsed ? '▼' : '▲'}</span>
                             </div>
-                            
-                            {(group.type === 'mult_choice' || group.type === 'true_false_notgiven') && (
-                              <div className='form-row'>
-                                <label>Các lựa chọn (Options)</label>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
-                                  {(q.option || []).map((o, oi) => (
-                                    <div key={o.label} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                      <span style={{ fontWeight: 600 }}>[{o.label}]</span>
-                                      <input
-                                        value={o.text}
-                                        onChange={(e) => setQuestionOption(gi, qi, oi, e.target.value)}
-                                        placeholder={`Answer ${o.label}`}
-                                      />
-                                    </div>
-                                  ))}
+                            {!isQuestionCollapsed && (
+                              <>
+                                <div className="form-row">
+                                  <label>Nội dung câu hỏi</label>
+                                  <textarea
+                                    value={q.text}
+                                    onChange={(e) => updateQuestion(gi, qi, 'text', e.target.value)}
+                                    rows={2}
+                                    placeholder="Nhập câu hỏi..."
+                                  />
                                 </div>
-                              </div>
-                            )}
 
-                            <div className="form-row" style={{margin: '0.5rem 0'}}>
-                              <label>Đáp án đúng (ngăn cách bởi dấu phẩy)</label>
-                              <input
-                                value={q.correct_answers?.join(', ') ?? ''}
-                                onChange={(e) => setCorrectAnswers(gi, qi, e.target.value)}
-                              />
-                            </div>
-                            <div className="form-row">
-                              <label>Giải thích</label>
-                              <textarea
-                                value={q.explanation ?? ''}
-                                onChange={(e) => updateQuestion(gi, qi, 'explanation', e.target.value)}
-                                rows={2}
-                              />
-                            </div>
-                          </>
-                        )}
-                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeQuestion(gi, qi)} disabled={group.questions.length <= 1} style={{ color: '#ef4444', marginTop: '0.5rem' }}>
-                          Xóa câu hỏi
-                        </button>
-                      </div>
+                                {(group.type === 'mult_choice' || group.type === 'true_false_notgiven') && (
+                                  <div className='form-row' style={{ marginTop: '1rem' }}>
+                                    <label style={{ color: '#64748b', fontSize: '0.8rem', textTransform: 'uppercase' }}>Các lựa chọn (Options)</label>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem', marginTop: '0.5rem' }}>
+                                      {(q.option || []).map((o, oi) => (
+                                        <div key={o.label} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                          <span style={{ fontWeight: 800, color: '#d03939', width: '25px' }}>{o.label}</span>
+                                          <input
+                                            value={o.text}
+                                            onChange={(e) => setQuestionOption(gi, qi, oi, e.target.value)}
+                                            placeholder={`Lựa chọn ${o.label}`}
+                                            style={{ background: '#ffffff' }}
+                                          />
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                <div className="form-row" style={{ marginTop: '1rem' }}>
+                                  <label>Đáp án đúng (ngăn cách bởi dấu phẩy)</label>
+                                  <input
+                                    value={q.correct_answers?.join(', ') ?? ''}
+                                    onChange={(e) => setCorrectAnswers(gi, qi, e.target.value)}
+                                    placeholder="e.g. Answer1, Answer2"
+                                    style={{ background: '#ffffff' }}
+                                  />
+                                </div>
+                                <div className="form-row" style={{ marginTop: '1rem' }}>
+                                  <label>Giải thích</label>
+                                  <textarea
+                                    value={q.explanation ?? ''}
+                                    onChange={(e) => updateQuestion(gi, qi, 'explanation', e.target.value)}
+                                    rows={2}
+                                    placeholder="Giải thích tại sao đây là đáp án đúng..."
+                                    style={{ background: '#ffffff' }}
+                                  />
+                                </div>
+                              </>
+                            )}
+                            <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeQuestion(gi, qi)} disabled={group.questions.length <= 1} style={{ color: '#ef4444', marginTop: '1rem', fontWeight: 700 }}>
+                              ✕ Xóa câu hỏi
+                            </button>
+                          </div>
                         );
                       })}
                       <button type="button" className="btn btn-ghost" onClick={() => addQuestion(gi)}>
@@ -752,7 +766,7 @@ export default function AddSection() {
                       </button>
                     </>
                   )}
-                </>
+                </div>
               )
               }
             </div>
@@ -763,15 +777,15 @@ export default function AddSection() {
         </button>
 
         <div className="form-actions">
-          <button type="submit" className="btn btn-primary" disabled={submitLoading}>
-            {submitLoading ? (editId ? 'Saving...' : 'Creating...') : (editId ? 'Update section' : 'Create section')}
+          <button type="submit" className="btn-manage-add" disabled={submitLoading} style={{ width: '100%', justifyContent: 'center', fontSize: '1.1rem', padding: '1.25rem' }}>
+            {submitLoading ? (editId ? 'Đang lưu...' : 'Đang tạo...') : (editId ? 'Cập nhật bài nghe' : 'Tạo bài nghe mới')}
           </button>
-          {editId && <Link to="/manage/sections" className="btn btn-ghost" style={{ marginLeft: '0.5rem' }}>Cancel</Link>}
+          {editId && <Link to="/manage/sections" className="btn btn-ghost" style={{ marginTop: '1rem', width: '100%', textAlign: 'center' }}>Hủy bỏ</Link>}
         </div>
       </form >
 
-      <div className="search-container">
-        <h3>Các bài Section hiện có</h3>
+      <div className="search-container" style={{ marginTop: '4rem', paddingTop: '3rem', borderTop: '2px solid #FFF9F1' }}>
+        <h3 style={{ color: '#d03939' }}>Danh sách bài Listening hiện có</h3>
         {!editId && (
           loading ? <p className="muted">Đang tải...</p> : (
             <>

@@ -181,7 +181,7 @@ export default function AddWriting() {
 
       <form onSubmit={handleSubmit} className="manage-form">
         <div className="form-row">
-          <label>Writing ID *</label>
+          <label>Mã bài Writing (ID) *</label>
           <input
             value={form._id}
             onChange={(e) => updateForm('_id', e.target.value)}
@@ -191,7 +191,7 @@ export default function AddWriting() {
           />
         </div>
         <div className="form-row">
-          <label>Title *</label>
+          <label>Tiêu đề *</label>
           <input
             value={form.title}
             onChange={(e) => updateForm('title', e.target.value)}
@@ -201,7 +201,7 @@ export default function AddWriting() {
         </div>
 
         <div className="form-row">
-          <label>Writing type *</label>
+          <label>Loại bài (Type) *</label>
           <select
             value={form.type || 'academic'}
             onChange={(e) => updateForm('type', e.target.value)}
@@ -212,18 +212,18 @@ export default function AddWriting() {
         </div>
 
         <div className="form-row">
-          <label>Prompt *</label>
+          <label>Đề bài (Prompt) *</label>
           <textarea
             value={form.prompt}
             onChange={(e) => updateForm('prompt', e.target.value)}
-            placeholder="Enter the writing prompt/instructions..."
+            placeholder="Nhập đề bài hoặc hướng dẫn..."
             rows={4}
             required
           />
         </div>
 
         <div className="form-row">
-          <label>Task type *</label>
+          <label>Loại Task *</label>
           <select
             value={form.task_type || 'both'}
             onChange={(e) => updateForm('task_type', e.target.value)}
@@ -235,16 +235,17 @@ export default function AddWriting() {
         </div>
 
         {(form.task_type === 'task1' || form.task_type === 'both') && (
-          <div className="form-row">
-            <label>Image URL (for Task 1 - Graph/Chart/Diagram)</label>
+          <div className="form-row" style={{ background: '#FFF9F1', padding: '1.5rem', borderRadius: '1.25rem', border: '1px solid #fdf4e3' }}>
+            <label style={{ color: '#d03939', fontSize: '1rem' }}>Hình ảnh minh họa (Task 1 - Graph/Chart/Diagram)</label>
             <input
               type="url"
               value={form.image_url}
               onChange={(e) => updateForm('image_url', e.target.value)}
               placeholder="https://example.com/graph.png"
+              style={{ background: '#ffffff' }}
             />
-            <small className="form-hint">
-              Enter the URL of the graph, chart, or diagram image for Task 1
+            <small className="form-hint" style={{ color: '#d03939' }}>
+              Nhập link hình ảnh biểu đồ, đồ thị hoặc sơ đồ cho Task 1
             </small>
             {form.image_url && (
               <div style={{ marginTop: '0.5rem' }}>
@@ -260,22 +261,24 @@ export default function AddWriting() {
         )}
 
         <div className="form-row">
-          <label>Word limit (Task 1)</label>
+          <label>Giới hạn từ (Task 1)</label>
           <input
             type="number"
             value={form.word_limit}
             onChange={(e) => updateForm('word_limit', e.target.value)}
             min={1}
+            placeholder="e.g. 150"
           />
         </div>
 
         <div className="form-row">
-          <label>Word limit (Task 2)</label>
+          <label>Giới hạn từ (Task 2)</label>
           <input
             type="number"
             value={form.essay_word_limit}
             onChange={(e) => updateForm('essay_word_limit', e.target.value)}
             min={1}
+            placeholder="e.g. 250"
           />
         </div>
 
@@ -312,16 +315,16 @@ export default function AddWriting() {
           />
         </div>
 
-        <div className="form-actions">
-          <button type="submit" className="btn btn-primary" disabled={submitLoading}>
-            {submitLoading ? (editId ? 'Saving…' : 'Creating…') : (editId ? 'Update writing' : 'Create writing')}
+        <div className="form-actions" style={{ marginTop: '2rem' }}>
+          <button type="submit" className="btn-manage-add" disabled={submitLoading} style={{ width: '100%', justifyContent: 'center', fontSize: '1.1rem', padding: '1.25rem' }}>
+            {submitLoading ? (editId ? 'Đang lưu…' : 'Đang tạo…') : (editId ? 'Cập nhật bài Writing' : 'Tạo bài Writing mới')}
           </button>
-          {editId && <Link to="/manage/writings" className="btn btn-ghost" style={{ marginLeft: '0.5rem' }}>Cancel</Link>}
+          {editId && <Link to="/manage/writings" className="btn btn-ghost" style={{ marginTop: '1rem', width: '100%', textAlign: 'center' }}>Hủy bỏ</Link>}
         </div>
       </form>
 
-      <div className="search-container">
-        <h3>Các bài Writing hiện có</h3>
+      <div className="search-container" style={{ marginTop: '4rem', paddingTop: '3rem', borderTop: '2px solid #FFF9F1' }}>
+        <h3 style={{ color: '#d03939' }}>Danh sách bài Writing hiện có</h3>
         {!editId && (
           <>
             <div className="search-box">

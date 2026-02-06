@@ -30,19 +30,19 @@ export default function ManageLayout() {
   return (
     <div className="manage-page">
       <aside className="manage-sidebar">
-        <h2>Management</h2>
+        <h2 style={{ color: '#d03939', fontSize: '1.25rem', marginBottom: '1.5rem', fontWeight: 800 }}>Quản lý hệ thống</h2>
         <nav className="manage-nav">
           <NavLink to={`${base}/passages`} className={({ isActive }) => `manage-nav-item ${isActive ? 'active' : ''}`}>
-            <ManageIcons.Reading /> Reading Passages
+            <ManageIcons.Reading /> Quản lý Reading
           </NavLink>
           <NavLink to={`${base}/sections`} className={({ isActive }) => `manage-nav-item ${isActive ? 'active' : ''}`}>
-            <ManageIcons.Listening /> Listening Sections
+            <ManageIcons.Listening /> Quản lý Listening
           </NavLink>
           <NavLink to={`${base}/writings`} className={({ isActive }) => `manage-nav-item ${isActive ? 'active' : ''}`}>
-            <ManageIcons.Writing /> Writing Tasks
+            <ManageIcons.Writing /> Quản lý Writing
           </NavLink>
           <NavLink to={`${base}/tests`} className={({ isActive }) => `manage-nav-item ${isActive ? 'active' : ''}`}>
-            <ManageIcons.Tests /> Full Tests
+            <ManageIcons.Tests /> Bộ đề (Full Tests)
           </NavLink>
         </nav>
       </aside>

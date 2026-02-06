@@ -201,3 +201,43 @@
 [2026-02-05T02:17:18.677Z] Q1: type=gap_fill, userAnswer="", correctAlternatives=["tall"], finalCorrectAnswer="Tall", matches=false
 [2026-02-05T04:45:52.126Z] Q1: type=gap_fill, userAnswer="", correctAlternatives=["tall"], finalCorrectAnswer="Tall", matches=false
 [2026-02-05T04:45:52.128Z] Q1: type=gap_fill, userAnswer="", correctAlternatives=["tall"], finalCorrectAnswer="Tall", matches=false
+[2026-02-06T06:13:36.272Z] Q1: type=gap_fill, userAnswer="", correctAlternatives=["30 march","30 march 1988","30th march","30th march 1988","march 30th","march 30th 1988","march 30","march 30 1988"], finalCorrectAnswer="30 March", matches=false
+[2026-02-06T06:13:36.273Z] Q2: type=gap_fill, userAnswer="", correctAlternatives=["0903775115"], finalCorrectAnswer="0903775115", matches=false
+[2026-02-06T06:13:36.273Z] Q3: type=gap_fill, userAnswer="", correctAlternatives=["northern"], finalCorrectAnswer="northern", matches=false
+[2026-02-06T06:13:36.274Z] Q4: type=gap_fill, userAnswer="", correctAlternatives=["train"], finalCorrectAnswer="train", matches=false
+[2026-02-06T06:13:36.274Z] Q5: type=gap_fill, userAnswer="", correctAlternatives=["hotel"], finalCorrectAnswer="hotel", matches=false
+[2026-02-06T06:13:36.275Z] Q6: type=gap_fill, userAnswer="", correctAlternatives=["farm"], finalCorrectAnswer="farm", matches=false
+[2026-02-06T06:13:36.275Z] Q7: type=gap_fill, userAnswer="", correctAlternatives=["pass"], finalCorrectAnswer="pass", matches=false
+[2026-02-06T06:13:36.275Z] Q8: type=gap_fill, userAnswer="", correctAlternatives=["booklet"], finalCorrectAnswer="booklet", matches=false
+[2026-02-06T06:13:36.275Z] Q9: type=gap_fill, userAnswer="", correctAlternatives=["insurance"], finalCorrectAnswer="insurance", matches=false
+[2026-02-06T06:13:36.276Z] Q10: type=gap_fill, userAnswer="", correctAlternatives=["internet cafe"], finalCorrectAnswer="internet cafe", matches=false
+[2026-02-06T06:13:36.276Z] Q11: type=listening_map, userAnswer="c", correctAlternatives=["c"], finalCorrectAnswer="C", matches=true
+[2026-02-06T06:13:36.276Z] Q12: type=listening_map, userAnswer="false", correctAlternatives=["false"], finalCorrectAnswer="F", matches=true
+[2026-02-06T06:13:36.277Z] Q13: type=listening_map, userAnswer="d", correctAlternatives=["d"], finalCorrectAnswer="D", matches=true
+[2026-02-06T06:13:36.277Z] Q14: type=listening_map, userAnswer="a", correctAlternatives=["a"], finalCorrectAnswer="A", matches=true
+[2026-02-06T06:13:36.277Z] Q15: type=listening_map, userAnswer="h", correctAlternatives=["h"], finalCorrectAnswer="H", matches=true
+[2026-02-06T06:13:36.278Z] Q16: type=mult_choice, userAnswer="", correctAlternatives=["attract people to remain in the store"], finalCorrectAnswer="attract people to remain in the store", matches=false
+[2026-02-06T06:13:36.278Z] Q17: type=mult_choice, userAnswer="", correctAlternatives=["on the highest level"], finalCorrectAnswer="on the highest level", matches=false
+[2026-02-06T06:13:36.278Z] Q18: type=mult_choice, userAnswer="", correctAlternatives=["offers professional childcare"], finalCorrectAnswer="offers professional childcare", matches=false
+[2026-02-06T06:13:36.279Z] Q19: type=mult_choice, userAnswer="", correctAlternatives=["persuading people to buy books"], finalCorrectAnswer="persuading people to buy books", matches=false
+[2026-02-06T06:13:36.279Z] Q20: type=mult_choice, userAnswer="", correctAlternatives=["were willing to read their own work in public"], finalCorrectAnswer="were willing to read their own work in public", matches=false
+[2026-02-06T06:18:04.993Z] Q1: type=gap_fill, userAnswer="", correctAlternatives=["30 march","30 march 1988","30th march","30th march 1988","march 30th","march 30th 1988","march 30","march 30 1988"], finalCorrectAnswer="30 March", matches=false
+[2026-02-06T06:18:04.993Z] Q2: type=gap_fill, userAnswer="", correctAlternatives=["0903775115"], finalCorrectAnswer="0903775115", matches=false
+[2026-02-06T06:18:04.994Z] Q3: type=gap_fill, userAnswer="", correctAlternatives=["northern"], finalCorrectAnswer="northern", matches=false
+[2026-02-06T06:18:04.994Z] Q4: type=gap_fill, userAnswer="", correctAlternatives=["train"], finalCorrectAnswer="train", matches=false
+[2026-02-06T06:18:04.994Z] Q5: type=gap_fill, userAnswer="", correctAlternatives=["hotel"], finalCorrectAnswer="hotel", matches=false
+[2026-02-06T06:18:04.994Z] Q6: type=gap_fill, userAnswer="", correctAlternatives=["farm"], finalCorrectAnswer="farm", matches=false
+[2026-02-06T06:18:04.994Z] Q7: type=gap_fill, userAnswer="", correctAlternatives=["pass"], finalCorrectAnswer="pass", matches=false
+[2026-02-06T06:18:04.994Z] Q8: type=gap_fill, userAnswer="", correctAlternatives=["booklet"], finalCorrectAnswer="booklet", matches=false
+[2026-02-06T06:18:04.995Z] Q9: type=gap_fill, userAnswer="", correctAlternatives=["insurance"], finalCorrectAnswer="insurance", matches=false
+[2026-02-06T06:18:04.995Z] Q10: type=gap_fill, userAnswer="", correctAlternatives=["internet cafe"], finalCorrectAnswer="internet cafe", matches=false
+[2026-02-06T06:18:04.995Z] Q11: type=listening_map, userAnswer="", correctAlternatives=["c"], finalCorrectAnswer="C", matches=false
+[2026-02-06T06:18:04.995Z] Q12: type=listening_map, userAnswer="", correctAlternatives=["false"], finalCorrectAnswer="F", matches=false
+[2026-02-06T06:18:04.996Z] Q13: type=listening_map, userAnswer="", correctAlternatives=["d"], finalCorrectAnswer="D", matches=false
+[2026-02-06T06:18:04.996Z] Q14: type=listening_map, userAnswer="", correctAlternatives=["a"], finalCorrectAnswer="A", matches=false
+[2026-02-06T06:18:04.996Z] Q15: type=listening_map, userAnswer="", correctAlternatives=["h"], finalCorrectAnswer="H", matches=false
+[2026-02-06T06:18:04.997Z] Q16: type=mult_choice, userAnswer="", correctAlternatives=["attract people to remain in the store"], finalCorrectAnswer="attract people to remain in the store", matches=false
+[2026-02-06T06:18:04.997Z] Q17: type=mult_choice, userAnswer="", correctAlternatives=["on the highest level"], finalCorrectAnswer="on the highest level", matches=false
+[2026-02-06T06:18:04.997Z] Q18: type=mult_choice, userAnswer="", correctAlternatives=["offers professional childcare"], finalCorrectAnswer="offers professional childcare", matches=false
+[2026-02-06T06:18:04.997Z] Q19: type=mult_choice, userAnswer="", correctAlternatives=["persuading people to buy books"], finalCorrectAnswer="persuading people to buy books", matches=false
+[2026-02-06T06:18:04.997Z] Q20: type=mult_choice, userAnswer="", correctAlternatives=["were willing to read their own work in public"], finalCorrectAnswer="were willing to read their own work in public", matches=false

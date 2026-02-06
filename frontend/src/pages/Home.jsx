@@ -1,16 +1,27 @@
 import { Link } from 'react-router-dom';
+import Banner from '../components/banner';
 import './Home.css';
+import BannerTwo from '../components/BannerTwo';
 
 export default function Home() {
   return (
-    <div className="page home">
-      <section className="hero">
-        <h1>IELTS Practice</h1>
-        <p>Thử thách bản thân với các bài thi IELTS thực tế. Theo dõi tiến trình và cải thiện điểm số của bạn.</p>
-        <Link to="/tests" className="btn btn-primary">
-          Xem danh sách bài thi
-        </Link>
+    <>
+      <div className="home">
+        <section className="hero bg-[#FFF9F1] font-inter">
+          <h1 className="text-[48px] font-bold">Luyện thi IELTS Online Test miễn phí </h1>
+          <p className="text-[20px] leading-[28px] w-[700px]">Luyện thi IELTS Online Test miễn phí. Trải nghiệm thi thử IELTS sát đề thi thật, với giao diện trực tuyến kèm giải thích chi tiết. Bắt đầu luyện thi ngay hôm nay để sẵn sàng chinh phục kỳ thi IELTS!</p>
+          <Link to="/tests" className="btn-hero-start">
+            Luyện thi ngay
+          </Link>
+        </section>
+      </div>
+      <section className="banner-section">
+        <Banner />
       </section>
-    </div>
+      <section className="banner-section">
+        <BannerTwo />
+      </section>
+    </>
+
   );
 }

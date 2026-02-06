@@ -58,31 +58,33 @@ export default function IELTSAudioPlayer({ audioUrl }) {
   };
 
   return (
-    <div className="ielts-audio-player">
-      <div className="audio-progress-container">
-        <div className="audio-progress-bar">
-          <div className="audio-progress-fill" style={{ width: `${progress}%` }} />
+    <div className="flex justify-center w-[100%]">
+      <div className="ielts-audio-player w-[80%]">
+        <div className="audio-progress-container flex justify-center flex-col">
+          <div className="audio-progress-bar">
+            <div className="audio-progress-fill" style={{ width: `${progress}%` }} />
+          </div>
+          <div className="audio-time-display flex justify-center">
+            <span>{formatTime(currentTime)} </span>
+            <span style={{ color: isPlaying ? '#22c55e' : '#6b7280', padding: '0 10px' }}>
+              {isPlaying ? '▶ Playing...' : '⏸ Paused'}
+            </span>
+            <span> {formatTime(duration)}</span>
+          </div>
         </div>
-        <div className="audio-time-display">
-          <span>{formatTime(currentTime)} </span>
-          <span style={{ color: isPlaying ? '#22c55e' : '#6b7280' }}>
-            {isPlaying ? '▶ Playing...' : '⏸ Paused'}
-          </span>
-          <span> {formatTime(duration)}</span>
+
+        <div className="audio-volume-control flex justify-center">
+          <span className="volume-icon">{getVolumeIcon()}</span>
+          <input
+            type="range"
+            className="volume-slider"
+            min="0"
+            max="1"
+            step="0.01"
+            value={volume}
+            onChange={(e) => setVolume(parseFloat(e.target.value))}
+          />
         </div>
-      </div>
-      
-      <div className="audio-volume-control">
-        <span className="volume-icon">{getVolumeIcon()}</span>
-        <input
-          type="range"
-          className="volume-slider"
-          min="0"
-          max="1"
-          step="0.01"
-          value={volume}
-          onChange={(e) => setVolume(parseFloat(e.target.value))}
-        />
       </div>
     </div>
   );

@@ -341,7 +341,7 @@ export default function TestList() {
                               <span className="test-type-badge">{getTestTypeLabel(test.type)}</span>
                               {canShowBand && (
                                 <span className="test-best-badge">
-                                  Band {band}
+                                  {band.toFixed(1)}
                                 </span>
                               )}
                             </div>
@@ -368,8 +368,8 @@ export default function TestList() {
                               </div>
                             )}
                             <div className="test-card-actions">
-                              <Link to={`/tests/${test._id}`} className="btn btn-primary">
-                                Bắt đầu bài thi
+                              <Link to={`/tests/${test._id}`} className="btn-sidebar-start">
+                                Làm bài ngay
                               </Link>
                               {isLoggedIn && (
                                 <Link to={`/tests/${test._id}/history`} className="btn btn-ghost">
@@ -396,7 +396,7 @@ export default function TestList() {
                             <div className="test-card-actions">
                               <Link
                                 to={`/tests/${part.testId}/exam?part=${part.partIndex}&mode=single`}
-                                className="btn btn-primary"
+                                className="btn-sidebar-start"
                               >
                                 Làm bài ngay
                               </Link>
@@ -414,7 +414,3 @@ export default function TestList() {
     </div >
   );
 }
-
-
-
-

@@ -100,12 +100,13 @@ export default function GradingDashboard() {
                     onClick={() => setActiveTab('pending')}
                     style={{
                         padding: '1rem 1.5rem',
-                        borderBottom: activeTab === 'pending' ? '2px solid #2563eb' : '2px solid transparent',
-                        fontWeight: 600,
+                        borderBottom: activeTab === 'pending' ? '3px solid #d03939' : '3px solid transparent',
+                        fontWeight: 800,
                         background: 'none',
                         cursor: 'pointer',
-                        color: activeTab === 'pending' ? '#2563eb' : '#64748b',
-                        transition: 'all 0.2s'
+                        color: activeTab === 'pending' ? '#d03939' : '#64748b',
+                        transition: 'all 0.2s',
+                        fontSize: '0.95rem'
                     }}
                 >
                     Chờ chấm điểm (Pending)
@@ -115,12 +116,13 @@ export default function GradingDashboard() {
                     onClick={() => setActiveTab('scored')}
                     style={{
                         padding: '1rem 1.5rem',
-                        borderBottom: activeTab === 'scored' ? '2px solid #2563eb' : '2px solid transparent',
-                        fontWeight: 600,
+                        borderBottom: activeTab === 'scored' ? '3px solid #d03939' : '3px solid transparent',
+                        fontWeight: 800,
                         background: 'none',
                         cursor: 'pointer',
-                        color: activeTab === 'scored' ? '#2563eb' : '#64748b',
-                        transition: 'all 0.2s'
+                        color: activeTab === 'scored' ? '#d03939' : '#64748b',
+                        transition: 'all 0.2s',
+                        fontSize: '0.95rem'
                     }}
                 >
                     Đã chấm (Graded)
@@ -146,14 +148,14 @@ export default function GradingDashboard() {
                                     </div>
                                     <div className="item-actions">
                                         {activeTab === 'pending' ? (
-                                            <Link to={`/grading/${sub._id}`} className="btn btn-primary btn-sm">Chấm điểm</Link>
+                                            <Link to={`/grading/${sub._id}`} className="btn-manage-add" style={{ padding: '0.5rem 1.25rem', fontSize: '0.85rem' }}>Chấm điểm</Link>
                                         ) : (
                                             <>
-                                                <Link to={`/grading/${sub._id}`} className="btn btn-ghost btn-sm">Xem điểm</Link>
+                                                <Link to={`/grading/${sub._id}`} className="btn btn-ghost btn-sm" style={{ fontWeight: 700 }}>Xem điểm</Link>
                                                 <button
                                                     className="btn btn-ghost btn-sm"
                                                     onClick={() => handleExportPDF(sub)}
-                                                    style={{ color: '#ef4444' }}
+                                                    style={{ color: '#d03939', fontWeight: 800 }}
                                                 >
                                                     PDF
                                                 </button>

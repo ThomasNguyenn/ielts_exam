@@ -26,34 +26,38 @@ const WritingPhase = ({ question, sessionId, outline, materials, onNext }) => {
             {/* Sidebar Reference */}
             <div className="sidebar-ref">
                 <div style={{ marginBottom: '1.5rem' }}>
-                    <h4 className="form-label" style={{ color: 'var(--color-text-muted)', textTransform: 'uppercase', fontSize: '0.8rem' }}>Topic</h4>
-                    <div style={{ background: 'var(--color-bg)', padding: '0.75rem', borderRadius: '0.5rem', fontSize: '0.9rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <h4 className="form-label" style={{ color: '#d03939', textTransform: 'uppercase', fontSize: '0.75rem', fontWeight: 800 }}>Topic</h4>
+                    <div className="topic-box" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', background: '#FFF9F1', padding: '1rem', borderRadius: '12px', border: '1px solid #fdf4e3' }}>
                         {question.image_url && (
-                            <img
-                                src={question.image_url}
-                                alt="Task Graph/Chart"
-                                style={{ width: '100%', borderRadius: '4px', border: '1px solid var(--color-border)' }}
-                            />
+                            <div className="task-image" style={{ textAlign: 'center', background: '#ffffff', padding: '1rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                <img
+                                    src={question.image_url}
+                                    alt="Task Graph/Chart"
+                                    style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain' }}
+                                />
+                            </div>
                         )}
-                        <div style={{ whiteSpace: 'pre-wrap' }}>{question.prompt}</div>
+                        <div style={{ whiteSpace: 'pre-wrap', color: '#1e293b' }}>{question.prompt}</div>
                     </div>
                 </div>
 
                 <div style={{ marginBottom: '1.5rem' }}>
-                    <h4 className="form-label" style={{ color: 'var(--color-text-muted)', textTransform: 'uppercase', fontSize: '0.8rem' }}>
+                    <h4 className="form-label" style={{ color: '#d03939', textTransform: 'uppercase', fontSize: '0.75rem', fontWeight: 800 }}>
                         {question.task_type === 'task1' || question.task_type === 1 ? 'Key Features' : 'My Outline'}
                     </h4>
-                    <ul style={{ paddingLeft: '1.25rem', fontSize: '0.9rem', color: 'var(--color-text)' }}>
-                        {outline?.mainIdeas?.map((idea, i) => <li key={i} style={{ marginBottom: '0.25rem' }}>{idea}</li>)}
-                    </ul>
+                    <div style={{ paddingLeft: '2rem', borderLeft: '1px solid #e2e8f0' }}>
+                        <ul style={{ padding: 0, listStyle: 'disc', fontSize: '0.9rem', color: '#1e293b', fontWeight: 500 }}>
+                            {outline?.mainIdeas?.map((idea, i) => <li key={i} style={{ marginBottom: '0.25rem' }}>{idea}</li>)}
+                        </ul>
+                    </div>
                 </div>
 
                 <div>
                     <h4 className="form-label" style={{ color: 'var(--color-text-muted)', textTransform: 'uppercase', fontSize: '0.8rem' }}>Key Vocab</h4>
                     <ul style={{ padding: 0, listStyle: 'none' }}>
                         {materials?.vocab?.map((v, i) => (
-                            <li key={i} style={{ color: 'var(--color-accent)', marginBottom: '0.25rem', cursor: 'help', fontSize: '0.9rem' }} title={v.meaning}>
-                                {v.word}
+                            <li key={i} style={{ color: '#d03939', marginBottom: '0.5rem', cursor: 'help', fontSize: '0.95rem', fontWeight: 700 }} title={v.meaning}>
+                                • {v.word}
                             </li>
                         ))}
                     </ul>

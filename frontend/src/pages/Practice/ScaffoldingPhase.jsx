@@ -29,10 +29,10 @@ const ScaffoldingPhase = ({ question, onNext }) => {
                 <h3 className="section-title">Vocabulary (Band 7+)</h3>
                 <ul className="vocab-list">
                     {data?.vocab?.map((v, i) => (
-                        <li key={i} className="vocab-item">
-                            <div style={{ fontWeight: 'bold', color: 'var(--color-accent)' }}>{v.word}</div>
-                            <div style={{ fontSize: '0.9rem', color: 'var(--color-text)' }}>{v.meaning}</div>
-                            <div className="muted" style={{ fontSize: '0.8rem', marginTop: '0.25rem', fontStyle: 'italic' }}>
+                        <li key={i} className="vocab-item" style={{ background: '#FFF9F1', borderLeftColor: '#d03939' }}>
+                            <div style={{ fontWeight: '800', color: '#d03939' }}>{v.word}</div>
+                            <div style={{ fontSize: '0.95rem', color: '#1e293b', marginTop: '0.25rem' }}>{v.meaning}</div>
+                            <div className="muted" style={{ fontSize: '0.8rem', marginTop: '0.5rem', fontStyle: 'italic', color: '#64748b' }}>
                                 Collocation: {v.collocation}
                             </div>
                         </li>
@@ -42,16 +42,16 @@ const ScaffoldingPhase = ({ question, onNext }) => {
                 <h3 className="section-title" style={{ marginTop: '1.5rem' }}>Structures</h3>
                 <ul className="structure-list">
                     {data?.structures?.map((s, i) => (
-                        <li key={i} className="structure-item" style={{ borderLeftColor: '#10B981' }}>
+                        <li key={i} className="structure-item" style={{ borderLeftColor: '#10B981', background: '#f0fdf4' }}>
                             <div style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#059669' }}>{s.structure}</div>
-                            <div style={{ fontSize: '0.9rem', marginTop: '0.25rem' }}>Example: {s.example}</div>
+                            <div style={{ fontSize: '0.9rem', marginTop: '0.25rem', color: '#166534' }}>Example: {s.example}</div>
                         </li>
                     ))}
                 </ul>
             </div>
 
-            <div style={{ paddingLeft: '1rem', display: 'flex', flexDirection: 'column' }}>
-                <h3 className="section-title">Translation Drill</h3>
+            <div style={{ paddingLeft: '2rem', borderLeft: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column' }}>
+                <h3 className="section-title" style={{ color: '#d03939' }}>Translation Drill</h3>
                 <p className="muted" style={{ marginBottom: '1rem' }}>Translate these sentences using the vocab provided.</p>
 
                 <div style={{ flex: 1, overflowY: 'auto', marginBottom: '1rem' }}>
@@ -74,7 +74,20 @@ const ScaffoldingPhase = ({ question, onNext }) => {
                     ))}
                 </div>
 
-                <div style={{ paddingTop: '1rem', borderTop: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div className="topic-box" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', background: '#FFF9F1', padding: '1rem', borderRadius: '8px', marginBottom: '1rem' }}>
+                    {question.image_url && (
+                        <div className="task-image" style={{ textAlign: 'center', background: '#ffffff', padding: '1rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                            <img
+                                src={question.image_url}
+                                alt="Task Graph/Chart"
+                                style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain' }}
+                            />
+                        </div>
+                    )}
+                    <div style={{ whiteSpace: 'pre-wrap', color: '#1e293b' }}>{question.prompt}</div>
+                </div>
+
+                <div style={{ paddingTop: '1.5rem', borderTop: '2px solid #FFF9F1', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <button
                         onClick={() => {
                             const allChecked = {};
