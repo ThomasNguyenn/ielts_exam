@@ -4,7 +4,7 @@ import mongoose from "mongoose";
 // Schema cho tung cau hoi nho
 const QuestionSchema = new mongoose.Schema({
     q_number: { type : Number, required: true }, // So thu tu cac cau hoi
-    text: { type: String, required: true },  // Noi dung cau hoi
+    text: { type: String, required: false },  // Noi dung cau hoi
 
     option: [
         {label: { type: String, required: true }, // A, B, C, D
