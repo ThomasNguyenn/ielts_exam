@@ -114,13 +114,14 @@ export default function VocabHighlighter({ children, testId, passageId }) {
                             <div className="vocab-popup-context">"{selectedContext}"</div>
                             <div className="vocab-popup-actions">
                                 <button
+                                    type="button"
                                     onClick={handleSaveWord}
                                     className="btn btn-primary btn-sm"
                                     disabled={saving}
                                 >
                                     {saving ? 'Saving...' : '📚 Save to Vocabulary'}
                                 </button>
-                                <button onClick={handleClose} className="btn btn-ghost btn-sm">
+                                <button type="button" onClick={handleClose} className="btn btn-ghost btn-sm">
                                     Cancel
                                 </button>
                             </div>

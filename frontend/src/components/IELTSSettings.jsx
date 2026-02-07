@@ -7,6 +7,7 @@ export default function IELTSSettings({ brightness, setBrightness, textSize, set
   return (
     <div className="ielts-settings-wrapper">
       <button
+        type="button"
         className="btn-settings-toggle"
         onClick={() => setIsOpen(!isOpen)}
         title="Settings"
@@ -19,7 +20,7 @@ export default function IELTSSettings({ brightness, setBrightness, textSize, set
       <div className={`ielts-settings-sidebar ${isOpen ? 'open' : ''}`}>
         <div className="settings-header">
           <h3>Settings</h3>
-          <button className="settings-close" onClick={() => setIsOpen(false)}>✕</button>
+          <button type="button" className="settings-close" onClick={() => setIsOpen(false)}>✕</button>
         </div>
 
         <div className="settings-content">
@@ -42,18 +43,21 @@ export default function IELTSSettings({ brightness, setBrightness, textSize, set
             <label>Text Size</label>
             <div className="text-size-options">
               <button
+                type="button"
                 className={`settings-option-btn ${textSize === 'regular' ? 'active' : ''}`}
                 onClick={() => setTextSize('regular')}
               >
                 Regular
               </button>
               <button
+                type="button"
                 className={`settings-option-btn ${textSize === 'large' ? 'active' : ''}`}
                 onClick={() => setTextSize('large')}
               >
                 Large
               </button>
               <button
+                type="button"
                 className={`settings-option-btn ${textSize === 'extra-large' ? 'active' : ''}`}
                 onClick={() => setTextSize('extra-large')}
               >
@@ -66,18 +70,21 @@ export default function IELTSSettings({ brightness, setBrightness, textSize, set
             <label>Background Color</label>
             <div className="theme-options">
               <button
+                type="button"
                 className={`settings-option-btn ${theme === 'light' ? 'active' : ''}`}
                 onClick={() => setTheme('light')}
               >
                 Black on White
               </button>
               <button
+                type="button"
                 className={`settings-option-btn ${theme === 'dark' ? 'active' : ''}`}
                 onClick={() => setTheme('dark')}
               >
                 White on Black
               </button>
               <button
+                type="button"
                 className={`settings-option-btn ${theme === 'yellow' ? 'active' : ''}`}
                 onClick={() => setTheme('yellow')}
               >

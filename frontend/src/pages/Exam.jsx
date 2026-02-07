@@ -280,7 +280,6 @@ function ListeningAudioPlayer({ audioUrl }) {
   };
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
-
   return (
     <div className="custom-audio-player">
       <div className="audio-progress-bar">
@@ -1070,7 +1069,7 @@ export default function Exam() {
       .finally(() => setLoading(false));
   }, [id, location.search]);
 
-  // Timer countdown effect
+  // Timer countdown effect - Optimized to avoid re-creating interval every second
   useEffect(() => {
     if (timeRemaining === null || timeRemaining <= 0 || submitted) return;
 
@@ -1083,7 +1082,8 @@ export default function Exam() {
           return 0;
         }
         // Set warning when less than 5 minutes remaining
-        if (prev <= 300 && !timeWarning) {
+        // Note: we check the value here to avoid unnecessary state updates
+        if (prev <= 301 && !timeWarning) {
           setTimeWarning(true);
         }
         return prev - 1;
@@ -1091,7 +1091,7 @@ export default function Exam() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [timeRemaining, submitted, timeWarning]);
+  }, [submitted, timeWarning]); // Restart if submission status or warning flag changes (max twice per exam)
 
   // Auto submit function when time expires
   const handleAutoSubmit = () => {
@@ -1490,10 +1490,17 @@ export default function Exam() {
       </div >
 
       <form onSubmit={handleSubmit} className="exam-form" onKeyDown={(e) => {
-        // Prevent Enter key from submitting the form when typing in textarea
-        if (e.key === 'Enter' && e.target.tagName === 'TEXTAREA') {
-          e.preventDefault();
-          e.target.value += '\n';
+        // Prevent Enter key from submitting the form unexpectedly
+        if (e.key === 'Enter') {
+          const target = e.target;
+          // Allow Enter in textareas for new lines
+          if (target.tagName === 'TEXTAREA') {
+            return;
+          }
+          // Prevent submission for standard inputs or the form itself
+          if (target.tagName === 'INPUT' || target === e.currentTarget) {
+            e.preventDefault();
+          }
         }
       }}>
         {isWriting ? (

@@ -211,6 +211,7 @@ export default function HighlightableContent({ htmlContent, onUpdateHtml, id, ta
     >
       {showTooltip && (
         <button
+          type="button"
           onMouseDown={(e) => {
             e.preventDefault();
             applyHighlight();
@@ -373,6 +374,7 @@ export function HighlightableWrapper({ children, onUpdateHtml, className = '', t
     >
       {showTooltip && (
         <button
+          type="button"
           onMouseDown={(e) => {
             e.preventDefault();
             applyHighlight();
