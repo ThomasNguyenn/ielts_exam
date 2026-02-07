@@ -43,6 +43,9 @@ async function request(path, options = {}) {
     ...options.headers,
   };
 
+  // Remove keys with undefined values to allow browser defaults (e.g. for FormData)
+  Object.keys(headers).forEach(key => headers[key] === undefined && delete headers[key]);
+
   const res = await fetch(url, {
     ...options,
     headers,
