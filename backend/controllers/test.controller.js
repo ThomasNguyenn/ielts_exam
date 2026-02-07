@@ -7,7 +7,8 @@ export const getAllTests = async (req, res) => {
     try {
         const tests = await Test.find({})
             .populate('reading_passages', 'title')
-            .populate('listening_sections', 'title');
+            .populate('listening_sections', 'title')
+            .lean();
         res.status(200).json({ success: true, data: tests });
     } catch (error) {
         res.status(500).json({ success: false, message: "Server Error" });
@@ -248,7 +249,8 @@ export const getTheTestById = async (req, res) => {
         const test = await Test.findById(id)
             .populate('reading_passages')
             .populate('listening_sections')
-            .populate('writing_tasks');
+            .populate('writing_tasks')
+            .lean();
         if (!test) {
             return res.status(404).json({ success: false, message: "Test not found" });
         }
@@ -298,19 +300,20 @@ export const getExamData = async (req, res) => {
         const test = await Test.findById(id)
             .populate('reading_passages')
             .populate('listening_sections')
-            .populate('writing_tasks');
+            .populate('writing_tasks')
+            .lean();
         if (!test) {
             return res.status(404).json({ success: false, message: "Test not found" });
         }
         const examType = test.type || 'reading';
         const reading = examType === 'reading'
-            ? (test.reading_passages || []).map((p) => stripForExam(p.toObject ? p.toObject() : p))
+            ? (test.reading_passages || []).map((p) => stripForExam(p))
             : [];
         const listening = examType === 'listening'
-            ? (test.listening_sections || []).map((s) => stripForExam(s.toObject ? s.toObject() : s))
+            ? (test.listening_sections || []).map((s) => stripForExam(s))
             : [];
         const writing = examType === 'writing'
-            ? (test.writing_tasks || []).map((w) => stripForWritingExam(w.toObject ? w.toObject() : w))
+            ? (test.writing_tasks || []).map((w) => stripForWritingExam(w))
             : [];
         res.status(200).json({
             success: true,
@@ -384,7 +387,8 @@ export const submitExam = async (req, res) => {
         const test = await Test.findById(id)
             .populate('reading_passages')
             .populate('listening_sections')
-            .populate('writing_tasks');
+            .populate('writing_tasks')
+            .lean();
         if (!test) {
             return res.status(404).json({ success: false, message: "Test not found" });
         }
@@ -456,11 +460,11 @@ export const submitExam = async (req, res) => {
 
                     const finalCorrectAnswer = (q.correct_answers && q.correct_answers.length > 0) ? q.correct_answers[0] : (correctOptions[0] || "");
 
-                    // Persistent file logging
-                    import('fs').then(fs => {
-                        const logData = `[${new Date().toISOString()}] Q${q.q_number}: type=${g.type}, userAnswer="${userAnswer}", correctAlternatives=${JSON.stringify(correctOptions)}, finalCorrectAnswer="${finalCorrectAnswer}", matches=${isCorrect}\n`;
-                        fs.appendFileSync('exam_debug.log', logData);
-                    });
+                    // Persistent file logging REMOVED for performance
+                    // import('fs').then(fs => {
+                    //     const logData = `[${new Date().toISOString()}] Q${q.q_number}: type=${g.type}, userAnswer="${userAnswer}", correctAlternatives=${JSON.stringify(correctOptions)}, finalCorrectAnswer="${finalCorrectAnswer}", matches=${isCorrect}\n`;
+                    //     fs.appendFileSync('exam_debug.log', logData);
+                    // });
 
                     questionReview.push({
                         question_number: q.q_number,
