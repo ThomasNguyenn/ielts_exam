@@ -13,6 +13,19 @@
     background: white;
 }
 
+/* Text Size Scaling */
+.text-size-regular {
+    --exam-font-scale: 1;
+}
+
+.text-size-large {
+    --exam-font-scale: 1.25;
+}
+
+.text-size-extra-large {
+    --exam-font-scale: 1.5;
+}
+
 /* Header Areas */
 .exam-header {
     display: flex;
@@ -79,7 +92,8 @@
     align-items: center;
     gap: 1rem;
 }
-.exam-instructions{
+
+.exam-instructions {
     font-weight: 800;
 }
 
@@ -243,7 +257,8 @@
 
 /* Reading Layout */
 .ielts-reading-layout {
-    display: flex; /* PanelGroup handles display but we ensure layout is flex */
+    display: flex;
+    /* PanelGroup handles display but we ensure layout is flex */
     height: 100%;
     position: relative;
     overflow: hidden;
@@ -295,7 +310,8 @@
     justify-content: center;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
     position: absolute;
-    pointer-events: none; /* Let parent handle events */
+    pointer-events: none;
+    /* Let parent handle events */
     z-index: 11;
 }
 
@@ -311,7 +327,10 @@
     flex: 1;
     overflow-y: auto;
     padding: 2.5rem;
+    padding: 2.5rem;
     line-height: 1.8;
+    font-size: calc(1rem * var(--exam-font-scale, 1));
+
 }
 
 .questions-scrollable {
@@ -337,7 +356,7 @@
     /* IELTS standard yellow tint */
     color: #1e3a8a;
     transition: all 0.2s;
-    margin: 0 0.25rem;
+    margin: 0.25rem 0;
     box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
@@ -351,7 +370,8 @@
 .exam-question.inline-text {
     line-height: 2.2;
     margin-bottom: 1.5rem;
-    font-size: 1.05rem;
+    margin-bottom: 1.5rem;
+    font-size: calc(1.05rem * var(--exam-font-scale, 1));
 }
 
 .exam-question.inline-text strong {
@@ -392,7 +412,7 @@
 
 .exam-option-label .opt-text {
     flex: 1;
-    font-size: 1.05rem;
+    font-size: calc(1.05rem * var(--exam-font-scale, 1));
 }
 
 .exam-option-label .opt-id {
@@ -468,7 +488,7 @@
 
 .matching-question-text {
     flex: 1;
-    font-size: 1.05rem;
+    font-size: calc(1.05rem * var(--exam-font-scale, 1));
 }
 
 /* Dropzones (Unified for Headings, Features, and Summary) */
@@ -487,6 +507,7 @@
     vertical-align: middle;
     margin: 0 0.4rem;
     padding: 2px 8px;
+    margin-bottom: 5px;
 }
 
 .matching-dropzone:hover,
@@ -516,7 +537,6 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 250px;
 }
 
 .matching-remove {
@@ -536,11 +556,12 @@
 /* Summary Completion Visual Grouping */
 .summary-completion-wrapper {
     background: #ffffff;
-    padding: 1.5rem;
+    padding: 1.5rem 0;
     margin-top: 1.5rem;
     margin-bottom: 2rem;
     display: flex;
     flex-direction: row;
+    justify-content: center;
     gap: 1rem;
     /* Accent color to indicate interactive group */
 }
@@ -555,13 +576,14 @@
 
 .summary-completion-wrapper .exam-summary-text {
     line-height: 2.2;
-    font-size: 1.1rem;
+    font-size: calc(1.1rem * var(--exam-font-scale, 1));
     color: #334155;
 }
 
-.summary-completion-wrapper .exam-summary-text span {
-    display: inline; /* Keep text flow natural */
-}
+/* .summary-completion-wrapper .exam-summary-text span {
+    display: inline;
+    Keep text flow natural 
+} */
 
 /* ========================================
    WRITING TEST STYLES
@@ -571,7 +593,8 @@
     flex-direction: row;
     flex: 1;
     min-height: 0;
-    overflow: hidden; /* Panels will scroll themselves */
+    overflow: hidden;
+    /* Panels will scroll themselves */
     background: white;
 }
 
@@ -607,7 +630,7 @@
 
 .writing-prompt-text {
     line-height: 1.8;
-    font-size: 1.1rem;
+    font-size: calc(1.1rem * var(--exam-font-scale, 1));
     color: #334155;
 }
 
@@ -636,8 +659,9 @@
     min-height: 300px;
     padding: 1.5rem;
     border: 1px solid #cbd5e1;
+    border: 1px solid #cbd5e1;
     border-radius: 8px;
-    font-size: 1.1rem;
+    font-size: calc(1.1rem * var(--exam-font-scale, 1));
     line-height: 1.6;
     font-family: inherit;
     resize: none;
@@ -670,9 +694,10 @@
     background: white;
     padding: 2rem;
     border: 1px solid #e2e8f0;
+    border: 1px solid #e2e8f0;
     border-radius: 8px;
     line-height: 2.2;
-    font-size: 1.1rem;
+    font-size: calc(1.1rem * var(--exam-font-scale, 1));
     margin-bottom: 2.5rem;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
@@ -894,6 +919,11 @@
 .audio-status {
     color: #60a5fa;
     font-size: 0.75rem;
+}
+
+.gap-fill-input-listening {
+    max-height: 35px;
+    margin-bottom: 8px;
 }
 
 @keyframes pulse {
@@ -1753,7 +1783,7 @@
     max-width: 900px;
     border-radius: 12px;
     overflow: hidden;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     border: 1px solid #e2e8f0;
 }
 
@@ -1769,7 +1799,7 @@
     padding: 1rem;
     border-radius: 12px;
     border: 1px solid #e2e8f0;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 .listening-map-table {
@@ -1778,7 +1808,7 @@
     min-width: 600px;
 }
 
-.listening-map-table th, 
+.listening-map-table th,
 .listening-map-table td {
     border: 1px solid #e5e7eb;
     padding: 0.75rem;
@@ -1825,37 +1855,46 @@
     accent-color: #3b82f6;
 }
 
-/* Tablet */
-@media (max-width: 1024px){}
-
-/* Laptop nhỏ */
-@media (max-width: 1366px){
-
+.matching-options-pool-listening {
+    max-width: 600px;
 }
 
+/* Tablet */
+@media (max-width: 1024px) {}
+
+/* Laptop nhỏ */
+@media (max-width: 1366px) {}
+
 /* Laptop chuẩn */
-@media (max-width: 1440px){
+@media (max-width: 1440px) {
     .matching-question-text span {
         font-size: 1.0rem;
     }
-    .writing-prompt-text{
+
+    .writing-prompt-text {
         font-size: 1rem;
     }
-    .exam-summary-text span{
+
+    .exam-summary-text span {
         font-size: 1rem;
     }
-    .matching-dropzone, .summary-dropzone{
-        min-width: 50px;
+
+    /* .matching-dropzone,
+    .summary-dropzone {
+        min-width: 40px;
         min-height: 10px;
-    }
-    .listening-map-image-wrapper{
+    } */
+
+    .listening-map-image-wrapper {
         max-width: 450px;
     }
-    .summary-completion{
+
+    .summary-completion {}
+
+    .matching-options-pool {
+        max-width: 600px;
     }
 }
 
 /* Desktop lớn */
-@media (min-width: 1920px){
-
-}
+@media (min-width: 1920px) {}

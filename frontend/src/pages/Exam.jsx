@@ -188,7 +188,7 @@ function QuestionInput({ slot, value, onChange, index, onHighlightUpdate }) {
     return (
       <input
         type="text"
-        className="gap-fill-input"
+        className={`gap-fill-input ${isListening ? 'gap-fill-input-listening' : ''}`}
         placeholder={`${index + 1}`}
         autoComplete="off"
         {...common}
@@ -339,7 +339,7 @@ function ListeningMapGrid({ group, slots, answers, setAnswer, startSlotIndex }) 
           <img src={group.text} alt="IELTS Map" className="listening-map-image" />
         </div>
       )}
-      
+
       <div className="listening-map-grid-wrapper">
         <table className="listening-map-table">
           <thead>
@@ -389,7 +389,6 @@ function ListeningMapGrid({ group, slots, answers, setAnswer, startSlotIndex }) 
 /** One step: passage/section content + its questions (with slot indices) */
 function StepContent({ step, slots, answers, setAnswer, passageStates, setPassageState, testId }) {
   const { item, startSlotIndex, endSlotIndex, type } = step;
-  console.log("Rendering StepContent for:", type, item.title, "Group types:", (item.question_groups || []).map(g => g.type));
   const isReading = type === 'reading';
   const isListening = type === 'listening';
   const hasAudio = isListening && item.audio_url;
@@ -434,7 +433,7 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
 
               return headings.length > 0 ? (
                 <div className="">
-                  <div className="matching-options-pool">
+                  <div className={`matching-options-pool ${isListening ? 'matching-options-pool-listening' : ''}`}>
                     {/* <div className="matching-options-label">Available Options - Drag to Questions Below:</div> */}
                     <div className="matching-chips">
                       {headings.map((h) => (
@@ -470,12 +469,12 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                 const currentGroupStartIndex = slotIndex;
                 slotIndex += group.questions.length;
                 return (
-                  <ListeningMapGrid 
-                    group={group} 
-                    slots={slots} 
-                    answers={answers} 
-                    setAnswer={setAnswer} 
-                    startSlotIndex={currentGroupStartIndex} 
+                  <ListeningMapGrid
+                    group={group}
+                    slots={slots}
+                    answers={answers}
+                    setAnswer={setAnswer}
+                    startSlotIndex={currentGroupStartIndex}
                   />
                 );
               }
@@ -524,7 +523,7 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                                     <input
                                       key={realSlotIndex}
                                       type="text"
-                                      className="gap-fill-input"
+                                      className={`gap-fill-input ${isListening ? 'gap-fill-input-listening' : ''}`}
                                       placeholder={`${qNum}`}
                                       value={answers[realSlotIndex] || ''}
                                       onChange={(e) => setAnswer(realSlotIndex, e.target.value)}
@@ -553,9 +552,9 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                 });
 
                 return (
-                  <div className="summary-completion-wrapper">
+                  <div className={isListening ? "summary-completion-wrapper" : ""}>
                     {isSummary && group.options && group.options.length > 0 && (
-                      <div className="matching-options-pool">
+                      <div className={`matching-options-pool ${isListening ? 'matching-options-pool-listening' : ''}`}>
                         <div className="matching-chips">
                           {group.options.map((opt) => {
                             const isUsed = usedValues.has(opt.id);

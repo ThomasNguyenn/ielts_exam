@@ -5,14 +5,14 @@ const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-producti
 export const verifyToken = (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return res.status(401).json({ success: false, message: "No token provided" });
     }
 
     const token = authHeader.split(" ")[1];
     const decoded = jwt.verify(token, JWT_SECRET);
-    
+
     req.user = decoded;
     next();
   } catch (error) {
@@ -35,4 +35,15 @@ export const optionalVerifyToken = (req, res, next) => {
     // Ignore invalid token for optional auth
   }
   return next();
+};
+export const isStaff = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ success: false, message: "Unauthorized" });
+  }
+
+  if (req.user.role === 'admin' || req.user.role === 'teacher') {
+    next();
+  } else {
+    return res.status(403).json({ success: false, message: "Forbidden: Access restricted to staff only" });
+  }
 };

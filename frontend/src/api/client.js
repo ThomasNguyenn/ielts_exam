@@ -121,4 +121,7 @@ export const api = {
   updateVocabulary: (id, body) => request(`/api/vocabulary/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   reviewVocabulary: (id, difficulty) => request(`/api/vocabulary/${id}/review`, { method: 'PUT', body: JSON.stringify({ difficulty }) }),
   deleteVocabulary: (id) => request(`/api/vocabulary/${id}`, { method: 'DELETE' }),
+
+  getAdminUsersScores: () => request('/api/admin/scores'),
+  getAdminUserAttempts: (userId) => request(`/api/admin/users/${userId}/attempts`),
 };

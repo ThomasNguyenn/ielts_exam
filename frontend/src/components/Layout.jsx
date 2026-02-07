@@ -75,6 +75,9 @@ export default function Layout() {
                 <NavLink to="/grading" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
                   Chấm Bài
                 </NavLink>
+                <NavLink to="/scores" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                  Kết Quả
+                </NavLink>
                 <NavLink to="/manage" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
                   Quản Lý
                 </NavLink>

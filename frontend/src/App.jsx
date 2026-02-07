@@ -18,6 +18,8 @@ import GradingInterface from './pages/manage/GradingInterface';
 import PracticeFlow from './pages/Practice/PracticeFlow';
 import PracticeList from './pages/Practice/PracticeList';
 import Vocabulary from './pages/Vocabulary';
+import ScoreDashboard from './pages/manage/ScoreDashboard';
+import UserScoreDetail from './pages/manage/UserScoreDetail';
 import { api } from './api/client';
 
 // Protected Route wrapper
@@ -97,6 +99,12 @@ export default function App() {
             <ManageRoute><GradingInterface /></ManageRoute>
           } />
         </Route>
+        <Route path="scores" element={
+          <ManageRoute><ScoreDashboard /></ManageRoute>
+        } />
+        <Route path="scores/:userId" element={
+          <ManageRoute><UserScoreDetail /></ManageRoute>
+        } />
       </Routes>
     </NotificationProvider>
   );
