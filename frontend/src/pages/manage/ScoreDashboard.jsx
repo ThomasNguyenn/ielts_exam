@@ -65,6 +65,13 @@ export default function ScoreDashboard() {
 
     return (
         <div className="score-dashboard">
+            <button
+                className="btn-see-more"
+                onClick={() => navigate('/')}
+                style={{ marginBottom: '1rem' }}
+            >
+                &larr; Quay lại trang chủ
+            </button>
             <h1>Bảng Điểm Toàn Bộ Người Dùng</h1>
 
             <div className="search-section">

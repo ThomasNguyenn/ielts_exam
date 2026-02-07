@@ -318,6 +318,7 @@ export const getExamData = async (req, res) => {
                 testId: test._id,
                 title: test.title,
                 type: examType,
+                is_real_test: test.is_real_test || false,
                 duration: test.duration || (examType === 'reading' ? 60 : examType === 'listening' ? 35 : 45),
                 reading,
                 listening,

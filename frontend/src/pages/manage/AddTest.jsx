@@ -9,12 +9,13 @@ import ConfirmationModal from '../../components/ConfirmationModal';
 import './Manage.css';
 
 function testToForm(t) {
-  if (!t) return { _id: '', title: '', category: '', type: 'reading', duration: 60, reading_passages: [], listening_sections: [], writing_tasks: [] };
+  if (!t) return { _id: '', title: '', category: '', is_real_test: false, type: 'reading', duration: 60, reading_passages: [], listening_sections: [], writing_tasks: [] };
   const toId = (x) => (typeof x === 'object' && x && x._id ? x._id : x);
   return {
     _id: t._id || '',
     title: t.title || '',
     category: t.category || 'Uncategorized',
+    is_real_test: t.is_real_test || false,
     type: t.type || 'reading',
     duration: t.duration || (t.type === 'reading' ? 60 : t.type === 'listening' ? 35 : 45),
     reading_passages: (t.reading_passages || []).map(toId),
@@ -74,6 +75,7 @@ export default function AddTest() {
     _id: '',
     title: '',
     category: '',
+    is_real_test: false,
     type: 'reading',
     duration: 60,
     reading_passages: [],
@@ -117,7 +119,7 @@ export default function AddTest() {
           setSections(sRes.data || []);
           setWritings(wRes.data || []);
           setTests(tRes.data || []);
-          setForm({ _id: `test-${Date.now()}`, title: '', category: '', type: 'reading', duration: 60, reading_passages: [], listening_sections: [], writing_tasks: [] });
+          setForm({ _id: `test-${Date.now()}`, title: '', category: '', is_real_test: false, type: 'reading', duration: 60, reading_passages: [], listening_sections: [], writing_tasks: [] });
         })
         .catch(() => { })
         .finally(() => setLoading(false));
@@ -294,6 +296,7 @@ export default function AddTest() {
         _id: form._id.trim(),
         title: form.title.trim(),
         category: form.category.trim() || 'Uncategorized',
+        is_real_test: form.is_real_test,
         type: form.type || 'reading',
         duration: parseInt(form.duration) || 60,
         reading_passages: form.type === 'reading' ? form.reading_passages : [],
@@ -311,6 +314,7 @@ export default function AddTest() {
           _id: `test-${Date.now()}`,
           title: '',
           category: '',
+          is_real_test: false,
           type: form.type,
           duration: form.type === 'reading' ? 60 : form.type === 'listening' ? 35 : 45,
           reading_passages: [],
@@ -364,6 +368,17 @@ export default function AddTest() {
           <small className="form-hint" style={{ color: '#d03939' }}>
             Dùng để nhóm các bài thi từ cùng một bộ sách.
           </small>
+        </div>
+
+        <div className="form-row">
+          <label className="checkbox-label" style={{ fontWeight: 'bold' }}>
+            <input
+              type="checkbox"
+              checked={form.is_real_test}
+              onChange={(e) => updateForm('is_real_test', e.target.checked)}
+            />
+            Test Thật (Real Test) - Không cho xem kết quả chi tiết
+          </label>
         </div>
 
         <div className="form-row">
