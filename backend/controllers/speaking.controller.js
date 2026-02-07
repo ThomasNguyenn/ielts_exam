@@ -1,13 +1,23 @@
 import Speaking from '../models/Speaking.model.js';
 import SpeakingSession from '../models/SpeakingSession.js';
-import Groq from 'groq-sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import fs from 'fs';
 import dotenv from 'dotenv';
 dotenv.config();
 
-const groq = new Groq({
-    apiKey: process.env.GROQ_API_KEY,
-});
+// Initialize Gemini
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+// Helper to convert file to GoogleGenerativeAI.Part
+function fileToGenerativePart(path, mimeType) {
+  return {
+    inlineData: {
+      data: Buffer.from(fs.readFileSync(path)).toString("base64"),
+      mimeType
+    },
+  };
+}
 
 // Phase 1: Get Random Speaking Topic
 export const getRandomSpeaking = async (req, res) => {
@@ -90,7 +100,7 @@ export const deleteSpeaking = async (req, res) => {
     }
 };
 
-// Phase 2: Transcribe and Analyze Speaking Answer
+// Phase 2: Transcribe and Analyze Speaking Answer (Gemini Multimodal)
 export const submitSpeaking = async (req, res) => {
     try {
         const { questionId } = req.body;
@@ -105,49 +115,27 @@ export const submitSpeaking = async (req, res) => {
             return res.status(404).json({ message: "Speaking topic not found" });
         }
 
-        // 1. Transcribe via Groq Whisper
-        const transcription = await groq.audio.transcriptions.create({
-            file: fs.createReadStream(audioFile.path),
-            model: "whisper-large-v3",
-            language: "en",
-        });
-
-        const transcriptText = transcription.text;
-
-        if (!transcriptText || transcriptText.trim().length < 5) {
-             return res.json({
-                session_id: null,
-                transcript: "",
-                analysis: {
-                    band_score: 0,
-                    general_feedback: "Hệ thống không nghe thấy gì. Vui lòng kiểm tra lại microphone của bạn trước khi ghi âm.",
-                    fluency_coherence: { score: 0, feedback: "Không có âm thanh." },
-                    lexical_resource: { score: 0, feedback: "Không có âm thanh." },
-                    grammatical_range: { score: 0, feedback: "Không có âm thanh." },
-                    pronunciation: { score: 0, feedback: "Không có âm thanh." },
-                    sample_answer: "Vui lòng thử lại."
-                }
-             });
-        }
-
-        // 2. Analyze via Groq Llama 3
+        // Prepare prompt
         const prompt = `
           Act as an IELTS Speaking Examiner (Band 8.5+).
           Topic/Question: ${topic.prompt}
-          Student's Spoken Answer (Transcript): "${transcriptText}"
+          
+          You will receive an audio file of the student's answer.
           
           Tasks:
-          1. Provide a Band Score (0-9) based on official IELTS Speaking criteria.
-          2. Evaluate 4 criteria:
-             - Fluency and Coherence
+          1. Transcribe the audio accurately.
+          2. Provide a Band Score (0-9) based on official IELTS Speaking criteria.
+          3. Evaluate 4 criteria:
+             - Fluency and Coherence (Rate speed, pauses, hesitation, self-correction)
              - Lexical Resource (Vocabulary)
              - Grammatical Range and Accuracy
-             - Pronunciation (Based on transcript clarity/flow)
-          3. Provide detailed feedback in VIETNAMESE.
-          4. Suggest a Band 8.0+ Model Answer for this question.
+             - Pronunciation (Intonation, stress, clarity - CRITICAL)
+          4. Provide detailed feedback in VIETNAMESE.
+          5. Suggest a Band 8.0+ Model Answer for this question.
           
           Return ONLY valid JSON in this format:
           {
+            "transcript": "string (The transcribed text)",
             "band_score": number,
             "fluency_coherence": { "score": number, "feedback": "string (in Vietnamese)" },
             "lexical_resource": { "score": number, "feedback": "string (in Vietnamese)" },
@@ -158,26 +146,28 @@ export const submitSpeaking = async (req, res) => {
           }
         `;
 
-        const completion = await groq.chat.completions.create({
-            model: "llama-3.3-70b-versatile",
-            messages: [{ role: "user", content: prompt }],
-            response_format: { type: "json_object" },
-        });
+        const audioPart = fileToGenerativePart(audioFile.path, "audio/webm");
 
-        const analysisResult = JSON.parse(completion.choices[0].message.content);
+        const result = await model.generateContent([prompt, audioPart]);
+        const response = await result.response;
+        const text = response.text();
+        
+        // Clean up text if it contains markdown code blocks
+        const jsonString = text.replace(/```json/g, '').replace(/```/g, '').trim();
+        const analysisResult = JSON.parse(jsonString);
 
         // 3. Save Session
         const session = new SpeakingSession({
             questionId,
             audioUrl: audioFile.path,
-            transcript: transcriptText,
+            transcript: analysisResult.transcript,
             analysis: analysisResult,
             status: 'completed'
         });
 
         await session.save();
 
-        res.json({ session_id: session._id, transcript: transcriptText, analysis: analysisResult });
+        res.json({ session_id: session._id, transcript: analysisResult.transcript, analysis: analysisResult });
     } catch (error) {
         console.error("Speaking AI Error:", error);
         res.status(500).json({ message: error.message });
