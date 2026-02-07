@@ -114,6 +114,22 @@ export const submitSpeaking = async (req, res) => {
 
         const transcriptText = transcription.text;
 
+        if (!transcriptText || transcriptText.trim().length < 5) {
+             return res.json({
+                session_id: null,
+                transcript: "",
+                analysis: {
+                    band_score: 0,
+                    general_feedback: "Hệ thống không nghe thấy gì. Vui lòng kiểm tra lại microphone của bạn trước khi ghi âm.",
+                    fluency_coherence: { score: 0, feedback: "Không có âm thanh." },
+                    lexical_resource: { score: 0, feedback: "Không có âm thanh." },
+                    grammatical_range: { score: 0, feedback: "Không có âm thanh." },
+                    pronunciation: { score: 0, feedback: "Không có âm thanh." },
+                    sample_answer: "Vui lòng thử lại."
+                }
+             });
+        }
+
         // 2. Analyze via Groq Llama 3
         const prompt = `
           Act as an IELTS Speaking Examiner (Band 8.5+).

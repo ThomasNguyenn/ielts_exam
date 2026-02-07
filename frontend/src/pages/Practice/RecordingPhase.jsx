@@ -8,16 +8,38 @@ export default function RecordingPhase({ topic, onComplete }) {
     const chunksRef = useRef([]);
     const timerRef = useRef(null);
 
+    // Visualizer refs
+    const canvasRef = useRef(null);
+    const audioContextRef = useRef(null);
+    const analyserRef = useRef(null);
+    const sourceRef = useRef(null);
+    const animationFrameRef = useRef(null);
+
     useEffect(() => {
         return () => {
             if (timerRef.current) clearInterval(timerRef.current);
+            cancelAnimationFrame(animationFrameRef.current);
+            if (audioContextRef.current) audioContextRef.current.close();
         };
     }, []);
 
     const startRecording = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorderRef.current = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+            
+            // Visualizer Setup
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            audioContextRef.current = audioCtx;
+            const analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 256;
+            analyserRef.current = analyser;
+            const source = audioCtx.createMediaStreamSource(stream);
+            source.connect(analyser);
+            sourceRef.current = source;
+            visualize();
+
+            // Recorder Setup - Let browser pick default supported mimeType
+            mediaRecorderRef.current = new MediaRecorder(stream);
             chunksRef.current = [];
 
             mediaRecorderRef.current.ondataavailable = (e) => {
@@ -25,9 +47,13 @@ export default function RecordingPhase({ topic, onComplete }) {
             };
 
             mediaRecorderRef.current.onstop = () => {
-                const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+                const mimeType = mediaRecorderRef.current.mimeType || 'audio/webm';
+                const blob = new Blob(chunksRef.current, { type: mimeType });
                 setAudioBlob(blob);
                 stream.getTracks().forEach(track => track.stop());
+                
+                // Stop visualizer
+                cancelAnimationFrame(animationFrameRef.current);
             };
 
             mediaRecorderRef.current.start();
@@ -40,6 +66,34 @@ export default function RecordingPhase({ topic, onComplete }) {
             console.error("Mic access denied:", err);
             alert("Vui lòng cấp quyền truy cập Mic để ghi âm.");
         }
+    };
+
+    const visualize = () => {
+        if (!canvasRef.current || !analyserRef.current) return;
+        const canvas = canvasRef.current;
+        const canvasCtx = canvas.getContext('2d');
+        const bufferLength = analyserRef.current.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+        
+        const draw = () => {
+            animationFrameRef.current = requestAnimationFrame(draw);
+            analyserRef.current.getByteFrequencyData(dataArray);
+            
+            canvasCtx.fillStyle = '#f8fafc';
+            canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const barWidth = (canvas.width / bufferLength) * 2.5;
+            let barHeight;
+            let x = 0;
+            
+            for(let i = 0; i < bufferLength; i++) {
+                barHeight = dataArray[i] / 2;
+                canvasCtx.fillStyle = `rgb(${barHeight + 100}, 50, 50)`;
+                canvasCtx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+                x += barWidth + 1;
+            }
+        };
+        draw();
     };
 
     const stopRecording = () => {
@@ -69,6 +123,11 @@ export default function RecordingPhase({ topic, onComplete }) {
             </div>
 
             <div className="recorder-controls" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem' }}>
+                <div style={{ position: 'relative', height: '60px', width: '100%', maxWidth: '300px', marginBottom: '1rem' }}>
+                    {isRecording && <canvas ref={canvasRef} width="300" height="60" style={{ width: '100%', height: '100%', borderRadius: '8px' }} />}
+                    {!isRecording && !audioBlob && <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>Sóng âm sẽ hiện ở đây khi ghi âm</div>}
+                </div>
+
                 <div className="timer" style={{ fontSize: '2.5rem', fontWeight: 800, color: isRecording ? '#ef4444' : '#1e293b', fontFamily: 'monospace' }}>
                     {formatTime(recordingTime)}
                 </div>
