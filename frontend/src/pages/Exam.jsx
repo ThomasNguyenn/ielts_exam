@@ -133,7 +133,7 @@ function QuestionInput({ slot, value, onChange, index, onHighlightUpdate }) {
       } else {
         next.add(optionLabel);
       }
-      // Save to localStorage
+      // Save to localStorage specifically for this question
       localStorage.setItem(`strikethrough_${id}`, JSON.stringify([...next]));
       return next;
     });
@@ -153,7 +153,7 @@ function QuestionInput({ slot, value, onChange, index, onHighlightUpdate }) {
           return (
             <label
               key={opt.label}
-              className={`exam-option-label ${isStrikethrough ? 'option-strikethrough' : ''}`}
+              className={`exam-option-label ${isStrikethrough ? 'eliminated' : ''}`}
               onContextMenu={(e) => handleRightClick(e, opt.label)}
               title="Right-click to eliminate this option"
             >
@@ -162,6 +162,7 @@ function QuestionInput({ slot, value, onChange, index, onHighlightUpdate }) {
                 name={id}
                 checked={(value || '').trim() === (opt.text || '').trim()}
                 onChange={() => onChange(opt.text)}
+                disabled={isStrikethrough}
               />
               <span className="opt-id">{opt.label}.</span>
               <span className="opt-text">
@@ -1027,8 +1028,9 @@ export default function Exam() {
   const [timeRemaining, setTimeRemaining] = useState(null);
   const [timeWarning, setTimeWarning] = useState(false);
   const [showReview, setShowReview] = useState(false);
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [fontSize, setFontSize] = useState(100); // 100% = default
-  const [startTime] = useState(() => Date.now()); // Track when exam started
+  const [startTime, setStartTime] = useState(null); // Track when exam actually started (after loading)
 
   // IELTS Theme & Settings
   const [theme, setTheme] = useState('light');
@@ -1064,6 +1066,7 @@ export default function Exam() {
             setCurrentStep(partIndex);
           }
         }
+        setStartTime(Date.now());
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -1091,20 +1094,67 @@ export default function Exam() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [submitted, timeWarning]); // Restart if submission status or warning flag changes (max twice per exam)
+  }, [submitted, timeWarning, timeRemaining === null]); // Restart if submission status or warning flag changes, or when initialized
 
-  // Auto submit function when time expires
-  const handleAutoSubmit = () => {
+  const performSubmit = () => {
     if (submitLoading || submitted) return;
     setSubmitLoading(true);
-    const timeTaken = Date.now() - startTime;
+    setShowSubmitConfirm(false);
+    const now = Date.now();
+    const timeTaken = startTime ? now - startTime : (exam.duration || 60) * 60 * 1000;
+
+    // Clear all strikethrough localStorage entries for this exam
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('strikethrough_q-')) {
+        localStorage.removeItem(key);
+      }
+    });
+
     api
-      .submitExam(id, { answers, writing: writingAnswers, timeTaken })
-      .then((res) => setSubmitted(res.data))
+      .submitExam(id, { answers, writing: writingAnswers, timeTaken, isPractice: isSingleMode })
+      .then((res) => {
+        // If single mode, recalculate score based only on current part
+        if (isSingleMode && steps[currentStep]) {
+          const step = steps[currentStep];
+          const start = step.startSlotIndex;
+          const end = step.endSlotIndex;
+
+          const partReview = res.data.question_review.filter((_, idx) => idx >= start && idx < end);
+
+          let partScore = 0;
+          let partTotal = 0;
+
+          partReview.forEach((q) => {
+            partTotal++;
+            if (q.is_correct) partScore++;
+          });
+
+          setSubmitted({
+            ...res.data,
+            question_review: partReview,
+            score: partScore,
+            total: partTotal,
+            wrong: partTotal - partScore,
+            isSingleMode: true
+          });
+        } else {
+          setSubmitted(res.data);
+        }
+      })
       .catch((err) => {
         setError(err.message);
         setSubmitLoading(false);
-      });
+      })
+      .finally(() => setSubmitLoading(false));
+  };
+
+  const handleAutoSubmit = () => {
+    performSubmit();
+  };
+
+  const handleSubmit = (e) => {
+    if (e) e.preventDefault();
+    setShowSubmitConfirm(true);
   };
 
   // Format time as MM:SS
@@ -1133,7 +1183,8 @@ export default function Exam() {
     if (submitted.timeTaken !== undefined) {
       return formatTimeTaken(0, submitted.timeTaken);
     }
-    return formatTimeTaken(startTime, Date.now());
+    const now = Date.now();
+    return formatTimeTaken(startTime || now, now);
   };
 
   const slots = exam ? buildQuestionSlots(exam) : [];
@@ -1159,72 +1210,6 @@ export default function Exam() {
     });
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setSubmitLoading(true);
-    const timeTaken = Date.now() - startTime;
-
-    // Clear all strikethrough localStorage entries for this exam
-    Object.keys(localStorage).forEach(key => {
-      if (key.startsWith('strikethrough_q-')) {
-        localStorage.removeItem(key);
-      }
-    });
-
-    // If in single mode, we might want to prevent backend from saving history, 
-    // OR we submit as normal but ignore the result history on frontend. 
-    // Backend creates TestAttempt. 
-    // Ideally we add a flag 'simulated' or 'practice' to backend.
-    // For now, let's submit and let backend save it (unless we edit backend).
-    // User asked "Khong can luu lich su". So we must tell backend NOT to save.
-
-    api
-      .submitExam(id, { answers, writing: writingAnswers, timeTaken, isPractice: isSingleMode })
-      .then((res) => {
-        // If single mode, recalculate score based only on current part
-        if (isSingleMode && steps[currentStep]) {
-          const step = steps[currentStep];
-          const start = step.startSlotIndex;
-          const end = step.endSlotIndex;
-
-          // Filter answers to only this part
-          // Backend result.question_review contains all info.
-          // We can re-calculate checks here or filter backend response?
-          // Backend response has 'score' (total).
-          // Let's rely on backend check but filter the result manually for display.
-
-          // Filter answers to only this part by index mapping
-          const partReview = res.data.question_review.filter((_, idx) => idx >= start && idx < end);
-
-          // Actually, let's just use the returned 'question_review' array, 
-          // and count correct items which fall within [start, end).
-          // But 'question_review' structure in backend might not be 1:1 if filtered? 
-          // Looking at backend: "const questionReview = []; ... for (const g of question_groups)..."
-          // It builds it in order. So index matches slot index.
-
-          let partScore = 0;
-          let partTotal = 0;
-
-          partReview.forEach((q) => {
-            partTotal++;
-            if (q.is_correct) partScore++;
-          });
-
-          setSubmitted({
-            ...res.data,
-            question_review: partReview,
-            score: partScore,
-            total: partTotal,
-            wrong: partTotal - partScore,
-            isSingleMode: true
-          });
-        } else {
-          setSubmitted(res.data);
-        }
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setSubmitLoading(false));
-  };
 
   if (loading) return <div className="page"><p className="muted">Loading exam…</p></div>;
   if (error) return <div className="page"><p className="error">{error}</p><Link to="/tests">Back to tests</Link></div>;
@@ -1513,6 +1498,28 @@ export default function Exam() {
           <StepContent step={step} slots={slots} answers={answers} setAnswer={setAnswer} testId={id} />
         )}
       </form>
+
+      {showSubmitConfirm && (
+        <div className="note-modal-overlay" onClick={() => setShowSubmitConfirm(false)}>
+          <div className="note-modal" onClick={e => e.stopPropagation()}>
+            <div className="note-modal-header">
+              <h3>Finish Test?</h3>
+              <button type="button" onClick={() => setShowSubmitConfirm(false)}>✕</button>
+            </div>
+            <div style={{ padding: '10px 0', color: '#475569' }}>
+              Are you sure you want to finish the test? You won't be able to change your answers after submitting.
+            </div>
+            <div className="note-modal-actions">
+              <button type="button" className="btn-save" onClick={performSubmit} disabled={submitLoading}>
+                {submitLoading ? 'Submitting...' : 'Yes, Finish'}
+              </button>
+              <button type="button" className="btn-cancel" onClick={() => setShowSubmitConfirm(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Fixed Bottom Footer */}
       <footer className="exam-footer">

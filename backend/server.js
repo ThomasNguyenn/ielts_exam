@@ -10,6 +10,9 @@ import practiceRoutes from './routes/practiceRoutes.js';
 import authRoutes from './routes/auth.route.js';
 import vocabularyRoutes from './routes/vocabularyRoutes.js';
 import adminRoutes from './routes/admin.route.js';
+import speakingRoutes from './routes/speaking.routes.js';
+import path from 'path';
+import fs from 'fs';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -25,6 +28,14 @@ app.use("/api/writings", writingRoutes);
 app.use("/api/practice", practiceRoutes);
 app.use("/api/vocabulary", vocabularyRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/speaking", speakingRoutes);
+
+// Serve static files from uploads directory
+const uploadDir = path.join(process.cwd(), 'uploads');
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
+app.use("/uploads", express.static(uploadDir));
 
 app.listen(PORT, () => {
     connectDB();

@@ -65,16 +65,50 @@ textarea {
   font-family: inherit;
 }
 
-/* Fix for highlight layout shifting */
+/* Highlight and Note Styles */
 .ielts-highlight {
-  background-color: #fef08a !important;
   cursor: pointer;
   border-radius: 2px;
+  transition: filter 0.2s;
 }
 
 .ielts-highlight:hover {
-  filter: brightness(0.95);
+  filter: brightness(0.9);
 }
+
+.highlight-yellow {
+  background-color: #fef08a !important;
+}
+
+.highlight-pink {
+  background-color: #fbcfe8 !important;
+}
+
+.highlight-blue {
+  background-color: #bfdbfe !important;
+}
+
+.note-marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background-color: #3b82f6;
+  color: white;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  margin: 0 2px;
+  vertical-align: middle;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  transition: transform 0.2s;
+}
+
+.note-marker:hover {
+  transform: scale(1.1);
+}
+
 
 /* Ensure tokens don't break layout */
 .token-word {

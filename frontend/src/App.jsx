@@ -10,13 +10,16 @@ import AddPassage from './pages/manage/AddPassage';
 import AddSection from './pages/manage/AddSection';
 import AddTest from './pages/manage/AddTest';
 import AddWriting from './pages/manage/AddWriting';
+import AddSpeaking from './pages/manage/AddSpeaking';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Profile from './pages/Profile';
 import GradingDashboard from './pages/manage/GradingDashboard';
 import GradingInterface from './pages/manage/GradingInterface';
 import PracticeFlow from './pages/Practice/PracticeFlow';
+import SpeakingFlow from './pages/Practice/SpeakingFlow';
 import PracticeList from './pages/Practice/PracticeList';
+import SpeakingList from './pages/Practice/SpeakingList';
 import Vocabulary from './pages/Vocabulary';
 import ScoreDashboard from './pages/manage/ScoreDashboard';
 import UserScoreDetail from './pages/manage/UserScoreDetail';
@@ -63,6 +66,9 @@ export default function App() {
 
           <Route path="practice" element={<ProtectedRoute><PracticeList /></ProtectedRoute>} />
           <Route path="practice/:id" element={<ProtectedRoute><PracticeFlow /></ProtectedRoute>} />
+          
+          <Route path="speaking" element={<ProtectedRoute><SpeakingList /></ProtectedRoute>} />
+          <Route path="practice/speaking/:id" element={<ProtectedRoute><SpeakingFlow /></ProtectedRoute>} />
 
           <Route path="vocabulary" element={<ProtectedRoute><Vocabulary /></ProtectedRoute>} />
 
@@ -89,6 +95,8 @@ export default function App() {
             <Route path="tests/:id" element={<AddTest />} />
             <Route path="writings" element={<AddWriting />} />
             <Route path="writings/:id" element={<AddWriting />} />
+            <Route path="speaking" element={<AddSpeaking />} />
+            <Route path="speaking/:id" element={<AddSpeaking />} />
           </Route>
 
           {/* Grading Routes (Top Level for Teachers) */}

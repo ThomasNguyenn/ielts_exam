@@ -35,8 +35,10 @@ async function request(path, options = {}) {
   const url = `${API_BASE}${path}`;
   const token = getToken();
 
+  const isFormData = options.body instanceof FormData;
+
   const headers = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(token && { Authorization: `Bearer ${token}` }),
     ...options.headers,
   };
@@ -124,4 +126,20 @@ export const api = {
 
   getAdminUsersScores: () => request('/api/admin/scores'),
   getAdminUserAttempts: (userId) => request(`/api/admin/users/${userId}/attempts`),
+
+  // Speaking
+  getSpeakings: () => request('/api/speaking'),
+  getRandomSpeaking: () => request('/api/speaking/random'),
+  getSpeakingById: (id) => request(`/api/speaking/${id}`),
+  createSpeaking: (data) => request('/api/speaking', { method: 'POST', body: JSON.stringify(data) }),
+  updateSpeaking: (id, data) => request(`/api/speaking/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteSpeaking: (id) => request(`/api/speaking/${id}`, { method: 'DELETE' }),
+  submitSpeaking: (body) => {
+    // body should be FormData
+    return request('/api/speaking/submit', { 
+      method: 'POST', 
+      body, 
+      headers: { 'Content-Type': undefined } // Let browser set boundary
+    });
+  },
 };

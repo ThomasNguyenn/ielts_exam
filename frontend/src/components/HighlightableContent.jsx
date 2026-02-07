@@ -63,6 +63,42 @@ function isTokenNode(node) {
   return node.nodeType === 1 && (node.classList.contains('token-word') || node.classList.contains('token-space'));
 }
 
+const NoteModal = ({ isOpen, onClose, onSave, initialValue = '' }) => {
+  const [value, setValue] = useState(initialValue);
+  const textAreaRef = useRef(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setValue(initialValue);
+      setTimeout(() => textAreaRef.current?.focus(), 50);
+    }
+  }, [isOpen, initialValue]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="note-modal-overlay" onClick={onClose}>
+      <div className="note-modal" onClick={e => e.stopPropagation()}>
+        <div className="note-modal-header">
+          <h3>Add Note</h3>
+          <button type="button" onClick={onClose}>✕</button>
+        </div>
+        <textarea
+          ref={textAreaRef}
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          placeholder="Enter your note here..."
+        />
+        <div className="note-modal-actions">
+          <button type="button" className="btn-save" onClick={() => onSave(value)}>Save</button>
+          <button type="button" className="btn-cancel" onClick={onClose}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
 export default function HighlightableContent({ htmlContent, onUpdateHtml, id, tagName = 'div', className = '' }) {
   const containerRef = useRef(null);
   const wrapperRef = useRef(null);
@@ -86,12 +122,13 @@ export default function HighlightableContent({ htmlContent, onUpdateHtml, id, ta
   }, [htmlContent]);
 
 
+  const [noteModal, setNoteModal] = useState({ isOpen: false, range: null, initialValue: '', editNode: null });
+
   // Initialize DOM
   useEffect(() => {
     if (containerRef.current && processedHtml) {
       if (containerRef.current.innerHTML !== processedHtml) {
         containerRef.current.innerHTML = processedHtml;
-        // Restore event listeners for click-to-remove
         attachClickListeners();
       }
     }
@@ -99,15 +136,31 @@ export default function HighlightableContent({ htmlContent, onUpdateHtml, id, ta
 
   const attachClickListeners = () => {
     if (!containerRef.current) return;
+    
+    // Highlights
     const highlights = containerRef.current.querySelectorAll('.ielts-highlight');
     highlights.forEach(node => {
       node.onclick = (e) => {
         e.stopPropagation();
-        // Remove highlight class only
-        node.classList.remove('ielts-highlight');
-        node.style.backgroundColor = '';
-        node.onclick = null; // Remove handler
+        // Cycle through or remove? For now, click to remove for simplicity
+        const classes = Array.from(node.classList).filter(c => c.startsWith('highlight-'));
+        node.classList.remove('ielts-highlight', ...classes);
+        node.onclick = null;
         triggerUpdate();
+      };
+    });
+
+    // Notes
+    const notes = containerRef.current.querySelectorAll('.note-marker');
+    notes.forEach(node => {
+      node.onclick = (e) => {
+        e.stopPropagation();
+        setNoteModal({
+          isOpen: true,
+          range: null,
+          initialValue: node.getAttribute('data-note') || '',
+          editNode: node
+        });
       };
     });
   };
@@ -131,22 +184,20 @@ export default function HighlightableContent({ htmlContent, onUpdateHtml, id, ta
       return;
     }
 
-    // Position tooltip
     const rect = range.getBoundingClientRect();
     const wrapperRect = wrapperRef.current ? wrapperRef.current.getBoundingClientRect() : { top: 0, left: 0 };
     setTooltipPos({
       x: rect.left - wrapperRect.left + (rect.width / 2),
-      y: rect.top - wrapperRect.top - 40
+      y: rect.top - wrapperRect.top - 50
     });
 
     setCurrentRange(range);
     setShowTooltip(true);
   };
 
-  const applyHighlight = () => {
+  const applyHighlight = (colorClass) => {
     if (!containerRef.current || !currentRange) return;
 
-    // Find all token nodes intersecting the selection
     const iterator = document.createNodeIterator(
       containerRef.current,
       NodeFilter.SHOW_ELEMENT,
@@ -171,31 +222,83 @@ export default function HighlightableContent({ htmlContent, onUpdateHtml, id, ta
       return;
     }
 
-    // Check if ALL intersecting nodes are already highlighted
-    const allHighlighted = intersectingNodes.every(n => n.classList.contains('ielts-highlight'));
+    const allHighlightedSameColor = intersectingNodes.every(n => n.classList.contains(colorClass));
 
-    // Toggle: if all highlighted, remove; otherwise add
     intersectingNodes.forEach(node => {
-      if (allHighlighted) {
-        // Remove highlight
-        node.classList.remove('ielts-highlight');
+      if (allHighlightedSameColor) {
+        // Toggle off
+        const classes = Array.from(node.classList).filter(c => c.startsWith('highlight-'));
+        node.classList.remove('ielts-highlight', ...classes);
         node.onclick = null;
       } else {
-        // Add highlight
-        if (!node.classList.contains('ielts-highlight')) {
-          node.classList.add('ielts-highlight');
-          node.onclick = (e) => {
-            e.stopPropagation();
-            e.target.classList.remove('ielts-highlight');
-            e.target.onclick = null;
-            triggerUpdate();
-          };
-        }
+        // Remove existing colors first
+        const classes = Array.from(node.classList).filter(c => c.startsWith('highlight-'));
+        node.classList.remove(...classes);
+        
+        node.classList.add('ielts-highlight', colorClass);
+        node.onclick = (e) => {
+          e.stopPropagation();
+          const cls = Array.from(e.target.classList).filter(c => c.startsWith('highlight-'));
+          e.target.classList.remove('ielts-highlight', ...cls);
+          e.target.onclick = null;
+          triggerUpdate();
+        };
       }
     });
 
     window.getSelection().removeAllRanges();
     setShowTooltip(false);
+    triggerUpdate();
+  };
+
+  const handleOpenNote = () => {
+    setNoteModal({
+      isOpen: true,
+      range: currentRange,
+      initialValue: '',
+      editNode: null
+    });
+    setShowTooltip(false);
+  };
+
+  const handleSaveNote = (text) => {
+    if (noteModal.editNode) {
+      if (!text.trim()) {
+        noteModal.editNode.remove();
+      } else {
+        noteModal.editNode.setAttribute('data-note', text);
+      }
+    } else if (noteModal.range && text.trim()) {
+      // Find the last intersecting node to place marker after
+      const node = noteModal.range.endContainer;
+      const target = node.nodeType === 3 ? node.parentElement : node;
+      
+      const marker = document.createElement('span');
+      marker.className = 'note-marker';
+      marker.setAttribute('data-note', text);
+      marker.textContent = '📝';
+      marker.onclick = (e) => {
+        e.stopPropagation();
+        setNoteModal({
+          isOpen: true,
+          range: null,
+          initialValue: marker.getAttribute('data-note') || '',
+          editNode: marker
+        });
+      };
+      
+      // Insert after the selection
+      if (noteModal.range.endContainer.nodeType === 3) {
+        const span = document.createElement('span');
+        noteModal.range.surroundContents(span); // This might be risky if range crosses elements
+        span.after(marker);
+      } else {
+        noteModal.range.endContainer.appendChild(marker);
+      }
+    }
+    
+    setNoteModal({ isOpen: false, range: null, initialValue: '', editNode: null });
+    window.getSelection().removeAllRanges();
     triggerUpdate();
   };
 
@@ -210,41 +313,62 @@ export default function HighlightableContent({ htmlContent, onUpdateHtml, id, ta
       style={{ position: 'relative', display: displayStyle }}
     >
       {showTooltip && (
-        <button
-          type="button"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            applyHighlight();
-          }}
+        <div
+          className="highlight-tooltip"
           style={{
             position: 'absolute',
             top: tooltipPos.y,
             left: tooltipPos.x,
             transform: 'translateX(-50%)',
             zIndex: 1000,
-            background: '#334155',
-            color: 'white',
-            border: 'none',
-            padding: '6px 12px',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontSize: '0.85rem',
-            fontWeight: '600',
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+            background: '#ffffff',
+            color: '#334155',
+            border: '1px solid #e2e8f0',
+            padding: '6px',
+            borderRadius: '10px',
+            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
             display: 'flex',
             alignItems: 'center',
-            gap: '6px',
-            whiteSpace: 'nowrap'
+            gap: '8px',
+            animation: 'tooltipFadeIn 0.2s ease-out'
           }}
         >
-          <span style={{ background: '#fef08a', width: '12px', height: '12px', borderRadius: '2px', border: '1px solid #ffffff40' }}></span>
-          Highlight
-        </button>
+          <button type="button" className="color-dot yellow" onMouseDown={(e) => { e.preventDefault(); applyHighlight('highlight-yellow'); }} title="Yellow Highlight"></button>
+          <button type="button" className="color-dot pink" onMouseDown={(e) => { e.preventDefault(); applyHighlight('highlight-pink'); }} title="Pink Highlight"></button>
+          <button type="button" className="color-dot blue" onMouseDown={(e) => { e.preventDefault(); applyHighlight('highlight-blue'); }} title="Blue Highlight"></button>
+          <div style={{ width: '1px', height: '20px', background: '#e2e8f0' }}></div>
+          <button 
+            type="button" 
+            className="tooltip-action-btn"
+            onMouseDown={(e) => { e.preventDefault(); handleOpenNote(); }}
+            style={{ 
+              background: 'none', 
+              border: 'none', 
+              fontSize: '0.8rem', 
+              fontWeight: '700', 
+              color: '#3b82f6',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            📝 Note
+          </button>
+        </div>
       )}
       <Tag
         ref={containerRef}
         style={{ outline: 'none', display: displayStyle !== 'flow-root' ? 'inline' : 'block' }}
       />
+
+      <NoteModal
+        isOpen={noteModal.isOpen}
+        onClose={() => setNoteModal({ isOpen: false, range: null, initialValue: '', editNode: null })}
+        onSave={handleSaveNote}
+        initialValue={noteModal.initialValue}
+      />
+
     </div>
   );
 }
@@ -255,22 +379,39 @@ export function HighlightableWrapper({ children, onUpdateHtml, className = '', t
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [currentRange, setCurrentRange] = useState(null);
+  const [noteModal, setNoteModal] = useState({ isOpen: false, range: null, initialValue: '', editNode: null });
 
   const attachClickListeners = () => {
     if (!containerRef.current) return;
+    
+    // Highlights
     const highlights = containerRef.current.querySelectorAll('.ielts-highlight');
     highlights.forEach(node => {
       node.onclick = (e) => {
         e.stopPropagation();
-        node.classList.remove('ielts-highlight');
-        node.style.backgroundColor = '';
+        const classes = Array.from(node.classList).filter(c => c.startsWith('highlight-'));
+        node.classList.remove('ielts-highlight', ...classes);
         node.onclick = null;
         triggerUpdate();
       };
     });
+
+    // Notes
+    const notes = containerRef.current.querySelectorAll('.note-marker');
+    notes.forEach(node => {
+      node.onclick = (e) => {
+        e.stopPropagation();
+        setNoteModal({
+          isOpen: true,
+          range: null,
+          initialValue: node.getAttribute('data-note') || '',
+          editNode: node
+        });
+      };
+    });
   };
 
-  // Re-attach listeners whenever children update (implying re-render)
+  // Re-attach listeners whenever children update
   useEffect(() => {
     attachClickListeners();
   });
@@ -294,22 +435,20 @@ export function HighlightableWrapper({ children, onUpdateHtml, className = '', t
       return;
     }
 
-    // Position tooltip
     const rect = range.getBoundingClientRect();
     const wrapperRect = wrapperRef.current ? wrapperRef.current.getBoundingClientRect() : { top: 0, left: 0 };
     setTooltipPos({
       x: rect.left - wrapperRect.left + (rect.width / 2),
-      y: rect.top - wrapperRect.top - 40
+      y: rect.top - wrapperRect.top - 50
     });
 
     setCurrentRange(range);
     setShowTooltip(true);
   };
 
-  const applyHighlight = () => {
+  const applyHighlight = (colorClass) => {
     if (!containerRef.current || !currentRange) return;
 
-    // Find all token nodes intersecting the selection
     const iterator = document.createNodeIterator(
       containerRef.current,
       NodeFilter.SHOW_ELEMENT,
@@ -334,31 +473,71 @@ export function HighlightableWrapper({ children, onUpdateHtml, className = '', t
       return;
     }
 
-    // Check if ALL intersecting nodes are already highlighted
-    const allHighlighted = intersectingNodes.every(n => n.classList.contains('ielts-highlight'));
+    const allHighlightedSameColor = intersectingNodes.every(n => n.classList.contains(colorClass));
 
-    // Toggle: if all highlighted, remove; otherwise add
     intersectingNodes.forEach(node => {
-      if (allHighlighted) {
-        // Remove highlight
-        node.classList.remove('ielts-highlight');
+      if (allHighlightedSameColor) {
+        const classes = Array.from(node.classList).filter(c => c.startsWith('highlight-'));
+        node.classList.remove('ielts-highlight', ...classes);
         node.onclick = null;
       } else {
-        // Add highlight
-        if (!node.classList.contains('ielts-highlight')) {
-          node.classList.add('ielts-highlight');
-          node.onclick = (e) => {
-            e.stopPropagation();
-            e.target.classList.remove('ielts-highlight');
-            e.target.onclick = null;
-            triggerUpdate();
-          };
-        }
+        const classes = Array.from(node.classList).filter(c => c.startsWith('highlight-'));
+        node.classList.remove(...classes);
+        node.classList.add('ielts-highlight', colorClass);
+        node.onclick = (e) => {
+          e.stopPropagation();
+          const cls = Array.from(e.target.classList).filter(c => c.startsWith('highlight-'));
+          e.target.classList.remove('ielts-highlight', ...cls);
+          e.target.onclick = null;
+          triggerUpdate();
+        };
       }
     });
 
     window.getSelection().removeAllRanges();
     setShowTooltip(false);
+    triggerUpdate();
+  };
+
+  const handleOpenNote = () => {
+    setNoteModal({
+      isOpen: true,
+      range: currentRange,
+      initialValue: '',
+      editNode: null
+    });
+    setShowTooltip(false);
+  };
+
+  const handleSaveNote = (text) => {
+    if (noteModal.editNode) {
+      if (!text.trim()) {
+        noteModal.editNode.remove();
+      } else {
+        noteModal.editNode.setAttribute('data-note', text);
+      }
+    } else if (noteModal.range && text.trim()) {
+      const marker = document.createElement('span');
+      marker.className = 'note-marker';
+      marker.setAttribute('data-note', text);
+      marker.textContent = '📝';
+      marker.onclick = (e) => {
+        e.stopPropagation();
+        setNoteModal({ isOpen: true, range: null, initialValue: marker.getAttribute('data-note') || '', editNode: marker });
+      };
+      
+      const node = noteModal.range.endContainer;
+      if (node.nodeType === 3) {
+          const span = document.createElement('span');
+          noteModal.range.surroundContents(span);
+          span.after(marker);
+      } else {
+          node.appendChild(marker);
+      }
+    }
+    
+    setNoteModal({ isOpen: false, range: null, initialValue: '', editNode: null });
+    window.getSelection().removeAllRanges();
     triggerUpdate();
   };
 
@@ -373,36 +552,39 @@ export function HighlightableWrapper({ children, onUpdateHtml, className = '', t
       style={{ position: 'relative', display: displayStyle, ...style }}
     >
       {showTooltip && (
-        <button
-          type="button"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            applyHighlight();
-          }}
+        <div
+          className="highlight-tooltip"
           style={{
             position: 'absolute',
             top: tooltipPos.y,
             left: tooltipPos.x,
             transform: 'translateX(-50%)',
             zIndex: 1000,
-            background: '#334155',
-            color: 'white',
-            border: 'none',
-            padding: '6px 12px',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontSize: '0.85rem',
-            fontWeight: '600',
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+            background: '#ffffff',
+            color: '#334155',
+            border: '1px solid #e2e8f0',
+            padding: '6px',
+            borderRadius: '10px',
+            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
             display: 'flex',
             alignItems: 'center',
-            gap: '6px',
-            whiteSpace: 'nowrap'
+            gap: '8px',
+            animation: 'tooltipFadeIn 0.2s ease-out'
           }}
         >
-          <span style={{ background: '#fef08a', width: '12px', height: '12px', borderRadius: '2px', border: '1px solid #ffffff40' }}></span>
-          Highlight
-        </button>
+          <button type="button" className="color-dot yellow" onMouseDown={(e) => { e.preventDefault(); applyHighlight('highlight-yellow'); }} title="Yellow Highlight"></button>
+          <button type="button" className="color-dot pink" onMouseDown={(e) => { e.preventDefault(); applyHighlight('highlight-pink'); }} title="Pink Highlight"></button>
+          <button type="button" className="color-dot blue" onMouseDown={(e) => { e.preventDefault(); applyHighlight('highlight-blue'); }} title="Blue Highlight"></button>
+          <div style={{ width: '1px', height: '20px', background: '#e2e8f0' }}></div>
+          <button 
+            type="button" 
+            className="tooltip-action-btn"
+            onMouseDown={(e) => { e.preventDefault(); handleOpenNote(); }}
+            style={{ background: 'none', border: 'none', fontSize: '0.8rem', fontWeight: '700', color: '#3b82f6', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+          >
+            📝 Note
+          </button>
+        </div>
       )}
       <Tag
         ref={containerRef}
@@ -411,6 +593,14 @@ export function HighlightableWrapper({ children, onUpdateHtml, className = '', t
       >
         {children}
       </Tag>
+
+      <NoteModal
+        isOpen={noteModal.isOpen}
+        onClose={() => setNoteModal({ isOpen: false, range: null, initialValue: '', editNode: null })}
+        onSave={handleSaveNote}
+        initialValue={noteModal.initialValue}
+      />
     </div>
   );
 }
+
