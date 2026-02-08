@@ -5,6 +5,7 @@ import IdeationPhase from './IdeationPhase';
 import ScaffoldingPhase from './ScaffoldingPhase';
 import WritingPhase from './WritingPhase';
 import ResultPhase from './ResultPhase';
+import WritingScoreDashboard from './WritingScoreDashboard';
 import './Practice.css';
 
 const PracticeFlow = () => {
@@ -109,10 +110,27 @@ const PracticeFlow = () => {
                 )}
 
                 {step === 4 && (
-                    <ResultPhase
-                        result={gradingResult}
-                        onRestart={() => window.location.reload()}
-                    />
+                    gradingResult && gradingResult.gradingMode === 'standard' ? (
+                        <div className="standard-success-container">
+                            <div className="success-message">
+                                <h2><span role="img" aria-label="check">✅</span> Essay Submitted!</h2>
+                                <p>Your essay has been saved. Keep practicing!</p>
+                                <button className="btn-primary" onClick={() => window.location.reload()}>Start New Session</button>
+                            </div>
+                        </div>
+                    ) : (
+                        gradingResult && gradingResult.band_score ? (
+                            <WritingScoreDashboard
+                                result={{ ...gradingResult, fullEssay: gradingResult.fullEssay || outline?.fullEssay }}
+                                onRestart={() => window.location.reload()}
+                            />
+                        ) : (
+                            <ResultPhase
+                                result={gradingResult}
+                                onRestart={() => window.location.reload()}
+                            />
+                        )
+                    )
                 )}
             </div>
         </div>

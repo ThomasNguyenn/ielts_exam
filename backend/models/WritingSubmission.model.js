@@ -25,6 +25,10 @@ const WritingSubmissionSchema = new mongoose.Schema({
   }],
   score: { type: Number }, // Overall band score
 
+  // AI Grading results (stored as the full JSON from OpenAI)
+  ai_result: { type: mongoose.Schema.Types.Mixed },
+  is_ai_graded: { type: Boolean, default: false },
+
   // Metadata
   submitted_at: { type: Date, default: Date.now },
   status: {

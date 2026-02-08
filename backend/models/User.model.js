@@ -33,6 +33,8 @@ const userSchema = new mongoose.Schema({
     writing: { type: Number, default: 0 },
     speaking: { type: Number, default: 0 },
   },
+  xp: { type: Number, default: 0 },
+  level: { type: Number, default: 1 },
   createdAt: {
     type: Date,
     default: Date.now,

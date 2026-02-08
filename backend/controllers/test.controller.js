@@ -8,6 +8,7 @@ export const getAllTests = async (req, res) => {
         const tests = await Test.find({})
             .populate('reading_passages', 'title')
             .populate('listening_sections', 'title')
+            .populate('writing_tasks', 'title')
             .lean();
         res.status(200).json({ success: true, data: tests });
     } catch (error) {
@@ -297,13 +298,38 @@ function stripForWritingExam(item) {
 export const getExamData = async (req, res) => {
     const { id } = req.params;
     try {
-        const test = await Test.findById(id)
+        let test = await Test.findById(id)
             .populate('reading_passages')
             .populate('listening_sections')
             .populate('writing_tasks')
             .lean();
+
         if (!test) {
-            return res.status(404).json({ success: false, message: "Test not found" });
+            // Fallback: Maybe it's a standalone Writing task ID?
+            const Writing = (await import("../models/Writing.model.js")).default;
+            const writingTask = await Writing.findById(id).lean();
+            if (writingTask) {
+                return res.status(200).json({
+                    success: true,
+                    data: {
+                        testId: writingTask._id,
+                        title: writingTask.title,
+                        type: 'writing',
+                        is_real_test: writingTask.is_real_test || false,
+                        duration: writingTask.time_limit || 60,
+                        reading: [],
+                        listening: [],
+                        writing: [{
+                            _id: writingTask._id,
+                            title: writingTask.title,
+                            prompt: writingTask.prompt,
+                            image_url: writingTask.image_url,
+                            task_type: writingTask.task_type
+                        }],
+                    },
+                });
+            }
+            return res.status(404).json({ success: false, message: "Test or Writing task not found" });
         }
         const examType = test.type || 'reading';
         const reading = examType === 'reading'
@@ -428,16 +454,22 @@ export const submitExam = async (req, res) => {
                 };
             }).filter(w => w.answer_text.trim()); // Only save non-empty answers
 
-            if (writingAnswers.length > 0 && shouldSave) {
-                await WritingSubmission.create({
+            // We must save writing submission if it's a writing test, even if it's practice mode, 
+            // because AI scoring needs a submission ID.
+            if (writingAnswers.length > 0) {
+                // If it's practice, we might not have attemptId, but we still need a submission.
+                // WE MUST CREATE IT.
+                const submission = await WritingSubmission.create({
                     test_id: id,
                     writing_answers: writingAnswers,
                     status: 'pending',
                     user_id: userId,
-                    attempt_id: attemptId,
+                    attempt_id: shouldSave ? attemptId : null, // Only link if attempt is saved
                     student_name: studentName,
                     student_email: studentEmail
                 });
+                // Expose the submission ID for frontend redirect
+                res.locals.writingSubmissionId = submission._id;
             }
         }
 
@@ -508,6 +540,7 @@ export const submitExam = async (req, res) => {
         const writingCount = examType === 'writing' ? (test.writing_tasks || []).length : 0;
 
         // Store attempt for logged-in users (if not practice mode)
+        let xpResult = null;
         if (shouldSave) {
             const isWriting = examType === 'writing';
             await TestAttempt.create({
@@ -537,6 +570,10 @@ export const submitExam = async (req, res) => {
                     await WritingSubmission.deleteMany({ attempt_id: { $in: toDelete } });
                 }
             }
+
+            // Award XP
+            const { addXP, XP_TEST_COMPLETION } = await import("../services/gamification.service.js");
+            xpResult = await addXP(userId, XP_TEST_COMPLETION);
         }
 
         res.status(200).json({
@@ -549,10 +586,13 @@ export const submitExam = async (req, res) => {
                 readingTotal,
                 listeningScore,
                 listeningTotal,
+                listeningTotal,
                 writingCount,
                 question_review: questionReview,
                 timeTaken: typeof timeTaken === 'number' ? timeTaken : 0,
                 writing_answers: examType === 'writing' ? writing : [],
+                xpResult, // Return XP gain info
+                writingSubmissionId: res.locals.writingSubmissionId || null, // Return submission ID for AI redirect
             },
         });
     } catch (error) {

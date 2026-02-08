@@ -9,9 +9,43 @@ const calculateOverall = (targets) => {
     return Math.round(avg * 2) / 2;
 };
 
+import LevelProgress from '../components/LevelProgress';
+
+
+
+// Logic to calculate progress to next level (Replicating backend)
+const calculateLevelProgress = (xp) => {
+    let level = 1;
+    let xpForNextLevel = 500;
+    let gap = 500;
+    let prevLevelXP = 0;
+
+    while (xp >= xpForNextLevel) {
+        prevLevelXP = xpForNextLevel;
+        level++;
+        gap += 250;
+        xpForNextLevel += gap;
+    }
+
+    const currentLevelXP = xp - prevLevelXP;
+    const requiredXP = xpForNextLevel - prevLevelXP;
+    const progress = Math.min(100, Math.max(0, (currentLevelXP / requiredXP) * 100));
+
+    return {
+        level,
+        progress,
+        currentLevelXP: Math.floor(currentLevelXP),
+        requiredXP: Math.floor(requiredXP),
+        totalXP: xp
+    };
+};
+
 export default function Profile() {
+
     const [profile, setProfile] = useState({
         name: '',
+        xp: 0,
+        level: 1,
         targets: {
             listening: 0,
             reading: 0,
@@ -33,12 +67,16 @@ export default function Profile() {
         }
     }, []);
 
+
     const fetchProfile = async () => {
         try {
             const res = await api.getProfile();
             if (res.success) {
                 setProfile({
                     name: res.data.name,
+                    xp: res.data.xp || 0,
+                    level: res.data.level || 1,
+                    role: res.data.role, // Capture role
                     targets: {
                         listening: res.data.targets?.listening || 0,
                         reading: res.data.targets?.reading || 0,
@@ -87,14 +125,52 @@ export default function Profile() {
         }
     };
 
+
+
     const overallScore = calculateOverall(profile.targets);
+
+    // Calculate level stats
+    const levelStats = calculateLevelProgress(profile.xp || 0);
+    // Override for Admin
+    if (profile.role === 'admin') {
+        levelStats.level = 100;
+        levelStats.progress = 100;
+        levelStats.currentLevelXP = "MAX";
+        levelStats.requiredXP = "MAX";
+    }
 
     if (loading) return <div className="page p-4">Loading...</div>;
 
     return (
         <div className="profile-page">
-            <div className="profile-header">
-                <h1>Welcome back, {profile.name}</h1>
+            <div className="profile-header-card">
+                <div className="profile-avatar-section">
+                    {/* Use LevelProgress's icon logic or a big avatar */}
+                    <div className="profile-big-avatar">
+                        <LevelProgress user={{ ...profile, level: levelStats.level, xp: profile.xp }} />
+                    </div>
+                    <div className="profile-info-main">
+                        <h1>{profile.name}</h1>
+                        <span className="profile-role-badge">{profile.role === 'admin' ? 'Administrator' : 'Student'}</span>
+                    </div>
+                </div>
+
+                <div className="profile-gamification-stats">
+                    <div className="xp-progress-container">
+                        <div className="xp-info-row">
+                            <span className="current-level-label">Level {levelStats.level}</span>
+                            <span className="xp-values">{levelStats.currentLevelXP} / {levelStats.requiredXP} XP</span>
+                        </div>
+                        <div className="xp-progress-bar-bg">
+                            <div className="xp-progress-bar-fill" style={{ width: `${levelStats.progress}%` }}></div>
+                        </div>
+                        <div className="next-level-hint">
+                            {profile.role !== 'admin' && (
+                                <span>{levelStats.requiredXP - levelStats.currentLevelXP} XP to Level {levelStats.level + 1}</span>
+                            )}
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div className="section-title">
@@ -106,6 +182,7 @@ export default function Profile() {
                 Mục tiêu của bạn
             </div>
 
+            {/* ... (Existing error and form code ) */}
             {error && <div style={{ color: 'red', marginBottom: '1rem' }}>{error}</div>}
 
             {!isEditing ? (
@@ -114,6 +191,7 @@ export default function Profile() {
                     <div className="score-card overall">
                         <div className="card-header">
                             <span className="card-label">Overall score</span>
+                            {/* Edit button */}
                             {api.isAuthenticated() && (
                                 <button className="edit-btn" onClick={() => setIsEditing(true)} title="Edit Targets">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -136,6 +214,7 @@ export default function Profile() {
                 </div>
             ) : (
                 <div className="edit-container">
+                    {/* ... (Existing form content) */}
                     <h3 style={{ marginBottom: '1.5rem', fontWeight: 600 }}>Edit Targets</h3>
                     <form onSubmit={handleSubmit}>
                         <div className="form-group" style={{ marginBottom: '1.5rem' }}>

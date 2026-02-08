@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../../api/client';
 import './Manage.css';
+import { useNotification } from '../../components/NotificationContext';
+
+// ... (Icons and Helper Functions remain unchanged) ...
 
 const Icons = {
   Writing: () => (
@@ -84,12 +87,12 @@ function passageToForm(p) {
 
 export default function AddPassage() {
   const { id: editId } = useParams();
+  const { showNotification } = useNotification();
   const [passages, setPassages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
   const [existingSearch, setExistingSearch] = useState('');
 
   const [form, setForm] = useState({
@@ -114,7 +117,6 @@ export default function AddPassage() {
       return next;
     });
   };
-
   const toggleQuestionCollapse = (groupIndex, questionIndex) => {
     const key = `${groupIndex}-${questionIndex}`;
     setCollapsedQuestions(prev => {
@@ -135,7 +137,10 @@ export default function AddPassage() {
       api
         .getPassageById(editId)
         .then((res) => setForm(passageToForm(res.data)))
-        .catch((err) => setLoadError(err.message))
+        .catch((err) => {
+          setLoadError(err.message);
+          showNotification('Lỗi tải bài đọc: ' + err.message, 'error');
+        })
         .finally(() => setLoading(false));
     } else {
       setLoading(false);
@@ -144,8 +149,9 @@ export default function AddPassage() {
   }, [editId]);
 
   useEffect(() => {
+    // Refresh list on mount
     api.getPassages().then((res) => setPassages(res.data || [])).catch(() => setPassages([]));
-  }, [success, editId]);
+  }, [editId]);
 
   const updateForm = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -159,6 +165,8 @@ export default function AddPassage() {
   };
 
   const filteredPassages = passages.filter((p) => matchSearch(p, existingSearch));
+
+  // ... (Update handlers: updateQuestionGroup, getNextQuestionNumber, addQuestionGroup, removeQuestionGroup, moveGroup, updateQuestion, addQuestion, removeQuestion, setQuestionOption, setCorrectAnswers, addHeading, removeHeading, updateHeading, addOption, removeOption, updateOption) ...
 
   const updateQuestionGroup = (groupIndex, key, value) => {
     setForm((prev) => ({
@@ -361,20 +369,21 @@ export default function AddPassage() {
     if (!window.confirm('Delete this passage? This cannot be undone.')) return;
     try {
       await api.deletePassage(passageId);
-      setSuccess('Passage deleted.');
+      showNotification('Passage deleted.', 'success');
       const res = await api.getPassages();
       setPassages(res.data || []);
     } catch (err) {
       setError(err.message);
+      showNotification('Error deleting passage: ' + err.message, 'error');
     }
   };
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
-    setSuccess(null);
     if (!form._id.trim() || !form.title.trim() || !form.content.trim()) {
-      setError('ID, title and content are required.');
+      showNotification('ID, title and content are required.', 'error');
       return;
     }
     setSubmitLoading(true);
@@ -405,14 +414,15 @@ export default function AddPassage() {
       };
       if (editId) {
         await api.updatePassage(editId, payload);
-        setSuccess('Passage updated.');
+        showNotification('Passage updated successfully.', 'success');
       } else {
         await api.createPassage(payload);
-        setSuccess('Passage created.');
+        showNotification('Passage created successfully.', 'success');
         setForm({ _id: `passage-${Date.now()}`, title: '', content: '', source: '', question_groups: [emptyQuestionGroup()] });
       }
     } catch (err) {
       setError(err.message);
+      showNotification(err.message, 'error');
     } finally {
       setSubmitLoading(false);
     }
@@ -425,13 +435,12 @@ export default function AddPassage() {
     <div className="manage-container">
       <h1>{editId ? 'Sửa bài Reading' : 'Thêm bài Reading'}</h1>
       {error && <p className="form-error">{error}</p>}
-      {success && <p className="form-success">{success}</p>}
 
       <form onSubmit={handleSubmit} className="manage-form">
         <div className="form-row">
           <label>Mã bài đọc (ID) *</label>
           <input value={form._id} onChange={(e) => updateForm('_id', e.target.value)} required readOnly={!!editId} placeholder="e.g. passage-1" />
-        </div>
+        </div >
         <div className="form-row">
           <label>Tiêu đề *</label>
           <input value={form.title} onChange={(e) => updateForm('title', e.target.value)} required placeholder="Tiêu đề bài đọc" />
@@ -446,154 +455,208 @@ export default function AddPassage() {
         </div>
 
         <h3 style={{ color: '#d03939', marginTop: '2rem' }}>Các nhóm câu hỏi</h3>
-        {form.question_groups.map((group, gi) => {
-          const isGroupCollapsed = collapsedGroups.has(gi);
-          return (
-            <div key={gi} className="question-group-block">
-              <div className="group-header" onClick={() => toggleGroupCollapse(gi)} style={{ padding: '0.5rem 0.3rem', borderRadius: '0.5rem' }} >
-                <div className="group-title p-4">
-                  <Icons.Writing /> Question Group {gi + 1} ({group.type})
-                </div>
-                <div className="item-actions">
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); moveGroup(gi, -1); }} disabled={gi === 0}>▲</button>
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); moveGroup(gi, 1); }} disabled={gi === form.question_groups.length - 1}>▼</button>
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); removeQuestionGroup(gi); }} disabled={form.question_groups.length <= 1} style={{ color: '#ef4444', fontWeight: 700 }}>Xóa nhóm</button>
-                  <span style={{ marginLeft: '0.5rem', opacity: 0.5 }}>{isGroupCollapsed ? '▼' : '▲'}</span>
-                </div>
-              </div>
-              {!isGroupCollapsed && (
-                <div className="group-content">
-                  <div className="form-row">
-                    <label>Loại câu hỏi</label>
-                    <select value={group.type} onChange={(e) => updateQuestionGroup(gi, 'type', e.target.value)}>
-                      {QUESTION_GROUP_TYPES.map((opt) => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                      ))}
-                    </select>
+        {
+          form.question_groups.map((group, gi) => {
+            const isGroupCollapsed = collapsedGroups.has(gi);
+            return (
+              <div key={gi} className="question-group-block">
+                <div className="group-header" onClick={() => toggleGroupCollapse(gi)} style={{ padding: '0.5rem 0.3rem', borderRadius: '0.5rem' }} >
+                  <div className="group-title p-4">
+                    <Icons.Writing /> Question Group {gi + 1} ({group.type})
                   </div>
-                  <div className="form-row">
-                    <label>Hướng dẫn (Instructions)</label>
-                    <textarea value={group.instructions} onChange={(e) => updateQuestionGroup(gi, 'instructions', e.target.value)} rows={2} />
+                  <div className="item-actions">
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); moveGroup(gi, -1); }} disabled={gi === 0}>▲</button>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); moveGroup(gi, 1); }} disabled={gi === form.question_groups.length - 1}>▼</button>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); removeQuestionGroup(gi); }} disabled={form.question_groups.length <= 1} style={{ color: '#ef4444', fontWeight: 700 }}>Xóa nhóm</button>
+                    <span style={{ marginLeft: '0.5rem', opacity: 0.5 }}>{isGroupCollapsed ? '▼' : '▲'}</span>
                   </div>
-
-                  {(group.type === 'summary_completion' || group.type === 'gap_fill') && (
+                </div>
+                {!isGroupCollapsed && (
+                  <div className="group-content">
                     <div className="form-row">
-                      <label>Nội dung đoạn văn có lỗ hổng (Ví dụ: [1], [2])</label>
-                      <textarea value={group.text} onChange={(e) => updateQuestionGroup(gi, 'text', e.target.value)} rows={4} />
+                      <label>Loại câu hỏi</label>
+                      <select value={group.type} onChange={(e) => updateQuestionGroup(gi, 'type', e.target.value)}>
+                        {QUESTION_GROUP_TYPES.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
                     </div>
-                  )}
-
-                  {(group.type === 'matching_headings' || group.type === 'matching_features') && (
-                    <div className="form-section">
-                      <h4>{group.type === 'matching_headings' ? 'Danh sách Headings' : 'Danh sách Features'}</h4>
-                      <p className="form-hint">Thêm các lựa chọn để học viên nối. Đáp án đúng của mỗi câu hỏi sẽ là ID (ví dụ: i, ii, iii hoặc A, B, C).</p>
-                      {(group.headings || []).map((h, hi) => (
-                        <div key={hi} className="heading-row">
-                          <input
-                            value={h.id}
-                            onChange={(e) => updateHeading(gi, hi, 'id', e.target.value)}
-                            placeholder="ID"
-                            className="heading-id"
-                          />
-                          <textarea
-                            value={h.text}
-                            onChange={(e) => updateHeading(gi, hi, 'text', e.target.value)}
-                            placeholder="Nội dung heading hoặc feature..."
-                            className="heading-text"
-                            rows={1}
-                            onInput={(e) => {
-                              e.target.style.height = 'auto';
-                              e.target.style.height = e.target.scrollHeight + 'px';
-                            }}
-                          />
-                          <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeHeading(gi, hi)} style={{ color: '#ef4444' }}>Xóa</button>
-                        </div>
-                      ))}
-                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => addHeading(gi)}>+ Thêm hàng mới</button>
+                    <div className="form-row">
+                      <label>Hướng dẫn (Instructions)</label>
+                      <textarea value={group.instructions} onChange={(e) => updateQuestionGroup(gi, 'instructions', e.target.value)} rows={2} />
                     </div>
-                  )}
 
-                  {group.type === 'summary_completion' && (
-                    <div className="form-section">
-                      <h4>Danh sách lựa chọn (Options)</h4>
-                      <p className="form-hint">Nếu bài điền từ có danh sách từ cho sẵn, hãy thêm ở đây.</p>
-                      {(group.options || []).map((o, oi) => (
-                        <div key={oi} className="heading-row">
-                          <input
-                            value={o.id}
-                            onChange={(e) => updateOption(gi, oi, 'id', e.target.value)}
-                            placeholder="ID"
-                            className="heading-id"
-                          />
-                          <textarea
-                            value={o.text}
-                            onChange={(e) => updateOption(gi, oi, 'text', e.target.value)}
-                            placeholder="Nội dung lựa chọn..."
-                            className="heading-text"
-                            rows={1}
-                            onInput={(e) => {
-                              e.target.style.height = 'auto';
-                              e.target.style.height = e.target.scrollHeight + 'px';
-                            }}
-                          />
-                          <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeOption(gi, oi)} style={{ color: '#ef4444' }}>Xóa</button>
-                        </div>
-                      ))}
-                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => addOption(gi)}>+ Thêm lựa chọn</button>
-                    </div>
-                  )}
-
-                  {group.questions.map((q, qi) => {
-                    const isQuestionCollapsed = collapsedQuestions.has(`${gi}-${qi}`);
-                    return (
-                      <div key={qi} className="question-block" style={{ border: '1px solid #fdf4e3', background: '#FFF9F1', padding: '1rem', borderRadius: '1rem', marginBottom: '1.5rem' }}>
-                        <div className="group-header" onClick={() => toggleQuestionCollapse(gi, qi)} style={{ padding: '0.5rem 0.3rem', borderRadius: '0.5rem', background: 'transparent', borderBottom: 'none' }}>
-                          <span style={{ fontWeight: 800, color: '#d03939' }}>Câu {q.q_number}</span>
-                          <span style={{ opacity: 0.5 }}>{isQuestionCollapsed ? '▼' : '▲'}</span>
-                        </div>
-                        {!isQuestionCollapsed && (
-                          <div className="form-row">
-                            <label>Nội dung câu hỏi</label>
-                            <textarea value={q.text} onChange={(e) => updateQuestion(gi, qi, 'text', e.target.value)} rows={2} placeholder="Nhập câu hỏi..." />
-
-                            {(group.type === 'mult_choice' || group.type === 'true_false_notgiven') && (
-                              <div style={{ marginTop: '1rem', marginBottom: '1rem' }}>
-                                <label style={{ color: '#64748b', fontSize: '0.8rem', textTransform: 'uppercase' }}>Các lựa chọn (Options)</label>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem', marginTop: '0.5rem' }}>
-                                  {(q.option || []).map((o, oi) => (
-                                    <div key={o.label} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                      <span style={{ fontWeight: 800, color: '#d03939', width: '25px' }}>{o.label}</span>
-                                      <input
-                                        value={o.text}
-                                        onChange={(e) => setQuestionOption(gi, qi, oi, e.target.value)}
-                                        placeholder={`Lựa chọn ${o.label}`}
-                                        style={{ background: '#ffffff' }}
-                                      />
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                            <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                              <label>Đáp án đúng (ngăn cách bởi dấu phẩy)</label>
-                              <input value={q.correct_answers.join(', ')} onChange={(e) => setCorrectAnswers(gi, qi, e.target.value)} placeholder="e.g. A hoặc Answer1, Answer2" style={{ background: '#ffffff' }} />
-                            </div>
-                            <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                              <label>Giải thích</label>
-                              <textarea value={q.explanation} onChange={(e) => updateQuestion(gi, qi, 'explanation', e.target.value)} rows={2} placeholder="Giải thích tại sao đây là đáp án đúng..." style={{ background: '#ffffff' }} />
-                            </div>
-                          </div>
-                        )}
-                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeQuestion(gi, qi)} style={{ color: '#ef4444', marginTop: '1rem', fontWeight: 700 }}>✕ Xóa câu hỏi</button>
+                    {(group.type === 'summary_completion' || group.type === 'gap_fill') && (
+                      <div className="form-row">
+                        <label>Nội dung đoạn văn có lỗ hổng (Ví dụ: [1], [2])</label>
+                        <textarea value={group.text} onChange={(e) => updateQuestionGroup(gi, 'text', e.target.value)} rows={4} />
                       </div>
-                    );
-                  })}
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => addQuestion(gi)}>+ Thêm câu hỏi</button>
-                </div>
-              )}
-            </div>
-          );
-        })}
+                    )}
+
+                    {(group.type === 'matching_headings' || group.type === 'matching_features') && (
+                      <div className="form-section">
+                        <h4>{group.type === 'matching_headings' ? 'Danh sách Headings' : 'Danh sách Features'}</h4>
+                        <p className="form-hint">Thêm các lựa chọn để học viên nối. Đáp án đúng của mỗi câu hỏi sẽ là ID (ví dụ: i, ii, iii hoặc A, B, C).</p>
+                        {(group.headings || []).map((h, hi) => (
+                          <div key={hi} className="heading-row">
+                            <input
+                              value={h.id}
+                              onChange={(e) => updateHeading(gi, hi, 'id', e.target.value)}
+                              placeholder="ID"
+                              className="heading-id"
+                            />
+                            <textarea
+                              value={h.text}
+                              onChange={(e) => updateHeading(gi, hi, 'text', e.target.value)}
+                              placeholder="Nội dung heading hoặc feature..."
+                              className="heading-text"
+                              rows={1}
+                              onInput={(e) => {
+                                e.target.style.height = 'auto';
+                                e.target.style.height = e.target.scrollHeight + 'px';
+                              }}
+                            />
+                            <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeHeading(gi, hi)} style={{ color: '#ef4444' }}>Xóa</button>
+                          </div>
+                        ))}
+                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => addHeading(gi)}>+ Thêm hàng mới</button>
+                      </div>
+                    )}
+
+                    {group.type === 'summary_completion' && (
+                      <div className="form-section">
+                        <h4>Danh sách lựa chọn (Options)</h4>
+                        <p className="form-hint">Nếu bài điền từ có danh sách từ cho sẵn, hãy thêm ở đây.</p>
+                        {(group.options || []).map((o, oi) => (
+                          <div key={oi} className="heading-row">
+                            <input
+                              value={o.id}
+                              onChange={(e) => updateOption(gi, oi, 'id', e.target.value)}
+                              placeholder="ID"
+                              className="heading-id"
+                            />
+                            <textarea
+                              value={o.text}
+                              onChange={(e) => updateOption(gi, oi, 'text', e.target.value)}
+                              placeholder="Nội dung lựa chọn..."
+                              className="heading-text"
+                              rows={1}
+                              onInput={(e) => {
+                                e.target.style.height = 'auto';
+                                e.target.style.height = e.target.scrollHeight + 'px';
+                              }}
+                            />
+                            <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeOption(gi, oi)} style={{ color: '#ef4444' }}>Xóa</button>
+                          </div>
+                        ))}
+                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => addOption(gi)}>+ Thêm lựa chọn</button>
+                      </div>
+                    )}
+
+                    {group.questions.map((q, qi) => {
+                      const isQuestionCollapsed = collapsedQuestions.has(`${gi}-${qi}`);
+                      return (
+                        <div key={qi} className="question-block" style={{ border: '1px solid #fdf4e3', background: '#FFF9F1', padding: '1rem', borderRadius: '1rem', marginBottom: '1.5rem' }}>
+                          <div className="group-header" onClick={() => toggleQuestionCollapse(gi, qi)} style={{ padding: '0.5rem 0.3rem', borderRadius: '0.5rem', background: 'transparent', borderBottom: 'none' }}>
+                            <span style={{ fontWeight: 800, color: '#d03939' }}>Câu {q.q_number}</span>
+                            <span style={{ opacity: 0.5 }}>{isQuestionCollapsed ? '▼' : '▲'}</span>
+                          </div>
+                          {!isQuestionCollapsed && (
+                            <div className="form-row">
+                              <label>Nội dung câu hỏi</label>
+                              <textarea value={q.text} onChange={(e) => updateQuestion(gi, qi, 'text', e.target.value)} rows={2} placeholder="Nhập câu hỏi..." />
+
+                              {(group.type === 'mult_choice' || group.type === 'true_false_notgiven') && (
+                                <div style={{ marginTop: '1rem', marginBottom: '1rem' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                                    <label style={{ color: '#64748b', fontSize: '0.8rem', textTransform: 'uppercase' }}>Các lựa chọn (Options)</label>
+
+                                    {group.type === 'true_false_notgiven' && (
+                                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                        <button
+                                          type="button"
+                                          className="btn btn-ghost btn-xs"
+                                          style={{ fontSize: '0.7rem', border: '1px solid #ccc' }}
+                                          onClick={() => {
+                                            // Auto fill TRUE / FALSE / NOT GIVEN
+                                            const opts = [
+                                              { label: 'A', text: 'TRUE' },
+                                              { label: 'B', text: 'FALSE' },
+                                              { label: 'C', text: 'NOT GIVEN' },
+                                              { label: 'D', text: '' } // Leave D empty
+                                            ];
+                                            // Update THIS question
+                                            const newOptions = q.option.map(o => {
+                                              const hit = opts.find(x => x.label === o.label);
+                                              return hit ? { ...o, text: hit.text } : o;
+                                            });
+                                            updateQuestion(gi, qi, 'option', newOptions);
+                                          }}
+                                        >
+                                          Auto: TRUE/FALSE...
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="btn btn-ghost btn-xs"
+                                          style={{ fontSize: '0.7rem', border: '1px solid #ccc' }}
+                                          onClick={() => {
+                                            // Auto fill YES / NO / NOT GIVEN
+                                            const opts = [
+                                              { label: 'A', text: 'YES' },
+                                              { label: 'B', text: 'NO' },
+                                              { label: 'C', text: 'NOT GIVEN' },
+                                              { label: 'D', text: '' }
+                                            ];
+                                            // Update THIS question
+                                            const newOptions = q.option.map(o => {
+                                              const hit = opts.find(x => x.label === o.label);
+                                              return hit ? { ...o, text: hit.text } : o;
+                                            });
+                                            updateQuestion(gi, qi, 'option', newOptions);
+                                          }}
+                                        >
+                                          Auto: YES/NO...
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem', marginTop: '0.5rem' }}>
+                                    {(q.option || []).map((o, oi) => (
+                                      <div key={o.label} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                        <span style={{ fontWeight: 800, color: '#d03939', width: '25px' }}>{o.label}</span>
+                                        <input
+                                          value={o.text}
+                                          onChange={(e) => setQuestionOption(gi, qi, oi, e.target.value)}
+                                          placeholder={`Lựa chọn ${o.label}`}
+                                          style={{ background: '#ffffff' }}
+                                        />
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                <label>Đáp án đúng (ngăn cách bởi dấu phẩy)</label>
+                                <input value={q.correct_answers.join(', ')} onChange={(e) => setCorrectAnswers(gi, qi, e.target.value)} placeholder="e.g. A hoặc Answer1, Answer2" style={{ background: '#ffffff' }} />
+                              </div>
+                              <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                <label>Giải thích</label>
+                                <textarea value={q.explanation} onChange={(e) => updateQuestion(gi, qi, 'explanation', e.target.value)} rows={2} placeholder="Giải thích tại sao đây là đáp án đúng..." style={{ background: '#ffffff' }} />
+                              </div>
+                            </div>
+                          )}
+                          <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeQuestion(gi, qi)} style={{ color: '#ef4444', marginTop: '1rem', fontWeight: 700 }}>✕ Xóa câu hỏi</button>
+                        </div>
+                      );
+                    })}
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => addQuestion(gi)}>+ Thêm câu hỏi</button>
+                  </div>
+                )}
+              </div>
+            );
+          })
+        }
         <button type="button" className="btn-manage-add" onClick={addQuestionGroup}>+ Thêm nhóm câu hỏi</button>
 
         <div className="form-section">
@@ -601,7 +664,7 @@ export default function AddPassage() {
             {submitLoading ? 'Đang lưu...' : (editId ? 'Cập nhật bài đọc' : 'Tạo bài đọc mới')}
           </button>
         </div>
-      </form>
+      </form >
 
       <div className="search-container" style={{ marginTop: '4rem', paddingTop: '3rem', borderTop: '2px solid #FFF9F1' }}>
         <h3 style={{ color: '#d03939' }}>Danh sách bài Reading hiện có</h3>
@@ -612,18 +675,22 @@ export default function AddPassage() {
                 <input type="search" value={existingSearch} onChange={(e) => setExistingSearch(e.target.value)} placeholder="Tìm kiếm bài đọc..." className="test-search-input" />
               </div>
               <div className="manage-list">
-                {filteredPassages.map((p) => (
-                  <div key={p._id} className="list-item">
-                    <div className="item-info">
-                      <span className="item-title">{p.title}</span>
-                      <span className="item-meta">ID: {p._id}</span>
+                {filteredPassages
+                  .slice()
+                  .reverse()
+                  .filter((_, i) => existingSearch.trim() ? true : i < 5)
+                  .map((p) => (
+                    <div key={p._id} className="list-item">
+                      <div className="item-info">
+                        <span className="item-title">{p.title}</span>
+                        <span className="item-meta">ID: {p._id}</span>
+                      </div>
+                      <div className="item-actions">
+                        <Link to={`/manage/passages/${p._id}`} className="btn btn-ghost btn-sm">Sửa</Link>
+                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleDeletePassage(p._id)} style={{ color: '#ef4444' }}>Xóa</button>
+                      </div>
                     </div>
-                    <div className="item-actions">
-                      <Link to={`/manage/passages/${p._id}`} className="btn btn-ghost btn-sm">Sửa</Link>
-                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleDeletePassage(p._id)} style={{ color: '#ef4444' }}>Xóa</button>
-                    </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             </>
           )

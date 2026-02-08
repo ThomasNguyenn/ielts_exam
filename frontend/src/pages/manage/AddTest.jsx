@@ -430,23 +430,28 @@ export default function AddTest() {
                 Showing {filteredPassages.length} of {passages.length} passage{passages.length !== 1 ? 's' : ''}
               </p>
             )}
-            <div className="checkbox-group">
+            <div className="selection-grid">
               {passages.length === 0 ? (
                 <p className="muted">Chưa có bài đọc nào. Tạo bài đọc trước.</p>
               ) : filteredPassages.length === 0 ? (
                 <p className="muted">Không có bài đọc nào khớp với tìm kiếm của bạn.</p>
               ) : (
-                filteredPassages.map((p) => (
-                  <label key={p._id} className="checkbox-label p-2">
-                    <input
-                      type="checkbox"
-                      checked={form.reading_passages.includes(p._id)}
-                      onChange={() => togglePassage(p._id)}
-                    />
-                    <span>{p.title} </span>
-                    <code>{p._id}</code>
-                  </label>
-                ))
+                filteredPassages.map((p) => {
+                  const isSelected = form.reading_passages.includes(p._id);
+                  return (
+                    <div
+                      key={p._id}
+                      className={`selection-card ${isSelected ? 'selected' : ''}`}
+                      onClick={() => togglePassage(p._id)}
+                    >
+                      <div className="selection-card-header">
+                        <span className="selection-card-title">{p.title}</span>
+                        <div className="selection-card-checkbox"></div>
+                      </div>
+                      <span className="selection-card-id">{p._id}</span>
+                    </div>
+                  );
+                })
               )}
             </div>
 
@@ -483,23 +488,28 @@ export default function AddTest() {
                 Showing {filteredSections.length} of {sections.length} section{sections.length !== 1 ? 's' : ''}
               </p>
             )}
-            <div className="checkbox-group">
+            <div className="selection-grid">
               {sections.length === 0 ? (
                 <p className="muted">No sections yet. Create sections first.</p>
               ) : filteredSections.length === 0 ? (
                 <p className="muted">No sections match your search.</p>
               ) : (
-                filteredSections.map((s) => (
-                  <label key={s._id} className="checkbox-label p-2">
-                    <input
-                      type="checkbox"
-                      checked={form.listening_sections.includes(s._id)}
-                      onChange={() => toggleSection(s._id)}
-                    />
-                    <span>{s.title}</span>
-                    <code>{s._id}</code>
-                  </label>
-                ))
+                filteredSections.map((s) => {
+                  const isSelected = form.listening_sections.includes(s._id);
+                  return (
+                    <div
+                      key={s._id}
+                      className={`selection-card ${isSelected ? 'selected' : ''}`}
+                      onClick={() => toggleSection(s._id)}
+                    >
+                      <div className="selection-card-header">
+                        <span className="selection-card-title">{s.title}</span>
+                        <div className="selection-card-checkbox"></div>
+                      </div>
+                      <span className="selection-card-id">{s._id}</span>
+                    </div>
+                  );
+                })
               )}
             </div>
 
@@ -521,8 +531,8 @@ export default function AddTest() {
         )}
 
         {form.type === 'writing' && (
-          <div className="form-row multi-select-block">
-            <label>Writing tasks (drag to reorder)</label>
+          <div className="form-row multi-select-block" style={{ background: '#FFF9F1', padding: '1.5rem', borderRadius: '1.25rem', border: '1px solid #fdf4e3' }}>
+            <label style={{ color: '#d03939', fontSize: '1rem' }}>Writing tasks (drag to reorder)</label>
             <input
               type="search"
               value={writingSearch}
@@ -536,23 +546,28 @@ export default function AddTest() {
                 Showing {filteredWritings.length} of {writings.length} writing task{writings.length !== 1 ? 's' : ''}
               </p>
             )}
-            <div className="checkbox-group">
+            <div className="selection-grid">
               {writings.length === 0 ? (
                 <p className="muted">Chưa có bài viết nào. Tạo bài viết trước.</p>
               ) : filteredWritings.length === 0 ? (
                 <p className="muted">Không có bài viết nào khớp với tìm kiếm của bạn.</p>
               ) : (
-                filteredWritings.map((w) => (
-                  <label key={w._id} className="checkbox-label p-2">
-                    <input
-                      type="checkbox"
-                      checked={form.writing_tasks.includes(w._id)}
-                      onChange={() => toggleWriting(w._id)}
-                    />
-                    <span>{w.title}</span>
-                    <code>{w._id}</code>
-                  </label>
-                ))
+                filteredWritings.map((w) => {
+                  const isSelected = form.writing_tasks.includes(w._id);
+                  return (
+                    <div
+                      key={w._id}
+                      className={`selection-card ${isSelected ? 'selected' : ''}`}
+                      onClick={() => toggleWriting(w._id)}
+                    >
+                      <div className="selection-card-header">
+                        <span className="selection-card-title">{w.title}</span>
+                        <div className="selection-card-checkbox"></div>
+                      </div>
+                      <span className="selection-card-id">{w._id}</span>
+                    </div>
+                  );
+                })
               )}
             </div>
 
@@ -617,18 +632,22 @@ export default function AddTest() {
             <div className="manage-list">
               {tests.length === 0 ? <p className="muted">Chưa có bài thi nào.</p> : filteredTests.length === 0 ? (
                 <p className="muted">Không tìm thấy bài thi nào phù hợp.</p>
-              ) : filteredTests.map((t) => (
-                <div key={t._id} className="list-item">
-                  <div className="item-info">
-                    <span className="item-title">{t.title}</span>
-                    <span className="item-meta">ID: {t._id} | {t.category || 'Uncategorized'}</span>
+              ) : filteredTests
+                .slice()
+                .reverse()
+                .filter((_, i) => existingSearch.trim() ? true : i < 10)
+                .map((t) => (
+                  <div key={t._id} className="list-item">
+                    <div className="item-info">
+                      <span className="item-title">{t.title}</span>
+                      <span className="item-meta">ID: {t._id} | {t.category || 'Uncategorized'}</span>
+                    </div>
+                    <div className="item-actions">
+                      <Link to={`/manage/tests/${t._id}`} className="btn btn-ghost btn-sm">Sửa</Link>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleDeleteTest(t._id)} style={{ color: '#ef4444' }}>Xóa</button>
+                    </div>
                   </div>
-                  <div className="item-actions">
-                    <Link to={`/manage/tests/${t._id}`} className="btn btn-ghost btn-sm">Sửa</Link>
-                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleDeleteTest(t._id)} style={{ color: '#ef4444' }}>Xóa</button>
-                  </div>
-                </div>
-              ))}
+                ))}
             </div>
           </>
         )}

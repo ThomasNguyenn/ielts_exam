@@ -78,3 +78,4 @@ const completion = await groq.chat.completions.create({
 - **100 Users**: ~$3.30/mo (Well under budget).
 - **500 Users**: ~$16.50/mo (Slightly over your $10 target).
     - *Tip*: If you strictly need $10 for 500 users, switch the Analysis model to `llama3-8b` (smaller), or limit free users to 10 mins/month.
+

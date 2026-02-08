@@ -15,7 +15,7 @@ export default function SpeakingFlow() {
 
     useEffect(() => {
         if (!id) return;
-        
+
         // Use getSpeakingById if available, otherwise filter getSpeakings
         // For now, let's just fetch all and find
         api.getSpeakings()
@@ -31,13 +31,21 @@ export default function SpeakingFlow() {
             .finally(() => setLoading(false));
     }, [id]);
 
-    const handleRecordingComplete = async (audioBlob) => {
+    const handleRecordingComplete = async (audioBlob, extraData = {}) => {
         setPhase('processing');
         try {
             const formData = new FormData();
             formData.append('questionId', id);
             formData.append('audio', audioBlob, 'speaking-answer.webm');
-            
+
+            // Append extra ELSA-like metrics
+            if (extraData.transcript) formData.append('transcript', extraData.transcript);
+            if (extraData.duration) formData.append('duration', extraData.duration);
+            if (extraData.wpm) formData.append('wpm', extraData.wpm);
+            if (extraData.stats) {
+                formData.append('metrics', JSON.stringify(extraData.stats));
+            }
+
             const res = await api.submitSpeaking(formData);
             setResult(res);
             setPhase('result');
@@ -66,9 +74,9 @@ export default function SpeakingFlow() {
 
             <div className="practice-content" style={{ background: 'white', padding: '2rem', borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
                 {phase === 'recording' && (
-                    <RecordingPhase 
-                        topic={topic} 
-                        onComplete={handleRecordingComplete} 
+                    <RecordingPhase
+                        topic={topic}
+                        onComplete={handleRecordingComplete}
                     />
                 )}
 
@@ -81,8 +89,8 @@ export default function SpeakingFlow() {
                 )}
 
                 {phase === 'result' && (
-                    <SpeakingResultPhase 
-                        result={result} 
+                    <SpeakingResultPhase
+                        result={result}
                         topic={topic}
                         onRetry={() => {
                             setResult(null);

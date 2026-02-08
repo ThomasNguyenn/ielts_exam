@@ -85,6 +85,7 @@ export const api = {
   deleteTest: (id) => request(`/api/tests/${id}`, { method: 'DELETE' }),
   renumberTestQuestions: (id) => request(`/api/tests/${id}/renumber`, { method: 'POST' }),
 
+
   // Passages (Reading)
   getPassages: () => request('/api/passages'),
   getPassageById: (id) => request(`/api/passages/${id}`),
@@ -111,6 +112,7 @@ export const api = {
   getSubmissions: (status) => request(`/api/writings/submissions${status ? `?status=${status}` : ''}`),
   getSubmissionById: (id) => request(`/api/writings/submissions/${id}`),
   scoreSubmission: (id, body) => request(`/api/writings/submissions/${id}/score`, { method: 'POST', body: JSON.stringify(body) }),
+  scoreSubmissionAI: (id) => request(`/api/writings/submissions/${id}/ai-score`, { method: 'POST' }),
 
   // Practice Flow
   getRandomQuestion: () => request('/api/practice/questions/random'),
@@ -139,9 +141,9 @@ export const api = {
   deleteSpeaking: (id) => request(`/api/speaking/${id}`, { method: 'DELETE' }),
   submitSpeaking: (body) => {
     // body should be FormData
-    return request('/api/speaking/submit', { 
-      method: 'POST', 
-      body, 
+    return request('/api/speaking/submit', {
+      method: 'POST',
+      body,
       headers: { 'Content-Type': undefined } // Let browser set boundary
     });
   },

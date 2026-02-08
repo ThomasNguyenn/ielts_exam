@@ -71,8 +71,10 @@ export const checkOutline = async (req, res) => {
         } else {
             // Default to Task 2 (Essay)
             prompt = `
-              Act as an IELTS Examiner Band 8.0.
-              Topic: ${question.prompt}
+                Act as a certified IELTS Writing Examiner with at least 10 years of experience.
+                Your evaluation standard must strictly follow IELTS Writing Task 2 Band Descriptors,
+                especially the criterion: TASK RESPONSE.
+                Topic: ${question.prompt}
               
               Student Outline:
               - Method: ${outline.developmentMethod}
@@ -162,30 +164,97 @@ export const generateMaterials = async (req, res) => {
 // Phase 3: Submit Writing
 export const submitWriting = async (req, res) => {
     try {
-        const { sessionId, fullEssay } = req.body;
+        const { sessionId, fullEssay, gradingMode = 'ai' } = req.body; // gradingMode: 'ai' | 'standard'
 
         const session = await PracticeSession.findById(sessionId).populate('questionId');
         if (!session) return res.status(404).json({ message: "Session not found" });
 
+        session.fullEssay = fullEssay;
+
+        if (gradingMode === 'standard') {
+            // Standard submission: No AI grading, just save
+            session.gradingResult = null;
+            session.status = 'completed';
+            await session.save();
+
+            return res.json({
+                gradingMode: 'standard',
+                message: "Essay submitted successfully."
+            });
+        }
+
+        // AI Grading Logic
         const question = session.questionId;
 
         const prompt = `
-      Act as an IELTS Examiner.
+      Act as a certified IELTS Writing Examiner with at least 10 years of experience.
+      Your evaluation standard must strictly follow IELTS Writing Task 2 Band Descriptors,
+      especially the criterion: TASK RESPONSE.  
       Topic: ${question.prompt}
       Student Essay: ${fullEssay}
       
-      Tasks:
-      1. Estimate Band Score (0-9) strictly following official IELTS criteria.
-      2. Score 4 criteria: Task Response, Cohesion, Lexical, Grammar.
-      3. Generate a complete Band 8.0 Model Essay for this topic (Ignore student's content for this part).
-      4. Provide detailed feedback in VIETNAMESE.
+
+      - If the student provides ONLY the essay question or a single sentence
+        WITHOUT clear ideas, position, or outline elements,
+        DO NOT evaluate as an IELTS outline.
+
+        - In this case:
+        + Set score between 1-2
+        + Clearly state that the student has NOT yet provided an outline
+        + Ask the student to provide:
+          - their opinion
+          - main ideas
+          - or topic sentences
+
+      Evaluation Guidelines (STRICT):
+
+      1. Relevance & Task Response
+      - Check whether the ideas directly answer ALL parts of the question.
+      - Penalize heavily if ideas are off-topic, partially relevant, or misunderstand the task.
+
+      2. Depth & Development
+      - Assess whether ideas are specific, explained, and logically expandable.
+      - Generic ideas without explanation = weak development.
+
+      3. Logical Structure & Coherence
+      - Evaluate clarity of progression from ideas → topic sentences → potential body paragraphs.
+      - Check consistency between development method and ideas.
+
+      Scoring Rules (CRITICAL – DO NOT IGNORE):
+      - If the outline is EMPTY, extremely vague, or clearly off-topic → score MUST be BELOW 30.
+      - If ideas are relevant but generic, underdeveloped, or repetitive → score MUST be BELOW 50.
+      - Scores ABOVE 6 are ONLY allowed if ideas are:
+      + clearly relevant
+      + well-developed
+      + specific (not memorized IELTS clichés)
+      + logically structured
+
+      Scoring Interpretation base on IELTS Marking Criteria Task 2:
+      - 1-3   : Very weak (≈ IELTS Band 3–4)
+      - 3-5  : Limited (≈ IELTS Band 5)
+      - 5-6  : Adequate but underdeveloped (≈ IELTS Band 6)
+      - 6-7  : Strong and clear (≈ IELTS Band 7)
+      - 7-8 : Very strong, flexible, and insightful (≈ IELTS Band 8+)
+
+      Output Requirements:
+      - Tone: professional, analytical, like a real IELTS examiner.
+      - Clearly state WHY the score was given.
+      - Provide practical suggestions and show their grammar and vocabulary mistakes to help the student reach Band 7+.
       
       Return ONLY valid JSON in this format:
       {
         "band_score": number,
         "criteria_scores": { "task_response": number, "coherence_cohesion": number, "lexical_resource": number, "grammatical_range_accuracy": number },
         "corrected_essay": "string (The complete Band 8.0 Model Essay)",
-        "feedback": ["string (in Vietnamese)"]
+        "feedback": ["string (General feedback in Vietnamese)"],
+        "detailed_analysis": [
+            {
+                "text_snippet": "string (Exact text from student essay)",
+                "type": "error" | "good" | "suggestion",
+                "comment": "string (Explanation in Vietnamese)",
+                "correction": "string (Optional correction)"
+            }
+        ]
       }
     `;
 
@@ -197,12 +266,11 @@ export const submitWriting = async (req, res) => {
 
         const result = JSON.parse(completion.choices[0].message.content);
 
-        session.fullEssay = fullEssay;
         session.gradingResult = result;
         session.status = 'completed';
         await session.save();
 
-        res.json(result);
+        res.json({ ...result, fullEssay, gradingMode: 'ai' });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

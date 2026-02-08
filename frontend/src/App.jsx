@@ -23,6 +23,7 @@ import SpeakingList from './pages/Practice/SpeakingList';
 import Vocabulary from './pages/Vocabulary';
 import ScoreDashboard from './pages/manage/ScoreDashboard';
 import UserScoreDetail from './pages/manage/UserScoreDetail';
+import WritingAIResult from './pages/Practice/WritingAIResult';
 import { api } from './api/client';
 
 // Protected Route wrapper
@@ -64,13 +65,20 @@ export default function App() {
           <Route path="tests/:id/history" element={<ProtectedRoute><TestHistory /></ProtectedRoute>} />
           <Route path="tests/:id/exam" element={<Exam />} />
 
+          {/* Writing Practice/Test Route */}
+          <Route path="tests/writing/:id" element={<ProtectedRoute><PracticeFlow /></ProtectedRoute>} />
+
+          {/* <Route path="practice" element={<Navigate to="/tests" replace />} /> Redirect old practice to tests */}
           <Route path="practice" element={<ProtectedRoute><PracticeList /></ProtectedRoute>} />
           <Route path="practice/:id" element={<ProtectedRoute><PracticeFlow /></ProtectedRoute>} />
-          
+
           <Route path="speaking" element={<ProtectedRoute><SpeakingList /></ProtectedRoute>} />
           <Route path="practice/speaking/:id" element={<ProtectedRoute><SpeakingFlow /></ProtectedRoute>} />
 
           <Route path="vocabulary" element={<ProtectedRoute><Vocabulary /></ProtectedRoute>} />
+
+          {/* AI Scoring Result Page */}
+          <Route path="tests/writing/result-ai/:id" element={<ProtectedRoute><WritingAIResult /></ProtectedRoute>} />
 
           <Route path="profile" element={<Profile />} />
 

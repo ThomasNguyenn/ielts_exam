@@ -10,6 +10,8 @@ export default function GradingDashboard() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
+    const [searchQuery, setSearchQuery] = useState('');
+
     useEffect(() => {
         fetchSubmissions(activeTab);
     }, [activeTab]);
@@ -90,6 +92,14 @@ export default function GradingDashboard() {
         doc.save(`Grading_${sub.student_name || 'Student'}_${new Date().toISOString().slice(0, 10)}.pdf`);
     };
 
+    const filteredSubmissions = submissions.filter(sub => {
+        if (!searchQuery.trim()) return true;
+        const query = searchQuery.toLowerCase();
+        const studentName = (sub.student_name || '').toLowerCase();
+        const taskTitles = sub.writing_answers.map(a => (a.task_title || '').toLowerCase()).join(' ');
+        return studentName.includes(query) || taskTitles.includes(query);
+    });
+
     return (
         <div className="manage-container">
             {/* <h1>Bảng điều khiển chấm bài</h1> */}
@@ -129,41 +139,56 @@ export default function GradingDashboard() {
                 </button>
             </div>
 
+            <div style={{ marginBottom: '1.5rem' }}>
+                <input
+                    type="search"
+                    placeholder="Search by student name or task title..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="search-input"
+                    style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}
+                />
+            </div>
+
             {loading ? <div>Loading...</div> : (
                 <>
                     {submissions.length === 0 ? (
                         <p className="muted">Không có bài nộp nào trong danh mục này.</p>
                     ) : (
                         <div className="manage-list">
-                            {submissions.map(sub => (
-                                <div key={sub._id} className="list-item">
-                                    <div className="item-info">
-                                        <span className="item-title">{sub.student_name || 'Anonymous'}</span>
-                                        <span className="item-meta">
-                                            {new Date(sub.submitted_at).toLocaleDateString()} | {sub.writing_answers.length} Tasks
-                                        </span>
-                                        <div className="muted" style={{ fontSize: '0.8rem', marginTop: '0.2rem' }}>
-                                            {sub.writing_answers.map(a => a.task_title).join(', ')}
+                            {filteredSubmissions.length === 0 ? (
+                                <p className="muted">Không tìm thấy kết quả phù hợp.</p>
+                            ) : (
+                                filteredSubmissions.map(sub => (
+                                    <div key={sub._id} className="list-item">
+                                        <div className="item-info">
+                                            <span className="item-title">{sub.student_name || 'Anonymous'}</span>
+                                            <span className="item-meta">
+                                                {new Date(sub.submitted_at).toLocaleDateString()} | {sub.writing_answers.length} Tasks
+                                            </span>
+                                            <div className="muted" style={{ fontSize: '0.8rem', marginTop: '0.2rem' }}>
+                                                {sub.writing_answers.map(a => a.task_title).join(', ')}
+                                            </div>
+                                        </div>
+                                        <div className="item-actions">
+                                            {activeTab === 'pending' ? (
+                                                <Link to={`/grading/${sub._id}`} className="btn-manage-add" style={{ padding: '0.5rem 1.25rem', fontSize: '0.85rem' }}>Chấm điểm</Link>
+                                            ) : (
+                                                <>
+                                                    <Link to={`/grading/${sub._id}`} className="btn btn-ghost btn-sm" style={{ fontWeight: 700 }}>Xem điểm</Link>
+                                                    <button
+                                                        className="btn btn-ghost btn-sm"
+                                                        onClick={() => handleExportPDF(sub)}
+                                                        style={{ color: '#d03939', fontWeight: 800 }}
+                                                    >
+                                                        PDF
+                                                    </button>
+                                                </>
+                                            )}
                                         </div>
                                     </div>
-                                    <div className="item-actions">
-                                        {activeTab === 'pending' ? (
-                                            <Link to={`/grading/${sub._id}`} className="btn-manage-add" style={{ padding: '0.5rem 1.25rem', fontSize: '0.85rem' }}>Chấm điểm</Link>
-                                        ) : (
-                                            <>
-                                                <Link to={`/grading/${sub._id}`} className="btn btn-ghost btn-sm" style={{ fontWeight: 700 }}>Xem điểm</Link>
-                                                <button
-                                                    className="btn btn-ghost btn-sm"
-                                                    onClick={() => handleExportPDF(sub)}
-                                                    style={{ color: '#d03939', fontWeight: 800 }}
-                                                >
-                                                    PDF
-                                                </button>
-                                            </>
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
+                                ))
+                            )}
                         </div>
                     )}
                 </>

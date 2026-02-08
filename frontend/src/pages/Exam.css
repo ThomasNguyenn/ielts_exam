@@ -1930,13 +1930,28 @@
     transform: scale(1.2);
 }
 
-.color-dot.yellow { background: #fef08a; }
-.color-dot.pink { background: #fbcfe8; }
-.color-dot.blue { background: #bfdbfe; }
+.color-dot.yellow {
+    background: #fef08a;
+}
+
+.color-dot.pink {
+    background: #fbcfe8;
+}
+
+.color-dot.blue {
+    background: #bfdbfe;
+}
 
 @keyframes tooltipFadeIn {
-    from { opacity: 0; transform: translateX(-50%) translateY(5px); }
-    to { opacity: 1; transform: translateX(-50%) translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
 }
 
 /* Note Modal */
@@ -2022,4 +2037,26 @@
     background: #f1f5f9;
     color: #475569;
     border: 1px solid #e2e8f0;
+}
+
+/* Scoring Option Buttons (Modal) */
+.btn-scoring-option {
+    padding: 1.5rem;
+    border-radius: 12px;
+    border: 2px solid #e2e8f0;
+    background: #fff;
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition: all 0.2s;
+    width: 100%;
+}
+
+.btn-scoring-option:hover {
+    border-color: #3b82f6;
+    background: #eff6ff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
 }

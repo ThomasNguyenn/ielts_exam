@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { PanelGroup, Panel, PanelResizeHandle } from 'react-resizable-panels';
-import { useParams, Link, useLocation } from 'react-router-dom';
+import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import parse from 'html-react-parser';
 import { api } from '../api/client';
 import './Exam.css';
@@ -1029,6 +1029,7 @@ export default function Exam() {
   const [timeWarning, setTimeWarning] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const [showScoreChoice, setShowScoreChoice] = useState(false);
   const [fontSize, setFontSize] = useState(100); // 100% = default
   const [startTime, setStartTime] = useState(null); // Track when exam actually started (after loading)
 
@@ -1038,16 +1039,22 @@ export default function Exam() {
   const [brightness, setBrightness] = useState(100);
 
   const location = useLocation();
+  const navigate = useNavigate();
   const searchParams = new URLSearchParams(location.search);
-  const isSingleMode = searchParams.get('mode') === 'single';
+  // Determine single mode based on params. 
+  // We strictly require 'part' param to be present for Single Mode to avoid "Full Test bug" where mode=single is always present.
+  const isSingleMode = searchParams.get('mode') === 'single' && searchParams.get('part') !== null;
 
   useEffect(() => {
     if (!id) return;
     api
       .getExam(id)
       .then((res) => {
+        console.log("Exam Data Received:", res.data); // Debug log
         setExam(res.data);
         const slots = buildQuestionSlots(res.data);
+        const steps = buildSteps(res.data);
+        console.log("Built Steps:", steps); // Debug log
         setAnswers(Array(slots.length).fill(''));
         // Initialize writing answers array
         const writingCount = (res.data.writing || []).length;
@@ -1096,10 +1103,11 @@ export default function Exam() {
     return () => clearInterval(timer);
   }, [submitted, timeWarning, timeRemaining === null]); // Restart if submission status or warning flag changes, or when initialized
 
-  const performSubmit = () => {
-    if (submitLoading || submitted) return;
+  const performSubmit = (returnOnly = false) => {
+    if (submitLoading || submitted) return Promise.resolve(null);
     setSubmitLoading(true);
     setShowSubmitConfirm(false);
+    setShowScoreChoice(false);
     const now = Date.now();
     const timeTaken = startTime ? now - startTime : (exam.duration || 60) * 60 * 1000;
 
@@ -1110,9 +1118,11 @@ export default function Exam() {
       }
     });
 
-    api
+    return api
       .submitExam(id, { answers, writing: writingAnswers, timeTaken, isPractice: isSingleMode })
       .then((res) => {
+        let resultData = res.data;
+
         // If single mode, recalculate score based only on current part
         if (isSingleMode && steps[currentStep]) {
           const step = steps[currentStep];
@@ -1129,23 +1139,44 @@ export default function Exam() {
             if (q.is_correct) partScore++;
           });
 
-          setSubmitted({
+          resultData = {
             ...res.data,
             question_review: partReview,
             score: partScore,
             total: partTotal,
             wrong: partTotal - partScore,
             isSingleMode: true
-          });
-        } else {
-          setSubmitted(res.data);
+          };
         }
+
+        if (!returnOnly) {
+          setSubmitted(resultData);
+        }
+        return resultData;
       })
       .catch((err) => {
         setError(err.message);
         setSubmitLoading(false);
+        throw err;
       })
       .finally(() => setSubmitLoading(false));
+  };
+
+  const handleScoreChoice = (mode) => {
+    if (mode === 'standard') {
+      performSubmit();
+    } else {
+      // AI Scoring
+      performSubmit(true).then((data) => {
+        if (data && data.writingSubmissionId) {
+          navigate(`/tests/writing/result-ai/${data.writingSubmissionId}`);
+        } else {
+          // Fallback if ID is missing
+          console.error("Missing writingSubmissionId");
+          setSubmitted(data);
+        }
+      });
+    }
   };
 
   const handleAutoSubmit = () => {
@@ -1154,7 +1185,11 @@ export default function Exam() {
 
   const handleSubmit = (e) => {
     if (e) e.preventDefault();
-    setShowSubmitConfirm(true);
+    if (isWriting && isSingleMode && !exam.is_real_test) {
+      setShowScoreChoice(true);
+    } else {
+      setShowSubmitConfirm(true);
+    }
   };
 
   // Format time as MM:SS
@@ -1510,11 +1545,45 @@ export default function Exam() {
               Are you sure you want to finish the test? You won't be able to change your answers after submitting.
             </div>
             <div className="note-modal-actions">
-              <button type="button" className="btn-save" onClick={performSubmit} disabled={submitLoading}>
+              <button type="button" className="btn-save" onClick={() => performSubmit(false)} disabled={submitLoading}>
                 {submitLoading ? 'Submitting...' : 'Yes, Finish'}
               </button>
               <button type="button" className="btn-cancel" onClick={() => setShowSubmitConfirm(false)}>
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showScoreChoice && (
+        <div className="note-modal-overlay" onClick={() => setShowScoreChoice(false)}>
+          <div className="note-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '450px' }}>
+            <div className="note-modal-header">
+              <h3>Choose Scoring Method</h3>
+              <button type="button" onClick={() => setShowScoreChoice(false)}>✕</button>
+            </div>
+            <div style={{ padding: '15px 0', color: '#475569', textAlign: 'center' }}>
+              <p>How would you like to grade your writing?</p>
+            </div>
+            <div className="note-modal-actions" style={{ flexDirection: 'column', gap: '10px' }}>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => handleScoreChoice('ai')}
+                disabled={submitLoading}
+                style={{ width: '100%', justifyContent: 'center', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', border: 'none' }}
+              >
+                {submitLoading ? 'Submitting...' : '✨ AI Detailed Scoring (Instant)'}
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => handleScoreChoice('standard')}
+                disabled={submitLoading}
+                style={{ width: '100%', justifyContent: 'center' }}
+              >
+                Standard Submit (Teacher Grading)
               </button>
             </div>
           </div>

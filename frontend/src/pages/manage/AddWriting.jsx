@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { api } from '../../api/client';
+import { useNotification } from '../../components/NotificationContext';
+import ConfirmationModal from '../../components/ConfirmationModal';
 import './Manage.css';
 
 const Icons = {
@@ -24,6 +26,7 @@ function writingToForm(w) {
     time_limit: 60,
     sample_answer: '',
     band_score: '',
+    is_real_test: false,
   };
   return {
     _id: w._id || '',
@@ -37,18 +40,28 @@ function writingToForm(w) {
     time_limit: w.time_limit || 60,
     sample_answer: w.sample_answer || '',
     band_score: w.band_score || '',
+    is_real_test: w.is_real_test || false,
   };
 }
 
 export default function AddWriting() {
   const { id: editId } = useParams();
+  const navigate = useNavigate();
   const [writings, setWritings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
   const [existingSearch, setExistingSearch] = useState('');
+  const { showNotification } = useNotification();
+
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => { },
+    isDanger: false
+  });
 
   const [form, setForm] = useState({
     _id: '',
@@ -62,6 +75,7 @@ export default function AddWriting() {
     time_limit: 60,
     sample_answer: '',
     band_score: '',
+    is_real_test: false,
   });
 
   useEffect(() => {
@@ -90,10 +104,10 @@ export default function AddWriting() {
   }, [editId]);
 
   useEffect(() => {
-    if (!editId && success) {
+    if (!editId) {
       api.getWritings().then((res) => setWritings(res.data || [])).catch(() => { });
     }
-  }, [success, editId]);
+  }, [editId]);
 
   const updateForm = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -108,24 +122,31 @@ export default function AddWriting() {
 
   const filteredWritings = writings.filter((w) => matchSearch(w, existingSearch));
 
-  const handleDeleteWriting = async (writingId) => {
-    if (!window.confirm('Delete this writing? This cannot be undone.')) return;
-    try {
-      await api.deleteWriting(writingId);
-      setSuccess('Writing deleted.');
-      const res = await api.getWritings();
-      setWritings(res.data || []);
-    } catch (err) {
-      setError(err.message);
-    }
+  const handleDeleteWriting = (writingId) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Writing',
+      message: 'Delete this writing? This cannot be undone.',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          await api.deleteWriting(writingId);
+          showNotification('Writing deleted.', 'success');
+          const res = await api.getWritings();
+          setWritings(res.data || []);
+          if (editId === writingId) navigate('/manage/writings');
+        } catch (err) {
+          showNotification(err.message, 'error');
+        }
+      }
+    });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
-    setSuccess(null);
     if (!form._id.trim() || !form.title.trim() || !form.prompt.trim()) {
-      setError('ID, title, and prompt are required.');
+      showNotification('ID, title, and prompt are required.', 'warning');
       return;
     }
     setSubmitLoading(true);
@@ -142,13 +163,14 @@ export default function AddWriting() {
         time_limit: Number(form.time_limit) || 60,
         sample_answer: form.sample_answer?.trim() || '',
         band_score: form.band_score ? Number(form.band_score) : undefined,
+        is_real_test: form.is_real_test,
       };
       if (editId) {
         await api.updateWriting(editId, payload);
-        setSuccess('Writing updated.');
+        showNotification('Writing updated.', 'success');
       } else {
         await api.createWriting(payload);
-        setSuccess('Writing created.');
+        showNotification('Writing created.', 'success');
         setForm({
           _id: `writing-${Date.now()}`,
           title: '',
@@ -161,10 +183,11 @@ export default function AddWriting() {
           time_limit: 60,
           sample_answer: '',
           band_score: '',
+          is_real_test: false,
         });
       }
     } catch (err) {
-      setError(err.message);
+      showNotification(err.message, 'error');
     } finally {
       setSubmitLoading(false);
     }
@@ -177,18 +200,20 @@ export default function AddWriting() {
     <div className="manage-container">
       <h1>{editId ? 'Sửa bài Writing' : 'Thêm bài Writing'}</h1>
       {error && <p className="form-error">{error}</p>}
-      {success && <p className="form-success">{success}</p>}
 
       <form onSubmit={handleSubmit} className="manage-form">
         <div className="form-row">
           <label>Mã bài Writing (ID) *</label>
-          <input
-            value={form._id}
-            onChange={(e) => updateForm('_id', e.target.value)}
-            placeholder="e.g. writing-1"
-            required
-            readOnly={!!editId}
-          />
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            <input
+              value={form._id}
+              onChange={(e) => updateForm('_id', e.target.value)}
+              placeholder="e.g. writing-1"
+              required
+              readOnly={!!editId}
+              style={{ flex: 1 }}
+            />
+          </div>
         </div>
         <div className="form-row">
           <label>Tiêu đề *</label>
@@ -230,8 +255,22 @@ export default function AddWriting() {
           >
             <option value="task1">Task 1 only (Graphs/Charts)</option>
             <option value="task2">Task 2 only (Essay)</option>
-            <option value="both">Both Task 1 and Task 2</option>
           </select>
+        </div>
+
+        <div className="form-row">
+          <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={form.is_real_test}
+              onChange={(e) => updateForm('is_real_test', e.target.checked)}
+              style={{ width: '1.2rem', height: '1.2rem' }}
+            />
+            <span style={{ fontWeight: 600, color: '#d03939' }}>Is Real Test? (Standard Submission Only, No AI)</span>
+          </label>
+          <small className="muted" style={{ display: 'block', marginTop: '0.25rem' }}>
+            Check this if you want students to submit without seeing AI scores immediately.
+          </small>
         </div>
 
         {(form.task_type === 'task1' || form.task_type === 'both') && (
@@ -344,22 +383,34 @@ export default function AddWriting() {
             <div className="manage-list">
               {writings.length === 0 ? <p className="muted">Chưa có bài Writing nào.</p> : filteredWritings.length === 0 ? (
                 <p className="muted">Không tìm thấy bài phù hợp.</p>
-              ) : filteredWritings.map((w) => (
-                <div key={w._id} className="list-item">
-                  <div className="item-info">
-                    <span className="item-title">{w.title}</span>
-                    <span className="item-meta">ID: {w._id}</span>
+              ) : filteredWritings
+                .slice()
+                .reverse()
+                .filter((_, i) => existingSearch.trim() ? true : i < 10)
+                .map((w) => (
+                  <div key={w._id} className="list-item">
+                    <div className="item-info">
+                      <span className="item-title">{w.title}</span>
+                      <span className="item-meta">ID: {w._id}</span>
+                    </div>
+                    <div className="item-actions">
+                      <Link to={`/manage/writings/${w._id}`} className="btn btn-ghost btn-sm">Sửa</Link>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleDeleteWriting(w._id)} style={{ color: '#ef4444' }}>Xóa</button>
+                    </div>
                   </div>
-                  <div className="item-actions">
-                    <Link to={`/manage/writings/${w._id}`} className="btn btn-ghost btn-sm">Sửa</Link>
-                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleDeleteWriting(w._id)} style={{ color: '#ef4444' }}>Xóa</button>
-                  </div>
-                </div>
-              ))}
+                ))}
             </div>
           </>
         )}
       </div>
+      <ConfirmationModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        isDanger={confirmModal.isDanger}
+      />
     </div>
   );
 }

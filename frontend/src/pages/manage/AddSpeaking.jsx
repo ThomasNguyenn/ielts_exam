@@ -2,15 +2,17 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../../api/client';
 import './Manage.css';
+import { useNotification } from '../../components/NotificationContext';
 
 export default function AddSpeaking() {
   const { id: editId } = useParams();
+  const { showNotification } = useNotification();
   const [speakings, setSpeakings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
+  const [success, setSuccess] = useState(false); // Define success state
   const [existingSearch, setExistingSearch] = useState('');
 
   const [form, setForm] = useState({
@@ -43,17 +45,20 @@ export default function AddSpeaking() {
             is_active: itemRes.is_active !== undefined ? itemRes.is_active : true
           });
         })
-        .catch((err) => setLoadError(err.message))
+        .catch((err) => {
+          setLoadError(err.message);
+          showNotification('Lỗi tải chủ đề Speaking: ' + err.message, 'error');
+        })
         .finally(() => setLoading(false));
     } else {
       api.getSpeakings()
         .then((res) => {
           setSpeakings(res.data || []);
-          setForm({ 
-            _id: `speaking-${Date.now()}`, 
-            title: '', 
-            part: 1, 
-            prompt: '', 
+          setForm({
+            _id: `speaking-${Date.now()}`,
+            title: '',
+            part: 1,
+            prompt: '',
             sub_questions: [],
             is_active: true
           });
@@ -96,20 +101,20 @@ export default function AddSpeaking() {
     if (!window.confirm('Delete this speaking topic? This cannot be undone.')) return;
     try {
       await api.deleteSpeaking(speakingId);
-      setSuccess('Topic deleted.');
+      showNotification('Topic deleted successfully.', 'success');
       const res = await api.getSpeakings();
       setSpeakings(res.data || []);
     } catch (err) {
       setError(err.message);
+      showNotification('Error deleting topic: ' + err.message, 'error');
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
-    setSuccess(null);
     if (!form._id.trim() || !form.title.trim() || !form.prompt.trim()) {
-      setError('ID, title, and prompt are required.');
+      showNotification('ID, title, and prompt are required.', 'error');
       return;
     }
     setSubmitLoading(true);
@@ -125,10 +130,10 @@ export default function AddSpeaking() {
 
       if (editId) {
         await api.updateSpeaking(editId, payload);
-        setSuccess('Topic updated.');
+        showNotification('Topic updated successfully.', 'success');
       } else {
         await api.createSpeaking(payload);
-        setSuccess('Topic created.');
+        showNotification('Topic created successfully.', 'success');
         setForm({
           _id: `speaking-${Date.now()}`,
           title: '',
@@ -138,13 +143,14 @@ export default function AddSpeaking() {
           is_active: true
         });
       }
-      
+
       // Refresh list
       const res = await api.getSpeakings();
       setSpeakings(res.data || []);
-      
+
     } catch (err) {
       setError(err.message);
+      showNotification(err.message, 'error');
     } finally {
       setSubmitLoading(false);
     }
@@ -157,7 +163,7 @@ export default function AddSpeaking() {
     <div className="manage-container">
       <h1>{editId ? 'Sửa chủ đề Speaking' : 'Thêm chủ đề Speaking'}</h1>
       {error && <p className="form-error">{error}</p>}
-      {success && <p className="form-success">{success}</p>}
+
 
       <form onSubmit={handleSubmit} className="manage-form">
         <div className="form-row">
@@ -170,7 +176,7 @@ export default function AddSpeaking() {
             readOnly={!!editId}
           />
         </div>
-        
+
         <div className="form-row">
           <label>Phần thi (Part) *</label>
           <select
@@ -207,43 +213,43 @@ export default function AddSpeaking() {
         <div className="form-row">
           <label>Câu hỏi phụ (Sub-questions)</label>
           <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-            <input 
-                value={newSubQuestion}
-                onChange={(e) => setNewSubQuestion(e.target.value)}
-                placeholder="Nhập câu hỏi phụ..."
-                style={{ flex: 1 }}
-                onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                        addSubQuestion();
-                    }
-                }}
+            <input
+              value={newSubQuestion}
+              onChange={(e) => setNewSubQuestion(e.target.value)}
+              placeholder="Nhập câu hỏi phụ..."
+              style={{ flex: 1 }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  addSubQuestion();
+                }
+              }}
             />
             <button type="button" onClick={addSubQuestion} className="btn-secondary">Thêm</button>
           </div>
-          
+
           {form.sub_questions.length > 0 && (
             <ul className="vocab-list">
-                {form.sub_questions.map((q, i) => (
-                    <li key={i} className="vocab-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span>{q}</span>
-                        <button type="button" onClick={() => removeSubQuestion(i)} style={{ color: '#ef4444', border: 'none', background: 'none', cursor: 'pointer' }}>✕</button>
-                    </li>
-                ))}
+              {form.sub_questions.map((q, i) => (
+                <li key={i} className="vocab-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>{q}</span>
+                  <button type="button" onClick={() => removeSubQuestion(i)} style={{ color: '#ef4444', border: 'none', background: 'none', cursor: 'pointer' }}>✕</button>
+                </li>
+              ))}
             </ul>
           )}
         </div>
-        
+
         <div className="form-row">
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                <input 
-                    type="checkbox"
-                    checked={form.is_active}
-                    onChange={(e) => updateForm('is_active', e.target.checked)}
-                    style={{ width: 'auto' }}
-                />
-                Kích hoạt (Hiển thị cho học viên)
-            </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={form.is_active}
+              onChange={(e) => updateForm('is_active', e.target.checked)}
+              style={{ width: 'auto' }}
+            />
+            Kích hoạt (Hiển thị cho học viên)
+          </label>
         </div>
 
         <div className="form-actions" style={{ marginTop: '2rem' }}>
@@ -275,18 +281,22 @@ export default function AddSpeaking() {
             <div className="manage-list">
               {speakings.length === 0 ? <p className="muted">Chưa có chủ đề nào.</p> : filteredSpeakings.length === 0 ? (
                 <p className="muted">Không tìm thấy chủ đề phù hợp.</p>
-              ) : filteredSpeakings.map((s) => (
-                <div key={s._id} className="list-item">
-                  <div className="item-info">
-                    <span className="item-title">{s.title} (Part {s.part})</span>
-                    <span className="item-meta">ID: {s._id} {s.is_active ? '' : '• (Inactive)'}</span>
+              ) : filteredSpeakings
+                .slice()
+                .reverse()
+                .filter((_, i) => existingSearch.trim() ? true : i < 5)
+                .map((s) => (
+                  <div key={s._id} className="list-item">
+                    <div className="item-info">
+                      <span className="item-title">{s.title} (Part {s.part})</span>
+                      <span className="item-meta">ID: {s._id} {s.is_active ? '' : '• (Inactive)'}</span>
+                    </div>
+                    <div className="item-actions">
+                      <Link to={`/manage/speaking/${s._id}`} className="btn btn-ghost btn-sm">Sửa</Link>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleDeleteSpeaking(s._id)} style={{ color: '#ef4444' }}>Xóa</button>
+                    </div>
                   </div>
-                  <div className="item-actions">
-                    <Link to={`/manage/speaking/${s._id}`} className="btn btn-ghost btn-sm">Sửa</Link>
-                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleDeleteSpeaking(s._id)} style={{ color: '#ef4444' }}>Xóa</button>
-                  </div>
-                </div>
-              ))}
+                ))}
             </div>
           </>
         )}

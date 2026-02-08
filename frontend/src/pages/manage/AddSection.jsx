@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../../api/client';
 import './Manage.css';
+import { useNotification } from '../../components/NotificationContext';
 
 const QUESTION_GROUP_TYPES = [
   { value: 'mult_choice', label: 'Multiple choice' },
@@ -85,12 +86,13 @@ function sectionToForm(s) {
 
 export default function AddSection() {
   const { id: editId } = useParams();
+  const { showNotification } = useNotification();
   const [sections, setSections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
+  // Removed success state
   const [existingSearch, setExistingSearch] = useState('');
 
   const [form, setForm] = useState({
@@ -138,7 +140,10 @@ export default function AddSection() {
       api
         .getSectionById(editId)
         .then((res) => setForm(sectionToForm(res.data)))
-        .catch((err) => setLoadError(err.message))
+        .catch((err) => {
+          setLoadError(err.message);
+          showNotification('Lỗi tải bài nghe: ' + err.message, 'error');
+        })
         .finally(() => setLoading(false));
     } else {
       setLoading(false);
@@ -148,7 +153,7 @@ export default function AddSection() {
 
   useEffect(() => {
     api.getSections().then((res) => setSections(res.data || [])).catch(() => setSections([]));
-  }, [success, editId]);
+  }, [editId]);
 
   const updateForm = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -335,11 +340,12 @@ export default function AddSection() {
     if (!window.confirm('Delete this section? This cannot be undone.')) return;
     try {
       await api.deleteSection(sectionId);
-      setSuccess('Section deleted.');
+      showNotification('Section deleted.', 'success');
       const res = await api.getSections();
       setSections(res.data || []);
     } catch (err) {
       setError(err.message);
+      showNotification('Error deleting section: ' + err.message, 'error');
     }
   };
 
@@ -354,9 +360,8 @@ export default function AddSection() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
-    setSuccess(null);
     if (!form._id.trim() || !form.title.trim() || !form.content.trim()) {
-      setError('ID, title and content are required.');
+      showNotification('ID, title and content are required.', 'error');
       return;
     }
     const payload = {
@@ -395,22 +400,22 @@ export default function AddSection() {
       // Others require text
       return g.questions.some(q => !q.text || !q.correct_answers?.length);
     })) {
-      setError('Each question group must have at least one question with correct answer(s). For standard questions, text is also required.');
+      showNotification('Each question group must have at least one question with correct answer(s). For standard questions, text is also required.', 'error');
       return;
     }
     const matchingFeaturesGroups = payload.question_groups.filter((g) => g.type === 'matching_features');
     if (matchingFeaturesGroups.some((g) => !g.headings?.length)) {
-      setError('Matching features groups must have at least one feature (id + text).');
+      showNotification('Matching features groups must have at least one feature (id + text).', 'error');
       return;
     }
     setSubmitLoading(true);
     try {
       if (editId) {
         await api.updateSection(editId, payload);
-        setSuccess('Section updated.');
+        showNotification('Section updated successfully.', 'success');
       } else {
         await api.createSection(payload);
-        setSuccess('Section created.');
+        showNotification('Section created successfully.', 'success');
         setForm({
           _id: `section-${Date.now()}`,
           title: '',
@@ -422,6 +427,7 @@ export default function AddSection() {
       }
     } catch (err) {
       setError(err.message);
+      showNotification(err.message, 'error');
     } finally {
       setSubmitLoading(false);
     }
@@ -434,7 +440,6 @@ export default function AddSection() {
     <div className="manage-container">
       <h1>{editId ? 'Sửa bài Listening' : 'Thêm bài Listening'}</h1>
       {error && <p className="form-error">{error}</p>}
-      {success && <p className="form-success">{success}</p>}
 
       <form onSubmit={handleSubmit} className="manage-form">
         <div className="form-row">
@@ -806,18 +811,22 @@ export default function AddSection() {
               <div className="manage-list">
                 {sections.length === 0 ? <p className="muted">Chưa có bài nào.</p> : filteredSections.length === 0 ? (
                   <p className="muted">Không tìm thấy bài phù hợp.</p>
-                ) : filteredSections.map((s) => (
-                  <div key={s._id} className="list-item">
-                    <div className="item-info">
-                      <span className="item-title">{s.title}</span>
-                      <span className="item-meta">ID: {s._id}</span>
+                ) : filteredSections
+                  .slice()
+                  .reverse()
+                  .filter((_, i) => existingSearch.trim() ? true : i < 5)
+                  .map((s) => (
+                    <div key={s._id} className="list-item">
+                      <div className="item-info">
+                        <span className="item-title">{s.title}</span>
+                        <span className="item-meta">ID: {s._id}</span>
+                      </div>
+                      <div className="item-actions">
+                        <Link to={`/manage/sections/${s._id}`} className="btn btn-ghost btn-sm">Sửa</Link>
+                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleDeleteSection(s._id)} style={{ color: '#ef4444' }}>Xóa</button>
+                      </div>
                     </div>
-                    <div className="item-actions">
-                      <Link to={`/manage/sections/${s._id}`} className="btn btn-ghost btn-sm">Sửa</Link>
-                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleDeleteSection(s._id)} style={{ color: '#ef4444' }}>Xóa</button>
-                    </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             </>
           )

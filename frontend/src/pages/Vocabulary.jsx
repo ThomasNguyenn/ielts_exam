@@ -76,7 +76,26 @@ export default function Vocabulary() {
         if (!currentWord) return;
 
         try {
-            await api.reviewVocabulary(currentWord._id, difficulty);
+            const res = await api.reviewVocabulary(currentWord._id, difficulty);
+
+            // Handle XP Gain
+            if (res.xpResult) {
+                const { xpGained, currentLevel, levelUp } = res.xpResult;
+                showNotification(`Received ${xpGained} XP!`, 'success');
+                if (levelUp) {
+                    showNotification(`Level Up! You are now Level ${currentLevel}`, 'success');
+                }
+
+                // Update local user state
+                const currentUser = api.getUser();
+                if (currentUser) {
+                    api.setUser({
+                        ...currentUser,
+                        xp: res.xpResult.currentXP,
+                        level: currentLevel
+                    });
+                }
+            }
 
             // Move to next card
             if (currentCardIndex < vocabulary.length - 1) {

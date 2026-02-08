@@ -7,12 +7,23 @@ const WritingPhase = ({ question, sessionId, outline, materials, onNext }) => {
     const [loading, setLoading] = useState(false);
     const { showNotification } = useNotification();
 
-    const handleSubmit = async () => {
+    const handlePreSubmit = () => {
         if (!essay.trim()) return showNotification("Please write something!", "warning");
 
+        // For Practice Mode, force AI Scoring automatically for ALL tasks
+        // (Real Test logic only applies in Exam.jsx)
+        handleSubmit('ai');
+    };
+
+    const handleSubmit = async (mode) => {
         setLoading(true);
+        // setShowGradingChoice(false); // No longer needed
         try {
-            const res = await api.submitPracticeWriting({ sessionId, fullEssay: essay });
+            const res = await api.submitPracticeWriting({
+                sessionId,
+                fullEssay: essay,
+                gradingMode: mode
+            });
             onNext(res);
         } catch (e) {
             showNotification(e.message, "error");
@@ -76,12 +87,12 @@ const WritingPhase = ({ question, sessionId, outline, materials, onNext }) => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span className="muted">Word Count: {essay.trim().split(/\s+/).filter(w => w).length}</span>
                     <button
-                        onClick={handleSubmit}
+                        onClick={handlePreSubmit}
                         disabled={loading}
                         className="btn-submit"
                         style={{ width: 'auto', paddingLeft: '3rem', paddingRight: '3rem' }}
                     >
-                        {loading ? 'Grading...' : 'Submit for Grading'}
+                        {loading ? 'Processing...' : 'Submit Essay'}
                     </button>
                 </div>
             </div>

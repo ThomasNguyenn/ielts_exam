@@ -211,6 +211,21 @@ export default function TestList() {
           });
         });
       }
+      // Writing Tasks
+      if (test.type === 'writing' && test.writing_tasks) {
+        test.writing_tasks.forEach((w, index) => {
+          flattenedParts.push({
+            uniqueId: `${test._id}_w${index}`,
+            testId: test._id,
+            title: w.title,
+            testTitle: test.title,
+            category: cat,
+            type: 'writing',
+            partIndex: index,
+            label: `Task ${index + 1}`
+          });
+        });
+      }
     });
 
     // Re-calculate categories based on parts
