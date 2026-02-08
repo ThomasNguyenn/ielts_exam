@@ -53,6 +53,14 @@ export default function ManageLayout() {
             <ManageIcons.Tests /> Bộ đề (Full Tests)
           </NavLink>
         </nav>
+        <div style={{ marginTop: '2rem', paddingTop: '1rem', borderTop: '1px solid #eee' }}>
+            <NavLink to="/manage/requests" className={({ isActive }) => `manage-nav-item ${isActive ? 'active' : ''}`}>
+                <span style={{ fontSize: '1.2rem', marginRight: '0.75rem' }}>👥</span> Duyệt học viên
+            </NavLink>
+            <NavLink to="/manage/users" className={({ isActive }) => `manage-nav-item ${isActive ? 'active' : ''}`}>
+                <span style={{ fontSize: '1.2rem', marginRight: '0.75rem' }}>⚙️</span> Quản lý User
+            </NavLink>
+        </div>
       </aside>
       <main className="manage-content">
         <Outlet />

@@ -634,14 +634,45 @@
     animation: popIn 0.2s ease-out;
 }
 
-@keyframes popIn {
-    from {
-        opacity: 0;
-        transform: scale(0.95);
-    }
+/* Topic Grouping for Speaking List */
+.topic-group {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 1rem;
+    margin-bottom: 2rem;
+    overflow: hidden;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
 
-    to {
-        opacity: 1;
-        transform: scale(1);
-    }
+.topic-group-header {
+    background: #FFF9F1;
+    padding: 1.25rem 2rem;
+    border-bottom: 1px solid #fdf4e3;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.topic-group-title {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: #d03939;
+    margin: 0;
+}
+
+.topic-group-count {
+    color: #64748b;
+    font-size: 0.9rem;
+    font-weight: 600;
+    background: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 50px;
+    border: 1px solid #e2e8f0;
+}
+
+.topic-group-content {
+    padding: 1.5rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
 }

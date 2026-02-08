@@ -10,8 +10,8 @@ router.post("/", createWriting);
 router.get("/:id", getWritingById);
 router.get("/:id/exam", getWritingExam);
 router.post("/:id/submit", submitWriting);
-router.post("/submissions/:id/score", scoreSubmission); // New route for scoring
-router.post("/submissions/:id/ai-score", scoreSubmissionAI); // New route for AI scoring
+router.post("/submissions/:id/score", verifyToken, scoreSubmission); // New route for scoring
+router.post("/submissions/:id/ai-score", verifyToken, scoreSubmissionAI); // New route for AI scoring
 router.post("/:id/regenerate-id", regenerateWritingId);
 router.put("/:id", updateWriting);
 // router.post("/:id/regenerate-id", import('../controllers/writing.controller.js').then(m => m.regenerateWritingId).catch(e => console.error(e))); // Dynamic import wrapper or just import it at top?

@@ -78,3 +78,75 @@ export const getUserAttempts = async (req, res) => {
         res.status(500).json({ success: false, message: "Server Error" });
     }
 };
+
+export const getPendingStudents = async (req, res) => {
+    try {
+        const students = await User.find({ role: 'student', isConfirmed: false })
+            .sort({ createdAt: -1 })
+            .select('-password');
+        res.json({ success: true, data: students });
+    } catch (error) {
+        console.error("Error in getPendingStudents:", error);
+        res.status(500).json({ success: false, message: "Server Error" });
+    }
+};
+
+export const approveStudent = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const user = await User.findByIdAndUpdate(userId, { isConfirmed: true }, { new: true }).select('-password');
+        
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        res.json({ success: true, data: user, message: "Student approved successfully" });
+    } catch (error) {
+        console.error("Error in approveStudent:", error);
+        res.status(500).json({ success: false, message: "Server Error" });
+    }
+};
+
+export const getUsers = async (req, res) => {
+    try {
+        const { role } = req.query;
+        const filter = {};
+        if (role) {
+            filter.role = role;
+        }
+        
+        const users = await User.find(filter)
+            .sort({ createdAt: -1 })
+            .select('-password');
+            
+        res.json({ success: true, data: users });
+    } catch (error) {
+        console.error("Error in getUsers:", error);
+        res.status(500).json({ success: false, message: "Server Error" });
+    }
+};
+
+export const deleteUser = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        
+        // Prevent deleting self? Maybe.
+        if (req.user && req.user.userId === userId) {
+             return res.status(400).json({ success: false, message: "Cannot delete yourself" });
+        }
+
+        const user = await User.findByIdAndDelete(userId);
+        
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        // Optional: Delete related data (test attempts, submissions, etc.)
+        // For now, simple delete.
+
+        res.json({ success: true, message: "User deleted successfully" });
+    } catch (error) {
+        console.error("Error in deleteUser:", error);
+        res.status(500).json({ success: false, message: "Server Error" });
+    }
+};

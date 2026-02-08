@@ -11,15 +11,25 @@ export default function GradingDashboard() {
     const [error, setError] = useState(null);
 
     const [searchQuery, setSearchQuery] = useState('');
+    const [selectedDate, setSelectedDate] = useState('');
 
     useEffect(() => {
-        fetchSubmissions(activeTab);
-    }, [activeTab]);
+        fetchSubmissions(activeTab, selectedDate);
+    }, [activeTab, selectedDate]);
 
-    const fetchSubmissions = async (status) => {
+    const fetchSubmissions = async (status, date) => {
         setLoading(true);
         try {
-            const res = await api.getSubmissions(status);
+            let params = { status };
+            if (date) {
+                // Create local date range for the selected day
+                const start = new Date(date + 'T00:00:00');
+                const end = new Date(date + 'T23:59:59.999');
+                params.startDate = start.toISOString();
+                params.endDate = end.toISOString();
+            }
+
+            const res = await api.getSubmissions(params);
             if (res.success) {
                 setSubmissions(res.data);
             }
@@ -139,14 +149,21 @@ export default function GradingDashboard() {
                 </button>
             </div>
 
-            <div style={{ marginBottom: '1.5rem' }}>
+            <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem' }}>
                 <input
                     type="search"
                     placeholder="Search by student name or task title..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="search-input"
-                    style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}
+                    style={{ width: '300px', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}
+                />
+                <input 
+                    type="date"
+                    className="search-input"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    style={{ padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}
                 />
             </div>
 
@@ -166,6 +183,19 @@ export default function GradingDashboard() {
                                             <span className="item-meta">
                                                 {new Date(sub.submitted_at).toLocaleDateString()} | {sub.writing_answers.length} Tasks
                                             </span>
+                                            {activeTab === 'scored' && (
+                                                <div style={{ marginTop: '0.25rem' }}>
+                                                    {sub.is_ai_graded ? (
+                                                        <span className="badge" style={{ background: '#e0f2fe', color: '#0284c7', fontSize: '0.75rem', padding: '2px 8px', borderRadius: '4px' }}>
+                                                            AI Scoring
+                                                        </span>
+                                                    ) : (
+                                                        <span className="badge" style={{ background: '#dcfce7', color: '#166534', fontSize: '0.75rem', padding: '2px 8px', borderRadius: '4px' }}>
+                                                            Graded by: {sub.scores?.[0]?.scored_by || 'Teacher'}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
                                             <div className="muted" style={{ fontSize: '0.8rem', marginTop: '0.2rem' }}>
                                                 {sub.writing_answers.map(a => a.task_title).join(', ')}
                                             </div>

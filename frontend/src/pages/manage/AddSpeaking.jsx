@@ -86,6 +86,8 @@ export default function AddSpeaking() {
     }));
   };
 
+  const [selectedTopic, setSelectedTopic] = useState('');
+
   const matchSearch = (item, query) => {
     if (!query.trim()) return true;
     const q = query.trim().toLowerCase();
@@ -95,7 +97,29 @@ export default function AddSpeaking() {
     );
   };
 
-  const filteredSpeakings = speakings.filter((s) => matchSearch(s, existingSearch));
+  const filteredSpeakings = speakings.filter((s) => {
+    const matchesSearch = matchSearch(s, existingSearch);
+    const matchesTopic = selectedTopic ? s.title === selectedTopic : true;
+    return matchesSearch && matchesTopic;
+  });
+
+  // Extract unique topics for filter
+  const uniqueTopics = [...new Set(speakings.map(s => s.title))].sort();
+
+  // Group by topic
+  const groupedSpeakings = filteredSpeakings.reduce((groups, item) => {
+      const topic = item.title;
+      if (!groups[topic]) {
+          groups[topic] = [];
+      }
+      groups[topic].push(item);
+      return groups;
+  }, {});
+  
+  // Sort questions within groups by Part
+  Object.keys(groupedSpeakings).forEach(topic => {
+      groupedSpeakings[topic].sort((a, b) => a.part - b.part);
+  });
 
   const handleDeleteSpeaking = async (speakingId) => {
     if (!window.confirm('Delete this speaking topic? This cannot be undone.')) return;
@@ -264,39 +288,63 @@ export default function AddSpeaking() {
         <h3 style={{ color: '#d03939' }}>Danh sách chủ đề Speaking hiện có</h3>
         {!editId && (
           <>
-            <div className="search-box">
+            <div className="search-box" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
               <input
                 type="search"
                 value={existingSearch}
                 onChange={(e) => setExistingSearch(e.target.value)}
                 placeholder="Tìm kiếm theo tiêu đề hoặc ID..."
                 className="test-search-input"
+                style={{ flex: 2 }}
               />
+              <select
+                value={selectedTopic}
+                onChange={(e) => setSelectedTopic(e.target.value)}
+                className="test-search-input"
+                style={{ flex: 1, cursor: 'pointer' }}
+              >
+                <option value="">Tất cả chủ đề</option>
+                {uniqueTopics.map(topic => (
+                  <option key={topic} value={topic}>{topic}</option>
+                ))}
+              </select>
             </div>
             {existingSearch.trim() && (
               <p className="search-hint">
                 Đang hiện {filteredSpeakings.length} trên {speakings.length} bài
               </p>
             )}
+            
             <div className="manage-list">
-              {speakings.length === 0 ? <p className="muted">Chưa có chủ đề nào.</p> : filteredSpeakings.length === 0 ? (
-                <p className="muted">Không tìm thấy chủ đề phù hợp.</p>
-              ) : filteredSpeakings
-                .slice()
-                .reverse()
-                .filter((_, i) => existingSearch.trim() ? true : i < 5)
-                .map((s) => (
-                  <div key={s._id} className="list-item">
-                    <div className="item-info">
-                      <span className="item-title">{s.title} (Part {s.part})</span>
-                      <span className="item-meta">ID: {s._id} {s.is_active ? '' : '• (Inactive)'}</span>
+              {Object.entries(groupedSpeakings).length === 0 ? (
+                <p className="muted">Chưa có chủ đề nào.</p>
+              ) : (
+                Object.entries(groupedSpeakings).map(([topic, items]) => (
+                  <div key={topic} className="question-group-block">
+                    <div className="group-header" style={{ cursor: 'default' }}>
+                      <span className="group-title">{topic}</span>
+                      <span className="muted" style={{ fontSize: '0.85rem' }}>{items.length} câu hỏi</span>
                     </div>
-                    <div className="item-actions">
-                      <Link to={`/manage/speaking/${s._id}`} className="btn btn-ghost btn-sm">Sửa</Link>
-                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleDeleteSpeaking(s._id)} style={{ color: '#ef4444' }}>Xóa</button>
+                    <div className="group-content">
+                        {items.map((s) => (
+                          <div key={s._id} className="list-item" style={{ marginBottom: '0.75rem' }}>
+                            <div className="item-info">
+                              <span className="item-title">Part {s.part}</span>
+                              <span className="item-meta">ID: {s._id} {s.is_active ? '' : '• (Inactive)'}</span>
+                              <div className="muted" style={{ fontSize: '0.8rem', marginTop: '0.2rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '400px' }}>
+                                  {s.prompt}
+                              </div>
+                            </div>
+                            <div className="item-actions">
+                              <Link to={`/manage/speaking/${s._id}`} className="btn btn-ghost btn-sm">Sửa</Link>
+                              <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleDeleteSpeaking(s._id)} style={{ color: '#ef4444' }}>Xóa</button>
+                            </div>
+                          </div>
+                        ))}
                     </div>
                   </div>
-                ))}
+                ))
+              )}
             </div>
           </>
         )}

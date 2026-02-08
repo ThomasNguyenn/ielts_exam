@@ -388,7 +388,7 @@ export default function AddTest() {
             onChange={(e) => {
               const newType = e.target.value;
               updateForm('type', newType);
-              const defaultDuration = newType === 'reading' ? 60 : newType === 'listening' ? 35 : 45;
+              const defaultDuration = newType === 'reading' ? 60 : newType === 'listening' ? 35 : 60;
               updateForm('duration', defaultDuration);
             }}
           >
@@ -410,7 +410,7 @@ export default function AddTest() {
             required
           />
           <small className="form-hint">
-            Mặc định: Reading = 60p, Listening = 35p, Writing = 45p
+            Mặc định: Reading = 60p, Listening = 35p, Writing = 60p
           </small>
         </div>
 

@@ -102,7 +102,8 @@ export default function Layout() {
                   api.removeUser();
                   window.location.href = '/login';
                 }}>
-                  <Icons.Logout /> Logout <span className="user-badge">{user.name}</span>
+                  <Icons.Logout />
+                   {/* Logout <span className="user-badge">{user.name}</span> */}
                 </div>
               </div>
             ) : (

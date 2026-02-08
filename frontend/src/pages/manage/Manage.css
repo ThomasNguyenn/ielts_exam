@@ -405,3 +405,73 @@ h4 {
     opacity: 1;
     transform: scale(1);
 }
+
+/* Sortable List Styles */
+.sortable-list {
+    list-style: none;
+    padding: 0;
+    margin: 1rem 0 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.sortable-item {
+    display: flex;
+    align-items: center;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    padding: 0.75rem 1rem;
+    gap: 1rem;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+.sortable-item:hover {
+    border-color: #cbd5e1;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.02);
+}
+
+.drag-handle {
+    cursor: grab;
+    color: #94a3b8;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.drag-handle:hover {
+    background: #f1f5f9;
+    color: #d03939;
+}
+
+.drag-handle:active {
+    cursor: grabbing;
+}
+
+.sortable-item-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.sortable-item-title {
+    font-weight: 700;
+    color: #1e293b;
+    font-size: 0.95rem;
+}
+
+.sortable-item-id {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    font-family: monospace;
+    background: #f1f5f9;
+    padding: 2px 6px;
+    border-radius: 4px;
+    width: fit-content;
+}

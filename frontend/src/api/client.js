@@ -109,7 +109,10 @@ export const api = {
   updateWriting: (id, body) => request(`/api/writings/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteWriting: (id) => request(`/api/writings/${id}`, { method: 'DELETE' }),
   // Grading
-  getSubmissions: (status) => request(`/api/writings/submissions${status ? `?status=${status}` : ''}`),
+  getSubmissions: (params) => {
+    const query = new URLSearchParams(params).toString();
+    return request(`/api/writings/submissions?${query}`);
+  },
   getSubmissionById: (id) => request(`/api/writings/submissions/${id}`),
   scoreSubmission: (id, body) => request(`/api/writings/submissions/${id}/score`, { method: 'POST', body: JSON.stringify(body) }),
   scoreSubmissionAI: (id) => request(`/api/writings/submissions/${id}/ai-score`, { method: 'POST' }),
@@ -131,6 +134,13 @@ export const api = {
 
   getAdminUsersScores: () => request('/api/admin/scores'),
   getAdminUserAttempts: (userId) => request(`/api/admin/users/${userId}/attempts`),
+  // Admin - Students
+  getPendingStudents: () => request('/api/admin/students/pending'),
+  approveStudent: (userId) => request(`/api/admin/students/${userId}/approve`, { method: 'PUT' }),
+  
+  // Admin - Users
+  getUsers: (role) => request(`/api/admin/users${role ? `?role=${role}` : ''}`),
+  deleteUser: (userId) => request(`/api/admin/users/${userId}`, { method: 'DELETE' }),
 
   // Speaking
   getSpeakings: () => request('/api/speaking'),

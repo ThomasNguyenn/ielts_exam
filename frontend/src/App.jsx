@@ -31,6 +31,10 @@ function ProtectedRoute({ children }) {
   if (!api.isAuthenticated()) {
     return <Navigate to="/login" replace />;
   }
+  const user = api.getUser();
+  if (user?.role === 'student' && !user?.isConfirmed) {
+    return <Navigate to="/wait-for-confirmation" replace />;
+  }
   return children;
 }
 
@@ -46,6 +50,10 @@ function ManageRoute({ children }) {
 // Public Route wrapper (redirect if logged in)
 function PublicRoute({ children }) {
   if (api.isAuthenticated()) {
+     const user = api.getUser();
+     if (user?.role === 'student' && !user?.isConfirmed) {
+         return <Navigate to="/wait-for-confirmation" replace />;
+     }
     return <Navigate to="/" replace />;
   }
   return children;
@@ -53,6 +61,9 @@ function PublicRoute({ children }) {
 
 // ... (imports)
 import { NotificationProvider } from './components/NotificationContext';
+import WaitForConfirmation from './pages/WaitForConfirmation';
+import StudentRequests from './pages/manage/StudentRequests';
+import ManageUsers from './pages/manage/ManageUsers';
 
 export default function App() {
   return (
@@ -63,7 +74,7 @@ export default function App() {
           <Route path="tests" element={<TestList />} />
           <Route path="tests/:id" element={<TestDetail />} />
           <Route path="tests/:id/history" element={<ProtectedRoute><TestHistory /></ProtectedRoute>} />
-          <Route path="tests/:id/exam" element={<Exam />} />
+          <Route path="tests/:id/exam" element={<ProtectedRoute><Exam /></ProtectedRoute>} />
 
           {/* Writing Practice/Test Route */}
           <Route path="tests/writing/:id" element={<ProtectedRoute><PracticeFlow /></ProtectedRoute>} />
@@ -89,12 +100,15 @@ export default function App() {
           <Route path="register" element={
             <PublicRoute><Register /></PublicRoute>
           } />
+          <Route path="wait-for-confirmation" element={<WaitForConfirmation />} />
 
           {/* Protected Manage Routes (Teacher/Admin) */}
           <Route path="manage" element={
             <ManageRoute><ManageLayout /></ManageRoute>
           }>
             <Route index element={<Navigate to="/manage/passages" replace />} />
+            <Route path="requests" element={<StudentRequests />} />
+            <Route path="users" element={<ManageUsers />} />
             <Route path="passages" element={<AddPassage />} />
             <Route path="passages/:id" element={<AddPassage />} />
             <Route path="sections" element={<AddSection />} />

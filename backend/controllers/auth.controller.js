@@ -54,6 +54,7 @@ export const register = async (req, res) => {
       name,
       role: finalRole,
       giftcode: normalizedGiftcode || null,
+      isConfirmed: finalRole === 'teacher' || finalRole === 'admin' ? true : false,
     });
 
     await user.save();
@@ -73,6 +74,7 @@ export const register = async (req, res) => {
           email: user.email,
           name: user.name,
           role: user.role,
+          isConfirmed: user.isConfirmed,
         },
         token,
       },
@@ -120,6 +122,7 @@ export const login = async (req, res) => {
           email: user.email,
           name: user.name,
           role: user.role,
+          isConfirmed: user.isConfirmed,
         },
         token,
       },

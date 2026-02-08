@@ -7,7 +7,8 @@ export default function SpeakingList() {
     const [tasks, setTasks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
-    const [filterType, setFilterType] = useState('all'); // all, 1, 2, 3
+    const [selectedTopic, setSelectedTopic] = useState('all');
+    const [filterType, setFilterType] = useState('all');
 
     useEffect(() => {
         setLoading(true);
@@ -26,8 +27,27 @@ export default function SpeakingList() {
             prompt.toLowerCase().includes(searchQuery.toLowerCase());
         
         const matchesType = filterType === 'all' || String(t.part) === filterType;
+        const matchesTopic = selectedTopic === 'all' || title === selectedTopic;
         
-        return matchesSearch && matchesType;
+        return matchesSearch && matchesType && matchesTopic;
+    });
+
+    // Extract unique topics
+    const uniqueTopics = [...new Set(tasks.map(t => t.title))].sort();
+
+    // Group filtered tasks by topic
+    const groupedTasks = filteredTasks.reduce((groups, task) => {
+        const topic = task.title;
+        if (!groups[topic]) {
+            groups[topic] = [];
+        }
+        groups[topic].push(task);
+        return groups;
+    }, {});
+
+    // Sort tasks within groups by Part
+    Object.keys(groupedTasks).forEach(topic => {
+        groupedTasks[topic].sort((a, b) => a.part - b.part);
     });
 
     if (loading) return <div className="practice-container">Loading speaking topics...</div>;
@@ -50,6 +70,19 @@ export default function SpeakingList() {
                     className="form-input"
                     style={{ flex: 1, minWidth: '200px', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}
                 />
+                
+                <select
+                    value={selectedTopic}
+                    onChange={(e) => setSelectedTopic(e.target.value)}
+                    className="form-select"
+                    style={{ width: 'auto', minWidth: '200px', cursor: 'pointer' }}
+                >
+                    <option value="all">Tất cả chủ đề (Topics)</option>
+                    {uniqueTopics.map(topic => (
+                        <option key={topic} value={topic}>{topic}</option>
+                    ))}
+                </select>
+
                 <div className="filter-buttons" style={{ display: 'flex', gap: '0.5rem' }}>
                     {['all', '1', '2', '3'].map(type => (
                         <button
@@ -71,32 +104,41 @@ export default function SpeakingList() {
                 </div>
             </div>
 
-            <div className="practice-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
-                {filteredTasks.map(t => (
-                    <div key={t._id} className="practice-card" style={{ background: 'white', padding: '1.5rem', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', transition: 'all 0.3s ease', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.03)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem' }}>
-                            <span className="badge"
-                                style={{ background: '#fdf4e3', color: '#d03939', padding: '4px 12px', borderRadius: '50px', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                Part {t.part}
-                            </span>
-                        </div>
-                        <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem', color: '#0f172a', fontWeight: 800, flex: 1 }}>{t.title}</h3>
-                        <p className="muted" style={{ fontSize: '0.9rem', marginBottom: '1.5rem', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                            {t.prompt}
-                        </p>
-                        
-                        <Link to={`/practice/speaking/${t._id}`} className="btn-sidebar-start" style={{ textDecoration: 'none', background: '#3b82f6' }}>
-                            Bắt đầu trả lời
-                        </Link>
+            <div className="practice-content-area">
+                {Object.keys(groupedTasks).length === 0 ? (
+                    <div className="empty-state" style={{ textAlign: 'center', padding: '4rem', color: '#64748b' }}>
+                        <p>Không tìm thấy chủ đề nào.</p>
                     </div>
-                ))}
+                ) : (
+                    Object.entries(groupedTasks).map(([topic, tasks]) => (
+                        <div key={topic} className="topic-group">
+                            <div className="topic-group-header">
+                                <h3 className="topic-group-title">{topic}</h3>
+                                <span className="topic-group-count">{tasks.length} câu hỏi</span>
+                            </div>
+                            <div className="topic-group-content">
+                                {tasks.map(t => (
+                                    <div key={t._id} className="practice-card" style={{ background: 'white', padding: '1.5rem', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', transition: 'all 0.3s ease', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem' }}>
+                                            <span className="badge"
+                                                style={{ background: '#fdf4e3', color: '#d03939', padding: '4px 12px', borderRadius: '50px', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                                Part {t.part}
+                                            </span>
+                                        </div>
+                                        <p className="muted" style={{ fontSize: '1rem', color: '#334155', lineHeight: '1.6', marginBottom: '1.5rem', flex: 1, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                            {t.prompt}
+                                        </p>
+                                        
+                                        <Link to={`/practice/speaking/${t._id}`} className="btn-sidebar-start" style={{ textDecoration: 'none', background: '#3b82f6', color: 'white', padding: '0.75rem', borderRadius: '8px', textAlign: 'center', fontWeight: '600' }}>
+                                            Bắt đầu trả lời
+                                        </Link>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ))
+                )}
             </div>
-
-            {filteredTasks.length === 0 && (
-                <div className="empty-state" style={{ textAlign: 'center', padding: '4rem', color: '#64748b' }}>
-                    <p>Không tìm thấy chủ đề nào.</p>
-                </div>
-            )}
         </div>
     );
 }

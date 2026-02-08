@@ -183,9 +183,16 @@ export const submitWriting = async (req, res) => {
 /** Get submissions with status filtering */
 export const getSubmissions = async (req, res) => {
     try {
-        const { status } = req.query;
+        const { status, startDate, endDate } = req.query;
         const filter = {};
         if (status) filter.status = status;
+
+        if (startDate && endDate) {
+            filter.submitted_at = {
+                $gte: new Date(startDate),
+                $lte: new Date(endDate)
+            };
+        }
 
         const WritingSubmission = (await import("../models/WritingSubmission.model.js")).default;
 
@@ -236,12 +243,16 @@ export const scoreSubmission = async (req, res) => {
             return res.status(404).json({ success: false, message: "Submission not found" });
         }
 
+        const User = (await import("../models/User.model.js")).default;
+        const user = await User.findById(req.user?.userId);
+        const graderName = user ? user.name : 'Teacher';
+
         // Update writing submission scores
         if (scores && Array.isArray(scores)) {
             submission.scores = scores.map(s => ({
                 ...s,
                 scored_at: new Date(),
-                scored_by: 'Teacher'
+                scored_by: graderName
             }));
         } else if (feedback) { // Fallback if simple feedback
             // handle logic if structure differs
