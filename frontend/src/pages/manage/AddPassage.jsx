@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { api } from '../../api/client';
 import './Manage.css';
 import { useNotification } from '../../components/NotificationContext';
+import AIContentGeneratorModal from '../../components/AIContentGeneratorModal';
 
 // ... (Icons and Helper Functions remain unchanged) ...
 
@@ -94,6 +95,7 @@ export default function AddPassage() {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [error, setError] = useState(null);
   const [existingSearch, setExistingSearch] = useState('');
+  const [isAIModalOpen, setIsAIModalOpen] = useState(false);
 
   const [form, setForm] = useState({
     _id: '',
@@ -162,6 +164,26 @@ export default function AddPassage() {
       (item.title || '').toLowerCase().includes(q) ||
       (item._id || '').toLowerCase().includes(q)
     );
+  };
+
+
+  const handleAIGenerated = (data) => {
+    // Merge generated data with form
+    // Note: ID must stay if editing, or be generated if new.
+    // Content, title, question_groups should be replaced or merged.
+    
+    // Normalize data using passageToForm to ensure all fields (like options) are present
+    const normalized = passageToForm(data);
+
+    // We replace content completely for simplicity, but keep ID if editing
+    setForm(prev => ({
+      ...prev,
+      title: normalized.title || prev.title,
+      content: normalized.content || prev.content,
+      source: normalized.source || prev.source,
+      question_groups: normalized.question_groups || prev.question_groups
+    }));
+    showNotification('Content generated successfully!', 'success');
   };
 
   const filteredPassages = passages.filter((p) => matchSearch(p, existingSearch));
@@ -433,7 +455,25 @@ export default function AddPassage() {
 
   return (
     <div className="manage-container">
-      <h1>{editId ? 'Sửa bài Reading' : 'Thêm bài Reading'}</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h1>{editId ? 'Sửa bài Reading' : 'Thêm bài Reading'}</h1>
+        <button 
+          className="btn-manage-add" 
+          type="button" 
+          onClick={() => setIsAIModalOpen(true)}
+          style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', background: '#2563eb' }}
+        >
+          ✨ Soạn đề AI
+        </button>
+      </div>
+      
+      <AIContentGeneratorModal 
+        isOpen={isAIModalOpen} 
+        onClose={() => setIsAIModalOpen(false)} 
+        onGenerated={handleAIGenerated}
+        type="passage"
+      />
+
       {error && <p className="form-error">{error}</p>}
 
       <form onSubmit={handleSubmit} className="manage-form">

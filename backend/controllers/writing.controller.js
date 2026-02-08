@@ -145,7 +145,7 @@ export const submitWriting = async (req, res) => {
             if (req.body.gradingMode === 'ai') {
                 try {
                     const { gradeEssay } = await import("../services/grading.service.js");
-                    gradingResult = await gradeEssay(writing.prompt, trimmedAnswer);
+                    gradingResult = await gradeEssay(writing.prompt, trimmedAnswer, writing.task_type, writing.image_url);
 
                     newSubmission.status = 'scored'; // Auto-scored
                     newSubmission.ai_result = gradingResult;
@@ -413,7 +413,7 @@ export const scoreSubmissionAI = async (req, res) => {
             return res.status(404).json({ success: false, message: "Original writing task not found" });
         }
 
-        const gradingResult = await gradeEssay(task.prompt, answerText);
+        const gradingResult = await gradeEssay(task.prompt, answerText, task.task_type, task.image_url);
 
         // Update submission
         submission.ai_result = gradingResult;
@@ -428,5 +428,35 @@ export const scoreSubmissionAI = async (req, res) => {
     } catch (error) {
         console.error("AI Score submission error:", error);
         res.status(500).json({ success: false, message: "Server Error: " + error.message });
+    }
+};
+
+/** Upload image to Cloudinary */
+export const uploadImage = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ success: false, message: "No file uploaded" });
+        }
+
+        const cloudinary = (await import("../utils/cloudinary.js")).default;
+
+        // Upload from buffer
+        const b64 = Buffer.from(req.file.buffer).toString("base64");
+        let dataURI = "data:" + req.file.mimetype + ";base64," + b64;
+
+        const result = await cloudinary.uploader.upload(dataURI, {
+            folder: "ielts-writing-task1",
+        });
+
+        res.status(200).json({
+            success: true,
+            data: {
+                url: result.secure_url,
+                public_id: result.public_id
+            }
+        });
+    } catch (error) {
+        console.error("Upload image error:", error);
+        res.status(500).json({ success: false, message: "Upload failed: " + error.message });
     }
 };

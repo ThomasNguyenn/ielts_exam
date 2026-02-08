@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { api } from '../../api/client';
 import './Manage.css';
 import { useNotification } from '../../components/NotificationContext';
+import AIContentGeneratorModal from '../../components/AIContentGeneratorModal';
 
 const QUESTION_GROUP_TYPES = [
   { value: 'mult_choice', label: 'Multiple choice' },
@@ -92,8 +93,8 @@ export default function AddSection() {
   const [loadError, setLoadError] = useState(null);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [error, setError] = useState(null);
-  // Removed success state
   const [existingSearch, setExistingSearch] = useState('');
+  const [isAIModalOpen, setIsAIModalOpen] = useState(false);
 
   const [form, setForm] = useState({
     _id: '',
@@ -164,6 +165,23 @@ export default function AddSection() {
       (item.title || '').toLowerCase().includes(q) ||
       (item._id || '').toLowerCase().includes(q)
     );
+  };
+
+
+  const handleAIGenerated = (data) => {
+    // Merge generated data with form
+    const normalized = sectionToForm(data);
+
+    setForm(prev => ({
+      ...prev,
+      title: normalized.title || prev.title,
+      content: normalized.content || prev.content,
+      source: normalized.source || prev.source,
+      // For listening, we might have an audio_url if the AI guessed it or left it blank
+      audio_url: normalized.audio_url || prev.audio_url, 
+      question_groups: normalized.question_groups || prev.question_groups
+    }));
+    showNotification('Content generated successfully!', 'success');
   };
 
   const filteredSections = sections.filter((s) => matchSearch(s, existingSearch));
@@ -438,7 +456,25 @@ export default function AddSection() {
 
   return (
     <div className="manage-container">
-      <h1>{editId ? 'Sửa bài Listening' : 'Thêm bài Listening'}</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h1>{editId ? 'Sửa bài Listening' : 'Thêm bài Listening'}</h1>
+        <button 
+          className="btn-manage-add" 
+          type="button" 
+          onClick={() => setIsAIModalOpen(true)}
+          style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', background: '#2563eb' }}
+        >
+          ✨ Soạn đề AI
+        </button>
+      </div>
+
+      <AIContentGeneratorModal 
+        isOpen={isAIModalOpen} 
+        onClose={() => setIsAIModalOpen(false)} 
+        onGenerated={handleAIGenerated}
+        type="section"
+      />
+
       {error && <p className="form-error">{error}</p>}
 
       <form onSubmit={handleSubmit} className="manage-form">

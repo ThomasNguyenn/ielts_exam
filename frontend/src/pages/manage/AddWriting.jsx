@@ -51,6 +51,7 @@ export default function AddWriting() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [submitLoading, setSubmitLoading] = useState(false);
+  const [uploadLoading, setUploadLoading] = useState(false);
   const [error, setError] = useState(null);
   const [existingSearch, setExistingSearch] = useState('');
   const { showNotification } = useNotification();
@@ -140,6 +141,29 @@ export default function AddWriting() {
         }
       }
     });
+  };
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setUploadLoading(true);
+    const formData = new FormData();
+    formData.append('image', file);
+
+    try {
+        const res = await api.uploadImage(formData);
+        if (res.success && res.data.url) {
+            updateForm('image_url', res.data.url);
+            showNotification('Image uploaded successfully', 'success');
+        }
+    } catch (err) {
+        showNotification(err.message || 'Upload failed', 'error');
+    } finally {
+        setUploadLoading(false);
+        // Reset file input
+        e.target.value = '';
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -284,8 +308,20 @@ export default function AddWriting() {
               style={{ background: '#ffffff' }}
             />
             <small className="form-hint" style={{ color: '#d03939' }}>
-              Nhập link hình ảnh biểu đồ, đồ thị hoặc sơ đồ cho Task 1
+              Nhập link hình ảnh biểu đồ, đồ thị hoặc sơ đồ cho Task 1 (hoặc tải ảnh lên)
             </small>
+
+            <div style={{ marginTop: '0.5rem' }}>
+                <input 
+                    type="file" 
+                    accept="image/*" 
+                    onChange={handleImageUpload} 
+                    disabled={uploadLoading}
+                    style={{ background: 'transparent', paddingLeft: 0 }}
+                />
+                {uploadLoading && <span className="muted">Uploading...</span>}
+            </div>
+
             {form.image_url && (
               <div style={{ marginTop: '0.5rem' }}>
                 <img

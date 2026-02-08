@@ -108,6 +108,12 @@ export const api = {
   createWriting: (body) => request('/api/writings', { method: 'POST', body: JSON.stringify(body) }),
   updateWriting: (id, body) => request(`/api/writings/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteWriting: (id) => request(`/api/writings/${id}`, { method: 'DELETE' }),
+  uploadImage: (formData) => request('/api/writings/upload-image', { 
+    method: 'POST', 
+    body: formData, 
+    headers: { 'Content-Type': undefined } // Let browser set boundary
+  }),
+  parseContent: (data) => request('/api/content-gen/parse', { method: 'POST', body: JSON.stringify(data) }),
   // Grading
   getSubmissions: (params) => {
     const query = new URLSearchParams(params).toString();

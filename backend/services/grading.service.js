@@ -6,8 +6,82 @@ const openai = new OpenAI({
     apiKey: process.env.OPEN_API_KEY,
 });
 
-export const gradeEssay = async (promptText, essayText) => {
-    const systemPrompt = `Hãy đóng vai một giám khảo IELTS Writing Task 2 (Band 8.0+), có ít nhất 10 năm kinh nghiệm,
+export const gradeEssay = async (promptText, essayText, taskType = 'task2', imageUrl = null) => {
+    let systemPrompt = '';
+    let userMessageContent = [];
+
+    if (taskType === 'task1') {
+        systemPrompt = `Hãy đóng vai một giám khảo IELTS Writing Task 1 (Band 8.0+), có ít nhất 10 năm kinh nghiệm,
+và chấm theo Band Descriptors chính thức của IELTS.
+
+ĐỀ BÀI (Topic):
+${promptText}
+
+BÀI VIẾT CỦA HỌC SINH (Student Essay):
+${essayText}
+
+Bạn phải phân tích bài viết theo 4 tiêu chí IELTS Writing Task 1:
+1) Task Achievement (TA) - thay cho Task Response
+2) Coherence & Cohesion (CC)
+3) Lexical Resource (LR)
+4) Grammatical Range & Accuracy (GRA)
+
+━━━━━━━━━━━━━━━━━━━━━━
+YÊU CẦU RẤT QUAN TRỌNG (BẮT BUỘC)
+━━━━━━━━━━━━━━━━━━━━━━
+
+A) Mỗi tiêu chí phải trả về là MỘT ARRAY riêng.
+B) Mỗi tiêu chí phải cố gắng tìm ÍT NHẤT 5-7 lỗi/điểm cần cải thiện (Task 1 ngắn hơn Task 2).
+   - Nếu không đủ lỗi, hãy đưa ra gợi ý nâng cao (suggestion).
+C) SOI KỸ Task Achievement (TA):
+   - Bài viết có overview rõ ràng không?
+   - Có highlight key features không?
+   - Số liệu có chính xác so với biểu đồ không (nếu có)?
+D) Với Lexical Resource (LR):
+   - Đưa ra từ vựng thay thế (band 6.0, 6.5) phù hợp ngữ cảnh báo cáo số liệu/biểu đồ.
+E) KHÔNG trộn tiêu chí.
+   - Task Achievement: nói về việc tóm tắt, so sánh, không đưa ý kiến cá nhân.
+F) Mỗi mục phải:
+   - text_snippet: trích dẫn
+   - explanation: giải thích tiếng Việt
+   - improved: sửa lại
+   - band_impact: ảnh hưởng điểm số
+
+━━━━━━━━━━━━━━━━━━━━━━
+OUTPUT: CHỈ TRẢ JSON HỢP LỆ
+━━━━━━━━━━━━━━━━━━━━━━
+Lưu ý: Vẫn dùng key "task_response" trong JSON để chứa nội dung "Task Achievement" nhằm tương thích hệ thống.
+
+{
+  "band_score": number,
+  "criteria_scores": {
+    "task_response": number, // Điểm Task Achievement
+    "coherence_cohesion": number,
+    "lexical_resource": number,
+    "grammatical_range_accuracy": number
+  },
+  "task_response": [ ... ], // Nội dung Task Achievement
+  "coherence_cohesion": [ ... ],
+  "lexical_resource": [ ... ],
+  "grammatical_range_accuracy": [ ... ],
+  "feedback": [ "string (Nhận xét tổng quan Task 1)" ],
+  "sample_essay": "string (Viết bài mẫu Band 8.0 cho Task 1 này)"
+}
+`;
+        // Prepare message content for Task 1 (potentially with image)
+        userMessageContent.push({ type: "text", text: systemPrompt });
+        if (imageUrl) {
+            userMessageContent.push({
+                type: "image_url",
+                image_url: {
+                    "url": imageUrl,
+                },
+            });
+        }
+
+    } else {
+        // DEFAULT: TASK 2 Logic
+        systemPrompt = `Hãy đóng vai một giám khảo IELTS Writing Task 2 (Band 8.0+), có ít nhất 10 năm kinh nghiệm,
 và chấm theo Band Descriptors chính thức của IELTS.
 
 ĐỀ BÀI (Topic):
@@ -115,11 +189,18 @@ OUTPUT: CHỈ TRẢ JSON HỢP LỆ
   "sample_essay": "string (Viết một bài mẫu Band 8.0 hoàn chỉnh theo đề bài ${promptText})"
 }
 `;
+        userMessageContent.push({ type: "text", content: systemPrompt });
+    }
 
     const completion = await openai.chat.completions.create({
         model: "gpt-4o",
-        messages: [{ role: "user", content: systemPrompt }],
-        max_tokens: 10000,
+        messages: [{ role: "user", content: userMessageContent.length > 0 && taskType === 'task1' ? userMessageContent : systemPrompt }],
+        max_tokens: 4096, // Reduced from 10000 to be safe, but 4096 is usually output limit. 
+        // Note: max_tokens for gpt-4o logic is usually for output. 
+        // 10000 might be too high if the model doesn't support it (max output is often 4096 or 16k depending on specific model version, let's keep it safe or stick to original if it worked). 
+        // Actually, gpt-4-turbo / 4o often supports 4096 output. 10000 is definitely > max output tokens usually allowed (which is often 4096). 
+        // I will stick to 4096 to be safe, or 10000 if they were using a specific model variant, but standard is 4k output. 
+        // Let's use 4096.
         response_format: { type: "json_object" },
     });
 

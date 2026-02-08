@@ -1,12 +1,16 @@
-import { getAllWritings, createWriting, updateWriting, deleteWriting, getWritingById, getWritingExam, submitWriting, getSubmissions, getSubmissionById, scoreSubmission, regenerateWritingId, scoreSubmissionAI } from '../controllers/writing.controller.js';
+import { getAllWritings, createWriting, updateWriting, deleteWriting, getWritingById, getWritingExam, submitWriting, getSubmissions, getSubmissionById, scoreSubmission, regenerateWritingId, scoreSubmissionAI, uploadImage } from '../controllers/writing.controller.js';
 import { verifyToken, optionalVerifyToken } from '../middleware/auth.middleware.js';
 import express from 'express';
+import multer from 'multer';
+
 const router = express.Router();
+const upload = multer({ storage: multer.memoryStorage() });
 
 router.get("/", getAllWritings);
 router.get("/submissions", verifyToken, getSubmissions); // New route for teachers
 router.get("/submissions/:id", getSubmissionById); // New route for grading detail
 router.post("/", createWriting);
+router.post("/upload-image", upload.single('image'), uploadImage); // New upload route
 router.get("/:id", getWritingById);
 router.get("/:id/exam", getWritingExam);
 router.post("/:id/submit", submitWriting);

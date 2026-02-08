@@ -11,6 +11,7 @@ import authRoutes from './routes/auth.route.js';
 import vocabularyRoutes from './routes/vocabularyRoutes.js';
 import adminRoutes from './routes/admin.route.js';
 import speakingRoutes from './routes/speaking.routes.js';
+import contentGenRoutes from './routes/contentGen.route.js';
 import path from 'path';
 import fs from 'fs';
 
@@ -29,6 +30,7 @@ app.use("/api/practice", practiceRoutes);
 app.use("/api/vocabulary", vocabularyRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/speaking", speakingRoutes);
+app.use("/api/content-gen", contentGenRoutes);
 
 // Serve static files from uploads directory
 const uploadDir = path.join(process.cwd(), 'uploads');
