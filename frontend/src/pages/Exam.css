@@ -447,6 +447,21 @@
     gap: 0.75rem;
 }
 
+.matching-chips-column {
+    flex-direction: column;
+    align-items: flex-start; /* Align left */
+}
+
+.matching-chips-column .matching-chip {
+    width: auto;
+    max-width: none;
+}
+
+.matching-chips-column .matching-chip-text {
+    max-width: none;
+    white-space: normal;
+}
+
 .matching-chip {
     background: white;
     border: 1px solid #cbd5e1;
@@ -520,18 +535,50 @@
     margin: 0 0.4rem;
     padding: 2px 8px;
     margin-bottom: 5px;
+    position: relative;
 }
 
 .matching-dropzone:hover,
-.summary-dropzone:hover {
-    border-color: #94a3b8;
-    background: #fefce8;
+.summary-dropzone:hover,
+.matching-dropzone.drag-over {
+    border-color: #3b82f6;
+    background: #f0f9ff;
+    transform: scale(1.02);
 }
 
 .matching-dropzone.has-value,
 .summary-dropzone.has-value {
     border: 2px solid #3b82f6;
     background: #eff6ff;
+    border-style: solid;
+}
+
+/* Result Modes */
+.matching-dropzone.result-mode {
+    cursor: default;
+    border-style: solid;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 4px 8px;
+}
+
+.matching-dropzone.result-mode.correct {
+    border-color: #22c55e;
+    background-color: #f0fdf4;
+}
+
+.matching-dropzone.result-mode.wrong {
+    border-color: #ef4444;
+    background-color: #fef2f2;
+}
+
+.matching-correct-ans {
+    font-size: 0.8rem;
+    color: #15803d;
+    margin-top: 2px;
+    border-top: 1px solid #bbf7d0;
+    width: 100%;
+    padding-top: 2px;
 }
 
 .matching-selected,
@@ -541,6 +588,7 @@
     gap: 0.5rem;
     font-weight: 700;
     color: #1e3a8a;
+    width: 100%;
 }
 
 .matching-chip-text,
@@ -549,20 +597,23 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    max-width: 200px; /* Prevent huge expansion */
 }
 
 .matching-remove {
     background: none;
     border: none;
     color: #94a3b8;
-    margin-left: 0.5rem;
+    margin-left: auto; /* Push to right */
     cursor: pointer;
     font-size: 0.8rem;
-    padding: 2px;
+    padding: 2px 6px;
+    border-radius: 50%;
 }
 
 .matching-remove:hover {
     color: #ef4444;
+    background: #fee2e2;
 }
 
 /* Summary Completion Visual Grouping */
@@ -1904,7 +1955,7 @@
     .summary-completion {}
 
     .matching-options-pool {
-        max-width: 600px;
+        max-width: 900px;
     }
 }
 

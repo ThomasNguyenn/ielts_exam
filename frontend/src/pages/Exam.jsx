@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import { PanelGroup, Panel, PanelResizeHandle } from 'react-resizable-panels';
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import parse from 'html-react-parser';
@@ -108,7 +109,7 @@ function buildSteps(exam) {
   return steps;
 }
 
-function QuestionInput({ slot, value, onChange, index, onHighlightUpdate }) {
+function QuestionInput({ slot, value, onChange, index, onHighlightUpdate, showResult }) {
   const id = `q-${index}`;
   const [strikethroughOptions, setStrikethroughOptions] = useState(() => {
     // Load from localStorage if available
@@ -198,29 +199,83 @@ function QuestionInput({ slot, value, onChange, index, onHighlightUpdate }) {
   }
 
   // --- MATCHING (Drag and Drop) - Just render drop zone, options pool is at group level ---
-  if (slot.type === 'matching_headings' || slot.type === 'matching_features') {
+  if (slot.type === 'matching_headings' || slot.type === 'matching_features' || slot.type === 'matching_information') {
     const options = slot.headings || [];
     const selectedOption = options.find(h => h.id === value);
 
     const handleDrop = (e) => {
       e.preventDefault();
+      e.stopPropagation();
       const droppedId = e.dataTransfer.getData('headingId');
-      onChange(droppedId);
+      if (droppedId) {
+          onChange(droppedId);
+          e.currentTarget.classList.remove('drag-over');
+      }
     };
 
     const handleDragOver = (e) => {
       e.preventDefault();
+      e.stopPropagation();
+      e.currentTarget.classList.add('drag-over');
     };
 
-    const handleRemove = () => {
+    const handleDragLeave = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.currentTarget.classList.remove('drag-over');
+    };
+
+    const handleRemove = (e) => {
+      e.stopPropagation();
       onChange('');
     };
+    
+    // Result display logic
+    if (showResult) {
+        const clean = (str) => (str || '').toLowerCase().replace(/^[ivx]+\.?\s*/i, '').trim();
+
+        // Find correct answer object - resilient search
+        let correctOption = options.find(h => h.id === slot.correct_answer);
+        if (!correctOption) {
+            // Fallback: try to find by text content
+            correctOption = options.find(h => clean(h.text) === clean(slot.correct_answer));
+        }
+        
+        let isCorrect = value === slot.correct_answer;
+        
+        // Loose check: Compare text content if IDs don't match directly
+        if (!isCorrect && selectedOption && correctOption) {
+             if (clean(selectedOption.text) === clean(correctOption.text)) {
+                 isCorrect = true;
+             }
+        }
+        
+        return (
+            <div className={`matching-dropzone result-mode ${isCorrect ? 'correct' : 'wrong'}`}>
+                {selectedOption ? (
+                    <div className="matching-selected">
+                        <span className="matching-chip-text">{selectedOption.text}</span>
+                    </div>
+                ) : (
+                    <div className="matching-placeholder">
+                        (No answer)
+                    </div>
+                )}
+                {!isCorrect && correctOption && (
+                     <div className="matching-correct-ans">
+                        <strong>Correct: </strong> {correctOption.text}
+                     </div>
+                )}
+            </div>
+        );
+    }
 
     return (
       <div
         className={`matching-dropzone ${selectedOption ? 'has-value' : ''}`}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
       >
         {selectedOption ? (
           <div className="matching-selected">
@@ -387,7 +442,7 @@ function ListeningMapGrid({ group, slots, answers, setAnswer, startSlotIndex }) 
 
 
 /** One step: passage/section content + its questions (with slot indices) */
-function StepContent({ step, slots, answers, setAnswer, passageStates, setPassageState, testId }) {
+function StepContent({ step, slots, answers, setAnswer, passageStates, setPassageState, testId, showResult }) {
   const { item, startSlotIndex, endSlotIndex, type } = step;
   const isReading = type === 'reading';
   const isListening = type === 'listening';
@@ -407,7 +462,7 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
     <div className="exam-step-questions">
       {(item.question_groups || []).map((group, groupIdx) => {
         // Check for special group types
-        const isMatching = group.type === 'matching_headings' || group.type === 'matching_features';
+        const isMatching = group.type === 'matching_headings' || group.type === 'matching_features' || group.type === 'matching_information';
         const isSummary = group.type === 'summary_completion';
 
         const groupStartIndex = slotIndex;
@@ -435,7 +490,7 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                 <div className="">
                   <div className={`matching-options-pool ${isListening ? 'matching-options-pool-listening' : ''}`}>
                     {/* <div className="matching-options-label">Available Options - Drag to Questions Below:</div> */}
-                    <div className="matching-chips">
+                    <div className={`matching-chips ${group.type === 'matching_headings' ? 'matching-chips-column' : ''}`}>
                       {headings.map((h) => (
                         <div
                           key={h.id}
@@ -642,6 +697,7 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                                       onChange={(v) => setAnswer(currentIndex, v)}
                                       index={currentIndex}
                                       onHighlightUpdate={handleHtmlUpdate}
+                                      showResult={showResult}
                                     />
                                   </span>
                                 )}
@@ -663,6 +719,17 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
 
                 // --- MATCHING QUESTIONS (horizontal layout) ---
                 else if (isMatching) {
+                  // Check if this question is embedded in the passage content
+                  // We check for EITHER the raw placeholder [n] OR the processed dropzone with data-question-number="n"
+                  const isEmbedded = contentHtml && (
+                    new RegExp(`\\[\\s*${q.q_number}\\s*\\]`).test(contentHtml) ||
+                    new RegExp(`data-question-number=["']?${q.q_number}["']?`).test(contentHtml)
+                  );
+                  
+                  if (isEmbedded) {
+                    return null; // Skip rendering if embedded
+                  }
+
                   const qKey = `qtext_${item._id}_${q.q_number}`;
                   return (
                     <div key={currentIndex} className="matching-question-row">
@@ -681,6 +748,7 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                         onChange={(v) => setAnswer(currentIndex, v)}
                         index={currentIndex}
                         onHighlightUpdate={handleHtmlUpdate}
+                        showResult={showResult}
                       />
                     </div>
                   );
@@ -707,6 +775,7 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                         onChange={(v) => setAnswer(currentIndex, v)}
                         index={currentIndex}
                         onHighlightUpdate={handleHtmlUpdate}
+                        showResult={showResult}
                       />
                     </div>
                   );
@@ -751,16 +820,105 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
   // ==========================================================
   // IELTS READING LAYOUT: True split-screen (passage left, questions right)
   // ==========================================================
+  // ==========================================================
+  // IELTS READING LAYOUT: True split-screen (passage left, questions right)
+  // ==========================================================
   if (isReading) {
+    // 1. Pre-process HTML to inject placeholders for specific question types (Matching Headings/Info)
+    // We look for [n] where n corresponds to a question number in a matching group.
+    
+    // We need to identify valid question numbers for matching groups first
+    const matchingQuestionNumbers = new Set();
+    (item.question_groups || []).forEach(g => {
+        if (g.type === 'matching_headings' || g.type === 'matching_information') { // Add matching_information
+            g.questions.forEach(q => matchingQuestionNumbers.add(String(q.q_number)));
+        }
+    });
+
+    // Replace [n] with <span class="embedded-dropzone" data-question-number="n"></span>
+    // Only if n is in matchingQuestionNumbers
+    let processedContentHtml = contentHtml;
+    if (matchingQuestionNumbers.size > 0) {
+        processedContentHtml = contentHtml.replace(/\[\s*(\d+)\s*\]/g, (match, p1) => {
+            const numStr = String(p1);
+            if (matchingQuestionNumbers.has(numStr)) {
+                return `<span class="embedded-dropzone" data-question-number="${numStr}"></span>`;
+            }
+            return match;
+        });
+    }
+
+    // State to hold the DOM nodes for portals
+    const [embeddedNodes, setEmbeddedNodes] = useState([]);
+    const passageContainerRef = useRef(null);
+
+    // Effect to find the nodes after render
+    useEffect(() => {
+        if (passageContainerRef.current) {
+            const nodes = passageContainerRef.current.querySelectorAll('.embedded-dropzone');
+            setEmbeddedNodes(Array.from(nodes));
+        }
+    }, [processedContentHtml]); // Re-run if content changes
+
     return (
       <PanelGroup direction="horizontal" className="ielts-reading-layout">
         <Panel defaultSize={50} minSize={20} className="ielts-passage-panel">
           <div className="passage-scrollable">
             <HighlightableContent
-              htmlContent={contentHtml}
+              ref={passageContainerRef}
+              htmlContent={processedContentHtml}
               onUpdateHtml={(html) => handleHtmlUpdate(item._id, html)}
               id={item._id}
             />
+            {/* Render Portals for Embedded Drop Zones */}
+            {embeddedNodes.map((node) => {
+                const qNum = node.getAttribute('data-question-number');
+                
+                // Find the group and question for this qNum
+                let targetGroup = null;
+                let targetQuestion = null;
+                let targetSlotIndex = -1;
+
+                // We need to find the absolute slot index for this question
+                let runningSlotIndex = startSlotIndex; // Start from current step's start
+                
+                // Iterate groups in this step to find the matching question and its slot index
+                (item.question_groups || []).forEach((g) => {
+                    const foundQIndex = g.questions.findIndex(q => String(q.q_number) === qNum);
+                    if (foundQIndex !== -1) {
+                        targetGroup = g;
+                        targetQuestion = g.questions[foundQIndex];
+                        targetSlotIndex = runningSlotIndex + foundQIndex;
+                    }
+                    runningSlotIndex += (g.questions || []).length;
+                });
+
+                if (!targetGroup || !targetQuestion || targetSlotIndex === -1) return null;
+
+                const currentValue = answers[targetSlotIndex] || '';
+                
+                // Find the selected option text/ID
+                const selectedHeading = targetGroup.headings?.find(h => h.id === currentValue);
+
+                return ReactDOM.createPortal(
+                    <div className="embedded-matching-slot" style={{ display: 'inline-block', verticalAlign: 'middle', margin: '0 5px' }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 'bold', marginRight: '4px', color: '#666' }}>{qNum}</span>
+                         <QuestionInput
+                            slot={{
+                                type: 'matching_headings', // Force matching style logic
+                                ...targetQuestion, // Contains _id, text, etc.
+                                headings: targetGroup.headings, // Pass headings pool
+                                correct_answer: targetQuestion.correct_answer // Ensure correct_answer is passed for result mode
+                            }}
+                            value={currentValue}
+                            onChange={(val) => setAnswer(targetSlotIndex, val)}
+                            showResult={showResult}
+                            index={targetQuestion.q_number - 1} // Optional: might be used for ID generation
+                        />
+                    </div>,
+                    node
+                );
+            })}
           </div>
         </Panel>
 
@@ -1530,7 +1688,7 @@ export default function Exam() {
             setWritingAnswer={setWritingAnswer}
           />
         ) : (
-          <StepContent step={step} slots={slots} answers={answers} setAnswer={setAnswer} testId={id} />
+          <StepContent step={step} slots={slots} answers={answers} setAnswer={setAnswer} testId={id} showResult={submitted} />
         )}
       </form>
 

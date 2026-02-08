@@ -30,7 +30,7 @@ const QuestionGroupSchema = new mongoose.Schema({
     type:{
         type: String,
         required: true,
-        enum : ['true_false_notgiven', 'gap_fill','matching_headings','mult_choice','matching_features', 'summary_completion']
+        enum : ['true_false_notgiven', 'gap_fill','matching_headings','mult_choice','matching_features', 'summary_completion', 'matching_information']
     },
 
     instructions: { type: String, required: false }, // Huong dan cho nhom cau hoi

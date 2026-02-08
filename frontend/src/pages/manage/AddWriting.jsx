@@ -19,7 +19,7 @@ function writingToForm(w) {
     title: '',
     type: 'academic',
     prompt: '',
-    task_type: 'both',
+    task_type: 'task1',
     image_url: '',
     word_limit: 250,
     essay_word_limit: 250,
@@ -33,7 +33,7 @@ function writingToForm(w) {
     title: w.title || '',
     type: w.type || 'academic',
     prompt: w.prompt || '',
-    task_type: w.task_type || 'both',
+    task_type: w.task_type || 'task1',
     image_url: w.image_url || '',
     word_limit: w.word_limit || 250,
     essay_word_limit: w.essay_word_limit || 250,
@@ -69,7 +69,7 @@ export default function AddWriting() {
     title: '',
     type: 'academic',
     prompt: '',
-    task_type: 'both',
+    task_type: 'task1',
     image_url: '',
     word_limit: 250,
     essay_word_limit: 250,
@@ -97,7 +97,7 @@ export default function AddWriting() {
       api.getWritings()
         .then((wRes) => {
           setWritings(wRes.data || []);
-          setForm({ _id: `writing-${Date.now()}`, title: '', type: 'academic', prompt: '', task_type: 'both', image_url: '', word_limit: 250, essay_word_limit: 250, time_limit: 60, sample_answer: '', band_score: '' });
+          setForm({ _id: `writing-${Date.now()}`, title: '', type: 'academic', prompt: '', task_type: 'task1', image_url: '', word_limit: 250, essay_word_limit: 250, time_limit: 60, sample_answer: '', band_score: '' });
         })
         .catch(() => { })
         .finally(() => setLoading(false));
@@ -180,7 +180,7 @@ export default function AddWriting() {
         title: form.title.trim(),
         type: form.type || 'academic',
         prompt: form.prompt.trim(),
-        task_type: form.task_type || 'both',
+        task_type: form.task_type || 'task1',
         image_url: form.image_url?.trim() || '',
         word_limit: Number(form.word_limit) || 250,
         essay_word_limit: Number(form.essay_word_limit) || 250,
@@ -200,7 +200,7 @@ export default function AddWriting() {
           title: '',
           type: 'academic',
           prompt: '',
-          task_type: 'both',
+          task_type: 'task1',
           image_url: '',
           word_limit: 250,
           essay_word_limit: 250,
@@ -274,7 +274,7 @@ export default function AddWriting() {
         <div className="form-row">
           <label>Loại Task *</label>
           <select
-            value={form.task_type || 'both'}
+            value={form.task_type || 'task1'}
             onChange={(e) => updateForm('task_type', e.target.value)}
           >
             <option value="task1">Task 1 only (Graphs/Charts)</option>
@@ -297,7 +297,7 @@ export default function AddWriting() {
           </small>
         </div>
 
-        {(form.task_type === 'task1' || form.task_type === 'both') && (
+        {(form.task_type === 'task1') && (
           <div className="form-row" style={{ background: '#FFF9F1', padding: '1.5rem', borderRadius: '1.25rem', border: '1px solid #fdf4e3' }}>
             <label style={{ color: '#d03939', fontSize: '1rem' }}>Hình ảnh minh họa (Task 1 - Graph/Chart/Diagram)</label>
             <input

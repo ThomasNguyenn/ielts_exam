@@ -21,6 +21,7 @@ const QUESTION_GROUP_TYPES = [
   { value: 'gap_fill', label: 'Gap fill' },
   { value: 'matching_headings', label: 'Matching headings' },
   { value: 'matching_features', label: 'Matching features' },
+  { value: 'matching_information', label: 'Matching information' },
   { value: 'summary_completion', label: 'Summary completion' },
   { value: 'listening_map', label: 'Listening Map' },
 ];
@@ -533,9 +534,9 @@ export default function AddPassage() {
                       </div>
                     )}
 
-                    {(group.type === 'matching_headings' || group.type === 'matching_features') && (
+                    {(group.type === 'matching_headings' || group.type === 'matching_features' || group.type === 'matching_information') && (
                       <div className="form-section">
-                        <h4>{group.type === 'matching_headings' ? 'Danh sách Headings' : 'Danh sách Features'}</h4>
+                        <h4>{group.type === 'matching_headings' ? 'Danh sách Headings' : group.type === 'matching_information' ? 'Danh sách Paragraphs' : 'Danh sách Features'}</h4>
                         <p className="form-hint">Thêm các lựa chọn để học viên nối. Đáp án đúng của mỗi câu hỏi sẽ là ID (ví dụ: i, ii, iii hoặc A, B, C).</p>
                         {(group.headings || []).map((h, hi) => (
                           <div key={hi} className="heading-row">
@@ -548,7 +549,7 @@ export default function AddPassage() {
                             <textarea
                               value={h.text}
                               onChange={(e) => updateHeading(gi, hi, 'text', e.target.value)}
-                              placeholder="Nội dung heading hoặc feature..."
+                              placeholder={group.type === 'matching_information' ? "e.g. Paragraph A" : "Nội dung heading hoặc feature..."}
                               className="heading-text"
                               rows={1}
                               onInput={(e) => {

@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useMemo } from 'react';
+import React, { useRef, useState, useEffect, useMemo, forwardRef, useImperativeHandle } from 'react';
 
 /**
  * Tokenizes HTML string by wrapping independent words in <span> tags.
@@ -99,8 +99,12 @@ const NoteModal = ({ isOpen, onClose, onSave, initialValue = '' }) => {
 };
 
 
-export default function HighlightableContent({ htmlContent, onUpdateHtml, id, tagName = 'div', className = '' }) {
-  const containerRef = useRef(null);
+const HighlightableContent = forwardRef(({ htmlContent, onUpdateHtml, id, tagName = 'div', className = '' }, ref) => {
+  const internalContainerRef = useRef(null);
+  // Allow parent to access the container ref
+  useImperativeHandle(ref, () => internalContainerRef.current);
+  
+  const containerRef = internalContainerRef;
   const wrapperRef = useRef(null);
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
@@ -371,7 +375,9 @@ export default function HighlightableContent({ htmlContent, onUpdateHtml, id, ta
 
     </div>
   );
-}
+});
+
+export default HighlightableContent;
 
 export function HighlightableWrapper({ children, onUpdateHtml, className = '', tagName = 'div', style = {} }) {
   const containerRef = useRef(null);

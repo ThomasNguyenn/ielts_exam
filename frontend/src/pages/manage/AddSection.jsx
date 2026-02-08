@@ -10,6 +10,7 @@ const QUESTION_GROUP_TYPES = [
   { value: 'true_false_notgiven', label: 'True / False / Not given' },
   { value: 'gap_fill', label: 'Gap fill' },
   { value: 'matching_features', label: 'Matching features' },
+  { value: 'matching_information', label: 'Matching information' },
   { value: 'summary_completion', label: 'Summary completion' },
   { value: 'listening_map', label: 'Listening Map' },
 ];
@@ -421,9 +422,9 @@ export default function AddSection() {
       showNotification('Each question group must have at least one question with correct answer(s). For standard questions, text is also required.', 'error');
       return;
     }
-    const matchingFeaturesGroups = payload.question_groups.filter((g) => g.type === 'matching_features');
+    const matchingFeaturesGroups = payload.question_groups.filter((g) => g.type === 'matching_features' || g.type === 'matching_headings' || g.type === 'matching_information');
     if (matchingFeaturesGroups.some((g) => !g.headings?.length)) {
-      showNotification('Matching features groups must have at least one feature (id + text).', 'error');
+      showNotification('Matching groups must have at least one option/feature (id + text).', 'error');
       return;
     }
     setSubmitLoading(true);
@@ -594,9 +595,9 @@ export default function AddSection() {
                     </div>
                   )}
 
-                  {(group.type === 'matching_headings' || group.type === 'matching_features') && (
+                  {(group.type === 'matching_headings' || group.type === 'matching_features' || group.type === 'matching_information') && (
                     <div className="form-section">
-                      <h4>{group.type === 'matching_headings' ? 'Danh sách Headings' : 'Danh sách Features'}</h4>
+                      <h4>{group.type === 'matching_headings' ? 'Danh sách Headings' : group.type === 'matching_information' ? 'Danh sách Paragraphs' : 'Danh sách Features'}</h4>
                       <p className="form-hint">Thêm các lựa chọn để học viên nối. Đáp án đúng của mỗi câu hỏi sẽ là ID (ví dụ: i, ii, iii hoặc A, B, C).</p>
                       {(group.headings || []).map((h, hi) => (
                         <div key={hi} className="heading-row">
@@ -609,7 +610,7 @@ export default function AddSection() {
                           <textarea
                             value={h.text}
                             onChange={(e) => updateHeading(gi, hi, 'text', e.target.value)}
-                            placeholder="Nội dung heading hoặc feature..."
+                            placeholder={group.type === 'matching_information' ? "e.g. Paragraph A" : "Nội dung heading hoặc feature..."}
                             className="heading-text"
                             rows={1}
                             onInput={(e) => {
