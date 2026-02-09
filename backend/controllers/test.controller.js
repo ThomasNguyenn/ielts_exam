@@ -271,6 +271,7 @@ function stripForExam(item) {
         audio_url: item.audio_url || null,
         question_groups: (item.question_groups || []).map((g) => ({
             type: g.type,
+            group_layout: g.group_layout, // Include group_layout
             instructions: g.instructions,
             text: g.text, // Include summary text
             headings: g.headings,
@@ -484,33 +485,109 @@ export const submitExam = async (req, res) => {
             if (!item || !item.question_groups) return;
             let qIndex = questionReview.length;
             for (const g of item.question_groups) {
-                for (const q of g.questions || []) {
-                    const correctOptions = correctList[qIndex] || [];
-                    const userAnswer = qIndex < userNormalized.length ? userNormalized[qIndex] : "";
-                    const isCorrect = correctOptions.length && correctOptions.includes(userAnswer);
-                    if (isCorrect) score++;
-
-                    const finalCorrectAnswer = (q.correct_answers && q.correct_answers.length > 0) ? q.correct_answers[0] : (correctOptions[0] || "");
-
-                    // Persistent file logging REMOVED for performance
-                    // import('fs').then(fs => {
-                    //     const logData = `[${new Date().toISOString()}] Q${q.q_number}: type=${g.type}, userAnswer="${userAnswer}", correctAlternatives=${JSON.stringify(correctOptions)}, finalCorrectAnswer="${finalCorrectAnswer}", matches=${isCorrect}\n`;
-                    //     fs.appendFileSync('exam_debug.log', logData);
-                    // });
-
-                    questionReview.push({
-                        question_number: q.q_number,
-                        type: g.type,
-                        question_text: q.text,
-                        your_answer: answers[qIndex] || "",
-                        correct_answer: finalCorrectAnswer,
-                        options: (q.option && q.option.length > 0) ? q.option : (g.options || []),
-                        headings: g.headings || [], // Include headings for matching questions
-                        is_correct: isCorrect,
-                        explanation: q.explanation || "",
-                        item_type: itemType,
+                // SPECIAL LOGIC: Multi-select (Choose N) - Order Independent Grading
+                if (g.type === 'mult_choice' && g.questions.length > 1) {
+                    // 1. Build Pool of needed answers (array of arrays of valid synonyms)
+                    // e.g. [ ['a'], ['c'] ]
+                    let groupCorrectPool = [];
+                    g.questions.forEach(q => {
+                        groupCorrectPool.push((q.correct_answers || []).map(normalizeAnswer));
                     });
-                    qIndex++;
+
+                    for (const q of g.questions || []) {
+                        const userAnswer = qIndex < userNormalized.length ? userNormalized[qIndex] : "";
+                        let isCorrect = false;
+
+                        // Find if userAnswer matches ANY set in the pool
+                        // We iterate the pool to find a match that hasn't been used yet
+                        const matchIndex = groupCorrectPool.findIndex(variants => variants && variants.includes(userAnswer));
+
+                        if (matchIndex !== -1) {
+                            isCorrect = true;
+                            // Mark this option set as used so it cannot be matched again
+                            // (Prevents getting double points for entering "A" twice if "A" is only valid once)
+                            groupCorrectPool[matchIndex] = null;
+                        }
+
+                        if (isCorrect) score++;
+
+                        const finalCorrectAnswer = (q.correct_answers && q.correct_answers.length > 0) ? q.correct_answers[0] : "";
+
+                        questionReview.push({
+                            question_number: q.q_number,
+                            type: g.type,
+                            question_text: q.text,
+                            your_answer: answers[qIndex] || "",
+                            correct_answer: finalCorrectAnswer,
+                            options: (q.option && q.option.length > 0) ? q.option : (g.options || []),
+                            headings: g.headings || [],
+                            is_correct: isCorrect,
+                            explanation: q.explanation || "",
+                            item_type: itemType,
+                        });
+                        qIndex++;
+                    }
+
+                } else {
+                    // STANDARD LOGIC
+                    for (const q of g.questions || []) {
+                        const correctOptions = correctList[qIndex] || [];
+                        const userAnswer = qIndex < userNormalized.length ? userNormalized[qIndex] : "";
+                        let isCorrect = correctOptions.length && correctOptions.includes(userAnswer);
+
+                        // Special logic for Matching Headings / Features / Information
+                        if (!isCorrect && (g.type === 'matching_headings' || g.type === 'matching_features' || g.type === 'matching_information')) {
+                            const headings = g.headings || [];
+                            // Find the heading object selected by the user (userAnswer is the ID)
+                            // Note: userAnswer is normalized (lowercase). Heading IDs are usually "i", "ii", or "A", "B". 
+                            // We try to match normalized ID.
+                            const selectedHeading = headings.find(h => normalizeAnswer(h.id) === userAnswer);
+
+                            if (selectedHeading) {
+                                // Helper to clean roman numerals (i., ii., etc) for text comparison
+                                const clean = (str) => (str || '').toLowerCase().replace(/^[ivx]+\.?\s*/i, '').trim();
+                                const cleanedHeadingText = clean(selectedHeading.text);
+                                const normalizedHeadingText = normalizeAnswer(selectedHeading.text);
+
+                                // Check against all valid correct options
+                                if (correctOptions.some(opt => {
+                                    // 1. Check if option matches Heading Text exactly (normalized)
+                                    if (opt === normalizedHeadingText) return true;
+                                    // 2. Check if option matches Heading Text without Roman numerals
+                                    if (clean(opt) === cleanedHeadingText) return true;
+                                    // 3. Check if option is an ID that matches the selected heading ID (already covered by initial check, but for completeness)
+                                    if (normalizeAnswer(opt) === normalizeAnswer(selectedHeading.id)) return true;
+                                    return false;
+                                })) {
+                                    isCorrect = true;
+                                }
+                            }
+                        }
+
+                        if (isCorrect) score++;
+
+                        const finalCorrectAnswer = (q.correct_answers && q.correct_answers.length > 0) ? q.correct_answers[0] : (correctOptions[0] || "");
+
+                        // Persistent file logging REMOVED for performance
+                        // import('fs').then(fs => {
+                        //     const logData = `[${new Date().toISOString()}] Q${q.q_number}: type=${g.type}, userAnswer="${userAnswer}", correctAlternatives=${JSON.stringify(correctOptions)}, finalCorrectAnswer="${finalCorrectAnswer}", matches=${isCorrect}\n`;
+                        //     fs.appendFileSync('exam_debug.log', logData);
+                        // });
+
+                        questionReview.push({
+                            question_number: q.q_number,
+                            type: g.type,
+                            question_text: q.text,
+                            your_answer: answers[qIndex] || "",
+                            correct_answer: finalCorrectAnswer,
+                            options: (q.option && q.option.length > 0) ? q.option : (g.options || []),
+                            headings: g.headings || [], // Include headings for matching questions
+                            is_correct: isCorrect,
+                            explanation: q.explanation || "",
+                            item_type: itemType,
+                        });
+                        qIndex++;
+                    }
                 }
             }
         };

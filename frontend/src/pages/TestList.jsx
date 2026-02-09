@@ -101,6 +101,7 @@ export default function TestList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedPartFilter, setSelectedPartFilter] = useState('all');
   const [selectedType, setSelectedType] = useState('all');
   const [viewMode, setViewMode] = useState('full'); // 'full' | 'parts'
   const [searchQuery, setSearchQuery] = useState('');
@@ -109,6 +110,7 @@ export default function TestList() {
 
   useEffect(() => {
     setSelectedCategory('all');
+    setSelectedPartFilter('all');
   }, [selectedType]);
 
   useEffect(() => {
@@ -156,6 +158,9 @@ export default function TestList() {
       );
     });
 
+  // [Skipping to filteredParts logic]
+  // We need to inject the logic into the calculation block
+
   // Calculate stats for categories based on View Mode
   let categories = [];
   let categoryCounts = {};
@@ -163,6 +168,7 @@ export default function TestList() {
   let flattenedParts = [];
 
   if (viewMode === 'full') {
+    // ... [Same as before] ...
     categories = Array.from(new Set(typeFilteredTests.map(getCategory))).sort((a, b) => a.localeCompare(b));
     categoryCounts = categories.reduce((acc, cat) => {
       acc[cat] = typeFilteredTests.filter((t) => getCategory(t) === cat).length;
@@ -228,6 +234,12 @@ export default function TestList() {
       }
     });
 
+    // APPLY PART FILTER
+    if (selectedPartFilter !== 'all') {
+      const targetIndex = parseInt(selectedPartFilter.replace('part', '')) - 1;
+      flattenedParts = flattenedParts.filter(p => p.partIndex === targetIndex);
+    }
+
     // Re-calculate categories based on parts
     categories = Array.from(new Set(flattenedParts.map(p => p.category))).sort();
     categoryCounts = categories.reduce((acc, cat) => {
@@ -286,6 +298,59 @@ export default function TestList() {
               </label>
             ))}
           </div>
+
+          {viewMode === 'parts' && selectedType !== 'all' && (
+            <>
+              <h2>Filter by Part</h2>
+              <div className="filter-group">
+                {(() => {
+                  let options = [
+                    { value: 'all', label: 'All Parts' },
+                    { value: 'part1', label: 'Part 1' },
+                    { value: 'part2', label: 'Part 2' },
+                    { value: 'part3', label: 'Part 3' },
+                    { value: 'part4', label: 'Part 4' },
+                  ];
+
+                  if (selectedType === 'reading') {
+                    options = [
+                      { value: 'all', label: 'All Passages' },
+                      { value: 'part1', label: 'Passage 1' },
+                      { value: 'part2', label: 'Passage 2' },
+                      { value: 'part3', label: 'Passage 3' },
+                    ];
+                  } else if (selectedType === 'listening') {
+                    options = [
+                      { value: 'all', label: 'All Sections' },
+                      { value: 'part1', label: 'Section 1' },
+                      { value: 'part2', label: 'Section 2' },
+                      { value: 'part3', label: 'Section 3' },
+                      { value: 'part4', label: 'Section 4' },
+                    ];
+                  } else if (selectedType === 'writing') {
+                    options = [
+                      { value: 'all', label: 'All Tasks' },
+                      { value: 'part1', label: 'Task 1' },
+                      { value: 'part2', label: 'Task 2' },
+                    ];
+                  }
+
+                  return options.map((opt) => (
+                    <label key={opt.value} className="filter-option">
+                      <input
+                        type="radio"
+                        name="part-filter"
+                        value={opt.value}
+                        checked={selectedPartFilter === opt.value}
+                        onChange={() => setSelectedPartFilter(opt.value)}
+                      />
+                      <span>{opt.label}</span>
+                    </label>
+                  ));
+                })()}
+              </div>
+            </>
+          )}
         </aside>
 
         <section className="test-main">

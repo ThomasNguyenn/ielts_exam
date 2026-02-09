@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_URL || '';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 // Get token from localStorage
 function getToken() {
@@ -108,9 +108,9 @@ export const api = {
   createWriting: (body) => request('/api/writings', { method: 'POST', body: JSON.stringify(body) }),
   updateWriting: (id, body) => request(`/api/writings/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteWriting: (id) => request(`/api/writings/${id}`, { method: 'DELETE' }),
-  uploadImage: (formData) => request('/api/writings/upload-image', { 
-    method: 'POST', 
-    body: formData, 
+  uploadImage: (formData) => request('/api/writings/upload-image', {
+    method: 'POST',
+    body: formData,
     headers: { 'Content-Type': undefined } // Let browser set boundary
   }),
   parseContent: (data) => request('/api/content-gen/parse', { method: 'POST', body: JSON.stringify(data) }),
@@ -143,7 +143,7 @@ export const api = {
   // Admin - Students
   getPendingStudents: () => request('/api/admin/students/pending'),
   approveStudent: (userId) => request(`/api/admin/students/${userId}/approve`, { method: 'PUT' }),
-  
+
   // Admin - Users
   getUsers: (role) => request(`/api/admin/users${role ? `?role=${role}` : ''}`),
   deleteUser: (userId) => request(`/api/admin/users/${userId}`, { method: 'DELETE' }),

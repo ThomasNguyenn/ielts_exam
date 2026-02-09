@@ -5,8 +5,6 @@ import './Manage.css';
 import { useNotification } from '../../components/NotificationContext';
 import AIContentGeneratorModal from '../../components/AIContentGeneratorModal';
 
-// ... (Icons and Helper Functions remain unchanged) ...
-
 const Icons = {
   Writing: () => (
     <svg className="manage-nav-icon" style={{ width: '18px', height: '18px' }} viewBox="0 0 24 24" fill="currentColor">
@@ -49,6 +47,7 @@ function emptyOption() {
 function emptyQuestionGroup() {
   return {
     type: 'mult_choice',
+    group_layout: 'radio',
     instructions: '',
     headings: [],
     options: [],
@@ -62,6 +61,7 @@ function passageToForm(p) {
   const groups = p.question_groups && p.question_groups.length
     ? p.question_groups.map((g) => ({
       type: g.type || 'mult_choice',
+      group_layout: g.group_layout || 'default',
       instructions: g.instructions || '',
       text: g.text || '',
       headings: (g.headings || []).map((h) => ({ id: h.id || '', text: h.text || '' })),
@@ -69,10 +69,9 @@ function passageToForm(p) {
       questions: (g.questions || []).map((q, i) => ({
         q_number: q.q_number ?? i + 1,
         text: q.text || '',
-        option: OPTION_LABELS.map((label) => {
-          const o = (q.option || []).find((x) => x.label === label);
-          return { label, text: o?.text ?? '' };
-        }),
+        option: (q.option && q.option.length > 0)
+          ? q.option.map(o => ({ label: o.label, text: o.text || '' }))
+          : OPTION_LABELS.map((label) => ({ label, text: '' })),
         correct_answers: (q.correct_answers && q.correct_answers.length) ? [...q.correct_answers] : [''],
         explanation: q.explanation || '',
       })),
@@ -169,14 +168,7 @@ export default function AddPassage() {
 
 
   const handleAIGenerated = (data) => {
-    // Merge generated data with form
-    // Note: ID must stay if editing, or be generated if new.
-    // Content, title, question_groups should be replaced or merged.
-    
-    // Normalize data using passageToForm to ensure all fields (like options) are present
     const normalized = passageToForm(data);
-
-    // We replace content completely for simplicity, but keep ID if editing
     setForm(prev => ({
       ...prev,
       title: normalized.title || prev.title,
@@ -188,8 +180,6 @@ export default function AddPassage() {
   };
 
   const filteredPassages = passages.filter((p) => matchSearch(p, existingSearch));
-
-  // ... (Update handlers: updateQuestionGroup, getNextQuestionNumber, addQuestionGroup, removeQuestionGroup, moveGroup, updateQuestion, addQuestion, removeQuestion, setQuestionOption, setCorrectAnswers, addHeading, removeHeading, updateHeading, addOption, removeOption, updateOption) ...
 
   const updateQuestionGroup = (groupIndex, key, value) => {
     setForm((prev) => ({
@@ -388,6 +378,91 @@ export default function AddPassage() {
     }));
   };
 
+  // --- NEW: Helper functions for Dynamic Question Options (A, B, C, D, E...) ---
+
+  const addQuestionOption = (groupIndex, questionIndex) => {
+    setForm((prev) => ({
+      ...prev,
+      question_groups: prev.question_groups.map((g, gi) =>
+        gi === groupIndex
+          ? {
+            ...g,
+            questions: g.questions.map((q, qi) => {
+              if (qi !== questionIndex) return q;
+              const currentOptions = q.option || [];
+              const nextLabel = String.fromCharCode(65 + currentOptions.length); // A, B, C...
+              return {
+                ...q,
+                option: [...currentOptions, { label: nextLabel, text: '' }]
+              };
+            }),
+          }
+          : g
+      ),
+    }));
+  };
+
+  const removeQuestionOption = (groupIndex, questionIndex, optionIndex) => {
+    setForm((prev) => ({
+      ...prev,
+      question_groups: prev.question_groups.map((g, gi) =>
+        gi === groupIndex
+          ? {
+            ...g,
+            questions: g.questions.map((q, qi) => {
+              if (qi !== questionIndex) return q;
+              // Filter out the specific option
+              const filtered = (q.option || []).filter((_, oi) => oi !== optionIndex);
+              // Re-label to ensure continuity (A, B, C...)
+              const relabeled = filtered.map((o, i) => ({ ...o, label: String.fromCharCode(65 + i) }));
+              return { ...q, option: relabeled };
+            }),
+          }
+          : g
+      ),
+    }));
+  };
+
+  const setMultiSelectMode = (groupIndex, mode, count = null) => {
+    // mode: 'radio' | 'checkbox'
+    setForm(prev => {
+      const groups = [...prev.question_groups];
+      const group = { ...groups[groupIndex] };
+
+      group.group_layout = mode; // 'radio' or 'checkbox'
+
+      if (mode === 'checkbox' && count !== null) {
+        // Resize only if setting checkbox count
+        const currentQuestions = group.questions || [];
+        let newQuestions = [...currentQuestions];
+
+        if (newQuestions.length < count) {
+          let maxNum = 0;
+          prev.question_groups.forEach(g => g.questions.forEach(q => { if (q.q_number > maxNum) maxNum = q.q_number; }));
+          for (let i = newQuestions.length; i < count; i++) {
+            maxNum++;
+            newQuestions.push(emptyQuestion(maxNum));
+          }
+        } else if (newQuestions.length > count) {
+          newQuestions = newQuestions.slice(0, count);
+        }
+
+        // Sync options for checkbox mode
+        if (newQuestions.length > 0) {
+          const templateOptions = newQuestions[0].option;
+          newQuestions = newQuestions.map((q, i) => i === 0 ? q : { ...q, option: templateOptions });
+        }
+        group.questions = newQuestions;
+      }
+      // If mode is 'radio', we DO NOT auto-resize. User adds questions manually.
+
+      groups[groupIndex] = group;
+      return { ...prev, question_groups: groups };
+    });
+  };
+
+  // --- RESTORED: Functions that were accidentally deleted ---
+
   const handleDeletePassage = async (passageId) => {
     if (!window.confirm('Delete this passage? This cannot be undone.')) return;
     try {
@@ -409,6 +484,7 @@ export default function AddPassage() {
       showNotification('ID, title and content are required.', 'error');
       return;
     }
+
     setSubmitLoading(true);
     try {
       const payload = {
@@ -418,6 +494,7 @@ export default function AddPassage() {
         source: form.source.trim() || undefined,
         question_groups: form.question_groups.map((g) => ({
           type: g.type,
+          group_layout: g.group_layout,
           instructions: g.instructions || undefined,
           text: g.text || undefined,
           headings: (g.headings || []).filter((h) => h.id || h.text).length
@@ -458,19 +535,19 @@ export default function AddPassage() {
     <div className="manage-container">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1>{editId ? 'Sửa bài Reading' : 'Thêm bài Reading'}</h1>
-        <button 
-          className="btn-manage-add" 
-          type="button" 
+        <button
+          className="btn-manage-add"
+          type="button"
           onClick={() => setIsAIModalOpen(true)}
           style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', background: '#2563eb' }}
         >
           ✨ Soạn đề AI
         </button>
       </div>
-      
-      <AIContentGeneratorModal 
-        isOpen={isAIModalOpen} 
-        onClose={() => setIsAIModalOpen(false)} 
+
+      <AIContentGeneratorModal
+        isOpen={isAIModalOpen}
+        onClose={() => setIsAIModalOpen(false)}
         onGenerated={handleAIGenerated}
         type="passage"
       />
@@ -522,15 +599,63 @@ export default function AddPassage() {
                         ))}
                       </select>
                     </div>
+
+                    {group.type === 'mult_choice' && (
+                      <div style={{ background: '#f0f9ff', padding: '1rem', borderRadius: '0.5rem', marginBottom: '1rem', border: '1px solid #bae6fd' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
+                          <label style={{ fontWeight: 'bold', color: '#0369a1' }}>Question Format:</label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                            <input
+                              type="radio"
+                              name={`q-mode-${gi}`}
+                              checked={group.group_layout === 'radio' || (!group.group_layout && group.questions.length === 1)}
+                              onChange={() => setMultiSelectMode(gi, 'radio')}
+                            />
+                            <span>Single Answer (Radio)</span>
+                          </label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                            <input
+                              type="radio"
+                              name={`q-mode-${gi}`}
+                              checked={group.group_layout === 'checkbox' || (!group.group_layout && group.questions.length > 1)}
+                              onChange={() => setMultiSelectMode(gi, 'checkbox', 2)}
+                            />
+                            <span>Choose Multiple (Checkbox)</span>
+                          </label>
+                        </div>
+
+                        {(group.group_layout === 'checkbox' || (!group.group_layout && group.questions.length > 1)) && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginLeft: '0.5rem' }}>
+                            <label>Number of answers needed:</label>
+                            <input
+                              type="number"
+                              min="2" max="10"
+                              value={group.questions.length}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value) || 2;
+                                if (val >= 2) setMultiSelectMode(gi, 'checkbox', val);
+                              }}
+                              style={{ width: '60px', padding: '0.25rem' }}
+                            />
+                            <span style={{ fontSize: '0.9rem', color: '#666', fontStyle: 'italic' }}>
+                              (This will create {group.questions.length} questions sharing the same options.)
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     <div className="form-row">
                       <label>Hướng dẫn (Instructions)</label>
                       <textarea value={group.instructions} onChange={(e) => updateQuestionGroup(gi, 'instructions', e.target.value)} rows={2} />
                     </div>
 
-                    {(group.type === 'summary_completion' || group.type === 'gap_fill') && (
+                    {(group.type === 'summary_completion' || group.type === 'gap_fill' || (group.type === 'mult_choice' && group.questions.length > 1)) && (
                       <div className="form-row">
-                        <label>Nội dung đoạn văn có lỗ hổng (Ví dụ: [1], [2])</label>
-                        <textarea value={group.text} onChange={(e) => updateQuestionGroup(gi, 'text', e.target.value)} rows={4} />
+                        <label>
+                          {group.type === 'mult_choice' ? 'Nội dung câu hỏi chung (Prompt)' : 'Nội dung đoạn văn có lỗ hổng (Ví dụ: [1], [2])'}
+                        </label>
+                        <textarea value={group.text} onChange={(e) => updateQuestionGroup(gi, 'text', e.target.value)} rows={4} placeholder={group.type === 'mult_choice' ? "Enter the common question prompt here..." : ""} />
                       </div>
                     )}
 
@@ -624,14 +749,8 @@ export default function AddPassage() {
                                               { label: 'A', text: 'TRUE' },
                                               { label: 'B', text: 'FALSE' },
                                               { label: 'C', text: 'NOT GIVEN' },
-                                              { label: 'D', text: '' } // Leave D empty
                                             ];
-                                            // Update THIS question
-                                            const newOptions = q.option.map(o => {
-                                              const hit = opts.find(x => x.label === o.label);
-                                              return hit ? { ...o, text: hit.text } : o;
-                                            });
-                                            updateQuestion(gi, qi, 'option', newOptions);
+                                            updateQuestion(gi, qi, 'option', opts);
                                           }}
                                         >
                                           Auto: TRUE/FALSE...
@@ -646,14 +765,8 @@ export default function AddPassage() {
                                               { label: 'A', text: 'YES' },
                                               { label: 'B', text: 'NO' },
                                               { label: 'C', text: 'NOT GIVEN' },
-                                              { label: 'D', text: '' }
                                             ];
-                                            // Update THIS question
-                                            const newOptions = q.option.map(o => {
-                                              const hit = opts.find(x => x.label === o.label);
-                                              return hit ? { ...o, text: hit.text } : o;
-                                            });
-                                            updateQuestion(gi, qi, 'option', newOptions);
+                                            updateQuestion(gi, qi, 'option', opts);
                                           }}
                                         >
                                           Auto: YES/NO...
@@ -662,19 +775,38 @@ export default function AddPassage() {
                                     )}
                                   </div>
 
-                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem', marginTop: '0.5rem' }}>
+                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.5rem', marginTop: '0.5rem' }}>
                                     {(q.option || []).map((o, oi) => (
-                                      <div key={o.label} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                        <span style={{ fontWeight: 800, color: '#d03939', width: '25px' }}>{o.label}</span>
+                                      <div key={oi} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%' }}>
+                                        <span style={{ fontWeight: 800, color: '#d03939', width: '20px', textAlign: 'center' }}>{o.label}</span>
                                         <input
                                           value={o.text}
                                           onChange={(e) => setQuestionOption(gi, qi, oi, e.target.value)}
                                           placeholder={`Lựa chọn ${o.label}`}
-                                          style={{ background: '#ffffff' }}
+                                          style={{ background: '#ffffff', flex: 1 }}
                                         />
+                                        {/* Only show remove if we have more than 2 options to avoid breaking basic format */}
+                                        <button
+                                          type="button"
+                                          className="btn btn-ghost btn-xs"
+                                          onClick={() => removeQuestionOption(gi, qi, oi)}
+                                          disabled={(q.option || []).length <= 2}
+                                          style={{ color: '#999', fontSize: '0.8rem' }}
+                                          title="Xóa lựa chọn này"
+                                        >
+                                          ✕
+                                        </button>
                                       </div>
                                     ))}
                                   </div>
+                                  <button
+                                    type="button"
+                                    className="btn btn-ghost btn-xs"
+                                    onClick={() => addQuestionOption(gi, qi)}
+                                    style={{ marginTop: '0.5rem', color: '#2563eb' }}
+                                  >
+                                    + Thêm lựa chọn
+                                  </button>
                                 </div>
                               )}
                               <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>

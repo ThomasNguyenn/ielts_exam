@@ -48,6 +48,7 @@ function emptyOption() {
 function emptyQuestionGroup() {
   return {
     type: 'mult_choice',
+    group_layout: 'radio',
     instructions: '',
     headings: [],
     options: [],
@@ -67,10 +68,9 @@ function sectionToForm(s) {
       questions: (g.questions || []).map((q, i) => ({
         q_number: q.q_number ?? i + 1,
         text: q.text || '',
-        option: OPTION_LABELS.map((label) => {
-          const o = (q.option || []).find((x) => x.label === label);
-          return { label, text: o?.text ?? '' };
-        }),
+        option: (q.option && q.option.length > 0)
+          ? q.option.map(o => ({ label: o.label, text: o.text || '' }))
+          : OPTION_LABELS.map((label) => ({ label, text: '' })),
         correct_answers: (q.correct_answers && q.correct_answers.length) ? [...q.correct_answers] : [''],
         explanation: q.explanation || '',
       })),
@@ -179,7 +179,7 @@ export default function AddSection() {
       content: normalized.content || prev.content,
       source: normalized.source || prev.source,
       // For listening, we might have an audio_url if the AI guessed it or left it blank
-      audio_url: normalized.audio_url || prev.audio_url, 
+      audio_url: normalized.audio_url || prev.audio_url,
       question_groups: normalized.question_groups || prev.question_groups
     }));
     showNotification('Content generated successfully!', 'success');
@@ -355,6 +355,87 @@ export default function AddSection() {
     }));
   };
 
+  const addQuestionOption = (groupIndex, questionIndex) => {
+    setForm((prev) => ({
+      ...prev,
+      question_groups: prev.question_groups.map((g, gi) =>
+        gi === groupIndex
+          ? {
+            ...g,
+            questions: g.questions.map((q, qi) => {
+              if (qi !== questionIndex) return q;
+              const currentOptions = q.option || [];
+              const nextLabel = String.fromCharCode(65 + currentOptions.length); // A, B, C...
+              return {
+                ...q,
+                option: [...currentOptions, { label: nextLabel, text: '' }]
+              };
+            }),
+          }
+          : g
+      ),
+    }));
+  };
+
+  const removeQuestionOption = (groupIndex, questionIndex, optionIndex) => {
+    setForm((prev) => ({
+      ...prev,
+      question_groups: prev.question_groups.map((g, gi) =>
+        gi === groupIndex
+          ? {
+            ...g,
+            questions: g.questions.map((q, qi) => {
+              if (qi !== questionIndex) return q;
+              // Filter out the specific option
+              const filtered = (q.option || []).filter((_, oi) => oi !== optionIndex);
+              // Re-label to ensure continuity (A, B, C...)
+              const relabeled = filtered.map((o, i) => ({ ...o, label: String.fromCharCode(65 + i) }));
+              return { ...q, option: relabeled };
+            }),
+          }
+          : g
+      ),
+    }));
+  };
+
+  const setMultiSelectMode = (groupIndex, mode, count = null) => {
+    // mode: 'radio' | 'checkbox'
+    setForm(prev => {
+      const groups = [...prev.question_groups];
+      const group = { ...groups[groupIndex] };
+
+      group.group_layout = mode; // 'radio' or 'checkbox'
+
+      if (mode === 'checkbox' && count !== null) {
+        // Resize only if setting checkbox count
+        const currentQuestions = group.questions || [];
+        let newQuestions = [...currentQuestions];
+
+        if (newQuestions.length < count) {
+          let maxNum = 0;
+          prev.question_groups.forEach(g => g.questions.forEach(q => { if (q.q_number > maxNum) maxNum = q.q_number; }));
+          for (let i = newQuestions.length; i < count; i++) {
+            maxNum++;
+            newQuestions.push(emptyQuestion(maxNum));
+          }
+        } else if (newQuestions.length > count) {
+          newQuestions = newQuestions.slice(0, count);
+        }
+
+        // Sync options for checkbox mode
+        if (newQuestions.length > 0) {
+          const templateOptions = newQuestions[0].option;
+          newQuestions = newQuestions.map((q, i) => i === 0 ? q : { ...q, option: templateOptions });
+        }
+        group.questions = newQuestions;
+      }
+      // If mode is 'radio', we DO NOT auto-resize. User adds questions manually.
+
+      groups[groupIndex] = group;
+      return { ...prev, question_groups: groups };
+    });
+  };
+
   const handleDeleteSection = async (sectionId) => {
     if (!window.confirm('Delete this section? This cannot be undone.')) return;
     try {
@@ -391,6 +472,7 @@ export default function AddSection() {
       source: form.source.trim() || undefined,
       question_groups: form.question_groups.map((g) => ({
         type: g.type,
+        group_layout: g.group_layout,
         instructions: g.instructions || undefined,
         headings: (g.headings || []).filter((h) => h.id || h.text).length
           ? (g.headings || []).filter((h) => h.id || h.text)
@@ -459,9 +541,9 @@ export default function AddSection() {
     <div className="manage-container">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1>{editId ? 'Sửa bài Listening' : 'Thêm bài Listening'}</h1>
-        <button 
-          className="btn-manage-add" 
-          type="button" 
+        <button
+          className="btn-manage-add"
+          type="button"
           onClick={() => setIsAIModalOpen(true)}
           style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', background: '#2563eb' }}
         >
@@ -469,9 +551,9 @@ export default function AddSection() {
         </button>
       </div>
 
-      <AIContentGeneratorModal 
-        isOpen={isAIModalOpen} 
-        onClose={() => setIsAIModalOpen(false)} 
+      <AIContentGeneratorModal
+        isOpen={isAIModalOpen}
+        onClose={() => setIsAIModalOpen(false)}
         onGenerated={handleAIGenerated}
         type="section"
       />
@@ -558,6 +640,52 @@ export default function AddSection() {
                       ))}
                     </select>
                   </div>
+
+                  {group.type === 'mult_choice' && (
+                    <div style={{ background: '#f0f9ff', padding: '1rem', borderRadius: '0.5rem', marginBottom: '1rem', border: '1px solid #bae6fd' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
+                        <label style={{ fontWeight: 'bold', color: '#0369a1' }}>Question Format:</label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                          <input
+                            type="radio"
+                            name={`q-mode-${gi}`}
+                            checked={group.group_layout === 'radio' || (!group.group_layout && group.questions.length === 1)}
+                            onChange={() => setMultiSelectMode(gi, 'radio')}
+                          />
+                          <span>Single Answer (Radio)</span>
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                          <input
+                            type="radio"
+                            name={`q-mode-${gi}`}
+                            checked={group.group_layout === 'checkbox' || (!group.group_layout && group.questions.length > 1)}
+                            onChange={() => setMultiSelectMode(gi, 'checkbox', 2)}
+                          />
+                          <span>Choose Multiple (Checkbox)</span>
+                        </label>
+                      </div>
+
+                      {(group.group_layout === 'checkbox' || (!group.group_layout && group.questions.length > 1)) && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginLeft: '0.5rem' }}>
+                          <label>Number of answers needed:</label>
+                          <input
+                            type="number"
+                            min="2" max="10"
+                            value={group.questions.length}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value) || 2;
+                              if (val >= 2) setMultiSelectMode(gi, 'checkbox', val);
+                            }}
+                            style={{ width: '60px', padding: '0.25rem' }}
+                          />
+                          <span style={{ fontSize: '0.9rem', color: '#666', fontStyle: 'italic' }}>
+                            (This will create {group.questions.length} questions sharing the same options.)
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="form-row">
                     <label>Hướng dẫn (Instructions)</label>
                     <textarea
@@ -759,7 +887,45 @@ export default function AddSection() {
 
                                 {(group.type === 'mult_choice' || group.type === 'true_false_notgiven') && (
                                   <div className='form-row' style={{ marginTop: '1rem' }}>
-                                    <label style={{ color: '#64748b', fontSize: '0.8rem', textTransform: 'uppercase' }}>Các lựa chọn (Options)</label>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                                      <label style={{ color: '#64748b', fontSize: '0.8rem', textTransform: 'uppercase' }}>Các lựa chọn (Options)</label>
+                                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                        {group.type === 'true_false_notgiven' && (
+                                          <>
+                                            <button
+                                              type="button"
+                                              className="btn btn-ghost btn-xs"
+                                              style={{ fontSize: '0.7rem', border: '1px solid #ccc' }}
+                                              onClick={() => {
+                                                const opts = [
+                                                  { label: 'A', text: 'TRUE' },
+                                                  { label: 'B', text: 'FALSE' },
+                                                  { label: 'C', text: 'NOT GIVEN' },
+                                                ];
+                                                updateQuestion(gi, qi, 'option', opts);
+                                              }}
+                                            >
+                                              Auto: TRUE/FALSE...
+                                            </button>
+                                            <button
+                                              type="button"
+                                              className="btn btn-ghost btn-xs"
+                                              style={{ fontSize: '0.7rem', border: '1px solid #ccc' }}
+                                              onClick={() => {
+                                                const opts = [
+                                                  { label: 'A', text: 'YES' },
+                                                  { label: 'B', text: 'NO' },
+                                                  { label: 'C', text: 'NOT GIVEN' },
+                                                ];
+                                                updateQuestion(gi, qi, 'option', opts);
+                                              }}
+                                            >
+                                              Auto: YES/NO...
+                                            </button>
+                                          </>
+                                        )}
+                                      </div>
+                                    </div>
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem', marginTop: '0.5rem' }}>
                                       {(q.option || []).map((o, oi) => (
                                         <div key={o.label} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -770,9 +936,27 @@ export default function AddSection() {
                                             placeholder={`Lựa chọn ${o.label}`}
                                             style={{ background: '#ffffff' }}
                                           />
+                                          <button
+                                            type="button"
+                                            className="btn btn-ghost btn-xs"
+                                            onClick={() => removeQuestionOption(gi, qi, oi)}
+                                            disabled={(q.option || []).length <= 2}
+                                            style={{ color: '#999', fontSize: '0.8rem' }}
+                                            title="Xóa lựa chọn này"
+                                          >
+                                            ✕
+                                          </button>
                                         </div>
                                       ))}
                                     </div>
+                                    <button
+                                      type="button"
+                                      className="btn btn-ghost btn-xs"
+                                      onClick={() => addQuestionOption(gi, qi)}
+                                      style={{ marginTop: '0.5rem', color: '#2563eb' }}
+                                    >
+                                      + Thêm lựa chọn
+                                    </button>
                                   </div>
                                 )}
 

@@ -206,16 +206,19 @@ function QuestionInput({ slot, value, onChange, index, onHighlightUpdate, showRe
     const handleDrop = (e) => {
       e.preventDefault();
       e.stopPropagation();
-      const droppedId = e.dataTransfer.getData('headingId');
+      const droppedId =
+        e.dataTransfer.getData('headingId') ||
+        e.dataTransfer.getData('text/plain');
       if (droppedId) {
-          onChange(droppedId);
-          e.currentTarget.classList.remove('drag-over');
+        onChange(droppedId);
+        e.currentTarget.classList.remove('drag-over');
       }
     };
 
     const handleDragOver = (e) => {
       e.preventDefault();
       e.stopPropagation();
+      e.dataTransfer.dropEffect = 'move';
       e.currentTarget.classList.add('drag-over');
     };
 
@@ -229,45 +232,45 @@ function QuestionInput({ slot, value, onChange, index, onHighlightUpdate, showRe
       e.stopPropagation();
       onChange('');
     };
-    
+
     // Result display logic
     if (showResult) {
-        const clean = (str) => (str || '').toLowerCase().replace(/^[ivx]+\.?\s*/i, '').trim();
+      const clean = (str) => (str || '').toLowerCase().replace(/^[ivx]+\.?\s*/i, '').trim();
 
-        // Find correct answer object - resilient search
-        let correctOption = options.find(h => h.id === slot.correct_answer);
-        if (!correctOption) {
-            // Fallback: try to find by text content
-            correctOption = options.find(h => clean(h.text) === clean(slot.correct_answer));
+      // Find correct answer object - resilient search
+      let correctOption = options.find(h => h.id === slot.correct_answer);
+      if (!correctOption) {
+        // Fallback: try to find by text content
+        correctOption = options.find(h => clean(h.text) === clean(slot.correct_answer));
+      }
+
+      let isCorrect = value === slot.correct_answer;
+
+      // Loose check: Compare text content if IDs don't match directly
+      if (!isCorrect && selectedOption && correctOption) {
+        if (clean(selectedOption.text) === clean(correctOption.text)) {
+          isCorrect = true;
         }
-        
-        let isCorrect = value === slot.correct_answer;
-        
-        // Loose check: Compare text content if IDs don't match directly
-        if (!isCorrect && selectedOption && correctOption) {
-             if (clean(selectedOption.text) === clean(correctOption.text)) {
-                 isCorrect = true;
-             }
-        }
-        
-        return (
-            <div className={`matching-dropzone result-mode ${isCorrect ? 'correct' : 'wrong'}`}>
-                {selectedOption ? (
-                    <div className="matching-selected">
-                        <span className="matching-chip-text">{selectedOption.text}</span>
-                    </div>
-                ) : (
-                    <div className="matching-placeholder">
-                        (No answer)
-                    </div>
-                )}
-                {!isCorrect && correctOption && (
-                     <div className="matching-correct-ans">
-                        <strong>Correct: </strong> {correctOption.text}
-                     </div>
-                )}
+      }
+
+      return (
+        <div className={`matching-dropzone result-mode ${isCorrect ? 'correct' : 'wrong'}`}>
+          {selectedOption ? (
+            <div className="matching-selected">
+              <span className="matching-chip-text">{selectedOption.text}</span>
             </div>
-        );
+          ) : (
+            <div className="matching-placeholder">
+              (No answer)
+            </div>
+          )}
+          {!isCorrect && correctOption && (
+            <div className="matching-correct-ans">
+              <strong>Correct: </strong> {correctOption.text}
+            </div>
+          )}
+        </div>
+      );
     }
 
     return (
@@ -280,7 +283,7 @@ function QuestionInput({ slot, value, onChange, index, onHighlightUpdate, showRe
         {selectedOption ? (
           <div className="matching-selected">
             {/* <span className="matching-chip-id">{selectedOption.id}</span> */}
-            <span className="matching-chip-text">{selectedOption.text}</span>
+            <span className="matching-chip-text">{selectedOption.id}. {selectedOption.text}</span>
             <button
               type="button"
               className="matching-remove"
@@ -356,11 +359,16 @@ function SummaryDropZone({ value, onChange, index, options, displayNumber }) {
 
   const handleDrop = (e) => {
     e.preventDefault();
-    const droppedId = e.dataTransfer.getData('optionId');
+    const droppedId =
+      e.dataTransfer.getData('optionId') ||
+      e.dataTransfer.getData('text/plain');
     if (droppedId) onChange(droppedId);
   };
 
-  const handleDragOver = (e) => e.preventDefault();
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
 
   return (
     <span
@@ -486,28 +494,46 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
               const firstSlot = slots[groupStartIndex];
               const headings = firstSlot?.headings || [];
 
+              // Calculate used headings for this group (to hide them from list)
+              const usedIds = new Set();
+              if (group.type === 'matching_headings') {
+                for (let i = 0; i < (group.questions || []).length; i++) {
+                  const ans = answers[groupStartIndex + i];
+                  if (ans) usedIds.add(ans);
+                }
+              }
+
               return headings.length > 0 ? (
                 <div className="">
                   <div className={`matching-options-pool ${isListening ? 'matching-options-pool-listening' : ''}`}>
                     {/* <div className="matching-options-label">Available Options - Drag to Questions Below:</div> */}
-                    <div className={`matching-chips ${group.type === 'matching_headings' ? 'matching-chips-column' : ''}`}>
-                      {headings.map((h) => (
-                        <div
-                          key={h.id}
-                          className="matching-chip"
-                          draggable
-                          onDragStart={(e) => {
-                            e.dataTransfer.setData('headingId', h.id);
-                            e.currentTarget.classList.add('dragging');
-                          }}
-                          onDragEnd={(e) => {
-                            e.currentTarget.classList.remove('dragging');
-                          }}
-                        >
-                          {/* <span className="matching-chip-id">{h.id}</span> */}
-                          <span className="matching-chip-text">{h.text}</span>
-                        </div>
-                      ))}
+                    <div className={`matching-chips ${group.type === 'matching_headings' ? 'matching-chips-column' : 'matching-chips-row'}`}>
+                      {headings.map((h) => {
+                        // Check if heading is used (and group type is matching_headings)
+                        if (group.type === 'matching_headings' && usedIds.has(h.id)) return null;
+
+                        return (
+                          <div
+                            key={h.id}
+                            className="matching-chip"
+                            draggable
+                            onDragStart={(e) => {
+                              // Cross-browser support: set text/plain as well
+                              e.dataTransfer.setData('headingId', h.id);
+                              e.dataTransfer.setData('text/plain', h.id);
+                              e.dataTransfer.effectAllowed = 'move';
+                              e.currentTarget.classList.add('dragging');
+                            }}
+                            onDragEnd={(e) => {
+                              e.currentTarget.classList.remove('dragging');
+                            }}
+                          >
+                            {(group.type === 'matching_headings' || group.type === 'matching_features') ? <span className="matching-chip-id">{h.id}</span> : null}
+                            {/* {console.log(group.type)} */}
+                            <span className="matching-chip-text">{h.text}</span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -620,7 +646,10 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                                 draggable={!isUsed}
                                 onDragStart={(e) => {
                                   if (!isUsed) {
+                                    // Cross-browser support: set text/plain as well
                                     e.dataTransfer.setData('optionId', opt.id);
+                                    e.dataTransfer.setData('text/plain', opt.id);
+                                    e.dataTransfer.effectAllowed = 'move';
                                     e.currentTarget.classList.add('dragging');
                                   }
                                 }}
@@ -657,6 +686,88 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                 );
               }
 
+              // --- MULTI-SELECT GROUP (Choose TWO/THREE...) ---
+              // If mult_choice has multiple questions, we treat it as a single block where user picks N answers
+              // UNLESS explicitly set to 'radio' layout (independent questions)
+              const isForceRadio = group.group_layout === 'radio';
+              const isForceCheckbox = group.group_layout === 'checkbox';
+              const isAutoMulti = (group.questions || []).length > 1;
+
+              if ((group.type === 'mult_choice' || group.type === 'mult_choice_multi') && (isForceCheckbox || (!isForceRadio && isAutoMulti))) {
+                const currentGroupStartIndex = slotIndex;
+                slotIndex += group.questions.length; // Advance slot index for all questions in this group
+
+                // if (qIndex > 0) return null; // Only render once for the group - qIndex is not defined here! logic is handled by returning early if this block matches.
+
+                // Use options from the first question (assumed shared)
+                // DB Structure seems to be `option` (singular) for the array
+                const options = group.questions[0].option || group.questions[0].options || group.options || [];
+                const maxSelect = group.questions.length; // Choose N
+
+                if (options.length === 0) {
+                  // Fallback to avoid crash if no options found, or maybe render standard loop?
+                  // For now, let's keep it safe.
+                }
+
+                // Collect current answers for this group
+                const currentAnswers = [];
+                for (let i = 0; i < maxSelect; i++) {
+                  if (answers[currentGroupStartIndex + i]) currentAnswers.push(answers[currentGroupStartIndex + i]);
+                }
+
+                const handleMultiChange = (optText, isChecked) => {
+                  let newSelection = [...currentAnswers];
+                  if (isChecked) {
+                    if (newSelection.length < maxSelect) {
+                      newSelection.push(optText);
+                    } else {
+                      // Optional: Auto-replace the last one or separate warning? 
+                      // For now, let's just replace the last one to be user friendly
+                      newSelection.pop();
+                      newSelection.push(optText);
+                    }
+                  } else {
+                    newSelection = newSelection.filter(a => a !== optText);
+                  }
+
+                  // Sort alphabetically for consistency if needed, but primarily just fill slots
+                  // newSelection.sort(); 
+
+                  // Update individual slots
+                  for (let i = 0; i < maxSelect; i++) {
+                    const val = newSelection[i] || ''; // Clear if not selected
+                    setAnswer(currentGroupStartIndex + i, val);
+                  }
+                };
+
+                return (
+                  <div className="exam-multi-select-group mb-6">
+                    <div className="exam-question-label mb-2">
+                      <strong>Questions {group.questions[0].q_number}-{group.questions[group.questions.length - 1].q_number}</strong>
+                      {group.text && <div className="mt-1 mb-2">{parse(group.text)}</div>}
+                      <div className="text-sm text-gray-500 italic">Choose {maxSelect} letters, A-{String.fromCharCode(65 + options.length - 1)}.</div>
+                    </div>
+                    <div className="exam-options">
+                      {options.map((opt) => {
+                        const isChecked = currentAnswers.includes(opt.text);
+                        return (
+                          <label key={opt.label} className={`exam-option-label ${isChecked ? 'selected-multi' : ''}`}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => handleMultiChange(opt.text, e.target.checked)}
+                              style={{ width: '1.25rem', height: '1.25rem', marginRight: '1rem' }}
+                            />
+                            <span className="opt-id font-bold min-w-[1.5rem]">{opt.label}.</span>
+                            <span className="opt-text">{parse(tokenizeHtml(opt.text))}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              }
+
               // --- STANDARD QUESTION LOOP (for non-summary types) ---
               return (group.questions || []).map((q, qIndex) => {
                 const slot = slots[slotIndex];
@@ -669,17 +780,15 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                   if (group.text) {
                     // We advance slotIndex for all questions in this group
                     // NOTE: This logic assumes the [q_number] placeholders match questions in order or ID
-                    if (qIndex === 0) { // Only render the text block once for the whole group (simulated by checking first question of group logic, but here we are in a map... wait.
-                      // The structure of this map is iterating over questions.
-                      // For Summary Completion, we used a separate block (if isSummary) outside this map.
-                      // We should do the same for Gap Fill if group.text exists.
-                      return null; // Don't render per-question items if we are rendering a text block.
+                    if (qIndex === 0) { // Only render the text block once for the whole group
+                      return null;
                     }
                     return null;
                   }
 
                   // Case B: Standard Line-by-Line Gap Fill (Old Style)
                   const gapRegex = /_{3,}|\.{3,}/;
+
                   const parseOptions = {
                     replace: (domNode) => {
                       if (domNode.type === 'text' && gapRegex.test(domNode.data)) {
@@ -725,7 +834,7 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                     new RegExp(`\\[\\s*${q.q_number}\\s*\\]`).test(contentHtml) ||
                     new RegExp(`data-question-number=["']?${q.q_number}["']?`).test(contentHtml)
                   );
-                  
+
                   if (isEmbedded) {
                     return null; // Skip rendering if embedded
                   }
@@ -826,26 +935,26 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
   if (isReading) {
     // 1. Pre-process HTML to inject placeholders for specific question types (Matching Headings/Info)
     // We look for [n] where n corresponds to a question number in a matching group.
-    
+
     // We need to identify valid question numbers for matching groups first
     const matchingQuestionNumbers = new Set();
     (item.question_groups || []).forEach(g => {
-        if (g.type === 'matching_headings' || g.type === 'matching_information') { // Add matching_information
-            g.questions.forEach(q => matchingQuestionNumbers.add(String(q.q_number)));
-        }
+      if (g.type === 'matching_headings' || g.type === 'matching_information') { // Add matching_information
+        g.questions.forEach(q => matchingQuestionNumbers.add(String(q.q_number)));
+      }
     });
 
     // Replace [n] with <span class="embedded-dropzone" data-question-number="n"></span>
     // Only if n is in matchingQuestionNumbers
     let processedContentHtml = contentHtml;
     if (matchingQuestionNumbers.size > 0) {
-        processedContentHtml = contentHtml.replace(/\[\s*(\d+)\s*\]/g, (match, p1) => {
-            const numStr = String(p1);
-            if (matchingQuestionNumbers.has(numStr)) {
-                return `<span class="embedded-dropzone" data-question-number="${numStr}"></span>`;
-            }
-            return match;
-        });
+      processedContentHtml = contentHtml.replace(/\[\s*(\d+)\s*\]/g, (match, p1) => {
+        const numStr = String(p1);
+        if (matchingQuestionNumbers.has(numStr)) {
+          return `<span class="embedded-dropzone" data-question-number="${numStr}"></span>`;
+        }
+        return match;
+      });
     }
 
     // State to hold the DOM nodes for portals
@@ -854,10 +963,10 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
 
     // Effect to find the nodes after render
     useEffect(() => {
-        if (passageContainerRef.current) {
-            const nodes = passageContainerRef.current.querySelectorAll('.embedded-dropzone');
-            setEmbeddedNodes(Array.from(nodes));
-        }
+      if (passageContainerRef.current) {
+        const nodes = passageContainerRef.current.querySelectorAll('.embedded-dropzone');
+        setEmbeddedNodes(Array.from(nodes));
+      }
     }, [processedContentHtml]); // Re-run if content changes
 
     return (
@@ -872,52 +981,52 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
             />
             {/* Render Portals for Embedded Drop Zones */}
             {embeddedNodes.map((node) => {
-                const qNum = node.getAttribute('data-question-number');
-                
-                // Find the group and question for this qNum
-                let targetGroup = null;
-                let targetQuestion = null;
-                let targetSlotIndex = -1;
+              const qNum = node.getAttribute('data-question-number');
 
-                // We need to find the absolute slot index for this question
-                let runningSlotIndex = startSlotIndex; // Start from current step's start
-                
-                // Iterate groups in this step to find the matching question and its slot index
-                (item.question_groups || []).forEach((g) => {
-                    const foundQIndex = g.questions.findIndex(q => String(q.q_number) === qNum);
-                    if (foundQIndex !== -1) {
-                        targetGroup = g;
-                        targetQuestion = g.questions[foundQIndex];
-                        targetSlotIndex = runningSlotIndex + foundQIndex;
-                    }
-                    runningSlotIndex += (g.questions || []).length;
-                });
+              // Find the group and question for this qNum
+              let targetGroup = null;
+              let targetQuestion = null;
+              let targetSlotIndex = -1;
 
-                if (!targetGroup || !targetQuestion || targetSlotIndex === -1) return null;
+              // We need to find the absolute slot index for this question
+              let runningSlotIndex = startSlotIndex; // Start from current step's start
 
-                const currentValue = answers[targetSlotIndex] || '';
-                
-                // Find the selected option text/ID
-                const selectedHeading = targetGroup.headings?.find(h => h.id === currentValue);
+              // Iterate groups in this step to find the matching question and its slot index
+              (item.question_groups || []).forEach((g) => {
+                const foundQIndex = g.questions.findIndex(q => String(q.q_number) === qNum);
+                if (foundQIndex !== -1) {
+                  targetGroup = g;
+                  targetQuestion = g.questions[foundQIndex];
+                  targetSlotIndex = runningSlotIndex + foundQIndex;
+                }
+                runningSlotIndex += (g.questions || []).length;
+              });
 
-                return ReactDOM.createPortal(
-                    <div className="embedded-matching-slot" style={{ display: 'inline-block', verticalAlign: 'middle', margin: '0 5px' }}>
-                        <span style={{ fontSize: '0.8rem', fontWeight: 'bold', marginRight: '4px', color: '#666' }}>{qNum}</span>
-                         <QuestionInput
-                            slot={{
-                                type: 'matching_headings', // Force matching style logic
-                                ...targetQuestion, // Contains _id, text, etc.
-                                headings: targetGroup.headings, // Pass headings pool
-                                correct_answer: targetQuestion.correct_answer // Ensure correct_answer is passed for result mode
-                            }}
-                            value={currentValue}
-                            onChange={(val) => setAnswer(targetSlotIndex, val)}
-                            showResult={showResult}
-                            index={targetQuestion.q_number - 1} // Optional: might be used for ID generation
-                        />
-                    </div>,
-                    node
-                );
+              if (!targetGroup || !targetQuestion || targetSlotIndex === -1) return null;
+
+              const currentValue = answers[targetSlotIndex] || '';
+
+              // Find the selected option text/ID
+              const selectedHeading = targetGroup.headings?.find(h => h.id === currentValue);
+
+              return ReactDOM.createPortal(
+                <div className="embedded-matching-slot" style={{ display: 'inline-block', verticalAlign: 'middle', margin: '0 5px' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 'bold', marginRight: '4px', color: '#666' }}>{qNum}</span>
+                  <QuestionInput
+                    slot={{
+                      type: 'matching_headings', // Force matching style logic
+                      ...targetQuestion, // Contains _id, text, etc.
+                      headings: targetGroup.headings, // Pass headings pool
+                      correct_answer: targetQuestion.correct_answer // Ensure correct_answer is passed for result mode
+                    }}
+                    value={currentValue}
+                    onChange={(val) => setAnswer(targetSlotIndex, val)}
+                    showResult={showResult}
+                    index={targetQuestion.q_number - 1} // Optional: might be used for ID generation
+                  />
+                </div>,
+                node
+              );
             })}
           </div>
         </Panel>
@@ -1038,16 +1147,30 @@ function ResultReview({ submitted, exam }) {
     return mapping[n] || n;
   };
 
-  const getOptionClass = (opt, q) => {
+  // Updated signature to accept dynamic label
+  const getOptionClass = (opt, q, dynamicLabel) => {
     const normUser = normalizeForReview(q.your_answer);
     const normCorrect = normalizeForReview(q.correct_answer);
-    const normOpt = normalizeForReview(opt.text);
 
-    const isYourAnswer = normUser === normOpt;
-    const isCorrect = normCorrect === normOpt;
+    const normOptText = normalizeForReview(opt.text);
+    const normOptLabel = normalizeForReview(dynamicLabel || opt.label);
+    const normOptRealLabel = normalizeForReview(opt.label);
 
-    if (isCorrect) return 'result-option result-option--correct';
-    if (isYourAnswer) return 'result-option result-option--wrong';
+    // Check if this option matches what user selected (Text OR Dynamic Label OR Real Label)
+    const isYourAnswer = (normUser === normOptText) || (normUser === normOptLabel) || (normUser === normOptRealLabel);
+
+    // Check if this option matches the stored correct answer
+    const isStoredCorrect = (normCorrect === normOptText) || (normCorrect === normOptLabel) || (normCorrect === normOptRealLabel);
+
+    if (isYourAnswer) {
+      if (q.is_correct) return 'result-option result-option--correct';
+      return 'result-option result-option--wrong';
+    }
+
+    if (isStoredCorrect && !q.is_correct) {
+      return 'result-option result-option--correct';
+    }
+
     return 'result-option';
   };
 
@@ -1111,14 +1234,35 @@ function ResultReview({ submitted, exam }) {
                   {(q.type === 'mult_choice' || q.type === 'true_false_notgiven' || q.type === 'yes_no_notgiven') && (
                     <div className="result-options">
                       <p className="result-label">Options:</p>
-                      {q.options.filter(o => o.text).map((opt, oi) => (
-                        <div key={oi} className={getOptionClass(opt, q)}>
-                          <span className="option-label">{opt.label}.</span>
-                          <span className="option-text">{opt.text}</span>
-                          {normalizeForReview(opt.text) === normalizeForReview(q.your_answer) && <span className="your-badge">(Your answer)</span>}
-                          {normalizeForReview(opt.text) === normalizeForReview(q.correct_answer) && <span className="correct-badge">(Correct)</span>}
-                        </div>
-                      ))}
+                      {q.options.filter(o => o.text).map((opt, oi) => {
+                        const dynamicLabel = opt.label || String.fromCharCode(65 + oi);
+                        return (
+                          <div key={oi} className={getOptionClass(opt, q, dynamicLabel)}>
+                            <span className="option-label">{opt.label}.</span>
+                            <span className="option-text">{opt.text}</span>
+                            {/* Badge Logic Reordered */}
+                            {(() => {
+                              const normUser = normalizeForReview(q.your_answer);
+                              const normCorrect = normalizeForReview(q.correct_answer);
+                              const normOptText = normalizeForReview(opt.text);
+                              const normOptLabel = normalizeForReview(dynamicLabel);
+                              const normOptRealLabel = normalizeForReview(opt.label);
+
+                              const isYourAnswer = (normUser === normOptText) || (normUser === normOptLabel) || (normUser === normOptRealLabel);
+                              const isStoredCorrect = (normCorrect === normOptText) || (normCorrect === normOptLabel) || (normCorrect === normOptRealLabel);
+
+                              // Show "Your Answer" badge if selected
+                              if (isYourAnswer) return <span className="your-badge">(Your answer)</span>;
+
+                              // Show "Correct" badge ONLY if user was wrong AND this is the stored correct answer
+                              if (isStoredCorrect && !q.is_correct) return <span className="correct-badge">(Correct)</span>;
+
+                              return null;
+                            })()}
+
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
 
