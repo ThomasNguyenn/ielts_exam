@@ -5,9 +5,9 @@ import dotenv from 'dotenv';
 import { requestOpenAIJsonWithFallback } from '../utils/aiClient.js';
 dotenv.config();
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY || process.env.OPEN_API_KEY,
-});
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.OPEN_API_KEY;
+const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
+const hasOpenAiCredentials = Boolean(OPENAI_API_KEY);
 
 const OPENAI_MODELS = [
     process.env.OPENAI_PRIMARY_MODEL || "gpt-4o-mini",
@@ -108,6 +108,9 @@ export const checkOutline = async (req, res) => {
 
         let aiResponse;
         try {
+            if (!hasOpenAiCredentials) {
+                throw new Error("OpenAI API key is not configured");
+            }
             const aiResult = await requestOpenAIJsonWithFallback({
                 openai,
                 models: OPENAI_MODELS,
@@ -165,6 +168,9 @@ export const generateMaterials = async (req, res) => {
 
         let materials;
         try {
+            if (!hasOpenAiCredentials) {
+                throw new Error("OpenAI API key is not configured");
+            }
             const aiResult = await requestOpenAIJsonWithFallback({
                 openai,
                 models: OPENAI_MODELS,
@@ -297,6 +303,9 @@ export const submitWriting = async (req, res) => {
 
         let result;
         try {
+            if (!hasOpenAiCredentials) {
+                throw new Error("OpenAI API key is not configured");
+            }
             const aiResult = await requestOpenAIJsonWithFallback({
                 openai,
                 models: OPENAI_MODELS,

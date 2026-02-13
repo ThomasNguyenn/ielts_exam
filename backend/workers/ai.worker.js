@@ -8,8 +8,6 @@ import {
   isAiAsyncModeEnabled,
 } from "../config/queue.config.js";
 import { WRITING_AI_QUEUE, SPEAKING_AI_QUEUE } from "../queues/ai.queue.js";
-import { scoreWritingSubmissionById } from "../services/writingSubmissionScoring.service.js";
-import { scoreSpeakingSessionById } from "../services/speakingGrading.service.js";
 
 dotenv.config();
 
@@ -37,6 +35,10 @@ const main = async () => {
 
   await connectDB();
   const concurrency = getAiWorkerConcurrency();
+  const [{ scoreWritingSubmissionById }, { scoreSpeakingSessionById }] = await Promise.all([
+    import("../services/writingSubmissionScoring.service.js"),
+    import("../services/speakingGrading.service.js"),
+  ]);
 
   const writingWorker = new Worker(
     WRITING_AI_QUEUE,
@@ -83,4 +85,3 @@ main().catch((error) => {
   console.error("AI worker failed to start", error);
   process.exit(1);
 });
-
