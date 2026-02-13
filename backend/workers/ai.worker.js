@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 import { Worker } from "bullmq";
 import { connectDB } from "../config/db.js";
-import { validateEnvironment } from "../config/env.validation.js";
+import { validateWorkerEnvironment } from "../config/env.validation.js";
 import {
   createRedisConnection,
   getAiWorkerConcurrency,
@@ -21,7 +21,7 @@ const log = (message, extra = {}) => {
 };
 
 const main = async () => {
-  validateEnvironment();
+  validateWorkerEnvironment();
 
   if (!isAiAsyncModeEnabled()) {
     log("AI async mode disabled. Worker will not start.");

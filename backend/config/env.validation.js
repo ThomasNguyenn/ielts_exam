@@ -63,4 +63,47 @@ export const validateEnvironment = ({ env = process.env } = {}) => {
   }
 };
 
+export const validateWorkerEnvironment = ({ env = process.env } = {}) => {
+  const requiredVars = ["MONGO_URI"];
+  if (toBoolean(env.AI_ASYNC_MODE)) {
+    requiredVars.push("REDIS_URL");
+  }
+
+  const missing = requiredVars.filter((name) => {
+    const value = env[name];
+    return !value || !String(value).trim();
+  });
+
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing required environment variables: ${missing.join(", ")}`,
+    );
+  }
+
+  if (env.NODE_ENV !== "production") {
+    const snapshot = requiredVars.reduce((acc, key) => {
+      acc[key] = redact(String(env[key] || ""));
+      return acc;
+    }, {});
+    const resolvedOpenAiKey =
+      env.OPENAI_API_KEY || env.OPEN_API_KEY || "";
+    snapshot.OPENAI_API_KEY = redact(String(resolvedOpenAiKey));
+    snapshot.GEMINI_API_KEY = redact(String(env.GEMINI_API_KEY || ""));
+    console.log(`[env:worker] validated keys: ${JSON.stringify(snapshot)}`);
+  }
+
+  const hasOpenAiKey = OPENAI_KEY_ENV_NAMES.some((name) => {
+    const value = env[name];
+    return Boolean(value && String(value).trim());
+  });
+  const hasGeminiKey = Boolean(env.GEMINI_API_KEY && String(env.GEMINI_API_KEY).trim());
+
+  if (!hasOpenAiKey) {
+    console.warn("[env:worker] OPENAI_API_KEY is missing. Writing AI jobs will run in fallback mode.");
+  }
+  if (!hasGeminiKey) {
+    console.warn("[env:worker] GEMINI_API_KEY is missing. Speaking AI jobs will run in fallback mode.");
+  }
+};
+
 export { REQUIRED_ENV_VARS };

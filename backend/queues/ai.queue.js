@@ -52,6 +52,13 @@ const addUniqueJob = async (queue, name, payload, jobId) => {
 
 export const isAiQueueReady = () => ensureQueues().ready;
 
+const buildSafeJobId = (prefix, rawId) => {
+  const normalizedId = String(rawId || "")
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]/g, "_");
+  return `${prefix}-${normalizedId}`;
+};
+
 export const enqueueWritingAiScoreJob = async ({ submissionId, force = false }) => {
   const state = ensureQueues();
   if (!state.ready) {
@@ -63,7 +70,7 @@ export const enqueueWritingAiScoreJob = async ({ submissionId, force = false }) 
     };
   }
 
-  const jobId = `writing-submission:${submissionId}`;
+  const jobId = buildSafeJobId("writing-submission", submissionId);
   const job = await addUniqueJob(
     writingQueue,
     "score-writing-submission",
@@ -89,7 +96,7 @@ export const enqueueSpeakingAiScoreJob = async ({ sessionId, force = false }) =>
     };
   }
 
-  const jobId = `speaking-session:${sessionId}`;
+  const jobId = buildSafeJobId("speaking-session", sessionId);
   const job = await addUniqueJob(
     speakingQueue,
     "score-speaking-session",
@@ -103,4 +110,3 @@ export const enqueueSpeakingAiScoreJob = async ({ sessionId, force = false }) =>
     jobId: String(job.id),
   };
 };
-
