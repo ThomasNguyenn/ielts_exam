@@ -1,12 +1,13 @@
 const REQUIRED_ENV_VARS = [
   "MONGO_URI",
   "JWT_SECRET",
-  "OPEN_API_KEY",
   "GEMINI_API_KEY",
   "CLOUDINARY_CLOUD_NAME",
   "CLOUDINARY_API_KEY",
   "CLOUDINARY_API_SECRET",
 ];
+
+const OPENAI_KEY_ENV_NAMES = ["OPENAI_API_KEY", "OPEN_API_KEY"];
 
 const toBoolean = (value) => {
   const normalized = String(value || "").trim().toLowerCase();
@@ -36,11 +37,25 @@ export const validateEnvironment = ({ env = process.env } = {}) => {
     );
   }
 
+  const hasOpenAiKey = OPENAI_KEY_ENV_NAMES.some((name) => {
+    const value = env[name];
+    return Boolean(value && String(value).trim());
+  });
+
+  if (!hasOpenAiKey) {
+    throw new Error(
+      "Missing required environment variable: OPENAI_API_KEY (or legacy OPEN_API_KEY)",
+    );
+  }
+
   if (env.NODE_ENV !== "production") {
     const snapshot = requiredVars.reduce((acc, key) => {
       acc[key] = redact(String(env[key] || ""));
       return acc;
     }, {});
+    const resolvedOpenAiKey =
+      env.OPENAI_API_KEY || env.OPEN_API_KEY || "";
+    snapshot.OPENAI_API_KEY = redact(String(resolvedOpenAiKey));
     console.log(`[env] validated keys: ${JSON.stringify(snapshot)}`);
   }
 };
