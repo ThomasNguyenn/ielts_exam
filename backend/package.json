@@ -2,11 +2,13 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "bcryptjs": "^3.0.3",
+    "bullmq": "^5.58.2",
     "cloudinary": "^2.9.0",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "groq-sdk": "^0.37.0",
+    "ioredis": "^5.8.1",
     "jsonwebtoken": "^9.0.3",
     "mongodb": "^7.0.0",
     "mongoose": "^9.1.5",
@@ -26,7 +28,8 @@
     "backup:mongo": "powershell -ExecutionPolicy Bypass -File ./scripts/backup-mongo.ps1",
     "restore:mongo": "powershell -ExecutionPolicy Bypass -File ./scripts/restore-mongo.ps1",
     "backup:uploads": "powershell -ExecutionPolicy Bypass -File ./scripts/backup-uploads.ps1",
-    "restore:uploads": "powershell -ExecutionPolicy Bypass -File ./scripts/restore-uploads.ps1"
+    "restore:uploads": "powershell -ExecutionPolicy Bypass -File ./scripts/restore-uploads.ps1",
+    "worker:ai": "node ./workers/ai.worker.js"
   },
   "type": "module",
   "keywords": [],

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
+import TestCardSkeleton from '../components/TestCardSkeleton';
 import './TestList.css';
 
 function getTestDescription(test) {
@@ -136,7 +137,49 @@ export default function TestList() {
     }
   }, [isLoggedIn]);
 
-  if (loading) return <div className="page"><p className="muted">Loading tests…</p></div>;
+  if (loading) {
+    return (
+      <div className="page test-list">
+        <h1>Danh sách bài thi</h1>
+        <div className="test-list-layout">
+          {/* Skeleton Sidebar */}
+          <aside className="test-sidebar">
+            <div className="h-6 bg-gray-200 rounded w-1/3 mb-4 animate-pulse"></div>
+            <div className="h-10 bg-gray-200 rounded-lg mb-8 animate-pulse"></div>
+
+            <div className="h-6 bg-gray-200 rounded w-1/2 mb-4 animate-pulse"></div>
+            <div className="space-y-3 mb-8">
+              {[1, 2, 3, 4].map(i => (
+                <div key={i} className="h-8 bg-gray-200 rounded-lg w-full animate-pulse"></div>
+              ))}
+            </div>
+          </aside>
+
+          {/* Skeleton Main Content */}
+          <section className="test-main">
+            {/* Skeleton Search */}
+            <div className="test-search-box mb-8">
+              <div className="h-14 bg-gray-200 rounded-2xl w-full animate-pulse"></div>
+            </div>
+
+            {/* Skeleton Filters */}
+            <div className="flex gap-3 mb-10 overflow-hidden">
+              {[1, 2, 3, 4].map(i => (
+                <div key={i} className="h-9 w-32 bg-gray-200 rounded-full animate-pulse"></div>
+              ))}
+            </div>
+
+            {/* Skeleton Grid */}
+            <div className="test-cards">
+              {[1, 2, 3, 4, 5, 6].map((n) => (
+                <TestCardSkeleton key={n} />
+              ))}
+            </div>
+          </section>
+        </div>
+      </div>
+    );
+  }
   if (error) return <div className="page"><p className="error">Error: {error}</p></div>;
 
   const getCategory = (test) => (test.category || '').trim() || 'Uncategorized';

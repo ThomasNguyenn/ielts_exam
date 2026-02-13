@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 // Get token from localStorage
 function getToken() {
@@ -188,6 +188,7 @@ export const api = {
     return request(`/api/writings/submissions${query ? `?${query}` : ''}`);
   },
   getSubmissionById: (id) => request(`/api/writings/submissions/${id}`),
+  getSubmissionStatus: (id) => request(`/api/writings/submissions/${id}/status`),
   scoreSubmission: (id, body) => request(`/api/writings/submissions/${id}/score`, { method: 'POST', body: JSON.stringify(body) }),
   scoreSubmissionAI: (id) => request(`/api/writings/submissions/${id}/ai-score`, { method: 'POST' }),
 
@@ -247,6 +248,7 @@ export const api = {
   getSpeakings: () => request('/api/speaking'),
   getRandomSpeaking: () => request('/api/speaking/random'),
   getSpeakingById: (id) => request(`/api/speaking/${id}`),
+  getSpeakingSession: (sessionId) => request(`/api/speaking/sessions/${sessionId}`),
   createSpeaking: (data) => request('/api/speaking', { method: 'POST', body: JSON.stringify(data) }),
   updateSpeaking: (id, data) => request(`/api/speaking/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteSpeaking: (id) => request(`/api/speaking/${id}`, { method: 'DELETE' }),

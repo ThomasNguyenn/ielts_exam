@@ -1,35 +1,63 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../api/client';
 import RecordingPhase from './RecordingPhase';
 import SpeakingResultPhase from './SpeakingResultPhase';
 import './Practice.css';
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export default function SpeakingFlow() {
     const { id } = useParams();
     const navigate = useNavigate();
     const [topic, setTopic] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [phase, setPhase] = useState('recording'); // 'recording', 'processing', 'result'
+    const [phase, setPhase] = useState('recording'); // 'recording' | 'processing' | 'result'
     const [result, setResult] = useState(null);
 
     useEffect(() => {
         if (!id) return;
 
-        // Use getSpeakingById if available, otherwise filter getSpeakings
-        // For now, let's just fetch all and find
         api.getSpeakings()
             .then((res) => {
-                const found = res.data.find(t => t._id === id);
-                if (found) setTopic(found);
-                else throw new Error("Topic not found");
+                const found = (res.data || []).find((t) => t._id === id);
+                if (!found) throw new Error('Topic not found');
+                setTopic(found);
             })
             .catch((err) => {
                 console.error(err);
                 navigate('/practice');
             })
             .finally(() => setLoading(false));
-    }, [id]);
+    }, [id, navigate]);
+
+    const pollSpeakingResult = async (sessionId) => {
+        const maxAttempts = 90; // ~3 minutes at 2s interval
+
+        for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+            const statusRes = await api.getSpeakingSession(sessionId);
+            const session = statusRes?.data || {};
+
+            if (session.status === 'completed' && session.analysis) {
+                setResult({
+                    session_id: session.session_id || sessionId,
+                    transcript: session.transcript || '',
+                    analysis: session.analysis,
+                    ai_source: session.ai_source || null,
+                });
+                setPhase('result');
+                return;
+            }
+
+            if (session.status === 'failed') {
+                throw new Error('AI grading failed. Please retry.');
+            }
+
+            await wait(2000);
+        }
+
+        throw new Error('AI grading timed out. Please check again in a minute.');
+    };
 
     const handleRecordingComplete = async (audioBlob, extraData = {}) => {
         setPhase('processing');
@@ -38,7 +66,6 @@ export default function SpeakingFlow() {
             formData.append('questionId', id);
             formData.append('audio', audioBlob, 'speaking-answer.webm');
 
-            // Append extra ELSA-like metrics
             if (extraData.transcript) formData.append('transcript', extraData.transcript);
             if (extraData.duration) formData.append('duration', extraData.duration);
             if (extraData.wpm) formData.append('wpm', extraData.wpm);
@@ -47,22 +74,28 @@ export default function SpeakingFlow() {
             }
 
             const res = await api.submitSpeaking(formData);
+
+            if (res?.status === 'processing' || res?.queued) {
+                await pollSpeakingResult(res.session_id);
+                return;
+            }
+
             setResult(res);
             setPhase('result');
         } catch (error) {
-            console.error("Submission failed:", error);
-            alert("Lỗi khi xử lý âm thanh. Vui lòng thử lại.");
+            console.error('Submission failed:', error);
+            alert('Error while processing audio. Please try again.');
             setPhase('recording');
         }
     };
 
-    if (loading) return <div className="practice-container">Đang tải chủ đề...</div>;
+    if (loading) return <div className="practice-container">Loading topic...</div>;
 
     return (
         <div className="practice-flow-container" style={{ maxWidth: '900px', margin: '2rem auto', padding: '0 1rem' }}>
             <div className="practice-header">
                 <button onClick={() => navigate('/speaking')} className="btn-ghost" style={{ marginBottom: '1rem' }}>
-                    ← Quay lại danh sách
+                    ← Back to list
                 </button>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
                     <span className="badge badge-purple" style={{ background: '#e0e7ff', color: '#4338ca', padding: '4px 12px', borderRadius: '50px', fontSize: '0.8rem', fontWeight: 700 }}>
@@ -83,8 +116,8 @@ export default function SpeakingFlow() {
                 {phase === 'processing' && (
                     <div style={{ textAlign: 'center', padding: '3rem' }}>
                         <div className="spinner" style={{ marginBottom: '2rem' }}></div>
-                        <h2>AI đang phân tích câu trả lời của bạn...</h2>
-                        <p className="muted">Quá trình này có thể mất 5-10 giây tùy độ dài đoạn ghi âm.</p>
+                        <h2>AI is grading your speaking answer...</h2>
+                        <p className="muted">Your submission is queued and being processed in background.</p>
                     </div>
                 )}
 
@@ -102,3 +135,4 @@ export default function SpeakingFlow() {
         </div>
     );
 }
+

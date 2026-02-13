@@ -1,7 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import path from 'path';
-import { getRandomSpeaking, getSpeakings, submitSpeaking, createSpeaking, updateSpeaking, deleteSpeaking, getSpeakingById } from '../controllers/speaking.controller.js';
+import { getRandomSpeaking, getSpeakings, submitSpeaking, createSpeaking, updateSpeaking, deleteSpeaking, getSpeakingById, getSpeakingSession } from '../controllers/speaking.controller.js';
 import { verifyToken, optionalVerifyToken, isTeacherOrAdmin } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
@@ -39,6 +39,7 @@ const upload = multer({
 router.get('/', getSpeakings);
 router.post('/', verifyToken, isTeacherOrAdmin, createSpeaking);
 router.get('/random', getRandomSpeaking);
+router.get('/sessions/:id', verifyToken, getSpeakingSession);
 router.get('/:id', getSpeakingById);
 router.put('/:id', verifyToken, isTeacherOrAdmin, updateSpeaking);
 router.delete('/:id', verifyToken, isTeacherOrAdmin, deleteSpeaking);

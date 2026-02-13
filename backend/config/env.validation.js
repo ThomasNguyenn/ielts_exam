@@ -8,6 +8,11 @@ const REQUIRED_ENV_VARS = [
   "CLOUDINARY_API_SECRET",
 ];
 
+const toBoolean = (value) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  return ["1", "true", "yes", "on"].includes(normalized);
+};
+
 const redact = (value) => {
   if (!value) return "<empty>";
   if (value.length <= 6) return "***";
@@ -15,7 +20,12 @@ const redact = (value) => {
 };
 
 export const validateEnvironment = ({ env = process.env } = {}) => {
-  const missing = REQUIRED_ENV_VARS.filter((name) => {
+  const requiredVars = [...REQUIRED_ENV_VARS];
+  if (toBoolean(env.AI_ASYNC_MODE)) {
+    requiredVars.push("REDIS_URL");
+  }
+
+  const missing = requiredVars.filter((name) => {
     const value = env[name];
     return !value || !String(value).trim();
   });
@@ -27,7 +37,7 @@ export const validateEnvironment = ({ env = process.env } = {}) => {
   }
 
   if (env.NODE_ENV !== "production") {
-    const snapshot = REQUIRED_ENV_VARS.reduce((acc, key) => {
+    const snapshot = requiredVars.reduce((acc, key) => {
       acc[key] = redact(String(env[key] || ""));
       return acc;
     }, {});

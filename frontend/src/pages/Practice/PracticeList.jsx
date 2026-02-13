@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/client';
+import PracticeCardSkeleton from '../../components/PracticeCardSkeleton';
 import './Practice.css'; // Re-use practice styles if possible, or add new ones
 
 export default function PracticeList() {
@@ -24,15 +25,39 @@ export default function PracticeList() {
         const prompt = t.prompt || '';
         const matchesSearch = title.toLowerCase().includes(searchQuery.toLowerCase()) ||
             prompt.toLowerCase().includes(searchQuery.toLowerCase());
-        
+
         const matchesType = filterType === 'all' ||
             (filterType === 'task1' && t.task_type === 'task1') ||
             (filterType === 'task2' && t.task_type === 'task2');
-        
+
         return matchesSearch && matchesType;
     });
 
-    if (loading) return <div className="practice-container">Loading writing tasks...</div>;
+    if (loading) {
+        return (
+            <div className="page practice-list-page" style={{ maxWidth: '80vw', width: '100%', margin: '0 auto', padding: '2rem' }}>
+                <div className="practice-header" style={{ marginBottom: '2rem', background: '#FFF9F1' }}>
+                    <div className="h-10 bg-gray-200 rounded w-1/3 mb-4 animate-pulse"></div>
+                    <div className="h-4 bg-gray-200 rounded w-1/2 animate-pulse"></div>
+                </div>
+
+                <div className="practice-controls" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '2rem' }}>
+                    <div className="h-12 bg-gray-200 rounded-lg flex-1 animate-pulse" style={{ minWidth: '200px' }}></div>
+                    <div className="flex gap-2">
+                        {[1, 2, 3].map(i => (
+                            <div key={i} className="h-10 w-24 bg-gray-200 rounded-full animate-pulse"></div>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="practice-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
+                    {[1, 2, 3, 4, 5, 6].map(i => (
+                        <PracticeCardSkeleton key={i} />
+                    ))}
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="page practice-list-page" style={{ maxWidth: '80vw', width: '100%', margin: '0 auto', padding: '2rem' }}>
@@ -86,7 +111,7 @@ export default function PracticeList() {
                         <p className="muted" style={{ fontSize: '0.9rem', marginBottom: '1.5rem', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                             {t.prompt}
                         </p>
-                        
+
                         {(t.task_type === 'task1' || t.task_type === 1) ? (
                             <button className="btn btn-secondary" disabled style={{ textAlign: 'center', opacity: 0.6, cursor: 'not-allowed', borderRadius: '8px' }}>
                                 Đang bảo trì

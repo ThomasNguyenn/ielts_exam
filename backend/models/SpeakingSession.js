@@ -14,7 +14,9 @@ const SpeakingSessionSchema = new mongoose.Schema({
   
   // Audio & Transcript
   audioUrl: { type: String }, // Path to the uploaded audio file
+  audioMimeType: { type: String },
   transcript: { type: String }, // Transcription from Groq Whisper
+  ai_source: { type: String, default: null },
   
   // AI Analysis (Groq Llama 3)
   analysis: {
@@ -38,10 +40,15 @@ const SpeakingSessionSchema = new mongoose.Schema({
     general_feedback: { type: String },
     sample_answer: { type: String }
   },
+
+  metrics: {
+    wpm: { type: Number, default: 0 },
+    pauses: { type: mongoose.Schema.Types.Mixed, default: {} },
+  },
   
   status: {
     type: String,
-    enum: ['recording', 'processing', 'completed'],
+    enum: ['recording', 'processing', 'completed', 'failed'],
     default: 'recording'
   },
   timestamp: { type: Date, default: Date.now }

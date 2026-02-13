@@ -33,7 +33,7 @@ const WritingSubmissionSchema = new mongoose.Schema({
   submitted_at: { type: Date, default: Date.now },
   status: {
     type: String,
-    enum: ['pending', 'scored', 'reviewed'],
+    enum: ['pending', 'processing', 'scored', 'reviewed', 'failed'],
     default: 'pending'
   },
 }, { timestamps: true });

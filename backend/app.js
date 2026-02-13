@@ -179,6 +179,16 @@ export const createApp = ({ startBackgroundJobs = true } = {}) => {
   app.use("/api/content-gen", aiRateLimit);
   app.use("/api/practice", applyIf((req) => req.path === "/outline-check" || req.path === "/submit" || req.path.startsWith("/materials/"), aiRateLimit));
   app.use("/api/writings", applyIf((req) => req.method === "POST" && /\/submissions\/[^/]+\/ai-score$/.test(req.path), aiRateLimit));
+  app.use(
+    "/api/writings",
+    applyIf(
+      (req) =>
+        req.method === "POST" &&
+        /\/[^/]+\/submit$/.test(req.path) &&
+        String(req.body?.gradingMode || "").toLowerCase() === "ai",
+      aiRateLimit,
+    ),
+  );
   app.use("/api/speaking/submit", applyIf((req) => req.method === "POST", aiRateLimit));
 
   app.use("/api/tests", applyIf((req) => req.method === "POST" && /\/[^/]+\/submit$/.test(req.path), submitRateLimit));

@@ -1,4 +1,4 @@
-import { getAllWritings, createWriting, updateWriting, deleteWriting, getWritingById, getWritingExam, submitWriting, getSubmissions, getSubmissionById, scoreSubmission, regenerateWritingId, scoreSubmissionAI, uploadImage } from '../controllers/writing.controller.js';
+import { getAllWritings, createWriting, updateWriting, deleteWriting, getWritingById, getWritingExam, submitWriting, getSubmissions, getSubmissionById, getSubmissionStatus, scoreSubmission, regenerateWritingId, scoreSubmissionAI, uploadImage } from '../controllers/writing.controller.js';
 import { verifyToken, optionalVerifyToken, isTeacherOrAdmin } from '../middleware/auth.middleware.js';
 import express from 'express';
 import multer from 'multer';
@@ -29,13 +29,14 @@ const upload = multer({
 router.get("/", getAllWritings);
 router.get("/submissions", verifyToken, isTeacherOrAdmin, getSubmissions);
 router.get("/submissions/:id", verifyToken, isTeacherOrAdmin, getSubmissionById);
+router.get("/submissions/:id/status", verifyToken, getSubmissionStatus);
 router.post("/", verifyToken, isTeacherOrAdmin, createWriting);
 router.post("/upload-image", verifyToken, isTeacherOrAdmin, upload.single('image'), uploadImage);
 router.get("/:id", getWritingById);
 router.get("/:id/exam", getWritingExam);
 router.post("/:id/submit", optionalVerifyToken, submitWriting);
 router.post("/submissions/:id/score", verifyToken, isTeacherOrAdmin, scoreSubmission);
-router.post("/submissions/:id/ai-score", verifyToken, isTeacherOrAdmin, scoreSubmissionAI);
+router.post("/submissions/:id/ai-score", verifyToken, scoreSubmissionAI);
 router.post("/:id/regenerate-id", verifyToken, isTeacherOrAdmin, regenerateWritingId);
 router.put("/:id", verifyToken, isTeacherOrAdmin, updateWriting);
 // router.post("/:id/regenerate-id", import('../controllers/writing.controller.js').then(m => m.regenerateWritingId).catch(e => console.error(e))); // Dynamic import wrapper or just import it at top?

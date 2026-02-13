@@ -3,6 +3,7 @@ import { api } from '../api/client';
 import { Link } from 'react-router-dom';
 import { useNotification } from '../components/NotificationContext';
 import ConfirmationModal from '../components/ConfirmationModal';
+import VocabCardSkeleton from '../components/VocabCardSkeleton';
 import './Vocabulary.css';
 
 export default function Vocabulary() {
@@ -140,7 +141,35 @@ export default function Vocabulary() {
         return (
             <div className="page">
                 <div className="container">
-                    <p>Đang tải từ vựng...</p>
+                    <div className="vocab-header mb-8">
+                        <div className="h-10 bg-gray-200 rounded w-1/3 animate-pulse"></div>
+                    </div>
+
+                    {/* Stats Skeleton */}
+                    <div className="vocab-stats mb-8 flex gap-4">
+                        <div className="h-24 bg-gray-200 rounded-xl flex-1 animate-pulse"></div>
+                        <div className="h-24 bg-gray-200 rounded-xl flex-1 animate-pulse"></div>
+                        <div className="h-24 bg-gray-200 rounded-xl flex-1 animate-pulse"></div>
+                    </div>
+
+                    {/* Form Skeleton */}
+                    <div className="vocab-add-form mb-8 p-6 border border-gray-200 rounded-xl bg-white">
+                        <div className="h-6 bg-gray-200 rounded w-32 mb-4 animate-pulse"></div>
+                        <div className="space-y-4">
+                            <div className="flex gap-4">
+                                <div className="h-10 bg-gray-200 rounded flex-1 animate-pulse"></div>
+                                <div className="h-10 bg-gray-200 rounded flex-1 animate-pulse"></div>
+                            </div>
+                            <div className="h-20 bg-gray-200 rounded w-full animate-pulse"></div>
+                            <div className="h-10 bg-gray-200 rounded w-32 animate-pulse"></div>
+                        </div>
+                    </div>
+
+                    <div className="vocab-list">
+                        {[1, 2, 3, 4].map(i => (
+                            <VocabCardSkeleton key={i} />
+                        ))}
+                    </div>
                 </div>
             </div>
         );

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/client';
+import PracticeCardSkeleton from '../../components/PracticeCardSkeleton';
 import './Practice.css';
 
 export default function SpeakingList() {
@@ -25,10 +26,10 @@ export default function SpeakingList() {
         const prompt = t.prompt || '';
         const matchesSearch = title.toLowerCase().includes(searchQuery.toLowerCase()) ||
             prompt.toLowerCase().includes(searchQuery.toLowerCase());
-        
+
         const matchesType = filterType === 'all' || String(t.part) === filterType;
         const matchesTopic = selectedTopic === 'all' || title === selectedTopic;
-        
+
         return matchesSearch && matchesType && matchesTopic;
     });
 
@@ -50,7 +51,39 @@ export default function SpeakingList() {
         groupedTasks[topic].sort((a, b) => a.part - b.part);
     });
 
-    if (loading) return <div className="practice-container">Loading speaking topics...</div>;
+    if (loading) {
+        return (
+            <div className="page practice-list-page" style={{ maxWidth: '80vw', width: '100%', margin: '0 auto', padding: '2rem' }}>
+                <div className="practice-header" style={{ marginBottom: '2rem', background: '#FFF9F1' }}>
+                    <div className="h-10 bg-gray-200 rounded w-1/3 mb-4 animate-pulse"></div>
+                    <div className="h-4 bg-gray-200 rounded w-1/2 animate-pulse"></div>
+                </div>
+
+                <div className="practice-controls" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '2rem' }}>
+                    <div className="h-12 bg-gray-200 rounded-lg flex-1 animate-pulse" style={{ minWidth: '200px' }}></div>
+                    <div className="h-12 bg-gray-200 rounded-lg w-48 animate-pulse"></div>
+                    <div className="flex gap-2">
+                        {[1, 2, 3, 4].map(i => (
+                            <div key={i} className="h-10 w-24 bg-gray-200 rounded-full animate-pulse"></div>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="practice-content-area">
+                    <div className="topic-group">
+                        <div className="topic-group-header mb-4">
+                            <div className="h-8 bg-gray-200 rounded w-1/4 animate-pulse"></div>
+                        </div>
+                        <div className="topic-group-content" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
+                            {[1, 2, 3, 4, 5, 6].map(i => (
+                                <PracticeCardSkeleton key={i} />
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="page practice-list-page" style={{ maxWidth: '80vw', width: '100%', margin: '0 auto', padding: '2rem' }}>
@@ -70,7 +103,7 @@ export default function SpeakingList() {
                     className="form-input"
                     style={{ flex: 1, minWidth: '200px', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}
                 />
-                
+
                 <select
                     value={selectedTopic}
                     onChange={(e) => setSelectedTopic(e.target.value)}
@@ -128,7 +161,7 @@ export default function SpeakingList() {
                                         <p className="muted" style={{ fontSize: '1rem', color: '#334155', lineHeight: '1.6', marginBottom: '1.5rem', flex: 1, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                                             {t.prompt}
                                         </p>
-                                        
+
                                         <Link to={`/practice/speaking/${t._id}`} className="btn-sidebar-start" style={{ textDecoration: 'none', background: '#3b82f6', color: 'white', padding: '0.75rem', borderRadius: '8px', textAlign: 'center', fontWeight: '600' }}>
                                             Bắt đầu trả lời
                                         </Link>

@@ -53,6 +53,19 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
+    const requestUrl = new URL(event.request.url);
+
+    // Do not intercept cross-origin requests (e.g. API on another domain)
+    // to avoid adding latency and CORS-related SW errors.
+    if (requestUrl.origin !== self.location.origin) {
+        return;
+    }
+
+    // Never cache or proxy API calls through SW.
+    if (requestUrl.pathname.startsWith('/api')) {
+        return;
+    }
+
     event.respondWith(
         caches.match(event.request)
             .then((response) => {
@@ -80,6 +93,9 @@ self.addEventListener('fetch', (event) => {
                         });
 
                     return response;
+                }).catch(() => {
+                    // Graceful fallback when network is unavailable.
+                    return response || Response.error();
                 });
             })
     );

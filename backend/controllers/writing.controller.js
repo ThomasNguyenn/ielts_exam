@@ -1,6 +1,17 @@
 import mongoose from "mongoose";
 import Writing from "../models/Writing.model.js";
+import WritingSubmission from "../models/WritingSubmission.model.js";
+import { isAiAsyncModeEnabled } from "../config/queue.config.js";
+import { enqueueWritingAiScoreJob, isAiQueueReady } from "../queues/ai.queue.js";
+import { scoreWritingSubmissionById } from "../services/writingSubmissionScoring.service.js";
 import { parsePagination, buildPaginationMeta } from "../utils/pagination.js";
+
+const canAccessSubmission = (submission, user) => {
+    if (!user?.userId) return false;
+    if (!submission?.user_id) return user.role === "admin" || user.role === "teacher";
+    if (String(submission.user_id) === String(user.userId)) return true;
+    return user.role === "admin" || user.role === "teacher";
+};
 
 export const getAllWritings = async (req, res) => {
     try {
@@ -100,7 +111,7 @@ export const getWritingExam = async (req, res) => {
 /** Submit writing answer */
 export const submitWriting = async (req, res) => {
     const { id } = req.params; // Writing Task ID
-    const { answer, task_type, student_name, student_email, test_id } = req.body || {};
+    const { answer, student_name, student_email, test_id, gradingMode = "standard" } = req.body || {};
     const userId = req.user?.userId; // Get user ID if authenticated
 
     if (!answer) {
@@ -121,57 +132,66 @@ export const submitWriting = async (req, res) => {
 
         // Calculate word count
         const wordCount = trimmedAnswer.split(/\s+/).filter(w => w.length > 0).length;
+        const newSubmission = await WritingSubmission.create({
+            test_id: test_id || undefined,
+            user_id: userId,
+            student_name: student_name || 'Anonymous',
+            student_email: student_email,
+            writing_answers: [{
+                task_id: writing._id,
+                task_title: writing.title,
+                answer_text: trimmedAnswer,
+                word_count: wordCount
+            }],
+            status: gradingMode === "ai" ? "processing" : "pending"
+        });
 
-        // Create a new submission
-        // If it's a standalone practice, we might not have test_id.
-        // We structure it to fit the model (array of answers).
-        import("../models/WritingSubmission.model.js").then(async ({ default: WritingSubmission }) => {
-            const newSubmission = new WritingSubmission({
-                test_id: test_id || undefined,
-                user_id: userId,
-                student_name: student_name || 'Anonymous',
-                student_email: student_email,
-                writing_answers: [{
-                    task_id: writing._id,
-                    task_title: writing.title,
-                    answer_text: answer,
-                    word_count: wordCount
-                }],
-                status: 'pending'
-            });
-
-            await newSubmission.save();
-
-            let gradingResult = null;
-            if (req.body.gradingMode === 'ai') {
-                try {
-                    const { gradeEssay } = await import("../services/grading.service.js");
-                    gradingResult = await gradeEssay(writing.prompt, trimmedAnswer, writing.task_type, writing.image_url);
-
-                    newSubmission.status = 'scored'; // Auto-scored
-                    newSubmission.ai_result = gradingResult;
-                    newSubmission.is_ai_graded = true;
-                    // Map band score to the top level for convenience
-                    newSubmission.score = gradingResult.band_score;
-
-                    await newSubmission.save();
-                } catch (aiError) {
-                    console.error("AI Grading failed:", aiError);
-                    // Don't fail the submission, just return without grading
-                }
-            }
-            // If standard or AI failed, make sure we saved at least once
-            if (newSubmission.isModified() || !newSubmission._id) {
-                await newSubmission.save();
-            }
-
-            res.status(200).json({
+        if (gradingMode !== "ai") {
+            return res.status(200).json({
                 success: true,
                 data: {
                     submissionId: newSubmission._id,
-                    ...(gradingResult || {}) // Spread grading result if available
+                    status: newSubmission.status,
                 },
             });
+        }
+
+        const shouldQueue = isAiAsyncModeEnabled() && isAiQueueReady();
+        if (shouldQueue) {
+            try {
+                const queueResult = await enqueueWritingAiScoreJob({
+                    submissionId: String(newSubmission._id),
+                    force: true,
+                });
+
+                if (queueResult.queued) {
+                    return res.status(202).json({
+                        success: true,
+                        data: {
+                            submissionId: newSubmission._id,
+                            status: "processing",
+                            queued: true,
+                            jobId: queueResult.jobId,
+                        },
+                    });
+                }
+            } catch (queueError) {
+                console.warn("Writing enqueue failed, falling back to sync scoring:", queueError.message);
+            }
+        }
+
+        const scored = await scoreWritingSubmissionById({
+            submissionId: String(newSubmission._id),
+            force: true,
+        });
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                submissionId: newSubmission._id,
+                ...(scored.aiResult || {}),
+                queued: false,
+            },
         });
 
     } catch (error) {
@@ -196,7 +216,6 @@ export const getSubmissions = async (req, res) => {
             };
         }
 
-        const WritingSubmission = (await import("../models/WritingSubmission.model.js")).default;
         const totalItems = await WritingSubmission.countDocuments(filter);
 
         const submissions = await WritingSubmission.find(filter)
@@ -219,9 +238,6 @@ export const getSubmissions = async (req, res) => {
 export const getSubmissionById = async (req, res) => {
     const { id } = req.params;
     try {
-        const WritingSubmission = (await import("../models/WritingSubmission.model.js")).default;
-        const Writing = (await import("../models/Writing.model.js")).default;
-
         // Validate ObjectId format - if invalid, return 404 instead of crashing
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(404).json({ success: false, message: "Submission not found" });
@@ -254,6 +270,42 @@ export const getSubmissionById = async (req, res) => {
     } catch (error) {
         console.error("Get submission error:", error);
         res.status(500).json({ success: false, message: "Server Error" });
+    }
+};
+
+/** Get submission status for async AI scoring */
+export const getSubmissionStatus = async (req, res) => {
+    const { id } = req.params;
+    try {
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(404).json({ success: false, message: "Submission not found" });
+        }
+
+        const submission = await WritingSubmission.findById(id).lean();
+        if (!submission) {
+            return res.status(404).json({ success: false, message: "Submission not found" });
+        }
+
+        if (!canAccessSubmission(submission, req.user)) {
+            return res.status(403).json({ success: false, message: "Forbidden" });
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                _id: submission._id,
+                status: submission.status,
+                score: submission.score ?? null,
+                is_ai_graded: !!submission.is_ai_graded,
+                ai_result: submission.ai_result || null,
+                writing_answers: submission.writing_answers || [],
+                submitted_at: submission.submitted_at,
+                updatedAt: submission.updatedAt,
+            },
+        });
+    } catch (error) {
+        console.error("Get submission status error:", error);
+        return res.status(500).json({ success: false, message: "Server Error" });
     }
 };
 
@@ -418,13 +470,13 @@ export const regenerateWritingId = async (req, res) => {
 export const scoreSubmissionAI = async (req, res) => {
     const { id } = req.params; // Submission ID
     try {
-        const WritingSubmission = (await import("../models/WritingSubmission.model.js")).default;
-        const Writing = (await import("../models/Writing.model.js")).default;
-        const { gradeEssay } = await import("../services/grading.service.js");
-
         const submission = await WritingSubmission.findById(id);
         if (!submission) {
             return res.status(404).json({ success: false, message: "Submission not found" });
+        }
+
+        if (!canAccessSubmission(submission, req.user)) {
+            return res.status(403).json({ success: false, message: "Forbidden" });
         }
 
         // For Single Task mode, we check the first answer
@@ -432,27 +484,37 @@ export const scoreSubmissionAI = async (req, res) => {
             return res.status(400).json({ success: false, message: "No writing answers found in submission" });
         }
 
-        const answerObj = submission.writing_answers[0];
-        const taskId = answerObj.task_id;
-        const answerText = answerObj.answer_text;
+        const shouldQueue = isAiAsyncModeEnabled() && isAiQueueReady();
+        if (shouldQueue) {
+            try {
+                await WritingSubmission.findByIdAndUpdate(id, { status: "processing" });
+                const queueResult = await enqueueWritingAiScoreJob({
+                    submissionId: String(id),
+                    force: true,
+                });
 
-        // Fetch original task to get prompt
-        const task = await Writing.findById(taskId);
-        if (!task) {
-            return res.status(404).json({ success: false, message: "Original writing task not found" });
+                if (queueResult.queued) {
+                    return res.status(202).json({
+                        success: true,
+                        data: {
+                            submissionId: id,
+                            status: "processing",
+                            queued: true,
+                            jobId: queueResult.jobId,
+                        },
+                    });
+                }
+            } catch (queueError) {
+                console.warn("Writing enqueue failed, falling back to sync scoring:", queueError.message);
+            }
         }
 
-        const gradingResult = await gradeEssay(task.prompt, answerText, task.task_type, task.image_url);
+        const scored = await scoreWritingSubmissionById({
+            submissionId: String(id),
+            force: true,
+        });
 
-        // Update submission
-        submission.ai_result = gradingResult;
-        submission.is_ai_graded = true;
-        submission.score = gradingResult.band_score; // Set overall score
-        submission.status = 'scored';
-
-        await submission.save();
-
-        res.status(200).json({ success: true, data: submission });
+        return res.status(200).json({ success: true, data: scored.submission });
 
     } catch (error) {
         console.error("AI Score submission error:", error);

@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../api/client';
 import WritingScoreDashboard from './WritingScoreDashboard';
 import './Practice.css';
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export default function WritingAIResult() {
     const { id } = useParams(); // Submission ID
@@ -12,54 +14,9 @@ export default function WritingAIResult() {
     const [scoring, setScoring] = useState(false);
     const [error, setError] = useState(null);
 
-    useEffect(() => {
-        if (!id) return;
-
-        const loadResult = async () => {
-            try {
-                setLoading(true);
-                // 1. Fetch submission status
-                const res = await api.getSubmissionById(id);
-                const submission = res.data;
-
-                if (!submission) {
-                    setError("Submission not found");
-                    return;
-                }
-
-                // 2. If 'pending', assume we need to trigger AI scoring (or wait for it)
-                // BUT user flow: Submit -> Redirect Here. 
-                // If it's not scored yet, we should trigger it.
-                if (submission.status === 'pending' || !submission.is_ai_graded) {
-                    setScoring(true);
-                    const scoreRes = await api.scoreSubmissionAI(id);
-                    if (scoreRes.success) {
-                        const updatedSubmission = scoreRes.data;
-                        mapToDashboard(updatedSubmission);
-                    } else {
-                        setError("AI Scoring failed. Please try again later.");
-                    }
-                    setScoring(false);
-                } else {
-                    // Already scored
-                    mapToDashboard(submission);
-                }
-            } catch (err) {
-                console.error(err);
-                setError(err.message || "Failed to load result");
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        loadResult();
-    }, [id]);
-
     const mapToDashboard = (submission) => {
-        // Map submission data to WritingScoreDashboard result prop
-        // We assume single task for now as per requirement
-        if (!submission.writing_answers || submission.writing_answers.length === 0) {
-            setError("No answer found in submission");
+        if (!submission?.writing_answers || submission.writing_answers.length === 0) {
+            setError('No answer found in submission');
             return;
         }
 
@@ -69,16 +26,85 @@ export default function WritingAIResult() {
         setResult({
             ...aiResult,
             fullEssay: answer.answer_text,
-            task_title: answer.task_title
+            task_title: answer.task_title,
         });
     };
+
+    const pollSubmission = async (submissionId) => {
+        const maxAttempts = 120; // ~4 minutes
+        for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+            const statusRes = await api.getSubmissionStatus(submissionId);
+            const submission = statusRes?.data || {};
+
+            if ((submission.status === 'scored' || submission.is_ai_graded) && submission.ai_result) {
+                mapToDashboard(submission);
+                return;
+            }
+
+            if (submission.status === 'failed') {
+                throw new Error('AI scoring failed. Please try again later.');
+            }
+
+            await wait(2000);
+        }
+
+        throw new Error('AI scoring is taking longer than expected.');
+    };
+
+    useEffect(() => {
+        if (!id) return;
+
+        const loadResult = async () => {
+            try {
+                setLoading(true);
+                const statusRes = await api.getSubmissionStatus(id);
+                const submission = statusRes?.data;
+
+                if (!submission) {
+                    setError('Submission not found');
+                    return;
+                }
+
+                if ((submission.status === 'scored' || submission.is_ai_graded) && submission.ai_result) {
+                    mapToDashboard(submission);
+                    return;
+                }
+
+                setScoring(true);
+
+                try {
+                    const scoreRes = await api.scoreSubmissionAI(id);
+                    const payload = scoreRes?.data;
+
+                    if (payload?.status === 'processing' || payload?.queued) {
+                        await pollSubmission(id);
+                    } else if (payload?.ai_result || payload?.is_ai_graded) {
+                        mapToDashboard(payload);
+                    } else {
+                        await pollSubmission(id);
+                    }
+                } catch (requestError) {
+                    // If request to trigger scoring is forbidden/limited, continue polling.
+                    await pollSubmission(id);
+                }
+            } catch (err) {
+                console.error(err);
+                setError(err.message || 'Failed to load result');
+            } finally {
+                setScoring(false);
+                setLoading(false);
+            }
+        };
+
+        loadResult();
+    }, [id]);
 
     if (loading || scoring) {
         return (
             <div className="page" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
                 <div className="spinner"></div>
-                <h2>{scoring ? "AI is analyzing your writing..." : "Loading results..."}</h2>
-                <p className="muted">This may take up to 30-60 seconds.</p>
+                <h2>{scoring ? 'AI is analyzing your writing...' : 'Loading results...'}</h2>
+                <p className="muted">This can take up to 30-120 seconds depending on queue load.</p>
             </div>
         );
     }
@@ -96,7 +122,7 @@ export default function WritingAIResult() {
         <div className="page writing-result-page">
             <WritingScoreDashboard
                 result={result}
-                onRestart={() => navigate('/tests')} // Or direct back to test start?
+                onRestart={() => navigate('/tests')}
             />
         </div>
     );
