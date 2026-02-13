@@ -1,14 +1,33 @@
 import User from "../models/User.model.js";
 import TestAttempt from "../models/TestAttempt.model.js";
 import mongoose from "mongoose";
+import { parsePagination, buildPaginationMeta } from "../utils/pagination.js";
 
 export const getAllUsersWithLatestScores = async (req, res) => {
     try {
-        // 1. Fetch all users (including students, teachers, admins)
-        const users = await User.find({}).select('name email role _id').lean();
+        const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 20, maxLimit: 100 });
+        const totalItems = await User.countDocuments({});
 
-        // 2. Aggregate latest scores for each student
+        // 1. Fetch only users for current page
+        const users = await User.find({})
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .select('name email role _id createdAt')
+            .lean();
+
+        const userIds = users.map((u) => u._id).filter(Boolean);
+        if (userIds.length === 0) {
+            return res.json({
+                success: true,
+                data: [],
+                pagination: buildPaginationMeta({ page, limit, totalItems }),
+            });
+        }
+
+        // 2. Aggregate latest scores for each user in this page only
         const latestAttempts = await TestAttempt.aggregate([
+            { $match: { user_id: { $in: userIds } } },
             { $sort: { submitted_at: -1 } },
             {
                 $group: {
@@ -56,7 +75,11 @@ export const getAllUsersWithLatestScores = async (req, res) => {
             };
         });
 
-        res.json({ success: true, data: result });
+        res.json({
+            success: true,
+            data: result,
+            pagination: buildPaginationMeta({ page, limit, totalItems }),
+        });
     } catch (error) {
         console.error("Error in getAllUsersWithLatestScores:", error);
         res.status(500).json({ success: false, message: "Server Error" });
@@ -66,13 +89,26 @@ export const getAllUsersWithLatestScores = async (req, res) => {
 export const getUserAttempts = async (req, res) => {
     try {
         const { userId } = req.params;
+        const { type } = req.query;
+        const filter = { user_id: userId };
+        if (type && type !== "all") {
+            filter.type = type;
+        }
+        const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 20, maxLimit: 100 });
+        const totalItems = await TestAttempt.countDocuments(filter);
 
-        const attempts = await TestAttempt.find({ user_id: userId })
+        const attempts = await TestAttempt.find(filter)
             .sort({ submitted_at: -1 })
+            .skip(skip)
+            .limit(limit)
             .populate('test_id', 'title')
             .lean();
 
-        res.json({ success: true, data: attempts });
+        res.json({
+            success: true,
+            data: attempts,
+            pagination: buildPaginationMeta({ page, limit, totalItems }),
+        });
     } catch (error) {
         console.error("Error in getUserAttempts:", error);
         res.status(500).json({ success: false, message: "Server Error" });
@@ -81,10 +117,21 @@ export const getUserAttempts = async (req, res) => {
 
 export const getPendingStudents = async (req, res) => {
     try {
+        const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 20, maxLimit: 100 });
+        const filter = { role: 'student', isConfirmed: false };
+        const totalItems = await User.countDocuments(filter);
+
         const students = await User.find({ role: 'student', isConfirmed: false })
             .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
             .select('-password');
-        res.json({ success: true, data: students });
+
+        res.json({
+            success: true,
+            data: students,
+            pagination: buildPaginationMeta({ page, limit, totalItems }),
+        });
     } catch (error) {
         console.error("Error in getPendingStudents:", error);
         res.status(500).json({ success: false, message: "Server Error" });
@@ -110,16 +157,25 @@ export const approveStudent = async (req, res) => {
 export const getUsers = async (req, res) => {
     try {
         const { role } = req.query;
+        const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 20, maxLimit: 100 });
         const filter = {};
         if (role) {
             filter.role = role;
         }
+
+        const totalItems = await User.countDocuments(filter);
         
         const users = await User.find(filter)
             .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
             .select('-password');
             
-        res.json({ success: true, data: users });
+        res.json({
+            success: true,
+            data: users,
+            pagination: buildPaginationMeta({ page, limit, totalItems }),
+        });
     } catch (error) {
         console.error("Error in getUsers:", error);
         res.status(500).json({ success: false, message: "Server Error" });

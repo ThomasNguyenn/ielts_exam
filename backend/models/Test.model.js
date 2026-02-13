@@ -8,6 +8,8 @@ const TestSchema = new mongoose.Schema({
 
   // Duration in minutes (60 for reading, 35 for listening, default 45 for writing)
   duration: { type: Number, default: 60 },
+  // Full audio URL for full Listening tests (optional)
+  full_audio: { type: String, default: null },
 
   // Metadata
   created_at: { type: Date, default: Date.now },

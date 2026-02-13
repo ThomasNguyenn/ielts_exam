@@ -44,6 +44,43 @@ function emptyOption() {
   return { id: '', text: '' };
 }
 
+const handleBoldShortcut = (event, value, applyValue) => {
+  const key = typeof event.key === 'string' ? event.key.toLowerCase() : '';
+  const isBoldKey = key === 'b' || event.code === 'KeyB' || event.keyCode === 66 || event.which === 66;
+  if (!(event.ctrlKey || event.metaKey) || !isBoldKey) return;
+  event.preventDefault();
+  event.stopPropagation();
+
+  const target = event.target;
+  const textValue = value ?? '';
+  const start = target.selectionStart ?? 0;
+  const end = target.selectionEnd ?? 0;
+  const before = textValue.slice(0, start);
+  const selected = textValue.slice(start, end);
+  const after = textValue.slice(end);
+
+  let nextValue = '';
+  let nextStart = start;
+  let nextEnd = start;
+
+  if (selected.length) {
+    nextValue = `${before}<strong>${selected}</strong>${after}`;
+    nextStart = start + 8;
+    nextEnd = nextStart + selected.length;
+  } else {
+    nextValue = `${before}<strong></strong>${after}`;
+    nextStart = start + 8;
+    nextEnd = nextStart;
+  }
+
+  applyValue(nextValue);
+  requestAnimationFrame(() => {
+    if (!target) return;
+    target.selectionStart = nextStart;
+    target.selectionEnd = nextEnd;
+  });
+};
+
 function emptyQuestionGroup() {
   return {
     type: 'mult_choice',
@@ -565,7 +602,14 @@ export default function AddPassage() {
         </div>
         <div className="form-row">
           <label>Nội dung * (Transcript/Content)</label>
-          <textarea value={form.content} onChange={(e) => updateForm('content', e.target.value)} rows={8} required placeholder="Nội dung bài đọc..." />
+          <textarea
+            value={form.content}
+            onChange={(e) => updateForm('content', e.target.value)}
+            onKeyDown={(e) => handleBoldShortcut(e, form.content, (next) => updateForm('content', next))}
+            rows={8}
+            required
+            placeholder="Nội dung bài đọc..."
+          />
         </div>
         <div className="form-row">
           <label>Nguồn bài đọc (Source)</label>
@@ -647,7 +691,12 @@ export default function AddPassage() {
 
                     <div className="form-row">
                       <label>Hướng dẫn (Instructions)</label>
-                      <textarea value={group.instructions} onChange={(e) => updateQuestionGroup(gi, 'instructions', e.target.value)} rows={2} />
+                      <textarea
+                        value={group.instructions}
+                        onChange={(e) => updateQuestionGroup(gi, 'instructions', e.target.value)}
+                        onKeyDown={(e) => handleBoldShortcut(e, group.instructions, (next) => updateQuestionGroup(gi, 'instructions', next))}
+                        rows={2}
+                      />
                     </div>
 
                     {(group.type === 'summary_completion' || group.type === 'gap_fill' || (group.type === 'mult_choice' && group.questions.length > 1)) && (
@@ -655,7 +704,13 @@ export default function AddPassage() {
                         <label>
                           {group.type === 'mult_choice' ? 'Nội dung câu hỏi chung (Prompt)' : 'Nội dung đoạn văn có lỗ hổng (Ví dụ: [1], [2])'}
                         </label>
-                        <textarea value={group.text} onChange={(e) => updateQuestionGroup(gi, 'text', e.target.value)} rows={4} placeholder={group.type === 'mult_choice' ? "Enter the common question prompt here..." : ""} />
+                        <textarea
+                          value={group.text}
+                          onChange={(e) => updateQuestionGroup(gi, 'text', e.target.value)}
+                          onKeyDown={(e) => handleBoldShortcut(e, group.text, (next) => updateQuestionGroup(gi, 'text', next))}
+                          rows={4}
+                          placeholder={group.type === 'mult_choice' ? "Enter the common question prompt here..." : ""}
+                        />
                       </div>
                     )}
 
@@ -671,12 +726,13 @@ export default function AddPassage() {
                               placeholder="ID"
                               className="heading-id"
                             />
-                            <textarea
-                              value={h.text}
-                              onChange={(e) => updateHeading(gi, hi, 'text', e.target.value)}
-                              placeholder={group.type === 'matching_information' ? "e.g. Paragraph A" : "Nội dung heading hoặc feature..."}
-                              className="heading-text"
-                              rows={1}
+                              <textarea
+                                value={h.text}
+                                onChange={(e) => updateHeading(gi, hi, 'text', e.target.value)}
+                                onKeyDown={(e) => handleBoldShortcut(e, h.text, (next) => updateHeading(gi, hi, 'text', next))}
+                                placeholder={group.type === 'matching_information' ? "e.g. Paragraph A" : "Nội dung heading hoặc feature..."}
+                                className="heading-text"
+                                rows={1}
                               onInput={(e) => {
                                 e.target.style.height = 'auto';
                                 e.target.style.height = e.target.scrollHeight + 'px';
@@ -701,12 +757,13 @@ export default function AddPassage() {
                               placeholder="ID"
                               className="heading-id"
                             />
-                            <textarea
-                              value={o.text}
-                              onChange={(e) => updateOption(gi, oi, 'text', e.target.value)}
-                              placeholder="Nội dung lựa chọn..."
-                              className="heading-text"
-                              rows={1}
+                              <textarea
+                                value={o.text}
+                                onChange={(e) => updateOption(gi, oi, 'text', e.target.value)}
+                                onKeyDown={(e) => handleBoldShortcut(e, o.text, (next) => updateOption(gi, oi, 'text', next))}
+                                placeholder="Nội dung lựa chọn..."
+                                className="heading-text"
+                                rows={1}
                               onInput={(e) => {
                                 e.target.style.height = 'auto';
                                 e.target.style.height = e.target.scrollHeight + 'px';
@@ -730,7 +787,13 @@ export default function AddPassage() {
                           {!isQuestionCollapsed && (
                             <div className="form-row">
                               <label>Nội dung câu hỏi</label>
-                              <textarea value={q.text} onChange={(e) => updateQuestion(gi, qi, 'text', e.target.value)} rows={2} placeholder="Nhập câu hỏi..." />
+                              <textarea
+                                value={q.text}
+                                onChange={(e) => updateQuestion(gi, qi, 'text', e.target.value)}
+                                onKeyDown={(e) => handleBoldShortcut(e, q.text, (next) => updateQuestion(gi, qi, 'text', next))}
+                                rows={2}
+                                placeholder="Nhập câu hỏi..."
+                              />
 
                               {(group.type === 'mult_choice' || group.type === 'true_false_notgiven') && (
                                 <div style={{ marginTop: '1rem', marginBottom: '1rem' }}>
@@ -811,11 +874,24 @@ export default function AddPassage() {
                               )}
                               <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                 <label>Đáp án đúng (ngăn cách bởi dấu phẩy)</label>
-                                <input value={q.correct_answers.join(', ')} onChange={(e) => setCorrectAnswers(gi, qi, e.target.value)} placeholder="e.g. A hoặc Answer1, Answer2" style={{ background: '#ffffff' }} />
+                                <input
+                                  value={q.correct_answers.join(', ')}
+                                  onChange={(e) => setCorrectAnswers(gi, qi, e.target.value)}
+                                  onKeyDown={(e) => handleBoldShortcut(e, q.correct_answers.join(', '), (next) => setCorrectAnswers(gi, qi, next))}
+                                  placeholder="e.g. A hoặc Answer1, Answer2"
+                                  style={{ background: '#ffffff' }}
+                                />
                               </div>
                               <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                 <label>Giải thích</label>
-                                <textarea value={q.explanation} onChange={(e) => updateQuestion(gi, qi, 'explanation', e.target.value)} rows={2} placeholder="Giải thích tại sao đây là đáp án đúng..." style={{ background: '#ffffff' }} />
+                                <textarea
+                                  value={q.explanation}
+                                  onChange={(e) => updateQuestion(gi, qi, 'explanation', e.target.value)}
+                                  onKeyDown={(e) => handleBoldShortcut(e, q.explanation, (next) => updateQuestion(gi, qi, 'explanation', next))}
+                                  rows={2}
+                                  placeholder="Giải thích tại sao đây là đáp án đúng..."
+                                  style={{ background: '#ffffff' }}
+                                />
                               </div>
                             </div>
                           )}

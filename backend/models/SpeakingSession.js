@@ -47,5 +47,11 @@ const SpeakingSessionSchema = new mongoose.Schema({
   timestamp: { type: Date, default: Date.now }
 });
 
+SpeakingSessionSchema.index({ userId: 1, status: 1, timestamp: -1 });
+SpeakingSessionSchema.index({ userId: 1, timestamp: -1 });
+SpeakingSessionSchema.index({ questionId: 1, timestamp: -1 });
+SpeakingSessionSchema.index({ status: 1, timestamp: -1 });
+SpeakingSessionSchema.index({ userId: 1, "analysis.band_score": 1 });
+
 const SpeakingSession = mongoose.model('SpeakingSession', SpeakingSessionSchema);
 export default SpeakingSession;

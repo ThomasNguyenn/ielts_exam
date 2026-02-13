@@ -1,24 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../api/client';
 import { useNotification } from '../../components/NotificationContext';
+import PaginationControls from '../../components/PaginationControls';
 import './Manage.css';
 import './StudentRequests.css';
 
 export default function StudentRequests() {
+  const PAGE_SIZE = 20;
   const [students, setStudents] = useState([]);
+  const [pagination, setPagination] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const { showNotification } = useNotification();
 
   useEffect(() => {
-    fetchPendingStudents();
-  }, []);
+    fetchPendingStudents(currentPage);
+  }, [currentPage]);
 
-  const fetchPendingStudents = async () => {
+  const fetchPendingStudents = async (page = 1) => {
     try {
       setLoading(true);
-      const res = await api.getPendingStudents();
+      const res = await api.getPendingStudents({ page, limit: PAGE_SIZE });
       if (res.success) {
         setStudents(res.data);
+        setPagination(res.pagination || null);
       }
     } catch (error) {
       console.error("Failed to fetch pending students:", error);
@@ -33,8 +38,9 @@ export default function StudentRequests() {
       const res = await api.approveStudent(studentId);
       if (res.success) {
         showNotification("Student approved successfully", "success");
-        // Remove from list
-        setStudents(prev => prev.filter(s => s._id !== studentId));
+        const nextPage = students.length === 1 && currentPage > 1 ? currentPage - 1 : currentPage;
+        setCurrentPage(nextPage);
+        fetchPendingStudents(nextPage);
       }
     } catch (error) {
       console.error("Failed to approve student:", error);
@@ -80,7 +86,7 @@ export default function StudentRequests() {
   return (
     <div className="manage-container">
       <div className="manage-header">
-        <h2>Student Registration Requests <span style={{fontSize: '0.9rem', background:'#e2e8f0', padding:'2px 8px', borderRadius:'12px', color:'#475569', marginLeft:'0.5rem'}}>{students.length}</span></h2>
+        <h2>Student Registration Requests <span style={{fontSize: '0.9rem', background:'#e2e8f0', padding:'2px 8px', borderRadius:'12px', color:'#475569', marginLeft:'0.5rem'}}>{pagination?.totalItems ?? students.length}</span></h2>
       </div>
 
       <div className="manage-content" style={{background: 'transparent', border: 'none', boxShadow: 'none', padding: 0}}>
@@ -91,39 +97,47 @@ export default function StudentRequests() {
               <p>There are no pending student registration requests at the moment.</p>
           </div>
         ) : (
-          <div className="requests-container">
-            {students.map(student => (
-              <div className="request-card" key={student._id}>
-                  <div className="request-header">
-                      <div className="student-avatar">
-                          {getInitials(student.name)}
-                      </div>
-                  </div>
-                  
-                  <div className="request-info">
-                      <h3>{student.name}</h3>
-                      <div className="email">{student.email}</div>
-                  </div>
+          <>
+            <div className="requests-container">
+              {students.map(student => (
+                <div className="request-card" key={student._id}>
+                    <div className="request-header">
+                        <div className="student-avatar">
+                            {getInitials(student.name)}
+                        </div>
+                    </div>
+                    
+                    <div className="request-info">
+                        <h3>{student.name}</h3>
+                        <div className="email">{student.email}</div>
+                    </div>
 
-                  <div className="request-meta">
-                      <div className="request-time">
-                          {timeAgo(student.createdAt)}
-                      </div>
-                      <div className="request-footer">
-                          <button 
-                              className="approve-btn"
-                              onClick={() => handleApprove(student._id)}
-                          >
-                              <svg style={{width:'18px', height:'18px'}} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                              </svg>
-                              Approve
-                          </button>
-                      </div>
-                  </div>
-              </div>
-            ))}
-          </div>
+                    <div className="request-meta">
+                        <div className="request-time">
+                            {timeAgo(student.createdAt)}
+                        </div>
+                        <div className="request-footer">
+                            <button 
+                                className="approve-btn"
+                                onClick={() => handleApprove(student._id)}
+                            >
+                                <svg style={{width:'18px', height:'18px'}} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                                Approve
+                            </button>
+                        </div>
+                    </div>
+                </div>
+              ))}
+            </div>
+            <PaginationControls
+              pagination={pagination}
+              onPageChange={setCurrentPage}
+              loading={loading}
+              itemLabel="pending students"
+            />
+          </>
         )}
       </div>
     </div>

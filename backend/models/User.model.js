@@ -45,4 +45,7 @@ const userSchema = new mongoose.Schema({
   },
 });
 
+userSchema.index({ role: 1, createdAt: -1 });
+userSchema.index({ role: 1, isConfirmed: 1, createdAt: -1 });
+
 export default mongoose.model('User', userSchema);

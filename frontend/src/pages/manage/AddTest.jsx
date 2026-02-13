@@ -9,7 +9,7 @@ import ConfirmationModal from '../../components/ConfirmationModal';
 import './Manage.css';
 
 function testToForm(t) {
-  if (!t) return { _id: '', title: '', category: '', is_real_test: false, type: 'reading', duration: 60, reading_passages: [], listening_sections: [], writing_tasks: [] };
+  if (!t) return { _id: '', title: '', category: '', is_real_test: false, type: 'reading', duration: 60, full_audio: '', reading_passages: [], listening_sections: [], writing_tasks: [] };
   const toId = (x) => (typeof x === 'object' && x && x._id ? x._id : x);
   return {
     _id: t._id || '',
@@ -18,6 +18,7 @@ function testToForm(t) {
     is_real_test: t.is_real_test || false,
     type: t.type || 'reading',
     duration: t.duration || (t.type === 'reading' ? 60 : t.type === 'listening' ? 35 : 45),
+    full_audio: t.full_audio || '',
     reading_passages: (t.reading_passages || []).map(toId),
     listening_sections: (t.listening_sections || []).map(toId),
     writing_tasks: (t.writing_tasks || []).map(toId),
@@ -78,6 +79,7 @@ export default function AddTest() {
     is_real_test: false,
     type: 'reading',
     duration: 60,
+    full_audio: '',
     reading_passages: [],
     listening_sections: [],
     writing_tasks: [],
@@ -119,7 +121,7 @@ export default function AddTest() {
           setSections(sRes.data || []);
           setWritings(wRes.data || []);
           setTests(tRes.data || []);
-          setForm({ _id: `test-${Date.now()}`, title: '', category: '', is_real_test: false, type: 'reading', duration: 60, reading_passages: [], listening_sections: [], writing_tasks: [] });
+          setForm({ _id: `test-${Date.now()}`, title: '', category: '', is_real_test: false, type: 'reading', duration: 60, full_audio: '', reading_passages: [], listening_sections: [], writing_tasks: [] });
         })
         .catch(() => { })
         .finally(() => setLoading(false));
@@ -299,6 +301,7 @@ export default function AddTest() {
         is_real_test: form.is_real_test,
         type: form.type || 'reading',
         duration: parseInt(form.duration) || 60,
+        full_audio: form.type === 'listening' ? (form.full_audio?.trim() || null) : null,
         reading_passages: form.type === 'reading' ? form.reading_passages : [],
         listening_sections: form.type === 'listening' ? form.listening_sections : [],
         writing_tasks: form.type === 'writing' ? form.writing_tasks : [],
@@ -317,6 +320,7 @@ export default function AddTest() {
           is_real_test: false,
           type: form.type,
           duration: form.type === 'reading' ? 60 : form.type === 'listening' ? 35 : 45,
+          full_audio: '',
           reading_passages: [],
           listening_sections: [],
           writing_tasks: [],
@@ -475,6 +479,17 @@ export default function AddTest() {
         {form.type === 'listening' && (
           <div className="form-row multi-select-block" style={{ background: '#FFF9F1', padding: '1.5rem', borderRadius: '1.25rem', border: '1px solid #fdf4e3' }}>
             <label style={{ color: '#d03939', fontSize: '1rem' }}>Chọn bài Listening (kéo để sắp xếp)</label>
+            <div className="form-row" style={{ marginTop: '1rem' }}>
+              <label>Full Audio (Optional)</label>
+              <input
+                value={form.full_audio}
+                onChange={(e) => updateForm('full_audio', e.target.value)}
+                placeholder="https://example.com/full-listening.mp3"
+              />
+              <small className="form-hint">
+                If set and the test has 4 sections, the exam will use this full audio instead of per-section audio.
+              </small>
+            </div>
             <input
               type="search"
               value={sectionSearch}

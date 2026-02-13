@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import Writing from "../models/Writing.model.js";
+import { parsePagination, buildPaginationMeta } from "../utils/pagination.js";
 
 export const getAllWritings = async (req, res) => {
     try {
@@ -184,6 +185,7 @@ export const submitWriting = async (req, res) => {
 export const getSubmissions = async (req, res) => {
     try {
         const { status, startDate, endDate } = req.query;
+        const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 20, maxLimit: 100 });
         const filter = {};
         if (status) filter.status = status;
 
@@ -195,11 +197,18 @@ export const getSubmissions = async (req, res) => {
         }
 
         const WritingSubmission = (await import("../models/WritingSubmission.model.js")).default;
+        const totalItems = await WritingSubmission.countDocuments(filter);
 
         const submissions = await WritingSubmission.find(filter)
-            .sort({ submitted_at: -1 });
+            .sort({ submitted_at: -1 })
+            .skip(skip)
+            .limit(limit);
 
-        res.status(200).json({ success: true, data: submissions });
+        res.status(200).json({
+            success: true,
+            data: submissions,
+            pagination: buildPaginationMeta({ page, limit, totalItems }),
+        });
     } catch (error) {
         console.error("Get submissions error:", error);
         res.status(500).json({ success: false, message: "Server Error" });
@@ -211,6 +220,7 @@ export const getSubmissionById = async (req, res) => {
     const { id } = req.params;
     try {
         const WritingSubmission = (await import("../models/WritingSubmission.model.js")).default;
+        const Writing = (await import("../models/Writing.model.js")).default;
 
         // Validate ObjectId format - if invalid, return 404 instead of crashing
         if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -221,7 +231,26 @@ export const getSubmissionById = async (req, res) => {
         if (!submission) {
             return res.status(404).json({ success: false, message: "Submission not found" });
         }
-        res.status(200).json({ success: true, data: submission });
+
+        // Populate task details (images, prompts) for each writing answer
+        const enrichedAnswers = await Promise.all(
+            submission.writing_answers.map(async (answer) => {
+                const taskDetails = await Writing.findById(answer.task_id).select('title prompt image_url task_type');
+                return {
+                    ...answer.toObject(),
+                    task_prompt: taskDetails?.prompt || '',
+                    task_image: taskDetails?.image_url || null,
+                    task_type: taskDetails?.task_type || 'Task 1'
+                };
+            })
+        );
+
+        const enrichedSubmission = {
+            ...submission.toObject(),
+            writing_answers: enrichedAnswers
+        };
+
+        res.status(200).json({ success: true, data: enrichedSubmission });
     } catch (error) {
         console.error("Get submission error:", error);
         res.status(500).json({ success: false, message: "Server Error" });

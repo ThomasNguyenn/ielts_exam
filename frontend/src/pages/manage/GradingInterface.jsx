@@ -110,7 +110,52 @@ export default function GradingInterface() {
                                 </div>
                                 <span className="item-meta">{answer.word_count} từ</span>
                             </div>
+
+                            {/* Task Prompt and Image */}
+                            {(answer.task_prompt || answer.task_image) && (
+                                <div style={{ padding: '2rem', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                                    {answer.task_image && (
+                                        <div style={{ marginBottom: '1.5rem' }}>
+                                            <h4 style={{ fontSize: '0.9rem', fontWeight: 600, color: '#64748b', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                                Task Image / Chart
+                                            </h4>
+                                            <img
+                                                src={answer.task_image}
+                                                alt="Task visual"
+                                                style={{
+                                                    maxWidth: '100%',
+                                                    height: 'auto',
+                                                    borderRadius: '8px',
+                                                    border: '2px solid #e2e8f0',
+                                                    boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+                                                }}
+                                            />
+                                        </div>
+                                    )}
+                                    {answer.task_prompt && (
+                                        <div>
+                                            <h4 style={{ fontSize: '0.9rem', fontWeight: 600, color: '#64748b', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                                Task Prompt
+                                            </h4>
+                                            <div style={{
+                                                whiteSpace: 'pre-wrap',
+                                                lineHeight: '1.6',
+                                                fontSize: '0.95rem',
+                                                color: '#475569',
+                                                fontStyle: 'italic'
+                                            }}>
+                                                {answer.task_prompt}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Student Answer */}
                             <div className="group-content" style={{ padding: '2rem' }}>
+                                <h4 style={{ fontSize: '0.9rem', fontWeight: 600, color: '#64748b', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                    Student's Answer
+                                </h4>
                                 <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.8', fontSize: '1.1rem', color: '#1e293b' }}>
                                     {answer.answer_text}
                                 </div>

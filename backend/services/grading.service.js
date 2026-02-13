@@ -1,10 +1,16 @@
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
+import { requestOpenAIJsonWithFallback } from '../utils/aiClient.js';
 dotenv.config();
 
 const openai = new OpenAI({
     apiKey: process.env.OPEN_API_KEY,
 });
+
+const OPENAI_MODELS = [
+    process.env.OPENAI_PRIMARY_MODEL || "gpt-4o",
+    process.env.OPENAI_FALLBACK_MODEL || "gpt-4o-mini",
+];
 
 export const gradeEssay = async (promptText, essayText, taskType = 'task2', imageUrl = null) => {
     let systemPrompt = '';
@@ -192,24 +198,36 @@ OUTPUT: CHỈ TRẢ JSON HỢP LỆ
         userMessageContent.push({ type: "text", content: systemPrompt });
     }
 
-    const completion = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [{ role: "user", content: userMessageContent.length > 0 && taskType === 'task1' ? userMessageContent : systemPrompt }],
-        max_tokens: 4096, // Reduced from 10000 to be safe, but 4096 is usually output limit. 
-        // Note: max_tokens for gpt-4o logic is usually for output. 
-        // 10000 might be too high if the model doesn't support it (max output is often 4096 or 16k depending on specific model version, let's keep it safe or stick to original if it worked). 
-        // Actually, gpt-4-turbo / 4o often supports 4096 output. 10000 is definitely > max output tokens usually allowed (which is often 4096). 
-        // I will stick to 4096 to be safe, or 10000 if they were using a specific model variant, but standard is 4k output. 
-        // Let's use 4096.
-        response_format: { type: "json_object" },
-    });
-
-    const content = completion.choices[0].message.content;
     try {
-        return JSON.parse(content);
+        const aiResult = await requestOpenAIJsonWithFallback({
+            openai,
+            models: OPENAI_MODELS,
+            createPayload: (model) => ({
+                model,
+                messages: [{ role: "user", content: userMessageContent.length > 0 && taskType === 'task1' ? userMessageContent : systemPrompt }],
+                max_tokens: 4096,
+                response_format: { type: "json_object" },
+            }),
+            timeoutMs: Number(process.env.OPENAI_TIMEOUT_MS || 60000),
+            maxAttempts: Number(process.env.OPENAI_MAX_ATTEMPTS || 3),
+        });
+        return aiResult.data;
     } catch (error) {
-        console.error("Error parsing JSON from OpenAI:", error);
-        console.error("Raw content:", content);
-        throw new Error("AI response was incomplete or invalid JSON. Please try again.");
+        console.error("gradeEssay AI fallback triggered:", error.message);
+        return {
+            band_score: 0,
+            criteria_scores: {
+                task_response: 0,
+                coherence_cohesion: 0,
+                lexical_resource: 0,
+                grammatical_range_accuracy: 0
+            },
+            task_response: [],
+            coherence_cohesion: [],
+            lexical_resource: [],
+            grammatical_range_accuracy: [],
+            feedback: ["He thong tam thoi khong cham duoc bai viet. Vui long thu lai sau."],
+            sample_essay: ""
+        };
     }
 };

@@ -2,11 +2,17 @@ import Writing from '../models/Writing.model.js';
 import PracticeSession from '../models/PracticeSession.js';
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
+import { requestOpenAIJsonWithFallback } from '../utils/aiClient.js';
 dotenv.config();
 
 const openai = new OpenAI({
     apiKey: process.env.OPEN_API_KEY,
 });
+
+const OPENAI_MODELS = [
+    process.env.OPENAI_PRIMARY_MODEL || "gpt-4o-mini",
+    process.env.OPENAI_FALLBACK_MODEL || "gpt-4o",
+];
 
 // Phase 1: Get Random Question
 export const getRandomQuestion = async (req, res) => {
@@ -100,13 +106,28 @@ export const checkOutline = async (req, res) => {
             `;
         }
 
-        const completion = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: [{ role: "user", content: prompt }],
-            response_format: { type: "json_object" },
-        });
-
-        const aiResponse = JSON.parse(completion.choices[0].message.content);
+        let aiResponse;
+        try {
+            const aiResult = await requestOpenAIJsonWithFallback({
+                openai,
+                models: OPENAI_MODELS,
+                createPayload: (model) => ({
+                    model,
+                    messages: [{ role: "user", content: prompt }],
+                    response_format: { type: "json_object" },
+                }),
+                timeoutMs: Number(process.env.OPENAI_TIMEOUT_MS || 30000),
+                maxAttempts: Number(process.env.OPENAI_MAX_ATTEMPTS || 3),
+            });
+            aiResponse = aiResult.data;
+        } catch (aiError) {
+            console.error("checkOutline AI fallback triggered:", aiError.message);
+            aiResponse = {
+                general_feedback: "He thong tam thoi khong phan tich duoc outline. Hay thu lai sau.",
+                improvements: ["Viet ro hon y chinh.", "Dam bao bai bam sat de."],
+                coherence_score: 0,
+            };
+        }
 
         // 3. Save Session
         const session = new PracticeSession({
@@ -142,13 +163,29 @@ export const generateMaterials = async (req, res) => {
       }
     `;
 
-        const completion = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: [{ role: "user", content: prompt }],
-            response_format: { type: "json_object" },
-        });
-
-        const materials = JSON.parse(completion.choices[0].message.content);
+        let materials;
+        try {
+            const aiResult = await requestOpenAIJsonWithFallback({
+                openai,
+                models: OPENAI_MODELS,
+                createPayload: (model) => ({
+                    model,
+                    messages: [{ role: "user", content: prompt }],
+                    response_format: { type: "json_object" },
+                }),
+                timeoutMs: Number(process.env.OPENAI_TIMEOUT_MS || 30000),
+                maxAttempts: Number(process.env.OPENAI_MAX_ATTEMPTS || 3),
+            });
+            materials = aiResult.data;
+        } catch (aiError) {
+            console.error("generateMaterials AI fallback triggered:", aiError.message);
+            materials = {
+                vocab: [],
+                structures: [],
+                translations: [],
+                message: "AI materials are temporarily unavailable. Please try again later.",
+            };
+        }
 
         // Update session if sessionId is provided, else just return?
         // User flow: Ideation -> Scaffolding. We should ideally pass sessionId.
@@ -258,13 +295,35 @@ export const submitWriting = async (req, res) => {
       }
     `;
 
-        const completion = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: [{ role: "user", content: prompt }],
-            response_format: { type: "json_object" },
-        });
-
-        const result = JSON.parse(completion.choices[0].message.content);
+        let result;
+        try {
+            const aiResult = await requestOpenAIJsonWithFallback({
+                openai,
+                models: OPENAI_MODELS,
+                createPayload: (model) => ({
+                    model,
+                    messages: [{ role: "user", content: prompt }],
+                    response_format: { type: "json_object" },
+                }),
+                timeoutMs: Number(process.env.OPENAI_TIMEOUT_MS || 45000),
+                maxAttempts: Number(process.env.OPENAI_MAX_ATTEMPTS || 3),
+            });
+            result = aiResult.data;
+        } catch (aiError) {
+            console.error("submitWriting AI fallback triggered:", aiError.message);
+            result = {
+                band_score: 0,
+                criteria_scores: {
+                    task_response: 0,
+                    coherence_cohesion: 0,
+                    lexical_resource: 0,
+                    grammatical_range_accuracy: 0,
+                },
+                corrected_essay: "",
+                feedback: ["He thong tam thoi khong cham duoc bai viet. Bai nop da duoc luu."],
+                detailed_analysis: [],
+            };
+        }
 
         session.gradingResult = result;
         session.status = 'completed';

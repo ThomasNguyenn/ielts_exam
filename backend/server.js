@@ -1,46 +1,23 @@
-import express from 'express';
-import cors from 'cors';
-import { connectDB } from './config/db.js';
+import dotenv from "dotenv";
+import { connectDB } from "./config/db.js";
+import { createApp } from "./app.js";
+import { validateEnvironment } from "./config/env.validation.js";
 
-import passageRoutes from './routes/passage.route.js';
-import sectionRoutes from './routes/section.route.js';
-import testRoutes from './routes/test.route.js';
-import writingRoutes from './routes/writing.route.js';
-import practiceRoutes from './routes/practiceRoutes.js';
-import authRoutes from './routes/auth.route.js';
-import vocabularyRoutes from './routes/vocabularyRoutes.js';
-import adminRoutes from './routes/admin.route.js';
-import speakingRoutes from './routes/speaking.routes.js';
-import contentGenRoutes from './routes/contentGen.route.js';
-import path from 'path';
-import fs from 'fs';
+dotenv.config();
+validateEnvironment();
 
-const app = express();
-const PORT = process.env.PORT || 5000;
+const app = createApp({ startBackgroundJobs: true });
+const PORT = Number(process.env.PORT || 5000);
 
-app.use(cors());
-app.use(express.json());
+const startServer = async () => {
+  await connectDB();
 
-app.use("/api/auth", authRoutes);
-app.use("/api/passages", passageRoutes);
-app.use("/api/sections", sectionRoutes);
-app.use("/api/tests", testRoutes);
-app.use("/api/writings", writingRoutes);
-app.use("/api/practice", practiceRoutes);
-app.use("/api/vocabulary", vocabularyRoutes);
-app.use("/api/admin", adminRoutes);
-app.use("/api/speaking", speakingRoutes);
-app.use("/api/content-gen", contentGenRoutes);
-
-// Serve static files from uploads directory
-const uploadDir = path.join(process.cwd(), 'uploads');
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
-}
-app.use("/uploads", express.static(uploadDir));
-
-app.listen(PORT, () => {
-    connectDB();
+  app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
-});
+  });
+};
 
+startServer().catch((error) => {
+  console.error("Server startup failed", error);
+  process.exit(1);
+});

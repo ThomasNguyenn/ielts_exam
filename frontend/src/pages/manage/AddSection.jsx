@@ -43,6 +43,78 @@ function emptyOption() {
   return { id: '', text: '' };
 }
 
+const getGapFillPreviewHtml = (rawText) => {
+  if (!rawText) return '';
+  const hasTableMarkup = /<\s*(table|thead|tbody|tr|td|th)\b/i.test(rawText);
+  return hasTableMarkup ? rawText : rawText.replace(/\n/g, '<br />');
+};
+
+const handleBoldShortcut = (event, value, applyValue) => {
+  const key = typeof event.key === 'string' ? event.key.toLowerCase() : '';
+  const isBoldKey = key === 'b' || event.code === 'KeyB' || event.keyCode === 66 || event.which === 66;
+  if (!(event.ctrlKey || event.metaKey) || !isBoldKey) return;
+  event.preventDefault();
+  event.stopPropagation();
+
+  const target = event.target;
+  const textValue = value ?? '';
+  const start = target.selectionStart ?? 0;
+  const end = target.selectionEnd ?? 0;
+  const before = textValue.slice(0, start);
+  const selected = textValue.slice(start, end);
+  const after = textValue.slice(end);
+
+  let nextValue = '';
+  let nextStart = start;
+  let nextEnd = start;
+
+  if (selected.length) {
+    nextValue = `${before}<strong>${selected}</strong>${after}`;
+    nextStart = start + 8;
+    nextEnd = nextStart + selected.length;
+  } else {
+    nextValue = `${before}<strong></strong>${after}`;
+    nextStart = start + 8;
+    nextEnd = nextStart;
+  }
+
+  applyValue(nextValue);
+  requestAnimationFrame(() => {
+    if (!target) return;
+    target.selectionStart = nextStart;
+    target.selectionEnd = nextEnd;
+  });
+};
+
+const buildGapFillTableTemplate = (questions = []) => {
+  const baseNumbers = [1, 2, 3, 4];
+  const questionNumbers = questions
+    .map((q) => q.q_number)
+    .filter((n) => Number.isFinite(n) && n > 0);
+  const numbers = [...questionNumbers, ...baseNumbers].slice(0, 4);
+  return `<table class="gap-fill-table">
+  <thead>
+    <tr>
+      <th>Item</th>
+      <th>Detail 1</th>
+      <th>Detail 2</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Row 1</td>
+      <td>[${numbers[0]}]</td>
+      <td>[${numbers[1]}]</td>
+    </tr>
+    <tr>
+      <td>Row 2</td>
+      <td>[${numbers[2]}]</td>
+      <td>[${numbers[3]}]</td>
+    </tr>
+  </tbody>
+</table>`;
+};
+
 
 
 function emptyQuestionGroup() {
@@ -194,6 +266,19 @@ export default function AddSection() {
         i === groupIndex ? { ...g, [key]: value } : g
       ),
     }));
+  };
+
+  const insertGapFillTable = (groupIndex) => {
+    setForm((prev) => {
+      const nextGroups = prev.question_groups.map((g, i) => {
+        if (i !== groupIndex) return g;
+        const template = buildGapFillTableTemplate(g.questions || []);
+        const existing = g.text || '';
+        const separator = existing.trim() ? '\n\n' : '';
+        return { ...g, text: `${existing}${separator}${template}` };
+      });
+      return { ...prev, question_groups: nextGroups };
+    });
   };
 
   const addQuestionGroup = () => {
@@ -585,6 +670,7 @@ export default function AddSection() {
           <textarea
             value={form.content}
             onChange={(e) => updateForm('content', e.target.value)}
+            onKeyDown={(e) => handleBoldShortcut(e, form.content, (next) => updateForm('content', next))}
             placeholder="Nội dung bài nghe..."
             rows={6}
             required
@@ -691,6 +777,7 @@ export default function AddSection() {
                     <textarea
                       value={group.instructions}
                       onChange={(e) => updateQuestionGroup(gi, 'instructions', e.target.value)}
+                      onKeyDown={(e) => handleBoldShortcut(e, group.instructions, (next) => updateQuestionGroup(gi, 'instructions', next))}
                       rows={2}
                     />
                   </div>
@@ -701,9 +788,34 @@ export default function AddSection() {
                       <textarea
                         value={group.text}
                         onChange={(e) => updateQuestionGroup(gi, 'text', e.target.value)}
+                        onKeyDown={(e) => handleBoldShortcut(e, group.text, (next) => updateQuestionGroup(gi, 'text', next))}
                         placeholder="Enter the text with gaps like [1], [2]..."
                         rows={4}
                       />
+                      {group.type === 'gap_fill' && (
+                        <>
+                          <p className="form-hint">
+                            HTML is supported. You can insert tables (e.g. <code>{'<table>'}</code>) and use placeholders like <code>[33]</code> inside table cells.
+                            For line breaks in HTML, use <code>{'<br />'}</code>.
+                          </p>
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => insertGapFillTable(gi)}
+                          >
+                            + Insert Table Template
+                          </button>
+                          {group.text?.trim() && (
+                            <div style={{ marginTop: '1rem' }}>
+                              <div className="form-hint" style={{ marginBottom: '0.5rem' }}>Live preview (Gap Fill Text):</div>
+                              <div
+                                className="gap-fill-preview"
+                                dangerouslySetInnerHTML={{ __html: getGapFillPreviewHtml(group.text) }}
+                              />
+                            </div>
+                          )}
+                        </>
+                      )}
                     </div>
                   )}
 
@@ -738,6 +850,7 @@ export default function AddSection() {
                           <textarea
                             value={h.text}
                             onChange={(e) => updateHeading(gi, hi, 'text', e.target.value)}
+                            onKeyDown={(e) => handleBoldShortcut(e, h.text, (next) => updateHeading(gi, hi, 'text', next))}
                             placeholder={group.type === 'matching_information' ? "e.g. Paragraph A" : "Nội dung heading hoặc feature..."}
                             className="heading-text"
                             rows={1}
@@ -768,6 +881,7 @@ export default function AddSection() {
                           <textarea
                             value={o.text}
                             onChange={(e) => updateOption(gi, oi, 'text', e.target.value)}
+                            onKeyDown={(e) => handleBoldShortcut(e, o.text, (next) => updateOption(gi, oi, 'text', next))}
                             placeholder="Nội dung lựa chọn..."
                             className="heading-text"
                             rows={1}
@@ -832,6 +946,7 @@ export default function AddSection() {
                                 <input
                                   value={q.correct_answers?.join(', ') ?? ''}
                                   onChange={(e) => setCorrectAnswers(gi, qi, e.target.value)}
+                                  onKeyDown={(e) => handleBoldShortcut(e, q.correct_answers?.join(', ') ?? '', (next) => setCorrectAnswers(gi, qi, next))}
                                   placeholder={group.type === 'summary_completion' ? "e.g. A" : "e.g. car, automobile"}
                                   style={{ width: '100%', padding: '4px' }}
                                 />
@@ -840,6 +955,7 @@ export default function AddSection() {
                                 <input
                                   value={q.explanation ?? ''}
                                   onChange={(e) => updateQuestion(gi, qi, 'explanation', e.target.value)}
+                                  onKeyDown={(e) => handleBoldShortcut(e, q.explanation ?? '', (next) => updateQuestion(gi, qi, 'explanation', next))}
                                   placeholder="Explanation"
                                   style={{ width: '100%', padding: '4px' }}
                                 />
@@ -880,6 +996,7 @@ export default function AddSection() {
                                   <textarea
                                     value={q.text}
                                     onChange={(e) => updateQuestion(gi, qi, 'text', e.target.value)}
+                                    onKeyDown={(e) => handleBoldShortcut(e, q.text, (next) => updateQuestion(gi, qi, 'text', next))}
                                     rows={2}
                                     placeholder="Nhập câu hỏi..."
                                   />
@@ -965,6 +1082,7 @@ export default function AddSection() {
                                   <input
                                     value={q.correct_answers?.join(', ') ?? ''}
                                     onChange={(e) => setCorrectAnswers(gi, qi, e.target.value)}
+                                    onKeyDown={(e) => handleBoldShortcut(e, q.correct_answers?.join(', ') ?? '', (next) => setCorrectAnswers(gi, qi, next))}
                                     placeholder="e.g. Answer1, Answer2"
                                     style={{ background: '#ffffff' }}
                                   />
@@ -974,6 +1092,7 @@ export default function AddSection() {
                                   <textarea
                                     value={q.explanation ?? ''}
                                     onChange={(e) => updateQuestion(gi, qi, 'explanation', e.target.value)}
+                                    onKeyDown={(e) => handleBoldShortcut(e, q.explanation ?? '', (next) => updateQuestion(gi, qi, 'explanation', next))}
                                     rows={2}
                                     placeholder="Giải thích tại sao đây là đáp án đúng..."
                                     style={{ background: '#ffffff' }}

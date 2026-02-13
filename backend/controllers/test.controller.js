@@ -350,6 +350,7 @@ export const getExamData = async (req, res) => {
                 type: examType,
                 is_real_test: test.is_real_test || false,
                 duration: test.duration || (examType === 'reading' ? 60 : examType === 'listening' ? 35 : 45),
+                full_audio: test.full_audio || null,
                 reading,
                 listening,
                 writing,
@@ -632,6 +633,13 @@ export const submitExam = async (req, res) => {
                 percentage: isWriting ? null : percentage,
                 time_taken_ms: typeof timeTaken === 'number' ? timeTaken : null,
                 submitted_at: new Date(),
+                detailed_answers: questionReview.map(q => ({
+                    question_number: q.question_number,
+                    question_type: q.type,
+                    is_correct: q.is_correct,
+                    user_answer: q.your_answer,
+                    correct_answer: q.correct_answer
+                }))
             });
 
             // Optimisation: Keep only latest 10 attempts
@@ -662,7 +670,6 @@ export const submitExam = async (req, res) => {
                 readingScore,
                 readingTotal,
                 listeningScore,
-                listeningTotal,
                 listeningTotal,
                 writingCount,
                 question_review: questionReview,

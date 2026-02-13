@@ -1,243 +1,250 @@
-import Speaking from '../models/Speaking.model.js';
-import SpeakingSession from '../models/SpeakingSession.js';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { calculateWER, detectMissingEndings } from '../utils/textUtils.js';
-import fs from 'fs';
-import dotenv from 'dotenv';
+import fs from "fs";
+import dotenv from "dotenv";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import Speaking from "../models/Speaking.model.js";
+import SpeakingSession from "../models/SpeakingSession.js";
+import { requestGeminiJsonWithFallback } from "../utils/aiClient.js";
+
 dotenv.config();
 
-// Initialize Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-// Use Gemini 2.0 Flash-Lite (Preview)
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+const GEMINI_MODELS = [
+  process.env.GEMINI_PRIMARY_MODEL || "gemini-2.0-flash",
+  process.env.GEMINI_FALLBACK_MODEL || "gemini-1.5-flash",
+];
 
-// Helper to convert file to GoogleGenerativeAI.Part
-function fileToGenerativePart(path, mimeType) {
-    return {
-        inlineData: {
-            data: Buffer.from(fs.readFileSync(path)).toString("base64"),
-            mimeType
-        },
-    };
+const toAudioPart = async (filePath, mimeType) => {
+  const fileBuffer = await fs.promises.readFile(filePath);
+  return {
+    inlineData: {
+      data: fileBuffer.toString("base64"),
+      mimeType,
+    },
+  };
+};
+
+const buildFallbackAnalysis = (clientTranscript) => ({
+  transcript: clientTranscript || "Transcript unavailable",
+  band_score: 0,
+  fluency_coherence: { score: 0, feedback: "AI scoring temporarily unavailable." },
+  lexical_resource: { score: 0, feedback: "AI scoring temporarily unavailable." },
+  grammatical_range: { score: 0, feedback: "AI scoring temporarily unavailable." },
+  pronunciation: { score: 0, feedback: "AI scoring temporarily unavailable." },
+  general_feedback: "He thong tam thoi khong cham duoc bai noi. Bai nop van da duoc luu.",
+  sample_answer: "N/A",
+});
+
+const buildStrictSpeakingPrompt = ({
+  topicPrompt,
+  clientWPM,
+  parsedMetrics,
+  clientTranscript,
+}) => `
+You are both:
+1) A STRICT IELTS Speaking examiner (official IELTS descriptors), and
+2) An ELSA-style pronunciation coach (segmentals + suprasegmentals).
+
+TOPIC / QUESTION:
+"${topicPrompt}"
+
+SYSTEM METRICS:
+- WPM: ${clientWPM}
+- Pause count: ${parsedMetrics.pauseCount || 0}
+- Total pause duration (ms): ${parsedMetrics.totalPauseDuration || 0}
+- Longest pause (ms): ${parsedMetrics.longestPause || 0}
+- Avg pause duration (ms): ${parsedMetrics.avgPauseDuration || 0}
+- Client transcript: "${clientTranscript || "(none)"}"
+
+CRITICAL RULES (STRICT SCORING):
+- You MUST listen to the audio first. Transcript is secondary.
+- If transcript conflicts with audio, trust the audio.
+- Score exactly 4 IELTS criteria:
+  Fluency & Coherence, Lexical Resource, Grammatical Range & Accuracy, Pronunciation.
+- Each criterion score must be 0.0 to 9.0 in 0.5 steps only.
+- Overall band_score must be the average of 4 criteria, rounded to nearest 0.5.
+- Do NOT be lenient. Do NOT inflate scores.
+- If pronunciation causes frequent misunderstanding, pronunciation <= 5.5.
+- If fluency has frequent long pauses and broken delivery, fluency_coherence <= 6.0.
+- If grammar errors are frequent and reduce clarity, grammatical_range <= 5.5.
+- If ideas are underdeveloped with short/simple answers, fluency_coherence <= 5.5.
+- Do not award band >= 7.0 unless performance is consistently strong across all 4 criteria.
+
+PRONUNCIATION MUST FOLLOW ELSA-STYLE ANALYSIS:
+- Segmentals: vowel/consonant substitutions and unclear phonemes.
+- Final endings: specifically check missing -s / -es / -ed / final consonants.
+- Word stress errors.
+- Sentence stress and thought-grouping.
+- Intonation and rhythm (flat/unnatural patterns).
+- Connected speech (linking/reduction) issues.
+
+OUTPUT LANGUAGE:
+- Feedback in Vietnamese.
+- Keep examples concrete from the student's production.
+
+RETURN ONLY VALID JSON (no markdown, no extra text):
+{
+  "transcript": "string (best ASR transcript from audio)",
+  "band_score": number,
+  "fluency_coherence": { "score": number, "feedback": "string" },
+  "lexical_resource": { "score": number, "feedback": "string" },
+  "grammatical_range": { "score": number, "feedback": "string" },
+  "pronunciation": {
+    "score": number,
+    "feedback": "string with these sections: Âm nguyên âm, Âm cuối, Trọng âm, Ngữ điệu, Nhịp điệu, Kế hoạch hành động"
+  },
+  "general_feedback": "string (strict overall summary with top priority fixes)",
+  "sample_answer": "string (Band 8.0+ model answer for this topic)"
 }
+`;
 
-// Phase 1: Get Random Speaking Topic
 export const getRandomSpeaking = async (req, res) => {
-    try {
-        const count = await Speaking.countDocuments({ is_active: true });
-        const random = Math.floor(Math.random() * count);
-        const topic = await Speaking.findOne({ is_active: true }).skip(random);
+  try {
+    const count = await Speaking.countDocuments({ is_active: true });
+    const random = Math.floor(Math.random() * count);
+    const topic = await Speaking.findOne({ is_active: true }).skip(random);
 
-        if (!topic) {
-            return res.status(404).json({ message: "No speaking topics found" });
-        }
-
-        res.json(topic);
-    } catch (error) {
-        res.status(500).json({ message: error.message });
+    if (!topic) {
+      return res.status(404).json({ message: "No speaking topics found" });
     }
+
+    return res.json(topic);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
 };
 
-// Get All Speaking Topics
 export const getSpeakings = async (req, res) => {
-    try {
-        const topics = await Speaking.find({ is_active: true }).sort({ created_at: -1 });
-        res.json({ success: true, data: topics });
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
+  try {
+    const topics = await Speaking.find({ is_active: true }).sort({ created_at: -1 });
+    return res.json({ success: true, data: topics });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
 };
 
-// Get Speaking by ID
 export const getSpeakingById = async (req, res) => {
-    try {
-        const topic = await Speaking.findById(req.params.id);
-        if (!topic) {
-            return res.status(404).json({ message: "Speaking topic not found" });
-        }
-        res.json(topic);
-    } catch (error) {
-        res.status(500).json({ message: error.message });
+  try {
+    const topic = await Speaking.findById(req.params.id);
+    if (!topic) {
+      return res.status(404).json({ message: "Speaking topic not found" });
     }
+    return res.json(topic);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
 };
 
-// Create Speaking Topic
 export const createSpeaking = async (req, res) => {
-    try {
-        const newTopic = new Speaking(req.body);
-        const savedTopic = await newTopic.save();
-        res.status(201).json(savedTopic);
-    } catch (error) {
-        res.status(400).json({ message: error.message });
-    }
+  try {
+    const newTopic = new Speaking(req.body);
+    const savedTopic = await newTopic.save();
+    return res.status(201).json(savedTopic);
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
+  }
 };
 
-// Update Speaking Topic
 export const updateSpeaking = async (req, res) => {
-    try {
-        const updatedTopic = await Speaking.findByIdAndUpdate(
-            req.params.id,
-            req.body,
-            { new: true }
-        );
-        if (!updatedTopic) {
-            return res.status(404).json({ message: "Speaking topic not found" });
-        }
-        res.json(updatedTopic);
-    } catch (error) {
-        res.status(400).json({ message: error.message });
+  try {
+    const updatedTopic = await Speaking.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true },
+    );
+    if (!updatedTopic) {
+      return res.status(404).json({ message: "Speaking topic not found" });
     }
+    return res.json(updatedTopic);
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
+  }
 };
 
-// Delete Speaking Topic
 export const deleteSpeaking = async (req, res) => {
-    try {
-        const topic = await Speaking.findByIdAndDelete(req.params.id);
-        if (!topic) {
-            return res.status(404).json({ message: "Speaking topic not found" });
-        }
-        res.json({ message: "Speaking topic deleted successfully" });
-    } catch (error) {
-        res.status(500).json({ message: error.message });
+  try {
+    const topic = await Speaking.findByIdAndDelete(req.params.id);
+    if (!topic) {
+      return res.status(404).json({ message: "Speaking topic not found" });
     }
+    return res.json({ message: "Speaking topic deleted successfully" });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
 };
 
-// Phase 2: Transcribe and Analyze Speaking Answer (Gemini Multimodal + Metrics)
 export const submitSpeaking = async (req, res) => {
-    try {
-        const { questionId, transcript: clientTranscript, wpm, metrics } = req.body;
-        const audioFile = req.file;
+  try {
+    const { questionId, transcript: clientTranscript, wpm, metrics } = req.body;
+    const userId = req.user?.userId;
+    const audioFile = req.file;
 
-        if (!audioFile) {
-            return res.status(400).json({ message: "Audio file is required" });
-        }
-
-        const topic = await Speaking.findById(questionId);
-        if (!topic) {
-            return res.status(404).json({ message: "Speaking topic not found" });
-        }
-
-        // Parse metrics if sent as string
-        const parsedMetrics = typeof metrics === 'string' ? JSON.parse(metrics) : metrics || {};
-        const clientWPM = wpm || 0;
-
-        // Perform Text Analysis if Reference exists (Read Aloud Mode)
-        // OR if just checking general transcription quality
-        let werScore = null;
-        let missingEndings = [];
-        let detailedDiff = [];
-
-        // If your Topic model has a 'reference_text' or 'sample_answer' we can compare
-        // Assuming topic.prompt is the question, maybe we don't have a strict reference text for generic speaking?
-        // But for "Read Aloud", topic.prompt IS the text.
-        // Let's assume if it is a "Read Aloud" type task, we compare.
-        // For now, let's just log it or pass it to prompt.
-
-        // Construct Prompt with RICH CONTEXT
-        const prompt = `
-          Act as an IELTS Speaking Examiner (Band 8.5+).
-          Topic/Question: "${topic.prompt}"
-          
-          Student's Performance Metrics (Measured by system):
-          - Estimated WPM (Words Per Minute): ${clientWPM} (Normal is 120-150)
-          - Pauses: ${parsedMetrics.pauseCount || 0} times (Total pause: ${parsedMetrics.totalPauseDuration || 0}ms)
-          - Client-side Transcript: "${clientTranscript || '(Voice only, no client text)'}"
-          
-          You are an expert English pronunciation coach and speech assessment engine (ELSA-style).
-          You must produce actionable, learner-friendly feedback in Vietnamese.
-
-          You will receive:
-          - reference_text (optional, for read-aloud tasks)
-          - transcript (ASR transcript of what the learner said)
-          - metrics (speech rate WPM, pauses, fillers, WER, missing_endings flags, repetitions)
-          - audio (The actual learner's voice recording)
-
-          Rules:
-          1) LISTEN to the audio for Intonation, Stress, and Pronunciation errors.
-          2) Compare the audio with the transcript/reference_text to find mismatching sounds.
-          3) If reference_text is provided, prioritize read-aloud scoring: word accuracy, missing endings (-s, -ed), function words, linking.
-          4) Provide a Pronunciation Band Score plus sub-scores: word_accuracy, fluency, stress_intonation.
-          5) Give: top 5 issues, word-level highlights, 5 drills, and a 30-second plan.
-          6) Output ONLY valid JSON.
-          7) Provide detailed feedback in VIETNAMESE.
-          8) Suggest a Band 8.0+ Model Answer.
-          
-          Return ONLY valid JSON in this format:
-          {
-            "transcript": "string (The final accurate text)",
-            "band_score": number,
-            "fluency_coherence": { "score": number, "feedback": "string (Vietnamese)" },
-            "lexical_resource": { "score": number, "feedback": "string (Vietnamese)" },
-            "grammatical_range": { "score": number, "feedback": "string (Vietnamese)" },
-            "pronunciation": { "score": number, "feedback": "string (Vietnamese)" },
-            "general_feedback": "string (Vietnamese)",
-            "sample_answer": "string (Model Answer)"
-          }
-        `;
-
-        const audioPart = fileToGenerativePart(audioFile.path, audioFile.mimetype || "audio/webm");
-
-        const result = await model.generateContent([prompt, audioPart]);
-        const response = await result.response;
-        const text = response.text();
-
-        // Robust JSON Cleanup
-        // 1. Remove markdown code blocks
-        let jsonString = text.replace(/```json/g, '').replace(/```/g, '').trim();
-
-        // 2. Fix common JSON issues (unescaped newlines in strings)
-        // This regex looks for newlines that are NOT followed by a control character or end of string, 
-        // effectively trying to find newlines inside string values. 
-        // A safer broad approach for Gemini: replace actual newlines with space or \n literal if inside a string?
-        // Actually, easiest is to control the output via Prompt, but here we can try to sanitize.
-        // Simple sanitizer: Replace line breaks with space if they break JSON?
-        // Better: Use a dedicated repair, but for now let's just use a simple replace for control chars.
-        // We replace standard newlines with \n literal only if they seem to be part of the content.
-
-        // Use a simple function to strip bad control characters (0x00-0x1F) except allowed ones
-        // jsonString = jsonString.replace(/[\x00-\x1F]+/g, (match) => {
-        //    if (match === '\n' || match === '\r' || match === '\t') return match; // valid in whitespace
-        //    return ''; 
-        // });
-
-        // Actually, JSON.parse fails on unescaped newlines INSIDE strings.
-        // We can use a regex to escape them?
-        // text.replace(/\n/g, "\\n") would escape ALL newlines, including formatted metadata.
-        // Let's rely on a try-catch with a fallback "dirty" parser or just improved Prompt instruction (already done).
-
-        // LET'S TRY: Just parsing. If fail, return text as feedback.
-        let analysisResult;
-        try {
-            analysisResult = JSON.parse(jsonString);
-        } catch (e) {
-            console.error("JSON Parse Error:", e);
-            console.log("Raw Text:", text);
-            // Fallback: If it's valid text but invalid JSON, wrap it
-            analysisResult = {
-                transcript: "Error parsing AI response",
-                general_feedback: text, // Return the raw text so user sees the feedback at least
-                band_score: 0
-            };
-        }
-
-        // 3. Save Session
-        const session = new SpeakingSession({
-            questionId,
-            audioUrl: audioFile.path,
-            transcript: analysisResult.transcript,
-            analysis: analysisResult,
-            metrics: {
-                wpm: clientWPM,
-                pauses: parsedMetrics
-            },
-            status: 'completed'
-        });
-
-        await session.save();
-
-        res.json({ session_id: session._id, transcript: analysisResult.transcript, analysis: analysisResult });
-    } catch (error) {
-        console.error("Speaking AI Error:", error);
-        res.status(500).json({ message: error.message });
+    if (!audioFile) {
+      return res.status(400).json({ message: "Audio file is required" });
     }
+
+    const topic = await Speaking.findById(questionId);
+    if (!topic) {
+      return res.status(404).json({ message: "Speaking topic not found" });
+    }
+
+    let parsedMetrics = {};
+    try {
+      parsedMetrics = typeof metrics === "string" ? JSON.parse(metrics) : (metrics || {});
+    } catch {
+      parsedMetrics = {};
+    }
+
+    const clientWPM = wpm || 0;
+    const prompt = buildStrictSpeakingPrompt({
+      topicPrompt: topic.prompt,
+      clientWPM,
+      parsedMetrics,
+      clientTranscript,
+    });
+
+    let analysisResult;
+    let aiSource = "fallback";
+
+    try {
+      const audioPart = await toAudioPart(audioFile.path, audioFile.mimetype || "audio/webm");
+      const aiResponse = await requestGeminiJsonWithFallback({
+        genAI,
+        models: GEMINI_MODELS,
+        contents: [prompt, audioPart],
+        generationConfig: { responseMimeType: "application/json" },
+        timeoutMs: Number(process.env.GEMINI_TIMEOUT_MS || 45000),
+        maxAttempts: Number(process.env.GEMINI_MAX_ATTEMPTS || 3),
+      });
+      analysisResult = aiResponse.data;
+      aiSource = aiResponse.model;
+    } catch (aiError) {
+      console.error("Speaking AI fallback triggered:", aiError.message);
+      analysisResult = buildFallbackAnalysis(clientTranscript);
+    }
+
+    const session = new SpeakingSession({
+      questionId,
+      userId: userId || undefined,
+      audioUrl: audioFile.path,
+      transcript: analysisResult.transcript,
+      analysis: analysisResult,
+      metrics: {
+        wpm: clientWPM,
+        pauses: parsedMetrics,
+      },
+      status: "completed",
+    });
+
+    await session.save();
+
+    return res.json({
+      session_id: session._id,
+      transcript: analysisResult.transcript,
+      analysis: analysisResult,
+      ai_source: aiSource,
+    });
+  } catch (error) {
+    console.error("Speaking AI Error:", error);
+    return res.status(500).json({ message: error.message });
+  }
 };

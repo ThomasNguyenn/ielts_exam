@@ -38,5 +38,11 @@ const WritingSubmissionSchema = new mongoose.Schema({
   },
 }, { timestamps: true });
 
+WritingSubmissionSchema.index({ status: 1, submitted_at: -1 });
+WritingSubmissionSchema.index({ user_id: 1, submitted_at: -1 });
+WritingSubmissionSchema.index({ user_id: 1, status: 1, submitted_at: -1 });
+WritingSubmissionSchema.index({ attempt_id: 1 });
+WritingSubmissionSchema.index({ submitted_at: -1 });
+
 const WritingSubmission = mongoose.model('WritingSubmission', WritingSubmissionSchema);
 export default WritingSubmission;

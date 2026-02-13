@@ -1,6 +1,5 @@
 import jwt from "jsonwebtoken";
-
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production";
+import { JWT_SECRET } from "../config/security.config.js";
 
 export const verifyToken = (req, res, next) => {
   try {
@@ -36,7 +35,7 @@ export const optionalVerifyToken = (req, res, next) => {
   }
   return next();
 };
-export const isStaff = (req, res, next) => {
+export const isTeacherOrAdmin = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({ success: false, message: "Unauthorized" });
   }
@@ -44,6 +43,6 @@ export const isStaff = (req, res, next) => {
   if (req.user.role === 'admin' || req.user.role === 'teacher') {
     next();
   } else {
-    return res.status(403).json({ success: false, message: "Forbidden: Access restricted to staff only" });
+    return res.status(403).json({ success: false, message: "Forbidden: Access restricted to teacher/admin only" });
   }
 };

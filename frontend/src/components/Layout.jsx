@@ -75,6 +75,9 @@ export default function Layout() {
                 <NavLink to="/profile" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
                   Profile
                 </NavLink>
+                <NavLink to="/analytics" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                  Deep Analytics 📊
+                </NavLink>
               </>
             )}
 
@@ -103,7 +106,7 @@ export default function Layout() {
                   window.location.href = '/login';
                 }}>
                   <Icons.Logout />
-                   {/* Logout <span className="user-badge">{user.name}</span> */}
+                  {/* Logout <span className="user-badge">{user.name}</span> */}
                 </div>
               </div>
             ) : (

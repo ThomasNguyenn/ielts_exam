@@ -2,11 +2,14 @@ import { useState, useEffect } from 'react';
 import { api } from '../../api/client';
 import './Manage.css';
 import { Link } from 'react-router-dom';
-import { jsPDF } from 'jspdf';
+import PaginationControls from '../../components/PaginationControls';
 
 export default function GradingDashboard() {
+    const PAGE_SIZE = 10;
     const [activeTab, setActiveTab] = useState('pending'); // 'pending' or 'scored'
     const [submissions, setSubmissions] = useState([]);
+    const [pagination, setPagination] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
@@ -14,13 +17,17 @@ export default function GradingDashboard() {
     const [selectedDate, setSelectedDate] = useState('');
 
     useEffect(() => {
-        fetchSubmissions(activeTab, selectedDate);
+        setCurrentPage(1);
     }, [activeTab, selectedDate]);
 
-    const fetchSubmissions = async (status, date) => {
+    useEffect(() => {
+        fetchSubmissions(activeTab, selectedDate, currentPage);
+    }, [activeTab, selectedDate, currentPage]);
+
+    const fetchSubmissions = async (status, date, page = 1) => {
         setLoading(true);
         try {
-            let params = { status };
+            let params = { status, page, limit: PAGE_SIZE };
             if (date) {
                 // Create local date range for the selected day
                 const start = new Date(date + 'T00:00:00');
@@ -32,6 +39,7 @@ export default function GradingDashboard() {
             const res = await api.getSubmissions(params);
             if (res.success) {
                 setSubmissions(res.data);
+                setPagination(res.pagination || null);
             }
         } catch (err) {
             setError('Failed to load submissions');
@@ -40,7 +48,8 @@ export default function GradingDashboard() {
         }
     };
 
-    const handleExportPDF = (sub) => {
+    const handleExportPDF = async (sub) => {
+        const { jsPDF } = await import('jspdf');
         const doc = new jsPDF();
         let y = 20;
 
@@ -221,6 +230,12 @@ export default function GradingDashboard() {
                             )}
                         </div>
                     )}
+                    <PaginationControls
+                        pagination={pagination}
+                        onPageChange={setCurrentPage}
+                        loading={loading}
+                        itemLabel="submissions"
+                    />
                 </>
             )}
         </div>

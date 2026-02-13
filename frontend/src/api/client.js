@@ -2,7 +2,9 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 // Get token from localStorage
 function getToken() {
-  return localStorage.getItem('token');
+  const token = localStorage.getItem('token');
+  if (!token || token === 'undefined' || token === 'null') return null;
+  return token;
 }
 
 // Set token in localStorage
@@ -18,7 +20,13 @@ function removeToken() {
 // Get user from localStorage
 function getUser() {
   const user = localStorage.getItem('user');
-  return user ? JSON.parse(user) : null;
+  if (!user || user === 'undefined' || user === 'null') return null;
+  try {
+    return JSON.parse(user);
+  } catch {
+    removeUser();
+    return null;
+  }
 }
 
 // Set user in localStorage
@@ -29,6 +37,44 @@ function setUser(user) {
 // Remove user from localStorage
 function removeUser() {
   localStorage.removeItem('user');
+}
+
+function toQueryString(params = {}) {
+  const entries = Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== '');
+  if (entries.length === 0) return '';
+  return new URLSearchParams(entries).toString();
+}
+
+function isTokenExpired(token) {
+  try {
+    const payloadPart = token.split('.')[1];
+    if (!payloadPart) return true;
+    const payload = JSON.parse(atob(payloadPart));
+    if (!payload?.exp) return false;
+    return Date.now() >= payload.exp * 1000;
+  } catch {
+    return true;
+  }
+}
+
+function handleUnauthorized(path) {
+  const publicAuthPaths = new Set([
+    '/api/auth/login',
+    '/api/auth/register',
+    '/api/auth/verify-giftcode',
+  ]);
+
+  if (publicAuthPaths.has(path)) return;
+
+  removeToken();
+  removeUser();
+
+  if (typeof window !== 'undefined') {
+    const currentPath = window.location.pathname;
+    if (currentPath !== '/login' && currentPath !== '/register') {
+      window.location.href = '/login';
+    }
+  }
 }
 
 async function request(path, options = {}) {
@@ -51,7 +97,20 @@ async function request(path, options = {}) {
     headers,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || `Request failed: ${res.status}`);
+
+  if (!res.ok) {
+    if (res.status === 401) {
+      handleUnauthorized(path);
+    }
+
+    const message =
+      data?.error?.message ||
+      data?.message ||
+      `Request failed: ${res.status}`;
+
+    throw new Error(message);
+  }
+
   return data;
 }
 
@@ -70,7 +129,16 @@ export const api = {
   getUser,
   setUser,
   removeUser,
-  isAuthenticated: () => !!getToken(),
+  isAuthenticated: () => {
+    const token = getToken();
+    if (!token) return false;
+    if (isTokenExpired(token)) {
+      removeToken();
+      removeUser();
+      return false;
+    }
+    return true;
+  },
 
   // Tests
   getTests: () => request('/api/tests'),
@@ -115,9 +183,9 @@ export const api = {
   }),
   parseContent: (data) => request('/api/content-gen/parse', { method: 'POST', body: JSON.stringify(data) }),
   // Grading
-  getSubmissions: (params) => {
-    const query = new URLSearchParams(params).toString();
-    return request(`/api/writings/submissions?${query}`);
+  getSubmissions: (params = {}) => {
+    const query = toQueryString(params);
+    return request(`/api/writings/submissions${query ? `?${query}` : ''}`);
   },
   getSubmissionById: (id) => request(`/api/writings/submissions/${id}`),
   scoreSubmission: (id, body) => request(`/api/writings/submissions/${id}/score`, { method: 'POST', body: JSON.stringify(body) }),
@@ -129,6 +197,13 @@ export const api = {
   getMaterials: (questionId) => request(`/api/practice/materials/${questionId}`),
   submitPracticeWriting: (body) => request('/api/practice/submit', { method: 'POST', body: JSON.stringify(body) }),
 
+  // Study Plan
+  createStudyPlan: (body) => request('/api/study-plan', { method: 'POST', body: JSON.stringify(body) }),
+  updateStudyPlan: (body) => request('/api/study-plan', { method: 'PUT', body: JSON.stringify(body) }),
+  getMyPlan: () => request('/api/study-plan'),
+  getStudyHistory: () => request('/api/study-plan/history'),
+  updateTaskStatus: (id, status) => request(`/api/study-plan/tasks/${id}`, { method: 'PUT', body: JSON.stringify({ status }) }),
+
   // Vocabulary
   getVocabulary: (params) => request(`/api/vocabulary${params ? `?${new URLSearchParams(params)}` : ''}`),
   getDueVocabulary: () => request('/api/vocabulary/due'),
@@ -138,14 +213,34 @@ export const api = {
   reviewVocabulary: (id, difficulty) => request(`/api/vocabulary/${id}/review`, { method: 'PUT', body: JSON.stringify({ difficulty }) }),
   deleteVocabulary: (id) => request(`/api/vocabulary/${id}`, { method: 'DELETE' }),
 
-  getAdminUsersScores: () => request('/api/admin/scores'),
-  getAdminUserAttempts: (userId) => request(`/api/admin/users/${userId}/attempts`),
+  getAdminUsersScores: (params = {}) => {
+    const query = toQueryString(params);
+    return request(`/api/admin/scores${query ? `?${query}` : ''}`);
+  },
+  getAdminUserAttempts: (userId, params = {}) => {
+    const query = toQueryString(params);
+    return request(`/api/admin/users/${userId}/attempts${query ? `?${query}` : ''}`);
+  },
+
+  // Analytics
+  getAnalyticsSkills: () => request('/api/analytics/skills'),
+  getAnalyticsWeaknesses: () => request('/api/analytics/weaknesses'),
+  getAnalyticsHistory: () => request('/api/analytics/history'),
+  getAdminStudentAnalytics: (studentId) => request(`/api/analytics/admin/${studentId}`),
+
   // Admin - Students
-  getPendingStudents: () => request('/api/admin/students/pending'),
+  getPendingStudents: (params = {}) => {
+    const query = toQueryString(params);
+    return request(`/api/admin/students/pending${query ? `?${query}` : ''}`);
+  },
   approveStudent: (userId) => request(`/api/admin/students/${userId}/approve`, { method: 'PUT' }),
 
   // Admin - Users
-  getUsers: (role) => request(`/api/admin/users${role ? `?role=${role}` : ''}`),
+  getUsers: (options = {}) => {
+    const params = typeof options === 'string' ? { role: options } : (options || {});
+    const query = toQueryString(params);
+    return request(`/api/admin/users${query ? `?${query}` : ''}`);
+  },
   deleteUser: (userId) => request(`/api/admin/users/${userId}`, { method: 'DELETE' }),
 
   // Speaking

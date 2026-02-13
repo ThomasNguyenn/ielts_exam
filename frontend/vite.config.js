@@ -4,25 +4,46 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   optimizeDeps: {
-    include: ['react-resizable-panels']
+    include: ['react-resizable-panels'],
   },
   base: '/',
   server: {
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'https://ielts-exam-65pjc.ondigitalocean.app/',
         changeOrigin: true,
       },
     },
   },
   build: {
-    chunkSizeWarningLimit: 1000, // Tăng giới hạn cảnh báo lên 1000kB
+    chunkSizeWarningLimit: 700,
     rollupOptions: {
       output: {
-        manualChunks: {
-          // Tách các thư viện lớn ra thành chunk riêng
-          'react-vendor': ['react', 'react-dom', 'react-router-dom']
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return;
+
+          if (id.includes('recharts')) {
+            return 'vendor-recharts';
+          }
+
+          if (id.includes('jspdf') || id.includes('html2canvas')) {
+            return 'vendor-pdf';
+          }
+
+          if (id.includes('@dnd-kit')) {
+            return 'vendor-dnd';
+          }
+
+          if (id.includes('react-resizable-panels')) {
+            return 'vendor-panels';
+          }
+
+          if (id.includes('lucide-react')) {
+            return 'vendor-icons';
+          }
+
+          return 'vendor';
         },
       },
     },

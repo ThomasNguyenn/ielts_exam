@@ -10,6 +10,7 @@ const calculateOverall = (targets) => {
 };
 
 import LevelProgress from '../components/LevelProgress';
+import StudyDashboardWidget from '../components/StudyDashboardWidget';
 
 
 
@@ -171,6 +172,20 @@ export default function Profile() {
                         </div>
                     </div>
                 </div>
+            </div>
+
+            {/* Study Plan Section */}
+            <div className="section-title">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="section-icon">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+                Lộ trình học tập
+            </div>
+            <div style={{ marginBottom: '2rem' }}>
+                <StudyDashboardWidget />
             </div>
 
             <div className="section-title">

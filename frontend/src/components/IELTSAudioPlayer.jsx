@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 
 /** Enhanced audio player for IELTS listening with volume control */
-export default function IELTSAudioPlayer({ audioUrl }) {
+export default function IELTSAudioPlayer({ audioUrl, onEnded }) {
   const audioRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -10,9 +10,12 @@ export default function IELTSAudioPlayer({ audioUrl }) {
 
   useEffect(() => {
     const audio = new Audio(audioUrl);
+    audio.preload = 'auto';
+    audio.currentTime = 0;
     audioRef.current = audio;
 
     audio.addEventListener('loadedmetadata', () => {
+      audio.currentTime = 0;
       setDuration(audio.duration);
     });
 
@@ -22,6 +25,7 @@ export default function IELTSAudioPlayer({ audioUrl }) {
 
     audio.addEventListener('ended', () => {
       setIsPlaying(false);
+      if (onEnded) onEnded();
     });
 
     // Auto-play as per IELTS test
@@ -35,7 +39,7 @@ export default function IELTSAudioPlayer({ audioUrl }) {
       audio.pause();
       audio.src = '';
     };
-  }, [audioUrl]);
+  }, [audioUrl, onEnded]);
 
   useEffect(() => {
     if (audioRef.current) {

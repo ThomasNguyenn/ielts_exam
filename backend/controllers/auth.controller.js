@@ -1,22 +1,22 @@
 import User from "../models/User.model.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { JWT_SECRET, VALID_GIFTCODES } from "../config/security.config.js";
 
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production";
-
-// Valid giftcodes for teacher registration
-const VALID_GIFTCODES = {
-  "TEACHER2026": "teacher",
-  "ADMINSCOTS": "admin",
-};
+const ALLOWED_ROLES = new Set(["student", "teacher", "admin"]);
 
 export const register = async (req, res) => {
   try {
     const { email, password, name, role, giftcode } = req.body;
+    const requestedRole = (typeof role === "string" ? role.toLowerCase().trim() : "student") || "student";
     const normalizedGiftcode = giftcode?.trim().toUpperCase();
 
     if (!email || !password || !name) {
       return res.status(400).json({ success: false, message: "Email, password, and name are required" });
+    }
+
+    if (!ALLOWED_ROLES.has(requestedRole)) {
+      return res.status(400).json({ success: false, message: "Role must be one of: student, teacher, admin" });
     }
 
     // Check if user already exists
@@ -26,13 +26,13 @@ export const register = async (req, res) => {
     }
 
     // If registering as teacher or admin, validate giftcode
-    if (role === 'teacher' || role === 'admin') {
+    if (requestedRole === 'teacher' || requestedRole === 'admin') {
       if (!normalizedGiftcode) {
-        return res.status(400).json({ success: false, message: `Giftcode is required for ${role} registration` });
+        return res.status(400).json({ success: false, message: `Giftcode is required for ${requestedRole} registration` });
       }
 
       const validRole = VALID_GIFTCODES[normalizedGiftcode];
-      if (!validRole || validRole !== role) {
+      if (!validRole || validRole !== requestedRole) {
         return res.status(400).json({ success: false, message: "Invalid giftcode for this role" });
       }
     }
@@ -41,11 +41,11 @@ export const register = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Determine final role (giftcode may grant higher access)
-    let finalRole = role || 'student';
-    if (normalizedGiftcode && VALID_GIFTCODES[normalizedGiftcode]) {
-      finalRole = VALID_GIFTCODES[normalizedGiftcode];
+    if (requestedRole === "student" && normalizedGiftcode) {
+      return res.status(400).json({ success: false, message: "Giftcode is not used for student registration" });
     }
+
+    const finalRole = requestedRole;
 
     // Create user
     const user = new User({
@@ -183,14 +183,15 @@ export const updateProfile = async (req, res) => {
 // Admin endpoint to verify giftcode (returns 200 with valid status)
 export const verifyGiftcode = async (req, res) => {
   const { giftcode, role } = req.body;
+  const normalizedRole = typeof role === "string" ? role.toLowerCase().trim() : "";
   const normalizedGiftcode = giftcode?.trim().toUpperCase();
 
-  if (!normalizedGiftcode || !role) {
-    return res.status(200).json({ success: true, valid: false, message: "Giftcode and role are required" });
+  if (!normalizedGiftcode || !normalizedRole || !ALLOWED_ROLES.has(normalizedRole) || normalizedRole === "student") {
+    return res.status(200).json({ success: true, valid: false, message: "Valid giftcode and teacher/admin role are required" });
   }
 
   const validRole = VALID_GIFTCODES[normalizedGiftcode];
-  if (validRole && validRole === role) {
+  if (validRole && validRole === normalizedRole) {
     res.status(200).json({ success: true, valid: true, message: "Valid giftcode" });
   } else {
     res.status(200).json({ success: true, valid: false, message: "Invalid giftcode" });

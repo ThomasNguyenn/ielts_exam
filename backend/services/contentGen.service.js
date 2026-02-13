@@ -1,10 +1,16 @@
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
+import { requestOpenAIJsonWithFallback } from '../utils/aiClient.js';
 dotenv.config();
 
 const openai = new OpenAI({
     apiKey: process.env.OPEN_API_KEY,
 });
+
+const OPENAI_MODELS = [
+    process.env.OPENAI_PRIMARY_MODEL || "gpt-4o",
+    process.env.OPENAI_FALLBACK_MODEL || "gpt-4o-mini",
+];
 
 /**
  * Parses raw text/images into a structured Passage or Section object.
@@ -98,17 +104,27 @@ You are an expert IELTS content digitizer. Your job is to convert raw text and i
     ];
 
     try {
-        const completion = await openai.chat.completions.create({
-            model: "gpt-4o",
-            messages: messages,
-            max_tokens: 4096,
-            response_format: { type: "json_object" }
+        const aiResult = await requestOpenAIJsonWithFallback({
+            openai,
+            models: OPENAI_MODELS,
+            createPayload: (model) => ({
+                model,
+                messages,
+                max_tokens: 4096,
+                response_format: { type: "json_object" }
+            }),
+            timeoutMs: Number(process.env.OPENAI_TIMEOUT_MS || 45000),
+            maxAttempts: Number(process.env.OPENAI_MAX_ATTEMPTS || 3),
         });
 
-        const content = completion.choices[0].message.content;
-        return JSON.parse(content);
+        return aiResult.data;
     } catch (error) {
         console.error("Content Gen Error:", error);
-        throw new Error("Failed to parse content from AI.");
+        return {
+            title: "AI parsing unavailable",
+            content: rawText || "",
+            source: "fallback",
+            question_groups: [],
+        };
     }
 };

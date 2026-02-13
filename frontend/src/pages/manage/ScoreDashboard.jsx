@@ -1,24 +1,29 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../api/client';
+import PaginationControls from '../../components/PaginationControls';
 import './ScoreDashboard.css';
 
 export default function ScoreDashboard() {
+    const PAGE_SIZE = 20;
     const navigate = useNavigate();
     const [users, setUsers] = useState([]);
+    const [pagination, setPagination] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
-        fetchUsers();
-    }, []);
+        fetchUsers(currentPage);
+    }, [currentPage]);
 
-    const fetchUsers = async () => {
+    const fetchUsers = async (page = 1) => {
         try {
             setLoading(true);
-            const response = await api.getAdminUsersScores();
+            const response = await api.getAdminUsersScores({ page, limit: PAGE_SIZE });
             if (response.success) {
-                setUsers(response.data);
+                setUsers(response.data || []);
+                setPagination(response.pagination || null);
             }
         } catch (error) {
             console.error('Failed to fetch users:', error);
@@ -49,9 +54,9 @@ export default function ScoreDashboard() {
 
     const getRoleBadgeClass = (role) => {
         switch (role) {
-            case 'admin': return 'type-writing'; // red
-            case 'teacher': return 'type-reading'; // blue
-            default: return 'type-listening'; // green
+            case 'admin': return 'type-writing';
+            case 'teacher': return 'type-reading';
+            default: return 'type-listening';
         }
     };
 
@@ -70,14 +75,14 @@ export default function ScoreDashboard() {
                 onClick={() => navigate('/')}
                 style={{ marginBottom: '1rem' }}
             >
-                &larr; Quay lại trang chủ
+                &larr; Back to home
             </button>
-            <h1>Bảng Điểm Toàn Bộ Người Dùng</h1>
+            <h1>User Score Dashboard</h1>
 
             <div className="search-section">
                 <input
                     type="text"
-                    placeholder="Tìm kiếm theo tên, email hoặc vai trò..."
+                    placeholder="Search by name, email, or role..."
                     className="search-input"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
@@ -88,12 +93,12 @@ export default function ScoreDashboard() {
                 <table className="scores-table">
                     <thead>
                         <tr>
-                            <th>Người Dùng</th>
-                            <th>Vai Trò</th>
+                            <th>User</th>
+                            <th>Role</th>
                             <th>Reading</th>
                             <th>Listening</th>
                             <th>Writing</th>
-                            <th>Hành Động</th>
+                            <th>Action</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -110,9 +115,9 @@ export default function ScoreDashboard() {
                                         {user.role}
                                     </span>
                                 </td>
-                                <td>{formatScore(user.latestScores.reading)}</td>
-                                <td>{formatScore(user.latestScores.listening)}</td>
-                                <td>{formatScore(user.latestScores.writing)}</td>
+                                <td>{formatScore(user.latestScores?.reading)}</td>
+                                <td>{formatScore(user.latestScores?.listening)}</td>
+                                <td>{formatScore(user.latestScores?.writing)}</td>
                                 <td>
                                     <button
                                         className="btn-see-more"
@@ -127,10 +132,17 @@ export default function ScoreDashboard() {
                 </table>
                 {filteredUsers.length === 0 && (
                     <div style={{ padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>
-                        Không tìm thấy người dùng nào.
+                        No users found.
                     </div>
                 )}
             </div>
+
+            <PaginationControls
+                pagination={pagination}
+                onPageChange={setCurrentPage}
+                loading={loading}
+                itemLabel="users"
+            />
         </div>
     );
 }

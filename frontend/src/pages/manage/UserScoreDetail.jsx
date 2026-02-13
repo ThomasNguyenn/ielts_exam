@@ -1,22 +1,35 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../../api/client';
+import PaginationControls from '../../components/PaginationControls';
 import './ScoreDashboard.css';
 
 export default function UserScoreDetail() {
+    const PAGE_SIZE = 20;
     const { userId } = useParams();
     const navigate = useNavigate();
     const [attempts, setAttempts] = useState([]);
+    const [pagination, setPagination] = useState(null);
+    const [currentPage, setCurrentPage] = useState(1);
     const [loading, setLoading] = useState(true);
     const [activeFilter, setActiveFilter] = useState('all');
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [userId, activeFilter]);
 
     useEffect(() => {
         const fetchData = async () => {
             try {
                 setLoading(true);
-                const response = await api.getAdminUserAttempts(userId);
+                const response = await api.getAdminUserAttempts(userId, {
+                    type: activeFilter,
+                    page: currentPage,
+                    limit: PAGE_SIZE,
+                });
                 if (response.success) {
-                    setAttempts(response.data);
+                    setAttempts(response.data || []);
+                    setPagination(response.pagination || null);
                 }
             } catch (error) {
                 console.error('Failed to fetch user details:', error);
@@ -26,7 +39,7 @@ export default function UserScoreDetail() {
         };
 
         fetchData();
-    }, [userId]);
+    }, [userId, activeFilter, currentPage]);
 
     const calculateBandScore = (score, type) => {
         if (score === null || score === undefined) return null;
@@ -49,16 +62,11 @@ export default function UserScoreDetail() {
             { min: 1, band: 1.0 }, { min: 0, band: 0 },
         ];
 
+        if (type === 'writing') return null;
         const mapping = type === 'listening' ? listeningMap : readingMap;
-        if (type === 'writing') return null; // Writing is manually scored
-
         const band = mapping.find(m => score >= m.min);
         return band ? band.band.toFixed(1) : '0.0';
     };
-
-    const filteredAttempts = activeFilter === 'all'
-        ? attempts
-        : attempts.filter(a => a.type === activeFilter);
 
     if (loading) {
         return (
@@ -77,13 +85,13 @@ export default function UserScoreDetail() {
                         onClick={() => navigate('/scores')}
                         style={{ marginBottom: '1rem' }}
                     >
-                        &larr; Quay lại danh sách
+                        &larr; Back to list
                     </button>
                 </div>
                 <div>
-                    <h1>Chi tiết kết quả</h1>
+                    <h1>User Attempts</h1>
                     <p style={{ color: '#64748b', fontSize: '1.1rem', marginBottom: '2rem' }}>
-                        Lịch sử làm bài của người dùng ID: {userId}
+                        User ID: {userId}
                     </p>
                 </div>
             </div>
@@ -101,12 +109,12 @@ export default function UserScoreDetail() {
             </div>
 
             <div className="attempts-grid">
-                {filteredAttempts.length === 0 ? (
+                {attempts.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '5rem', background: 'white', borderRadius: '1.5rem', border: '1px solid #e2e8f0', width: '100%' }}>
-                        <h2 style={{ color: '#94a3b8' }}>Chưa có dữ liệu cho phần này.</h2>
+                        <h2 style={{ color: '#94a3b8' }}>No data for this filter yet.</h2>
                     </div>
                 ) : (
-                    filteredAttempts.map(attempt => (
+                    attempts.map(attempt => (
                         <div key={attempt._id} className="attempt-card">
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                 <span className={`attempt-type type-${attempt.type}`}>
@@ -119,33 +127,33 @@ export default function UserScoreDetail() {
                                 )}
                             </div>
                             <h3 className="attempt-test-title">
-                                {attempt.test_id?.title || 'Đề thi không xác định'}
+                                {attempt.test_id?.title || 'Unknown test'}
                             </h3>
                             <p style={{ fontSize: '0.875rem', color: '#94a3b8' }}>
-                                Nộp lúc: {new Date(attempt.submitted_at).toLocaleString()}
+                                Submitted: {new Date(attempt.submitted_at).toLocaleString()}
                             </p>
 
                             <div className="attempt-stats">
                                 <div className="stat-item">
-                                    <span className="stat-label">Điểm số</span>
+                                    <span className="stat-label">Score</span>
                                     <span className="stat-value">
-                                        {attempt.score !== null ? `${attempt.score}/${attempt.total}` : 'Đang chấm'}
+                                        {attempt.score !== null ? `${attempt.score}/${attempt.total}` : 'Pending grading'}
                                     </span>
                                 </div>
                                 <div className="stat-item">
-                                    <span className="stat-label">Thời gian</span>
+                                    <span className="stat-label">Time</span>
                                     <span className="stat-value">
-                                        {attempt.time_taken_ms ? `${Math.floor(attempt.time_taken_ms / 60000)}p ${Math.floor((attempt.time_taken_ms % 60000) / 1000)}s` : 'N/A'}
+                                        {attempt.time_taken_ms ? `${Math.floor(attempt.time_taken_ms / 60000)}m ${Math.floor((attempt.time_taken_ms % 60000) / 1000)}s` : 'N/A'}
                                     </span>
                                 </div>
                                 <div className="stat-item">
-                                    <span className="stat-label">% Hoàn thành</span>
+                                    <span className="stat-label">Percent</span>
                                     <span className="stat-value">
                                         {attempt.percentage !== null ? `${attempt.percentage}%` : 'N/A'}
                                     </span>
                                 </div>
                                 <div className="stat-item">
-                                    <span className="stat-label">Sai/Bỏ qua</span>
+                                    <span className="stat-label">Wrong/Skipped</span>
                                     <span className="stat-value">
                                         {attempt.wrong ?? 0} / {attempt.skipped ?? 0}
                                     </span>
@@ -155,6 +163,13 @@ export default function UserScoreDetail() {
                     ))
                 )}
             </div>
+
+            <PaginationControls
+                pagination={pagination}
+                onPageChange={setCurrentPage}
+                loading={loading}
+                itemLabel="attempts"
+            />
         </div>
     );
 }
