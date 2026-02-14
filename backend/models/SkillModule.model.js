@@ -18,12 +18,34 @@ const checkpointQuizSchema = new mongoose.Schema({
     }
 }, { _id: false });
 
+const learningResourceSchema = new mongoose.Schema({
+    title: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    url: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    type: {
+        type: String,
+        default: 'article',
+        trim: true
+    },
+    description: {
+        type: String,
+        default: '',
+        trim: true
+    }
+}, { _id: false });
+
 const skillModuleSchema = new mongoose.Schema({
     moduleNumber: {
         type: Number,
         required: true,
-        min: 1,
-        max: 7
+        min: 1
     },
     title: {
         type: String,
@@ -47,6 +69,7 @@ const skillModuleSchema = new mongoose.Schema({
         keyPoints: [{
             type: String
         }],
+        resources: [learningResourceSchema],
         checkpointQuiz: [checkpointQuizSchema]
     },
     estimatedMinutes: {

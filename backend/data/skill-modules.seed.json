@@ -1,0 +1,171 @@
+[
+  {
+    "moduleNumber": 1,
+    "order": 1,
+    "title": "Understanding Task Requirements",
+    "description": "Learn how to analyze IELTS writing questions and identify exactly what is being asked.",
+    "icon": "📚",
+    "estimatedMinutes": 10,
+    "content": {
+      "lesson": "\n# Understanding Task Requirements\n\n## Learning Objectives\nBy the end of this module, you will be able to:\n- Identify different IELTS Task 2 question types\n- Extract key requirements from any writing prompt\n- Recognize what the examiner is looking for\n\n## Why This Matters\nOne of the most common mistakes students make is **not fully addressing the question**. This can limit your Task Response score to Band 5 or below, even if your English is excellent.\n\n## IELTS Task 2 Question Types\n\n### 1. Opinion (Agree/Disagree)\n**Example:** *\"Do you agree or disagree that technology has improved our lives?\"*\n\n**What you must do:**\n- State your position clearly\n- Support with reasons and examples\n- Address the opposing view (optional but recommended for Band 7+)\n\n### 2. Discussion\n**Example:** *\"Discuss both views and give your own opinion.\"*\n\n**What you must do:**\n- Present both perspectives fairly\n- Give your personal stance\n- Use balanced structure\n\n### 3. Advantage/Disadvantage\n**Example:** *\"Do the advantages of working from home outweigh the disadvantages?\"*\n\n**What you must do:**\n- Discuss BOTH advantages and disadvantages\n- Make a judgment (which outweighs which)\n\n### 4. Problem/Solution\n**Example:** *\"What are the causes of pollution and what solutions can you suggest?\"*\n\n**What you must do:**\n- Identify multiple causes\n- Propose practical solutions\n\n### 5. Two-Part Question\n**Example:** *\"Why is this happening? What measures can be taken?\"*\n\n**What you must do:**\n- Answer BOTH parts equally\n- Organize clearly (one part per body paragraph)\n\n## The 3-Step Analysis Method\n\n### Step 1: Underline Keywords\nLook for:\n- **Topic words** (e.g., \"technology\", \"education\")\n- **Instruction words** (e.g., \"discuss\", \"agree\", \"causes\")\n- **Limiting words** (e.g., \"only\", \"most important\", \"recent years\")\n\n### Step 2: Identify the Question Type\nMatch it to one of the 5 types above.\n\n### Step 3: Create a Mental Checklist\nAsk yourself: *What must I include to fully answer this?*\n\n## Practice Example\n\n**Question:** *\"Some people believe that studying abroad is essential for career success, while others think local education is sufficient. Discuss both views and give your own opinion.\"*\n\n**Analysis:**\n- **Type:** Discussion + Opinion\n- **Keywords:** studying abroad, career success, local education\n- **Requirements:**\n  ✓ View 1: Why studying abroad helps careers\n  ✓ View 2: Why local education is enough\n  ✓ My opinion: Which I support (or balanced view)\n\n## Common Mistakes to Avoid\n\n❌ Only discussing one side in a \"discuss both views\" question\n❌ Forgetting to give your opinion when asked\n❌ Writing about a different topic entirely\n❌ Focusing on advantages only when asked about both\n\n## Key Takeaway\n**Before you start planning your essay, spend 2-3 minutes analyzing the question. This ensures you:** stay on topic and address all parts of the task.\n            ",
+      "keyPoints": [
+        "There are 5 main IELTS Task 2 question types",
+        "Underline keywords to identify requirements",
+        "Create a mental checklist before writing",
+        "Missing even one requirement can lower your score"
+      ],
+      "checkpointQuiz": [
+        {
+          "question": "Question: 'Do you agree or disagree that children should learn foreign languages at primary school?' What type is this?",
+          "options": [
+            "Opinion (Agree/Disagree)",
+            "Discussion",
+            "Advantage/Disadvantage",
+            "Problem/Solution"
+          ],
+          "correctAnswer": 0,
+          "explanation": "This is an Opinion question because it asks you to state whether you agree or disagree."
+        },
+        {
+          "question": "How many parts must you address in: 'What are the main causes of obesity and what solutions can you propose?'",
+          "options": [
+            "1 part",
+            "2 parts",
+            "3 parts",
+            "4 parts"
+          ],
+          "correctAnswer": 1,
+          "explanation": "This is a two-part question: (1) causes of obesity, (2) solutions."
+        },
+        {
+          "question": "In a 'discuss both views and give your opinion' question, can you skip giving your opinion?",
+          "options": [
+            "Yes, it's optional",
+            "No, it's required",
+            "Only if you discuss both views well",
+            "Depends on the topic"
+          ],
+          "correctAnswer": 1,
+          "explanation": "When the question explicitly asks for your opinion, you MUST provide it. Skipping it will lower your Task Response score."
+        }
+      ]
+    }
+  },
+  {
+    "moduleNumber": 2,
+    "order": 2,
+    "title": "Crafting Strong Thesis Statements",
+    "description": "Master the art of writing clear, direct thesis statements that guide your entire essay.",
+    "icon": "🎯",
+    "estimatedMinutes": 12,
+    "unlockRequirement": {
+      "minimumScore": 70
+    },
+    "content": {
+      "lesson": "\n# Crafting Strong Thesis Statements\n\n## What is a Thesis Statement?\nA thesis statement is **one or two sentences** in your introduction that:\n1. Directly answers the question\n2. Previews your main points\n3. Takes a clear position\n\nThink of it as a **promise to the reader** about what you'll discuss.\n\n## Why It Matters for IELTS\nExaminers look for your thesis in the introduction. A clear thesis shows:\n- You understand the question (Task Response)\n- Your essay is well-organized (Coherence & Cohesion)\n\n**Band 7+** essays have clear, well-positioned thesis statements.\n\n## The Formula\n\n### For Opinion Essays:\n**\"I [agree/disagree] that [restate topic] because [reason 1] and [reason 2].\"**\n\n**Example:**\n*Question: Do you agree that remote work is better than office work?*\n\n*Thesis: I strongly agree that remote work is superior to traditional office work because it offers greater flexibility and reduces commuting stress.*\n\n### For Discussion Essays:\n**\"While [view 1], I believe [view 2] because [reason].\"**\n\n**Example:**\n*Thesis: While some argue that online education lacks personal interaction, I believe it is the future of learning because of its accessibility and customization.*\n\n### For Advantage/Disadvantage:\n**\"Despite [disadvantages], I believe the advantages of [topic], such as [advantage 1] and [advantage 2], outweigh the drawbacks.\"**\n\n## Position in Essay\nYour thesis should appear **at the end of your introduction**, after:\n1. Background sentence (paraphrase the question)\n2. Thesis statement (your direct answer)\n\n## Common Mistakes\n\n❌ **Too vague:** \"Technology has both good and bad sides.\"\n✅ **Clear:** \"Technology has improved education through online resources and collaborative tools.\"\n\n❌ **Too long:** (A 4-sentence thesis that rambles)\n✅ **Concise:** 1-2 sentences maximum\n\n❌ **Missing:** Not stating your position at all\n✅ **Direct:** \"I completely agree that...\"\n\n## Practice\n\n**Question:** *\"Some people think art classes are essential in schools. Others believe they are a waste of time. Discuss both views and give your opinion.\"*\n\n**Weak Thesis:**\n\"Art classes have supporters and critics.\"\n\n**Strong Thesis:**\n\"While some view art education as non-essential, I believe art classes are crucial for developing creativity and emotional intelligence in students.\"\n\n## Key Takeaway\nA strong thesis is clear, direct, and answers the question completely. Spend time crafting it—it guides your entire essay.\n            ",
+      "keyPoints": [
+        "Thesis = Direct answer + Preview of main points",
+        "Place at the end of your introduction",
+        "Keep it 1-2 sentences maximum",
+        "Must take a clear position"
+      ],
+      "examples": [
+        "I strongly agree that governments should prioritize public health over economic growth because preventive care reduces long-term costs and improves quality of life.",
+        "While online shopping offers convenience, I believe traditional retail provides better customer experience through personal service and immediate product access."
+      ],
+      "checkpointQuiz": [
+        {
+          "question": "Where should your thesis statement appear?",
+          "options": [
+            "First sentence of introduction",
+            "End of introduction",
+            "Start of body paragraph",
+            "In the conclusion"
+          ],
+          "correctAnswer": 1,
+          "explanation": "The thesis should be at the END of the introduction, after you've provided background context."
+        },
+        {
+          "question": "Which is a stronger thesis? Question: 'Do you agree that social media harms mental health?'",
+          "options": [
+            "Social media has good and bad effects.",
+            "I agree that social media harms mental health because it promotes comparison and reduces face-to-face interaction.",
+            "Social media is very popular nowadays.",
+            "Some people use social media, others don't."
+          ],
+          "correctAnswer": 1,
+          "explanation": "Option 2 is strongest because it takes a clear position and gives specific reasons."
+        },
+        {
+          "question": "How long should a thesis statement be?",
+          "options": [
+            "1-2 sentences",
+            "A full paragraph",
+            "3-4 sentences",
+            "Just one word"
+          ],
+          "correctAnswer": 0,
+          "explanation": "Keep your thesis concise: 1-2 sentences maximum."
+        }
+      ]
+    }
+  },
+  {
+    "moduleNumber": 3,
+    "order": 3,
+    "title": "Paragraph Structure (PEEL Method)",
+    "description": "Learn the PEEL framework to write well-developed body paragraphs that score highly.",
+    "icon": "🏗️",
+    "estimatedMinutes": 15,
+    "unlockRequirement": {
+      "minimumScore": 70
+    },
+    "content": {
+      "lesson": "\n# Paragraph Structure: The PEEL Method\n\n## What is PEEL?\nPEEL is a framework for organizing body paragraphs:\n\n**P** - Point (Topic Sentence)\n**E** - Explanation\n**E** - Example\n**L** - Link back to the question\n\nThis structure ensures your ideas are **fully developed** (key for Band 7+).\n\n## Breaking Down PEEL\n\n### P - Point (Topic Sentence)\n- **What it is:** The first sentence that states your main idea\n- **Function:** Tells the reader what this paragraph is about\n- **Example:** \"Remote work significantly reduces commuting stress.\"\n\n### E - Explanation\n- **What it is:** 2-3 sentences explaining WHY your point is true\n- **Function:** Develops your idea with reasoning\n- **Example:** \"Traditional office jobs require employees to spend 1-2 hours daily traveling, which causes fatigue and reduces productivity. By working from home, professionals can eliminate this unproductive time and start their day feeling more energized.\"\n\n### E - Example\n- **What it is:** A specific illustration or evidence\n- **Function:** Makes your argument concrete and convincing\n- **Example:** \"For instance, a recent study by Stanford University found that remote workers reported 25% less stress and 13% higher productivity compared to their office counterparts.\"\n\n### L - Link\n- **What it is:** Final sentence connecting back to your thesis or the question\n- **Function:** Shows how this paragraph supports your overall argument\n- **Example:** \"Therefore, the flexibility of remote work clearly contributes to better employee well-being and performance.\"\n\n## Full PEEL Paragraph Example\n\n**Question:** *Do you agree that remote work is better than office work?*\n\n**PEEL Paragraph:**\n\n**[P]** Remote work significantly contributes to better work-life balance. \n\n**[E]** Unlike traditional office schedules that require strict 9-to-5 presence, remote work allows employees to structure their day around both professional and personal commitments. This flexibility means parents can attend school events, individuals can schedule medical appointments without taking leave, and workers can optimize their productivity during their peak energy hours rather than conforming to arbitrary schedules. \n\n**[E]** For example, Microsoft Japan's four-day workweek experiment in 2019, which included remote work options, resulted in a 40% increase in productivity and significantly improved employee satisfaction scores. \n\n**[L]** Thus, the autonomy provided by remote work creates a healthier integration of professional and personal life, making it superior to conventional office arrangements.\n\n## Common Mistakes\n\n❌ **Missing Explanation:** Jumping straight from Point to Example\nWrong: \"Remote work is better. For example, many people work from home.\"\n\n❌ **No Link:** Ending abruptly without connecting to the main argument\n\n❌ **Weak Examples:** Vague or hypothetical examples\nWrong: \"I think people are happier at home.\"\nRight: \"According to a 2020 survey of 1,000 remote workers...\"\n\n## Practice Structure\n\nFor each body paragraph, ask yourself:\n1. ✓ Did I state my main point clearly?\n2. ✓ Did I explain WHY this point matters?\n3. ✓ Did I give a specific example or evidence?\n4. ✓ Did I link back to my thesis/question?\n\n## Key Takeaway\nPEEL ensures your paragraphs are **fully developed**. Band 5-6 essays often state points without explaining them. Band 7+ essays use PEEL to develop ideas thoroughly.\n            ",
+      "keyPoints": [
+        "PEEL = Point, Explanation, Example, Link",
+        "Every body paragraph should follow this structure",
+        "Explanation is often the longest part (2-3 sentences)",
+        "Always link back to your main argument"
+      ],
+      "examples": [
+        "Point: Urban green spaces improve mental health.\nExplanation: Access to nature reduces stress hormones and provides a peaceful environment for relaxation...\nExample: Research from the University of Exeter showed that...\nLink: Therefore, investing in parks is essential for public wellbeing."
+      ],
+      "checkpointQuiz": [
+        {
+          "question": "What does the first 'E' in PEEL stand for?",
+          "options": [
+            "Evidence",
+            "Explanation",
+            "Example",
+            "Evaluation"
+          ],
+          "correctAnswer": 1,
+          "explanation": "The first E is Explanation—you explain WHY your point is valid before giving an example."
+        },
+        {
+          "question": "What is the purpose of the 'Link' in PEEL?",
+          "options": [
+            "To start a new topic",
+            "To introduce an example",
+            "To connect the paragraph back to the thesis",
+            "To summarize the entire essay"
+          ],
+          "correctAnswer": 2,
+          "explanation": "The Link connects your paragraph's main point back to your overall thesis or the question."
+        },
+        {
+          "question": "Which part of PEEL is typically the longest?",
+          "options": [
+            "Point",
+            "Explanation",
+            "Example",
+            "Link"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Explanation is usually 2-3 sentences where you develop your reasoning in detail."
+        }
+      ]
+    }
+  }
+]

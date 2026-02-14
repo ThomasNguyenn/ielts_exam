@@ -29,7 +29,8 @@
     "restore:mongo": "powershell -ExecutionPolicy Bypass -File ./scripts/restore-mongo.ps1",
     "backup:uploads": "powershell -ExecutionPolicy Bypass -File ./scripts/backup-uploads.ps1",
     "restore:uploads": "powershell -ExecutionPolicy Bypass -File ./scripts/restore-uploads.ps1",
-    "worker:ai": "node ./workers/ai.worker.js"
+    "worker:ai": "node ./workers/ai.worker.js",
+    "seed:skills": "node ./seedSkillModules.js"
   },
   "type": "module",
   "keywords": [],
