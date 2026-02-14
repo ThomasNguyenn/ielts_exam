@@ -1,5 +1,6 @@
 import Speaking from "../models/Speaking.model.js";
 import SpeakingSession from "../models/SpeakingSession.js";
+import cloudinary from "../utils/cloudinary.js";
 import { isAiAsyncModeEnabled } from "../config/queue.config.js";
 import { enqueueSpeakingAiScoreJob, isAiQueueReady } from "../queues/ai.queue.js";
 import { scoreSpeakingSessionById } from "../services/speakingGrading.service.js";
@@ -10,6 +11,27 @@ const canAccessSession = (session, user) => {
   if (!session.userId) return user.role === "admin" || user.role === "teacher";
   if (String(session.userId) === String(user.userId)) return true;
   return user.role === "admin" || user.role === "teacher";
+};
+
+const uploadSpeakingAudio = async (audioFile) => {
+  if (!audioFile?.buffer) {
+    throw new Error("Audio buffer is missing");
+  }
+
+  const b64 = Buffer.from(audioFile.buffer).toString("base64");
+  const dataURI = `data:${audioFile.mimetype || "audio/webm"};base64,${b64}`;
+
+  const result = await cloudinary.uploader.upload(dataURI, {
+    folder: "ielts-speaking-recordings",
+    resource_type: "video",
+    use_filename: false,
+    unique_filename: true,
+  });
+
+  return {
+    url: result.secure_url,
+    publicId: result.public_id,
+  };
 };
 
 export const getRandomSpeaking = async (req, res) => {
@@ -129,6 +151,8 @@ export const submitSpeaking = async (req, res) => {
       return res.status(404).json({ message: "Speaking topic not found" });
     }
 
+    const uploadedAudio = await uploadSpeakingAudio(audioFile);
+
     let parsedMetrics = {};
     try {
       parsedMetrics = typeof metrics === "string" ? JSON.parse(metrics) : (metrics || {});
@@ -139,7 +163,7 @@ export const submitSpeaking = async (req, res) => {
     session = new SpeakingSession({
       questionId,
       userId: userId || undefined,
-      audioUrl: audioFile.path,
+      audioUrl: uploadedAudio.url,
       audioMimeType: audioFile.mimetype || "audio/webm",
       transcript: clientTranscript || "",
       analysis: undefined,

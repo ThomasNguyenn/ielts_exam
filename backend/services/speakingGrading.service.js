@@ -14,12 +14,33 @@ const GEMINI_MODELS = [
   process.env.GEMINI_FALLBACK_MODEL || "gemini-1.5-flash",
 ];
 
-const toAudioPart = async (filePath, mimeType) => {
-  const fileBuffer = await fs.promises.readFile(filePath);
+const isHttpUrl = (value) => /^https?:\/\//i.test(String(value || ""));
+
+const toAudioPart = async (audioSource, mimeType) => {
+  let fileBuffer;
+  let resolvedMimeType = mimeType || "audio/webm";
+
+  if (isHttpUrl(audioSource)) {
+    const response = await fetch(audioSource);
+    if (!response.ok) {
+      throw new Error(`Unable to fetch remote audio: ${response.status}`);
+    }
+
+    const contentType = response.headers.get("content-type");
+    if (contentType) {
+      resolvedMimeType = contentType.split(";")[0].trim() || resolvedMimeType;
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    fileBuffer = Buffer.from(arrayBuffer);
+  } else {
+    fileBuffer = await fs.promises.readFile(audioSource);
+  }
+
   return {
     inlineData: {
       data: fileBuffer.toString("base64"),
-      mimeType,
+      mimeType: resolvedMimeType,
     },
   };
 };
