@@ -25,13 +25,13 @@ export default function SpeakingList() {
 
     useEffect(() => {
         setLoading(true);
-                api.getSpeakings({
-                    page: currentPage,
-                    limit: PAGE_SIZE,
-                    q: searchQuery.trim() || undefined,
-                    part: filterType !== 'all' ? filterType : undefined,
-                    topic: selectedTopic !== 'all' ? selectedTopic.trim() : undefined
-                })
+        api.getSpeakings({
+            page: currentPage,
+            limit: PAGE_SIZE,
+            q: searchQuery.trim() || undefined,
+            part: filterType !== 'all' ? filterType : undefined,
+            topic: selectedTopic !== 'all' ? selectedTopic.trim() : undefined
+        })
             .then((res) => {
                 setTasks(res.data || []);
                 setPagination(res.pagination || null);
@@ -150,14 +150,14 @@ export default function SpeakingList() {
             <div className="practice-content-area">
                 {Object.keys(groupedTasks).length === 0 ? (
                     <div className="empty-state" style={{ textAlign: 'center', padding: '4rem', color: '#64748b' }}>
-                        <p>Khong tim thay chu de nao.</p>
+                        <p>Không tìm thấy chủ đề nào.</p>
                     </div>
                 ) : (
                     Object.entries(groupedTasks).map(([topic, topicTasks]) => (
                         <div key={topic} className="topic-group">
                             <div className="topic-group-header">
                                 <h3 className="topic-group-title" style={{ whiteSpace: 'pre-wrap' }}>{topic}</h3>
-                                <span className="topic-group-count">{topicTasks.length} cau hoi</span>
+                                <span className="topic-group-count">{topicTasks.length} câu hỏi</span>
                             </div>
                             <div className="topic-group-content">
                                 {topicTasks.map(t => (
@@ -173,7 +173,7 @@ export default function SpeakingList() {
                                         </p>
 
                                         <Link to={`/practice/speaking/${t._id}`} className="btn-sidebar-start" style={{ textDecoration: 'none', background: '#3b82f6', color: 'white', padding: '0.75rem', borderRadius: '8px', textAlign: 'center', fontWeight: '600' }}>
-                                            Bat dau tra loi
+                                            Bắt đầu trả lời
                                         </Link>
                                     </div>
                                 ))}

@@ -7,6 +7,24 @@ import { scoreSpeakingSessionById } from "../services/speakingGrading.service.js
 import { parsePagination, buildPaginationMeta } from "../utils/pagination.js";
 
 const escapeRegex = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const normalizeTopicList = (values = []) => {
+  const normalized = [];
+
+  values.forEach((value) => {
+    if (Array.isArray(value)) {
+      value.forEach((item) => {
+        const topic = String(item || "").trim();
+        if (topic) normalized.push(topic);
+      });
+      return;
+    }
+
+    const topic = String(value || "").trim();
+    if (topic) normalized.push(topic);
+  });
+
+  return Array.from(new Set(normalized)).sort((a, b) => a.localeCompare(b));
+};
 
 const canAccessSession = (session, user) => {
   if (!session) return false;
@@ -58,18 +76,20 @@ export const getSpeakings = async (req, res) => {
     const isTopicsOnly = String(req.query.topicsOnly || '').toLowerCase() === 'true';
 
     if (isTopicsOnly) {
-      const topics = await Speaking.distinct('title', { is_active: true });
-      const normalizedTopics = Array.from(
-        new Set(
-          topics
-            .map((topic) => String(topic || '').trim())
-            .filter(Boolean)
-        )
-      );
+      try {
+        const topics = await Speaking.distinct('title', { is_active: true });
+        return res.json({ success: true, topics: normalizeTopicList(topics) });
+      } catch (distinctError) {
+        console.error(
+          `[getSpeakings][topicsOnly][distinct] requestId=${req.requestId || "n/a"} failed:`,
+          distinctError?.message || distinctError
+        );
 
-      const sortedTopics = normalizedTopics
-        .sort((a, b) => String(a).localeCompare(String(b)));
-      return res.json({ success: true, topics: sortedTopics });
+        // Fallback query in case distinct fails due data/index inconsistencies.
+        const docs = await Speaking.find({ is_active: true }).select({ title: 1, _id: 0 }).lean();
+        const fallbackTopics = docs.map((doc) => doc?.title);
+        return res.json({ success: true, topics: normalizeTopicList(fallbackTopics) });
+      }
     }
 
     const shouldPaginate = req.query.page !== undefined || req.query.limit !== undefined;
