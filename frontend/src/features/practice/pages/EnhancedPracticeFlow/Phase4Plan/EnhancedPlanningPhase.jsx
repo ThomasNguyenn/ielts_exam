@@ -8,6 +8,7 @@ import './EnhancedPlanningPhase.css';
 const EnhancedPlanningPhase = ({ question, onNext, onBack }) => {
     const [selectedTemplate, setSelectedTemplate] = useState(null);
     const [outline, setOutline] = useState({});
+    const [currentSection, setCurrentSection] = useState(null);
     const [feedback, setFeedback] = useState(null);
     const [loading, setLoading] = useState(false);
     const [showIdeaBank, setShowIdeaBank] = useState(false);
@@ -19,12 +20,24 @@ const EnhancedPlanningPhase = ({ question, onNext, onBack }) => {
 
     useEffect(() => {
         // Auto-select first template based on task type
+        let template;
         if (isTask1) {
-            setSelectedTemplate(task1Templates.lineGraph);
+            template = task1Templates.lineGraph;
         } else {
-            setSelectedTemplate(task2Templates.opinion);
+            template = task2Templates.opinion;
         }
-        initializeOutline();
+
+        setSelectedTemplate(template);
+
+        // Initialize outline with empty values
+        const initialOutline = {};
+        Object.keys(template.structure).forEach(section => {
+            initialOutline[section] = '';
+        });
+        setOutline(initialOutline);
+
+        // Set intro as default section
+        setCurrentSection('intro');
     }, [question]);
 
     const initializeOutline = () => {
@@ -39,7 +52,13 @@ const EnhancedPlanningPhase = ({ question, onNext, onBack }) => {
 
     const handleTemplateChange = (template) => {
         setSelectedTemplate(template);
-        initializeOutline();
+        const initialOutline = {};
+        Object.keys(template.structure).forEach(section => {
+            initialOutline[section] = '';
+        });
+        setOutline(initialOutline);
+        // Set intro as default section
+        setCurrentSection('intro');
     };
 
     const handleOutlineChange = (section, value) => {
@@ -266,55 +285,77 @@ const EnhancedPlanningPhase = ({ question, onNext, onBack }) => {
                             </div>
 
                             {selectedTemplate && (
-                                <div className="outline-sections">
-                                    {Object.entries(selectedTemplate.structure).map(([sectionKey, sectionData]) => (
-                                        <div key={sectionKey} className="outline-section">
-                                            <div className="section-header">
-                                                <h4>{sectionData.label}</h4>
-                                                {sectionData.tips && (
-                                                    <div className="tip-badge" title={sectionData.tips}>
+                                <>
+                                    {/* Section Navigator (Tabs) */}
+                                    <div className="section-navigator">
+                                        {Object.entries(selectedTemplate.structure).map(([sectionKey, sectionData]) => {
+                                            const hasContent = outline[sectionKey] && outline[sectionKey].trim() !== '';
+                                            const wordCount = outline[sectionKey] ? outline[sectionKey].trim().split(/\s+/).filter(w => w.length > 0).length : 0;
+
+                                            return (
+                                                <button
+                                                    key={sectionKey}
+                                                    className={`section-tab ${currentSection === sectionKey ? 'active' : ''} ${hasContent ? 'complete' : ''}`}
+                                                    onClick={() => setCurrentSection(sectionKey)}
+                                                >
+                                                    <div className="tab-label">{sectionData.label}</div>
+                                                    <div className="tab-status">
+                                                        {hasContent ? `${wordCount}w` : ''}
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {/* Current Section Editor */}
+                                    {currentSection && selectedTemplate.structure[currentSection] && (
+                                        <div className="current-section-editor">
+                                            <div className="section-header-main">
+                                                <h4>{selectedTemplate.structure[currentSection].label}</h4>
+                                                {selectedTemplate.structure[currentSection].tips && (
+                                                    <div className="tip-badge" title={selectedTemplate.structure[currentSection].tips}>
                                                         💡
                                                     </div>
                                                 )}
                                             </div>
 
-                                            {sectionData.template && (
+                                            {selectedTemplate.structure[currentSection].template && (
                                                 <div className="template-hint">
-                                                    📋 Template: {sectionData.template}
+                                                    📋 Template: {selectedTemplate.structure[currentSection].template}
                                                 </div>
                                             )}
 
-                                            {sectionData.example && (
+                                            {selectedTemplate.structure[currentSection].example && (
                                                 <div className="example-hint">
-                                                    ✨ Example: {sectionData.example}
+                                                    ✨ Example: {selectedTemplate.structure[currentSection].example}
                                                 </div>
                                             )}
 
                                             <textarea
                                                 className="outline-input"
-                                                placeholder={`Write your ${sectionData.label.toLowerCase()}...`}
-                                                value={outline[sectionKey] || ''}
-                                                onChange={(e) => handleOutlineChange(sectionKey, e.target.value)}
-                                                rows={4}
+                                                placeholder={`Write your ${selectedTemplate.structure[currentSection].label.toLowerCase()}...`}
+                                                value={outline[currentSection] || ''}
+                                                onChange={(e) => handleOutlineChange(currentSection, e.target.value)}
+                                                rows={8}
                                             />
 
-                                            {sectionData.keyPhrases && (
+                                            {selectedTemplate.structure[currentSection].keyPhrases && (
                                                 <div className="key-phrases">
                                                     <span className="phrases-label">Useful phrases:</span>
-                                                    {sectionData.keyPhrases.map((phrase, idx) => (
+                                                    {selectedTemplate.structure[currentSection].keyPhrases.map((phrase, idx) => (
                                                         <span key={idx} className="phrase-chip">{phrase}</span>
                                                     ))}
                                                 </div>
                                             )}
 
-                                            {sectionData.tips && (
+                                            {selectedTemplate.structure[currentSection].tips && (
                                                 <div className="section-tips">
-                                                    💡 {sectionData.tips}
+                                                    💡 {selectedTemplate.structure[currentSection].tips}
                                                 </div>
                                             )}
                                         </div>
-                                    ))}
-                                </div>
+                                    )}
+                                </>
                             )}
 
                             {/* AI Feedback Section */}

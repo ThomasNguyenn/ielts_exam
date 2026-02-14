@@ -150,11 +150,8 @@ const LearnPhase = ({ onComplete, onBack }) => {
                 <div className="header-content">
                     <h1 className="phase-title">
                         <span className="phase-icon">📚</span>
-                        Skill Workshop
+                        Lí Thuyết IELTS WRITING
                     </h1>
-                    <p className="phase-subtitle">
-                        Master essential IELTS writing skills before you start practicing
-                    </p>
                 </div>
             </div>
 

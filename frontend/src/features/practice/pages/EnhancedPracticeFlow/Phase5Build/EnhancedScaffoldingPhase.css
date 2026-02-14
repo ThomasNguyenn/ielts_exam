@@ -31,9 +31,9 @@
 
 .scaffolding-container {
     display: grid;
-    grid-template-columns: 300px 1fr 280px;
-    gap: 2rem;
-    padding: 2rem;
+    grid-template-columns: 320px 1fr 850px;
+    gap: 2.5rem;
+    padding: 2rem 3rem;
     margin: 0 auto;
 }
 
@@ -51,17 +51,28 @@
 .reference-card,
 .question-reference {
     background: white;
-    border-radius: 16px;
-    padding: 1.5rem;
-    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+    border-radius: 20px;
+    padding: 2rem;
+    box-shadow: 0 6px 16px -2px rgb(0 0 0 / 0.1);
+    transition: all 0.3s ease;
+}
+
+.reference-card:hover,
+.question-reference:hover {
+    box-shadow: 0 8px 24px -4px rgb(0 0 0 / 0.15);
 }
 
 .reference-card h3,
 .question-reference h3 {
-    margin: 0 0 1rem 0;
-    font-size: 1rem;
-    font-weight: 700;
+    margin: 0 0 1.5rem 0;
+    font-size: 1.15rem;
+    font-weight: 800;
     color: #1e293b;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid #f1f5f9;
 }
 
 .outline-item {
@@ -90,23 +101,31 @@
 
 .question-img {
     width: 100%;
-    max-width: 450px;
-    border-radius: 12px;
-    margin-bottom: 1rem;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    max-width: 800px;
+    border-radius: 16px;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
     transition: all 0.3s ease;
     cursor: pointer;
+    border: 2px solid #e2e8f0;
 }
 
 .question-img:hover {
-    transform: scale(1.05);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    transform: scale(1.2);
+    translate: -17rem;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+    border-color: #d03939;
 }
 
 .question-reference p {
-    color: #334155;
-    font-size: 0.875rem;
-    line-height: 1.6;
+    color: #1e293b;
+    font-size: 1rem;
+    line-height: 1.8;
+    font-weight: 500;
+    background: #f8fafc;
+    padding: 1.25rem;
+    border-radius: 12px;
+    border-left: 4px solid #d03939;
 }
 
 /* Middle Panel */
@@ -392,6 +411,16 @@
     border-radius: 6px;
     font-size: 0.75rem;
     font-weight: 600;
+}
+
+@media (max-width: 1600px) {
+    .scaffolding-container {
+        grid-template-columns: 300px 1fr 700px;
+    }
+
+    .question-img {
+        max-width: 680px;
+    }
 }
 
 @media (max-width: 1400px) {

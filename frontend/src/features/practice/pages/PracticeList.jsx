@@ -77,6 +77,13 @@ export default function PracticeList() {
                     className="form-input"
                     style={{ flex: 1, minWidth: '200px', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}
                 />
+                <Link
+                    to="/learn/skills"
+                    className="btn-manage-add"
+                    style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}
+                >
+                    Skill Workshop
+                </Link>
                 <div className="filter-buttons" style={{ display: 'flex', gap: '0.5rem' }}>
                     {['all', 'task1', 'task2'].map(type => (
                         <button

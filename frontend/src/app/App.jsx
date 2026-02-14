@@ -29,6 +29,7 @@ const Vocabulary = lazy(() => import('@/features/vocabulary/pages/Vocabulary'));
 const ScoreDashboard = lazy(() => import('@/features/admin/pages/ScoreDashboard'));
 const UserScoreDetail = lazy(() => import('@/features/admin/pages/UserScoreDetail'));
 const WritingAIResult = lazy(() => import('@/features/practice/pages/WritingAIResult'));
+const SkillWorkshopPage = lazy(() => import('@/features/practice/pages/SkillWorkshopPage'));
 const StudyPlanSetup = lazy(() => import('@/features/study-plan/pages/StudyPlanSetup'));
 const StudyPlanFullView = lazy(() => import('@/features/study-plan/pages/StudyPlanFullView'));
 const AnalyticsDashboard = lazy(() => import('@/features/analytics/pages/AnalyticsDashboard'));
@@ -98,6 +99,7 @@ export default function App() {
           {/* <Route path="practice" element={<Navigate to="/tests" replace />} /> Redirect old practice to tests */}
           <Route path="practice" element={<ProtectedRoute>{withSuspense(<PracticeList />)}</ProtectedRoute>} />
           <Route path="practice/:id" element={<ProtectedRoute>{withSuspense(<PracticeFlowContainer />)}</ProtectedRoute>} />
+          <Route path="learn/skills" element={<ProtectedRoute>{withSuspense(<SkillWorkshopPage />)}</ProtectedRoute>} />
 
           <Route path="speaking" element={<ProtectedRoute>{withSuspense(<SpeakingList />)}</ProtectedRoute>} />
           <Route path="practice/speaking/:id" element={<ProtectedRoute>{withSuspense(<SpeakingFlow />)}</ProtectedRoute>} />

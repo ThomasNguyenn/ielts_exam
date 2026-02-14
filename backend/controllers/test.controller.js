@@ -454,20 +454,37 @@ function getCorrectAnswersList(test, examType) {
 export const submitExam = async (req, res) => {
     const { id } = req.params;
     const { answers, writing, timeTaken } = req.body || {};
-    if (!Array.isArray(answers)) {
-        return res.status(400).json({ success: false, message: "answers must be an array" });
-    }
     try {
-        const test = await Test.findById(id)
+        let test = await Test.findById(id)
             .populate('reading_passages')
             .populate('listening_sections')
             .populate('writing_tasks')
             .lean();
-        if (!test) {
-            return res.status(404).json({ success: false, message: "Test not found" });
-        }
-        const examType = test.type || 'reading';
 
+        if (!test) {
+            // Fallback for standalone writing tasks loaded via /api/tests/:id/exam
+            const Writing = (await import("../models/Writing.model.js")).default;
+            const standaloneWritingTask = await Writing.findById(id).lean();
+            if (!standaloneWritingTask) {
+                return res.status(404).json({ success: false, message: "Test or Writing task not found" });
+            }
+
+            test = {
+                _id: standaloneWritingTask._id,
+                type: 'writing',
+                reading_passages: [],
+                listening_sections: [],
+                writing_tasks: [standaloneWritingTask],
+            };
+        }
+
+        const examType = test.type || 'reading';
+        const safeAnswers = Array.isArray(answers) ? answers : [];
+        const safeWriting = Array.isArray(writing) ? writing : [];
+
+        if (examType !== 'writing' && !Array.isArray(answers)) {
+            return res.status(400).json({ success: false, message: "answers must be an array" });
+        }
 
 
         const userId = req.user?.userId;
@@ -490,17 +507,20 @@ export const submitExam = async (req, res) => {
         }
 
         // Save writing submissions if this is a writing test
-        if (examType === 'writing' && writing && Array.isArray(writing) && writing.length > 0) {
-            const writingAnswers = writing.map((answer, index) => {
-                const task = test.writing_tasks[index];
-                const wordCount = answer.trim() ? answer.trim().split(/\s+/).length : 0;
+        if (examType === 'writing' && safeWriting.length > 0) {
+            const writingAnswers = safeWriting.map((answer, index) => {
+                const task = test.writing_tasks?.[index];
+                const answerText = typeof answer === "string" ? answer : String(answer ?? "");
+                const trimmed = answerText.trim();
+                if (!task || !trimmed) return null;
+                const wordCount = trimmed.split(/\s+/).length;
                 return {
-                    task_id: task._id,
-                    task_title: task.title,
-                    answer_text: answer,
+                    task_id: task._id || task.id || String(task),
+                    task_title: task.title || `Task ${index + 1}`,
+                    answer_text: answerText,
                     word_count: wordCount,
                 };
-            }).filter(w => w.answer_text.trim()); // Only save non-empty answers
+            }).filter(Boolean); // Only save valid non-empty answers
 
             // We must save writing submission if it's a writing test, even if it's practice mode, 
             // because AI scoring needs a submission ID.
@@ -524,7 +544,7 @@ export const submitExam = async (req, res) => {
         const correctList = getCorrectAnswersList(test, examType);
         const total = correctList.length;
         let score = 0;
-        const userNormalized = answers.map((a) => normalizeAnswer(a));
+        const userNormalized = safeAnswers.map((a) => normalizeAnswer(a));
 
         // Build detailed question review data
         const questionReview = [];
@@ -532,16 +552,18 @@ export const submitExam = async (req, res) => {
             if (!item || !item.question_groups) return;
             let qIndex = questionReview.length;
             for (const g of item.question_groups) {
+                const groupQuestions = Array.isArray(g.questions) ? g.questions : [];
+
                 // SPECIAL LOGIC: Multi-select (Choose N) - Order Independent Grading
-                if (g.type === 'mult_choice' && g.questions.length > 1) {
+                if (g.type === 'mult_choice' && groupQuestions.length > 1) {
                     // 1. Build Pool of needed answers (array of arrays of valid synonyms)
                     // e.g. [ ['a'], ['c'] ]
                     let groupCorrectPool = [];
-                    g.questions.forEach(q => {
+                    groupQuestions.forEach(q => {
                         groupCorrectPool.push((q.correct_answers || []).map(normalizeAnswer));
                     });
 
-                    for (const q of g.questions || []) {
+                    for (const q of groupQuestions) {
                         const userAnswer = qIndex < userNormalized.length ? userNormalized[qIndex] : "";
                         let isCorrect = false;
 
@@ -564,7 +586,7 @@ export const submitExam = async (req, res) => {
                             question_number: q.q_number,
                             type: g.type,
                             question_text: q.text,
-                            your_answer: answers[qIndex] || "",
+                            your_answer: safeAnswers[qIndex] || "",
                             correct_answer: finalCorrectAnswer,
                             options: (q.option && q.option.length > 0) ? q.option : (g.options || []),
                             headings: g.headings || [],
@@ -577,7 +599,7 @@ export const submitExam = async (req, res) => {
 
                 } else {
                     // STANDARD LOGIC
-                    for (const q of g.questions || []) {
+                    for (const q of groupQuestions) {
                         const correctOptions = correctList[qIndex] || [];
                         const userAnswer = qIndex < userNormalized.length ? userNormalized[qIndex] : "";
                         let isCorrect = correctOptions.length && correctOptions.includes(userAnswer);
@@ -625,7 +647,7 @@ export const submitExam = async (req, res) => {
                             question_number: q.q_number,
                             type: g.type,
                             question_text: q.text,
-                            your_answer: answers[qIndex] || "",
+                            your_answer: safeAnswers[qIndex] || "",
                             correct_answer: finalCorrectAnswer,
                             options: (q.option && q.option.length > 0) ? q.option : (g.options || []),
                             headings: g.headings || [], // Include headings for matching questions
@@ -720,12 +742,13 @@ export const submitExam = async (req, res) => {
                 writingCount,
                 question_review: questionReview,
                 timeTaken: typeof timeTaken === 'number' ? timeTaken : 0,
-                writing_answers: examType === 'writing' ? writing : [],
+                writing_answers: examType === 'writing' ? safeWriting : [],
                 xpResult, // Return XP gain info
                 writingSubmissionId: res.locals.writingSubmissionId || null, // Return submission ID for AI redirect
             },
         });
     } catch (error) {
+        console.error("submitExam error:", error);
         res.status(500).json({ success: false, message: "Server Error" });
     }
 };

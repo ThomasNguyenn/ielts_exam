@@ -33,7 +33,7 @@ export default function Layout() {
   // Hide header on exam pages for full-screen experience
   const isExamPage = location.pathname.includes('/exam');
   // Use wide layout for practice pages
-  const isPracticePage = location.pathname.includes('/practice');
+  const isPracticePage = location.pathname.includes('/practice') || location.pathname.includes('/learn/skills');
   // Use full width layout for manage pages and test list
   const isManagePage = location.pathname.includes('/manage') || location.pathname === '/tests';
 
@@ -61,6 +61,10 @@ export default function Layout() {
               Luyện viết
             </NavLink>
 
+            <NavLink to="/learn/skills" className={() => `nav-item ${location.pathname.includes('/learn/skills') ? 'active' : ''}`}>
+              Lí Thuyết
+            </NavLink>
+
             <NavLink to="/speaking" className={`nav-item ${location.pathname.includes('/speaking') ? 'active' : ''}`}>
               Luyện nói
             </NavLink>
@@ -76,7 +80,7 @@ export default function Layout() {
                   Profile
                 </NavLink>
                 <NavLink to="/analytics" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-                  Deep Analytics 📊
+                  Phân Tích Sâu 📊
                 </NavLink>
               </>
             )}
@@ -90,6 +94,10 @@ export default function Layout() {
                 <NavLink to="/scores" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
                   Kết Quả
                 </NavLink>
+              </>
+            )}
+            {(user?.role === 'admin') && (
+              <>
                 <NavLink to="/manage" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
                   Quản Lý
                 </NavLink>

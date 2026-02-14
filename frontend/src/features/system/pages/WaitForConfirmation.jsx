@@ -7,6 +7,7 @@ export default function WaitForConfirmation() {
   const navigate = useNavigate();
   const user = api.getUser();
   const [isChecking, setIsChecking] = useState(false);
+  const [checkError, setCheckError] = useState('');
 
   useEffect(() => {
     if (!user?.isConfirmed) return undefined;
@@ -25,10 +26,26 @@ export default function WaitForConfirmation() {
 
   const handleCheckStatus = async () => {
     setIsChecking(true);
-    // Simulate a brief check for UX
-    setTimeout(() => {
-        window.location.reload();
-    }, 800);
+    setCheckError('');
+
+    try {
+      const res = await api.getProfile();
+      const latestUser = res?.data?.user || res?.data;
+
+      if (!latestUser) {
+        throw new Error('Không thể lấy thông tin tài khoản');
+      }
+
+      api.setUser(latestUser);
+
+      if (latestUser.isConfirmed) {
+        navigate('/', { replace: true });
+      }
+    } catch (err) {
+      setCheckError(err.message || 'Không thể kiểm tra trạng thái. Vui lòng thử lại.');
+    } finally {
+      setIsChecking(false);
+    }
   };
 
   if (user?.isConfirmed) {
@@ -91,6 +108,11 @@ export default function WaitForConfirmation() {
           </button>
         </div>
         
+        {checkError ? (
+          <p className="support-text" style={{ marginTop: '1rem', color: '#d32f2f' }}>
+            {checkError}
+          </p>
+        ) : null}
         <p className="support-text">
             Nếu bạn tin rằng đây là một lỗi, vui lòng liên hệ với quản trị viên của bạn.
         </p>
