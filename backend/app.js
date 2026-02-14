@@ -20,6 +20,9 @@ import speakingRoutes from "./routes/speaking.routes.js";
 import contentGenRoutes from "./routes/contentGen.route.js";
 import studyPlanRoutes from "./routes/studyPlan.routes.js";
 import analyticsRoutes from "./routes/analytics.routes.js";
+import skillsRoutes from "./routes/skills.routes.js";
+import progressRoutes from "./routes/progress.routes.js";
+import modelEssayRoutes from "./routes/modelEssay.routes.js";
 
 const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
 
@@ -211,6 +214,9 @@ export const createApp = ({ startBackgroundJobs = true } = {}) => {
   app.use("/api/content-gen", contentGenRoutes);
   app.use("/api/study-plan", studyPlanRoutes);
   app.use("/api/analytics", analyticsRoutes);
+  app.use("/api/skills", skillsRoutes);
+  app.use("/api/progress", progressRoutes);
+  app.use("/api/model-essays", modelEssayRoutes);
 
   const uploadDir = ensureUploadDirectory();
   app.use("/uploads", express.static(uploadDir));

@@ -1,0 +1,134 @@
+/* New Practice Flow Header Styles */
+.new-practice-flow {
+    min-height: 100vh;
+    background: #fafafa;
+}
+
+.practice-flow-header {
+    background: white;
+    border-bottom: 2px solid #e2e8f0;
+    padding: 2rem;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    box-shadow: 0 2px 4px rgb(0 0 0 / 0.05);
+}
+
+.practice-flow-progress {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.phase-steps {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+}
+
+.phase-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    position: relative;
+    flex: 1;
+}
+
+.phase-step-icon {
+    width: 60px;
+    height: 60px;
+    background: #f1f5f9;
+    color: #94a3b8;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.75rem;
+    transition: all 0.3s;
+    border: 3px solid #e2e8f0;
+    z-index: 2;
+}
+
+.phase-step.active .phase-step-icon {
+    background: linear-gradient(135deg, #d03939 0%, #f87171 100%);
+    color: white;
+    border-color: #d03939;
+    box-shadow: 0 4px 12px rgb(208 57 57 / 0.3);
+    transform: scale(1.1);
+}
+
+.phase-step.completed .phase-step-icon {
+    background: #10b981;
+    color: white;
+    border-color: #10b981;
+}
+
+.phase-step-name {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #64748b;
+    text-align: center;
+}
+
+.phase-step.active .phase-step-name {
+    color: #d03939;
+    font-weight: 700;
+}
+
+.phase-step.completed .phase-step-name {
+    color: #10b981;
+}
+
+.phase-connector {
+    position: absolute;
+    top: 30px;
+    left: 60%;
+    right: -40%;
+    height: 3px;
+    background: #e2e8f0;
+    z-index: 1;
+    transition: background 0.3s;
+}
+
+.phase-connector.completed {
+    background: #10b981;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .practice-flow-header {
+        padding: 1rem;
+    }
+
+    .phase-steps {
+        gap: 0.5rem;
+    }
+
+    .phase-step-icon {
+        width: 48px;
+        height: 48px;
+        font-size: 1.25rem;
+    }
+
+    .phase-step-name {
+        font-size: 0.75rem;
+    }
+
+    .phase-connector {
+        top: 24px;
+        height: 2px;
+    }
+}
+
+@media (max-width: 480px) {
+    .phase-step-name {
+        display: none;
+    }
+
+    .phase-step-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 1rem;
+    }
+}

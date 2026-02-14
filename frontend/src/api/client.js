@@ -301,4 +301,26 @@ export const api = {
       headers: { 'Content-Type': undefined } // Let browser set boundary
     });
   },
+
+  // Skill Modules (New Practice Flow)
+  getSkillModules: () => request('/api/skills/modules'),
+  getSkillModule: (id) => request(`/api/skills/modules/${id}`),
+  completeSkillModule: (id) => request(`/api/skills/modules/${id}/complete`, { method: 'POST' }),
+  submitSkillQuiz: (id, answers) => request(`/api/skills/modules/${id}/quiz`, { method: 'POST', body: JSON.stringify({ answers }) }),
+
+  // Student Progress (New Practice Flow)
+  getMyProgress: () => request('/api/progress/me'),
+  getSkillBreakdown: () => request('/api/progress/skills'),
+  updateSkillScores: (skillScores) => request('/api/progress/update-skills', { method: 'POST', body: JSON.stringify({ skillScores }) }),
+  markModuleComplete: (moduleId, quizScore) => request('/api/progress/module-complete', { method: 'POST', body: JSON.stringify({ moduleId, quizScore }) }),
+  getBadges: () => request('/api/progress/badges'),
+  getStreak: () => request('/api/progress/streak'),
+
+  // Model Essays (New Practice Flow)
+  getModelEssays: (params = {}) => {
+    const query = toQueryString(params);
+    return request(`/api/model-essays${query ? `?${query}` : ''}`);
+  },
+  getModelEssay: (id) => request(`/api/model-essays/${id}`),
+  submitEssayAnalysis: (id, taskType, answer) => request(`/api/model-essays/${id}/analyze`, { method: 'POST', body: JSON.stringify({ taskType, answer }) }),
 };

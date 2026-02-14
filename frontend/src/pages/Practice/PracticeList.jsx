@@ -112,15 +112,9 @@ export default function PracticeList() {
                             {t.prompt}
                         </p>
 
-                        {(t.task_type === 'task1' || t.task_type === 1) ? (
-                            <button className="btn btn-secondary" disabled style={{ textAlign: 'center', opacity: 0.6, cursor: 'not-allowed', borderRadius: '8px' }}>
-                                Đang bảo trì
-                            </button>
-                        ) : (
-                            <Link to={`/practice/${t._id}`} className="btn-sidebar-start" style={{ textDecoration: 'none' }}>
-                                Bắt đầu luyện tập
-                            </Link>
-                        )}
+                        <Link to={`/practice/${t._id}`} className="btn-sidebar-start" style={{ textDecoration: 'none' }}>
+                            Bắt đầu luyện tập
+                        </Link>
                     </div>
                 ))}
             </div>

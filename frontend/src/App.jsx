@@ -20,7 +20,7 @@ const Register = lazy(() => import('./pages/Register'));
 const Profile = lazy(() => import('./pages/Profile'));
 const GradingDashboard = lazy(() => import('./pages/manage/GradingDashboard'));
 const GradingInterface = lazy(() => import('./pages/manage/GradingInterface'));
-const PracticeFlow = lazy(() => import('./pages/Practice/PracticeFlow'));
+const PracticeFlowContainer = lazy(() => import('./pages/Practice/EnhancedPracticeFlow')); // Renovated 5-phase flow
 const SpeakingFlow = lazy(() => import('./pages/Practice/SpeakingFlow'));
 const PracticeList = lazy(() => import('./pages/Practice/PracticeList'));
 const SpeakingList = lazy(() => import('./pages/Practice/SpeakingList'));
@@ -96,7 +96,7 @@ export default function App() {
 
           {/* <Route path="practice" element={<Navigate to="/tests" replace />} /> Redirect old practice to tests */}
           <Route path="practice" element={<ProtectedRoute>{withSuspense(<PracticeList />)}</ProtectedRoute>} />
-          <Route path="practice/:id" element={<ProtectedRoute>{withSuspense(<PracticeFlow />)}</ProtectedRoute>} />
+          <Route path="practice/:id" element={<ProtectedRoute>{withSuspense(<PracticeFlowContainer />)}</ProtectedRoute>} />
 
           <Route path="speaking" element={<ProtectedRoute>{withSuspense(<SpeakingList />)}</ProtectedRoute>} />
           <Route path="practice/speaking/:id" element={<ProtectedRoute>{withSuspense(<SpeakingFlow />)}</ProtectedRoute>} />
