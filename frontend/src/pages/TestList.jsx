@@ -2,7 +2,10 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import TestCardSkeleton from '../components/TestCardSkeleton';
+import PaginationControls from '../components/PaginationControls';
 import './TestList.css';
+
+const PAGE_SIZE = 12;
 
 function getTestDescription(test) {
   const readingCount = test.reading_passages?.length || 0;
@@ -107,34 +110,49 @@ export default function TestList() {
   const [viewMode, setViewMode] = useState('full'); // 'full' | 'parts'
   const [searchQuery, setSearchQuery] = useState('');
   const [attemptSummary, setAttemptSummary] = useState({});
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pagination, setPagination] = useState(null);
   const isLoggedIn = api.isAuthenticated();
 
   useEffect(() => {
     setSelectedCategory('all');
     setSelectedPartFilter('all');
+    setCurrentPage(1);
   }, [selectedType]);
 
   useEffect(() => {
     setLoading(true);
     setError(null);
+
     api
-      .getTests()
-      .then((res) => setTests(res.data || []))
+      .getTests({
+        page: currentPage,
+        limit: PAGE_SIZE,
+        type: selectedType !== 'all' ? selectedType : undefined,
+        category: selectedCategory !== 'all' ? selectedCategory : undefined,
+        q: searchQuery.trim() || undefined,
+      })
+      .then((res) => {
+        setTests(res.data || []);
+        setPagination(res.pagination || null);
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
+  }, [currentPage, selectedType, selectedCategory, searchQuery]);
 
-    if (isLoggedIn) {
-      api
-        .getMyAttemptSummary()
-        .then((attemptsRes) => {
-          const map = {};
-          (attemptsRes.data || []).forEach((row) => {
-            map[row.test_id] = row;
-          });
-          setAttemptSummary(map);
-        })
-        .catch(() => { });
-    }
+  useEffect(() => {
+    if (!isLoggedIn) return;
+
+    api
+      .getMyAttemptSummary()
+      .then((attemptsRes) => {
+        const map = {};
+        (attemptsRes.data || []).forEach((row) => {
+          map[row.test_id] = row;
+        });
+        setAttemptSummary(map);
+      })
+      .catch(() => { });
   }, [isLoggedIn]);
 
   if (loading) {
@@ -335,7 +353,10 @@ export default function TestList() {
                   name="test-type-filter"
                   value={type}
                   checked={selectedType === type}
-                  onChange={() => setSelectedType(type)}
+                  onChange={() => {
+                    setSelectedType(type);
+                    setCurrentPage(1);
+                  }}
                 />
                 <span>{type === 'all' ? 'All skills' : type[0].toUpperCase() + type.slice(1)}</span>
               </label>
@@ -404,12 +425,18 @@ export default function TestList() {
               className="test-search-input"
               placeholder={viewMode === 'full' ? "Search tests..." : "Search passages/sections..."}
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
             />
             {searchQuery && (
               <button
                 className="search-clear-btn"
-                onClick={() => setSearchQuery('')}
+                onClick={() => {
+                  setSearchQuery('');
+                  setCurrentPage(1);
+                }}
                 aria-label="Clear search"
               >
                 x
@@ -421,15 +448,21 @@ export default function TestList() {
           <div className="test-category-filter">
             <button
               className={`category-btn ${selectedCategory === 'all' ? 'active' : ''}`}
-              onClick={() => setSelectedCategory('all')}
+              onClick={() => {
+                setSelectedCategory('all');
+                setCurrentPage(1);
+              }}
             >
-              All {viewMode === 'full' ? 'Tests' : 'Parts'} ({viewMode === 'full' ? typeFilteredTests.length : flattenedParts.length})
+              All {viewMode === 'full' ? 'Tests' : 'Parts'} ({viewMode === 'full' ? (pagination?.totalItems ?? typeFilteredTests.length) : flattenedParts.length})
             </button>
             {categories.map((cat) => (
               <button
                 key={cat}
                 className={`category-btn ${selectedCategory === cat ? 'active' : ''}`}
-                onClick={() => setSelectedCategory(cat)}
+                onClick={() => {
+                  setSelectedCategory(cat);
+                  setCurrentPage(1);
+                }}
               >
                 {cat} ({categoryCounts[cat] || 0})
               </button>
@@ -532,6 +565,13 @@ export default function TestList() {
                 </div>
               ))
           )}
+
+          <PaginationControls
+            pagination={pagination}
+            loading={loading}
+            itemLabel={viewMode === 'full' ? 'tests' : 'tests'}
+            onPageChange={setCurrentPage}
+          />
         </section>
       </div >
     </div >

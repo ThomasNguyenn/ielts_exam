@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import Speaking from "../models/Speaking.model.js";
 import SpeakingSession from "../models/SpeakingSession.js";
+import cloudinary from "../utils/cloudinary.js";
 import { requestGeminiJsonWithFallback } from "../utils/aiClient.js";
 
 dotenv.config();
@@ -92,6 +93,36 @@ const buildFallbackAnalysis = (clientTranscript) => ({
   general_feedback: "He thong tam thoi khong cham duoc bai noi. Bai nop van da duoc luu.",
   sample_answer: "N/A",
 });
+
+const cleanupSessionAudioFromCloudinary = async (session) => {
+  const publicId = String(session?.audioPublicId || "").trim();
+  if (!publicId) return;
+
+  try {
+    const destroyResult = await cloudinary.uploader.destroy(publicId, {
+      resource_type: "video",
+      invalidate: true,
+    });
+
+    const result = String(destroyResult?.result || "").toLowerCase();
+    if (result === "ok" || result === "not found") {
+      session.audioDeletedAt = new Date();
+      session.audioPublicId = null;
+      await session.save();
+      return;
+    }
+
+    console.warn("Cloudinary audio cleanup returned unexpected result:", {
+      publicId,
+      result: destroyResult?.result,
+    });
+  } catch (cleanupError) {
+    console.warn("Cloudinary audio cleanup failed:", {
+      publicId,
+      error: cleanupError.message,
+    });
+  }
+};
 
 const buildStrictSpeakingPrompt = ({
   topicPrompt,
@@ -230,6 +261,7 @@ export const scoreSpeakingSessionById = async ({ sessionId, force = false } = {}
   session.status = "completed";
   session.ai_source = aiSource;
   await session.save();
+  await cleanupSessionAudioFromCloudinary(session);
 
   return {
     session,

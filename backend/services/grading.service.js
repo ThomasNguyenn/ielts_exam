@@ -8,16 +8,16 @@ const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
 const hasOpenAiCredentials = Boolean(OPENAI_API_KEY);
 
 const OPENAI_MODELS = [
-    process.env.OPENAI_PRIMARY_MODEL || "gpt-4o",
-    process.env.OPENAI_FALLBACK_MODEL || "gpt-4o-mini",
+  process.env.OPENAI_PRIMARY_MODEL || "gpt-4o",
+  process.env.OPENAI_FALLBACK_MODEL || "gpt-4o-mini",
 ];
 
 export const gradeEssay = async (promptText, essayText, taskType = 'task2', imageUrl = null) => {
-    let systemPrompt = '';
-    let userMessageContent = [];
+  let systemPrompt = '';
+  let userMessageContent = [];
 
-    if (taskType === 'task1') {
-        systemPrompt = `Hãy đóng vai một giám khảo IELTS Writing Task 1 (Band 8.0+), có ít nhất 10 năm kinh nghiệm,
+  if (taskType === 'task1') {
+    systemPrompt = `Hãy đóng vai một giám khảo IELTS Writing Task 1 (Band 8.0+), có ít nhất 10 năm kinh nghiệm,
 và chấm theo Band Descriptors chính thức của IELTS.
 
 ĐỀ BÀI (Topic):
@@ -74,20 +74,20 @@ Lưu ý: Vẫn dùng key "task_response" trong JSON để chứa nội dung "Tas
   "sample_essay": "string (Viết bài mẫu Band 8.0 cho Task 1 này)"
 }
 `;
-        // Prepare message content for Task 1 (potentially with image)
-        userMessageContent.push({ type: "text", text: systemPrompt });
-        if (imageUrl) {
-            userMessageContent.push({
-                type: "image_url",
-                image_url: {
-                    "url": imageUrl,
-                },
-            });
-        }
+    // Prepare message content for Task 1 (potentially with image)
+    userMessageContent.push({ type: "text", text: systemPrompt });
+    if (imageUrl) {
+      userMessageContent.push({
+        type: "image_url",
+        image_url: {
+          "url": imageUrl,
+        },
+      });
+    }
 
-    } else {
-        // DEFAULT: TASK 2 Logic
-        systemPrompt = `Hãy đóng vai một giám khảo IELTS Writing Task 2 (Band 8.0+), có ít nhất 10 năm kinh nghiệm,
+  } else {
+    // DEFAULT: TASK 2 Logic
+    systemPrompt = `Hãy đóng vai một giám khảo IELTS Writing Task 2 (Band 8.0+), có ít nhất 10 năm kinh nghiệm,
 và chấm theo Band Descriptors chính thức của IELTS.
 
 ĐỀ BÀI (Topic):
@@ -102,6 +102,98 @@ Bạn phải phân tích bài viết theo 4 tiêu chí IELTS:
 3) Lexical Resource (LR)
 4) Grammatical Range & Accuracy (GRA)
 
+Task Response (TR)
+
+What it checks:
+Did you fully answer all parts of the question?
+Is your position clear throughout?
+Are ideas developed and supported?
+
+High Band (7–9):
+Fully addresses all parts of the task
+Clear, consistent position
+Ideas are well-developed and extended with relevant examples
+
+Mid Band (5–6):
+Addresses the task but may miss some parts
+Position is present but may be unclear at times
+Ideas are relevant but not fully developed
+
+Low Band (4 and below):
+Partially addresses the task
+Position unclear or inconsistent
+Ideas lack development or support
+
+2️⃣ Coherence and Cohesion (CC)
+
+What it checks:
+Logical organization of ideas
+Clear paragraphing
+Appropriate use of linking words
+Clear referencing
+
+High Band (7–9):
+Ideas logically organized
+Clear progression throughout
+Skillful use of cohesive devices
+Clear paragraph structure
+
+Mid Band (5–6):
+Generally organized
+Some problems with linking or repetition
+Paragraphing may be inconsistent
+
+Low Band (4 and below):
+Difficult to follow
+Poor organization
+Overuse or misuse of linking words
+
+3️⃣ Lexical Resource (LR)
+
+What it checks:
+Vocabulary range
+Accuracy
+Collocations
+Spelling
+
+High Band (7–9):
+Wide range of vocabulary
+Precise word choice
+Natural collocations
+Rare minor errors
+
+Mid Band (5–6):
+Adequate vocabulary for the task
+Some repetition
+Noticeable word choice errors
+
+Low Band (4 and below):
+Limited vocabulary
+Frequent errors
+Meaning may be unclear
+
+4️⃣ Grammatical Range and Accuracy (GRA)
+
+What it checks:
+Variety of sentence structures
+Accuracy of grammar
+Punctuation
+
+High Band (7–9):
+Wide range of complex structures
+Majority error-free sentences 
+Good control of punctuation
+
+Mid Band (5–6):
+Mix of simple and complex sentences
+Frequent grammatical errors
+Errors may reduce clarity
+
+Low Band (4 and below):
+Mostly simple sentences
+Frequent errors
+Hard to understand
+
 ━━━━━━━━━━━━━━━━━━━━━━
 YÊU CẦU RẤT QUAN TRỌNG (BẮT BUỘC)
 ━━━━━━━━━━━━━━━━━━━━━━
@@ -110,7 +202,7 @@ A) Mỗi tiêu chí phải trả về là MỘT ARRAY riêng (không lồng tron
 B) Mỗi tiêu chí phải cố gắng tìm ÍT NHẤT 10 lỗi/điểm cần cải thiện. 
    - Nếu một tiêu chí không đủ 10 mục, bắt buộc ghi rõ trong explanation: 
      "Không đủ 10 vì bài không có thêm ví dụ/đoạn liên quan tiêu chí này.
-      Và đặc biệt lỗi về Grammar và Accuracy thì phải tìm thật kỹ ít nhất 20 lỗi"
+      Và đặc biệt lỗi về Grammar và Accuracy và Lexical Resource thì phải tìm thật kỹ ít nhất 20 lỗi"
 C) SOI KỸ NHẤT tiêu chí GRA: 
    - Ưu tiên phát hiện lỗi ngữ pháp cơ bản + lỗi lặp lại + lỗi gây khó hiểu.
    - Cố gắng tách lỗi nhỏ thành từng mục (ví dụ: 1 câu có 3 lỗi → tách 3 mục).
@@ -195,42 +287,42 @@ OUTPUT: CHỈ TRẢ JSON HỢP LỆ
   "sample_essay": "string (Viết một bài mẫu Band 8.0 hoàn chỉnh theo đề bài ${promptText})"
 }
 `;
-        userMessageContent.push({ type: "text", content: systemPrompt });
-    }
+    userMessageContent.push({ type: "text", content: systemPrompt });
+  }
 
-    try {
-        if (!hasOpenAiCredentials) {
-            throw new Error("OpenAI API key is not configured");
-        }
-        const aiResult = await requestOpenAIJsonWithFallback({
-            openai,
-            models: OPENAI_MODELS,
-            createPayload: (model) => ({
-                model,
-                messages: [{ role: "user", content: userMessageContent.length > 0 && taskType === 'task1' ? userMessageContent : systemPrompt }],
-                max_tokens: 4096,
-                response_format: { type: "json_object" },
-            }),
-            timeoutMs: Number(process.env.OPENAI_TIMEOUT_MS || 60000),
-            maxAttempts: Number(process.env.OPENAI_MAX_ATTEMPTS || 3),
-        });
-        return aiResult.data;
-    } catch (error) {
-        console.error("gradeEssay AI fallback triggered:", error.message);
-        return {
-            band_score: 0,
-            criteria_scores: {
-                task_response: 0,
-                coherence_cohesion: 0,
-                lexical_resource: 0,
-                grammatical_range_accuracy: 0
-            },
-            task_response: [],
-            coherence_cohesion: [],
-            lexical_resource: [],
-            grammatical_range_accuracy: [],
-            feedback: ["He thong tam thoi khong cham duoc bai viet. Vui long thu lai sau."],
-            sample_essay: ""
-        };
+  try {
+    if (!hasOpenAiCredentials) {
+      throw new Error("OpenAI API key is not configured");
     }
+    const aiResult = await requestOpenAIJsonWithFallback({
+      openai,
+      models: OPENAI_MODELS,
+      createPayload: (model) => ({
+        model,
+        messages: [{ role: "user", content: userMessageContent.length > 0 && taskType === 'task1' ? userMessageContent : systemPrompt }],
+        max_tokens: 10000,
+        response_format: { type: "json_object" },
+      }),
+      timeoutMs: Number(process.env.OPENAI_TIMEOUT_MS || 60000),
+      maxAttempts: Number(process.env.OPENAI_MAX_ATTEMPTS || 3),
+    });
+    return aiResult.data;
+  } catch (error) {
+    console.error("gradeEssay AI fallback triggered:", error.message);
+    return {
+      band_score: 0,
+      criteria_scores: {
+        task_response: 0,
+        coherence_cohesion: 0,
+        lexical_resource: 0,
+        grammatical_range_accuracy: 0
+      },
+      task_response: [],
+      coherence_cohesion: [],
+      lexical_resource: [],
+      grammatical_range_accuracy: [],
+      feedback: ["He thong tam thoi khong cham duoc bai viet. Vui long thu lai sau."],
+      sample_essay: ""
+    };
+  }
 };

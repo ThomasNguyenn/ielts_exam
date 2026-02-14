@@ -104,6 +104,15 @@ export const validateWorkerEnvironment = ({ env = process.env } = {}) => {
   if (!hasGeminiKey) {
     console.warn("[env:worker] GEMINI_API_KEY is missing. Speaking AI jobs will run in fallback mode.");
   }
+
+  const hasCloudinaryConfig = Boolean(
+    env.CLOUDINARY_CLOUD_NAME &&
+    env.CLOUDINARY_API_KEY &&
+    env.CLOUDINARY_API_SECRET,
+  );
+  if (!hasCloudinaryConfig) {
+    console.warn("[env:worker] Cloudinary keys are missing. Speaking audio cleanup after scoring is disabled.");
+  }
 };
 
 export { REQUIRED_ENV_VARS };

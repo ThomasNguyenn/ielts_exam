@@ -1,24 +1,41 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { useNavigate } from 'react-router-dom';
 
-export default function StudyPlanSetup({ onCreated }) {
-    const [step, setStep] = useState(1);
+export default function StudyPlanSetup({ onCreated, mode = 'create', initialData = null }) {
     const [targetDate, setTargetDate] = useState('');
     const [targetBand, setTargetBand] = useState(6.5);
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
+    const isEditMode = mode === 'edit';
+
+    useEffect(() => {
+        if (!initialData) return;
+
+        const dateValue = initialData.targetDate
+            ? new Date(initialData.targetDate).toISOString().split('T')[0]
+            : '';
+
+        setTargetDate(dateValue);
+        setTargetBand(initialData.targetBand ?? 6.5);
+    }, [initialData]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
+
         try {
-            await api.createStudyPlan({ targetDate, targetBand });
+            if (isEditMode) {
+                await api.updateStudyPlan({ targetDate, targetBand });
+            } else {
+                await api.createStudyPlan({ targetDate, targetBand });
+            }
+
             if (onCreated) onCreated();
-            else navigate('/dashboard'); // Or wherever
+            else navigate('/dashboard');
         } catch (error) {
-            console.error("Failed to create plan", error);
-            alert("Lỗi khi tạo lộ trình: " + error.message);
+            console.error(`Failed to ${isEditMode ? 'update' : 'create'} plan`, error);
+            alert(`Lỗi khi ${isEditMode ? 'cập nhật' : 'tạo'} lộ trình: ${error.message}`);
         } finally {
             setLoading(false);
         }
@@ -44,7 +61,9 @@ export default function StudyPlanSetup({ onCreated }) {
                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Mục tiêu Band Score</label>
                     <input
                         type="number"
-                        min="0" max="9" step="0.5"
+                        min="0"
+                        max="9"
+                        step="0.5"
                         required
                         value={targetBand}
                         onChange={(e) => setTargetBand(Number(e.target.value))}
@@ -58,7 +77,9 @@ export default function StudyPlanSetup({ onCreated }) {
                     className="btn-primary"
                     style={{ width: '100%', padding: '1rem', borderRadius: '8px', background: '#3b82f6', color: 'white', border: 'none', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer' }}
                 >
-                    {loading ? 'Đang tạo lộ trình...' : 'Tạo lộ trình cá nhân hóa'}
+                    {loading
+                        ? (isEditMode ? 'Đang cập nhật lộ trình...' : 'Đang tạo lộ trình...')
+                        : (isEditMode ? 'Cập nhật lộ trình' : 'Tạo lộ trình cá nhân hóa')}
                 </button>
             </form>
         </div>

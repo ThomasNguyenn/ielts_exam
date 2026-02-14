@@ -58,9 +58,12 @@ export const updatePassage = async(req, res) => {
 export const deletePassage = async(req, res) => {
     const { id } = req.params;
     try{
-        await Passage.findByIdAndDelete(id);
-        res.status(201).json({ success: true, message: "Delete Success"});
+        const deletedPassage = await Passage.findByIdAndDelete(id);
+        if (!deletedPassage) {
+            return res.status(404).json({ success: false, message: "Passage not found" });
+        }
+        return res.status(200).json({ success: true, message: "Delete Success"});
     } catch (error){
-        res.status(404).json({ success: false, message: "Can not find and delete"});
+        return res.status(500).json({ success: false, message: "Server Error" });
     }
 };

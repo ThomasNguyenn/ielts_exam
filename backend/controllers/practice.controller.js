@@ -154,6 +154,9 @@ export const generateMaterials = async (req, res) => {
     try {
         const { questionId } = req.params;
         const question = await Writing.findById(questionId);
+        if (!question) {
+            return res.status(404).json({ success: false, message: "Question not found" });
+        }
 
         const prompt = `
       Topic: ${question.prompt}

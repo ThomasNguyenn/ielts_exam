@@ -57,11 +57,11 @@ export default function Layout() {
               Luyện tập
             </NavLink>
 
-            <NavLink to="/practice" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <NavLink to="/practice" className={() => `nav-item ${location.pathname.includes('/practice') && !location.pathname.includes('/speaking') ? 'active' : ''}`}>
               Luyện viết
             </NavLink>
 
-            <NavLink to="/speaking" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <NavLink to="/speaking" className={`nav-item ${location.pathname.includes('/speaking') ? 'active' : ''}`}>
               Luyện nói
             </NavLink>
 

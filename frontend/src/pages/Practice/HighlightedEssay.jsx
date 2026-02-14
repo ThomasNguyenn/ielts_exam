@@ -104,10 +104,10 @@ const HighlightedEssay = ({ essay, analysis, onHighlightClick, selectedCriterion
             <div className="highlighted-essay">
                 {(Array.isArray(processedContent) ? processedContent : []).map((part, index) => {
                     if (part.type === 'highlight') {
-                        let className = 'highlight-text';
-                        if (part.feedbackType === 'error') className += ' error';
-                        else if (part.feedbackType === 'good') className += ' good';
-                        else className += ' suggestion';
+                        let className = 'border-b-2 rounded px-0.5 cursor-pointer transition-colors duration-200';
+                        if (part.feedbackType === 'error') className += ' bg-red-100 border-red-400 text-red-900';
+                        else if (part.feedbackType === 'good') className += ' bg-emerald-100 border-emerald-400 text-emerald-900';
+                        else className += ' bg-blue-100 border-blue-400 text-blue-900';
 
                         return (
                             <span

@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { Link, useNavigate } from 'react-router-dom';
+import PaginationControls from '../components/PaginationControls';
+
+const PAGE_SIZE = 30;
 
 export default function StudyPlanFullView() {
     const navigate = useNavigate();
@@ -9,21 +12,28 @@ export default function StudyPlanFullView() {
     const [history, setHistory] = useState([]);
     const [view, setView] = useState('upcoming'); // 'upcoming' or 'history'
     const [loading, setLoading] = useState(true);
+    const [upcomingPage, setUpcomingPage] = useState(1);
+    const [historyPage, setHistoryPage] = useState(1);
+    const [upcomingPagination, setUpcomingPagination] = useState(null);
+    const [historyPagination, setHistoryPagination] = useState(null);
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [upcomingPage, historyPage]);
 
     const fetchData = async () => {
+        setLoading(true);
         try {
             const [planRes, historyRes] = await Promise.all([
-                api.getMyPlan(),
-                api.getStudyHistory()
+                api.getMyPlan({ page: upcomingPage, limit: PAGE_SIZE }),
+                api.getStudyHistory({ page: historyPage, limit: PAGE_SIZE })
             ]);
 
             setPlan(planRes.plan);
             setTasks(planRes.tasks || []);
             setHistory(historyRes.tasks || []);
+            setUpcomingPagination(planRes.pagination || null);
+            setHistoryPagination(historyRes.pagination || null);
             console.log("Tasks loaded in FullView:", planRes.tasks);
         } catch (error) {
             console.error("Error fetching data", error);
@@ -97,7 +107,7 @@ export default function StudyPlanFullView() {
                             cursor: 'pointer'
                         }}
                     >
-                        History ({history.length})
+                        History ({historyPagination?.totalItems ?? history.length})
                     </button>
                 </div>
             </div>
@@ -125,6 +135,19 @@ export default function StudyPlanFullView() {
                     ))
                 )}
             </div>
+
+            <PaginationControls
+                pagination={view === 'upcoming' ? upcomingPagination : historyPagination}
+                loading={loading}
+                itemLabel="tasks"
+                onPageChange={(nextPage) => {
+                    if (view === 'upcoming') {
+                        setUpcomingPage(nextPage);
+                    } else {
+                        setHistoryPage(nextPage);
+                    }
+                }}
+            />
         </div>
     );
 }

@@ -12,10 +12,9 @@ function WritingStepContent({ step, writingAnswers, setWritingAnswer }) {
     <div className={`writing-step-content ${hasImage ? 'writing-step-content--with-image' : ''}`}>
       <div className="writing-prompt">
         <h3 className="writing-prompt-title">{item.title}</h3>
-        <div
-          className="writing-prompt-text"
-          dangerouslySetInnerHTML={{ __html: (item.prompt || '').replace(/\n/g, '<br />') }}
-        />
+        <div className="writing-prompt-text" style={{ whiteSpace: 'pre-wrap' }}>
+          {item.prompt || ''}
+        </div>
         {hasImage && (
           <div className="writing-image-container">
             <img

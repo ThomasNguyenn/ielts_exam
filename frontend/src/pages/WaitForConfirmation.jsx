@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import './WaitForConfirmation.css';
@@ -7,6 +7,16 @@ export default function WaitForConfirmation() {
   const navigate = useNavigate();
   const user = api.getUser();
   const [isChecking, setIsChecking] = useState(false);
+
+  useEffect(() => {
+    if (!user?.isConfirmed) return undefined;
+
+    const timeoutId = setTimeout(() => {
+      navigate('/');
+    }, 2000);
+
+    return () => clearTimeout(timeoutId);
+  }, [navigate, user?.isConfirmed]);
 
   const handleLogout = () => {
     api.logout();
@@ -22,7 +32,6 @@ export default function WaitForConfirmation() {
   };
 
   if (user?.isConfirmed) {
-      setTimeout(() => navigate('/'), 2000);
       return (
           <div className="wait-confirmation-container">
               <div className="wait-card success-state">

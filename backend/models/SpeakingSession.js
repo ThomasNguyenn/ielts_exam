@@ -14,6 +14,8 @@ const SpeakingSessionSchema = new mongoose.Schema({
   
   // Audio & Transcript
   audioUrl: { type: String }, // Cloud URL (or local path for legacy records)
+  audioPublicId: { type: String, default: null },
+  audioDeletedAt: { type: Date, default: null },
   audioMimeType: { type: String },
   transcript: { type: String }, // Transcription from Groq Whisper
   ai_source: { type: String, default: null },

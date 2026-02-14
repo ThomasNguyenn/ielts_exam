@@ -1,13 +1,54 @@
 import React from 'react';
 
+const CircularProgress = ({ score, maxScore = 9, size = 120, strokeWidth = 8 }) => {
+    const radius = (size - strokeWidth) / 2;
+    const circumference = radius * 2 * Math.PI;
+    const progress = (score / maxScore) * circumference;
+
+    // Color logic based on score
+    let strokeColor = '#ef4444'; // red-500
+    if (score >= 4) strokeColor = '#f59e0b'; // amber-500
+    if (score >= 6) strokeColor = '#3b82f6'; // blue-500
+    if (score >= 7.5) strokeColor = '#10b981'; // emerald-500
+
+    return (
+        <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+            <svg width={size} height={size} className="transform -rotate-90">
+                <circle
+                    cx={size / 2}
+                    cy={size / 2}
+                    r={radius}
+                    stroke="#e5e7eb"
+                    strokeWidth={strokeWidth}
+                    fill="transparent"
+                />
+                <circle
+                    cx={size / 2}
+                    cy={size / 2}
+                    r={radius}
+                    stroke={strokeColor}
+                    strokeWidth={strokeWidth}
+                    fill="transparent"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={circumference - progress}
+                    strokeLinecap="round"
+                    className="transition-all duration-1000 ease-out"
+                />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-3xl font-bold" style={{ color: strokeColor }}>{score}</span>
+                <span className="text-xs text-gray-400 font-medium">BAND</span>
+            </div>
+        </div>
+    );
+};
+
 export default function SpeakingResultPhase({ result, topic, onRetry }) {
-    // Defensive check: Ensure result exists
     if (!result) return null;
 
     const { transcript } = result;
     let { analysis } = result;
 
-    // Normalization: specific check if analysis is a string (double-encoded JSON)
     if (typeof analysis === 'string') {
         try {
             analysis = JSON.parse(analysis);
@@ -17,15 +58,12 @@ export default function SpeakingResultPhase({ result, topic, onRetry }) {
         }
     }
 
-    // Ensure analysis is an object
     analysis = analysis || {};
 
-    // Safe Accessors with Defaults
     const safeAnalysis = {
         band_score: analysis.band_score || 0,
         general_feedback: analysis.general_feedback || "Không có nhận xét tổng quan.",
         sample_answer: analysis.sample_answer || "Chưa có bài mẫu.",
-        // Extract specific criteria to avoid iterating over unexpected keys
         criteria: {
             fluency_coherence: analysis.fluency_coherence || { score: 0, feedback: "N/A" },
             lexical_resource: analysis.lexical_resource || { score: 0, feedback: "N/A" },
@@ -34,63 +72,92 @@ export default function SpeakingResultPhase({ result, topic, onRetry }) {
         }
     };
 
-    const renderCriteria = (name, data) => {
-        // Guard against malformed data in criteria
-        if (!data || typeof data !== 'object') return null;
-
-        const displayName = {
-            fluency_coherence: "Fluency & Coherence",
-            lexical_resource: "Lexical Resource",
-            grammatical_range: "Grammatical Range",
-            pronunciation: "Pronunciation"
-        }[name] || name.replace(/_/g, ' & '); // Fallback formatting
-
-        return (
-            <div key={name} style={{ marginBottom: '1.5rem', padding: '1rem', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                    <h4 style={{ margin: 0, textTransform: 'capitalize' }}>{displayName}</h4>
-                    <span style={{ fontSize: '1.2rem', fontWeight: 800, color: '#3b82f6' }}>{data.score}</span>
-                </div>
-                <p style={{ margin: 0, color: '#64748b', fontSize: '0.95rem' }}>{data.feedback}</p>
-            </div>
-        );
+    const criteriaConfig = {
+        fluency_coherence: { label: "Fluency & Coherence", color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-100" },
+        lexical_resource: { label: "Lexical Resource", color: "text-purple-600", bg: "bg-purple-50", border: "border-purple-100" },
+        grammatical_range: { label: "Grammatical Range", color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-100" },
+        pronunciation: { label: "Pronunciation", color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-100" }
     };
 
     return (
-        <div className="result-phase">
-            <div className="overall-score" style={{ textAlign: 'center', marginBottom: '3rem', padding: '2rem', background: '#f0f9ff', borderRadius: '16px', border: '2px solid #bae6fd' }}>
-                <h2 style={{ marginBottom: '0.5rem' }}>Dự đoán Band Score</h2>
-                <div style={{ fontSize: '4rem', fontWeight: 900, color: '#0369a1' }}>{safeAnalysis.band_score}</div>
-                <p style={{ maxWidth: '600px', margin: '1rem auto 0', color: '#1e293b', fontWeight: 500 }}>{safeAnalysis.general_feedback}</p>
+        <div className="max-w-4xl mx-auto space-y-8 animate-fade-in pb-12">
+
+            {/* Overall Score Card */}
+            <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100 flex flex-col md:flex-row items-center gap-8">
+                <div className="flex-shrink-0">
+                    <CircularProgress score={safeAnalysis.band_score} />
+                </div>
+                <div className="flex-1 text-center md:text-left">
+                    <h2 className="text-xl font-bold text-slate-800 mb-2">Overall Feedback</h2>
+                    <p className="text-slate-600 leading-relaxed">
+                        {safeAnalysis.general_feedback}
+                    </p>
+                </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
-                <div className="transcript-section">
-                    <h3 style={{ borderBottom: '2px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem' }}>Bản ghi âm (Transcript)</h3>
-                    <div style={{ padding: '1.5rem', background: '#f8fafc', borderRadius: '12px', lineHeight: '1.8', color: '#334155', fontStyle: 'italic' }}>
-                        "{transcript || "(Không có nội dung)"}"
+            {/* Criteria Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {Object.entries(safeAnalysis.criteria).map(([key, data]) => {
+                    const config = criteriaConfig[key] || { label: key, color: "text-gray-600", bg: "bg-gray-50", border: "border-gray-100" };
+                    return (
+                        <div key={key} className={`p-6 rounded-xl border ${config.bg} ${config.border} transition-all hover:shadow-md`}>
+                            <div className="flex justify-between items-start mb-3">
+                                <h3 className={`font-bold text-sm uppercase tracking-wide ${config.color}`}>
+                                    {config.label}
+                                </h3>
+                                <div className={`px-3 py-1 rounded-full bg-white font-bold text-sm shadow-sm ${config.color}`}>
+                                    {data.score}
+                                </div>
+                            </div>
+                            <p className="text-sm text-slate-600 leading-relaxed">
+                                {data.feedback}
+                            </p>
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* Transcript & Model Answer Section */}
+            <div className="grid grid-cols-1 gap-8">
+                {/* Transcript */}
+                <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+                    <h3 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-3 mb-4 flex items-center gap-2">
+                        <span className="text-slate-400">🎤</span> Your Transcript
+                    </h3>
+                    <div className="p-4 bg-slate-50 rounded-xl text-slate-600 italic leading-relaxed text-sm">
+                        "{transcript || "No transcript available."}"
                     </div>
                 </div>
 
-                <div className="criteria-section">
-                    <h3 style={{ borderBottom: '2px solid #e2e8f0', paddingBottom: '0.5rem', marginBottom: '1rem' }}>Đánh giá chi tiết</h3>
-                    {/* Render specific keys specifically to avoid raw JSON leakage */}
-                    {Object.entries(safeAnalysis.criteria).map(([key, value]) => renderCriteria(key, value))}
+                {/* Model Answer */}
+                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-8 border border-emerald-100 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-4 opacity-10">
+                        <svg className="w-24 h-24 text-emerald-600" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 2L1 21h22L12 2zm0 3.516L20.297 19H3.703L12 5.516z" />
+                        </svg>
+                    </div>
+                    <h3 className="text-lg font-bold text-emerald-800 mb-4 flex items-center gap-2 relative z-10">
+                        <span className="bg-emerald-200 text-emerald-800 text-xs px-2 py-1 rounded uppercase tracking-wider font-extrabold">Band 8.0+</span>
+                        Model Answer
+                    </h3>
+                    <p className="text-emerald-900 leading-7 font-serif text-lg relative z-10 whitespace-pre-wrap">
+                        {safeAnalysis.sample_answer}
+                    </p>
                 </div>
             </div>
 
-            <div className="model-answer" style={{ marginTop: '3rem', padding: '2rem', background: '#ecfdf5', borderRadius: '16px', border: '1px solid #a7f3d0' }}>
-                <h3 style={{ color: '#065f46', marginBottom: '1rem' }}>Câu trả lời mẫu (Band 8.0+)</h3>
-                <p style={{ lineHeight: '1.8', color: '#064e3b', whiteSpace: 'pre-wrap' }}>{safeAnalysis.sample_answer}</p>
-            </div>
-
-            <div style={{ textAlign: 'center', marginTop: '3rem' }}>
+            {/* Action Buttons */}
+            <div className="flex justify-center pt-4">
                 <button
                     onClick={onRetry}
-                    className="btn-sidebar-start"
-                    style={{ padding: '1rem 3rem', borderRadius: '50px' }}
+                    className="group relative px-8 py-3 bg-slate-900 text-white font-semibold rounded-full shadow-lg hover:bg-slate-800 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
                 >
-                    Luyện tập lại chủ đề này
+                    <span className="flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Practice This Topic Again
+                    </span>
                 </button>
             </div>
         </div>

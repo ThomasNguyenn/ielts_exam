@@ -2,15 +2,55 @@ import mongoose from "mongoose";
 import Test from "../models/Test.model.js";
 import TestAttempt from "../models/TestAttempt.model.js";
 import WritingSubmission from "../models/WritingSubmission.model.js";
+import { parsePagination, buildPaginationMeta } from "../utils/pagination.js";
+
+const escapeRegex = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 export const getAllTests = async (req, res) => {
     try {
-        const tests = await Test.find({})
+        const shouldPaginate = req.query.page !== undefined || req.query.limit !== undefined;
+        const filter = {};
+
+        if (req.query.type && ['reading', 'listening', 'writing'].includes(req.query.type)) {
+            filter.type = req.query.type;
+        }
+
+        if (req.query.category && req.query.category !== 'all') {
+            filter.category = req.query.category;
+        }
+
+        if (req.query.q && String(req.query.q).trim()) {
+            const safeRegex = new RegExp(escapeRegex(String(req.query.q).trim()), 'i');
+            filter.$or = [
+                { title: safeRegex },
+                { _id: safeRegex },
+                { category: safeRegex },
+                { type: safeRegex }
+            ];
+        }
+
+        const baseQuery = Test.find(filter)
             .populate('reading_passages', 'title')
             .populate('listening_sections', 'title')
             .populate('writing_tasks', 'title')
-            .lean();
-        res.status(200).json({ success: true, data: tests });
+            .sort({ created_at: -1 });
+
+        if (!shouldPaginate) {
+            const tests = await baseQuery.lean();
+            return res.status(200).json({ success: true, data: tests });
+        }
+
+        const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 12, maxLimit: 100 });
+        const [tests, totalItems] = await Promise.all([
+            baseQuery.skip(skip).limit(limit).lean(),
+            Test.countDocuments(filter)
+        ]);
+
+        res.status(200).json({
+            success: true,
+            data: tests,
+            pagination: buildPaginationMeta({ page, limit, totalItems })
+        });
     } catch (error) {
         res.status(500).json({ success: false, message: "Server Error" });
     }
@@ -172,9 +212,12 @@ export const updateTest = async (req, res) => {
 
     try {
         const updatedTest = await Test.findByIdAndUpdate(id, test, { new: true });
-        res.status(200).json({ success: true, data: updatedTest });
+        if (!updatedTest) {
+            return res.status(404).json({ success: false, message: "Test not found" });
+        }
+        return res.status(200).json({ success: true, data: updatedTest });
     } catch (error) {
-        res.status(500).json({ success: false, message: "Server Error" });
+        return res.status(500).json({ success: false, message: "Server Error" });
     }
 
 };
@@ -182,10 +225,13 @@ export const updateTest = async (req, res) => {
 export const deleteTest = async (req, res) => {
     const { id } = req.params;
     try {
-        await Test.findByIdAndDelete(id);
-        res.status(201).json({ success: true, message: "Delete Success" });
+        const deletedTest = await Test.findByIdAndDelete(id);
+        if (!deletedTest) {
+            return res.status(404).json({ success: false, message: "Test not found" });
+        }
+        return res.status(200).json({ success: true, message: "Delete Success" });
     } catch (error) {
-        res.status(404).json({ success: false, message: "Can not find and delete" });
+        return res.status(500).json({ success: false, message: "Server Error" });
     }
 };
 

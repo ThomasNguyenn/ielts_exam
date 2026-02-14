@@ -7,6 +7,27 @@ import './Practice.css';
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const normalizeSpeakingSessionPayload = (response) => {
+    if (!response) return {};
+    if (response.data?.data) return response.data.data;
+    if (response.data) return response.data;
+    return response;
+};
+
+const getSpeakingSessionId = (payload) => (
+    payload?.session_id ||
+    payload?._id ||
+    payload?.id ||
+    null
+);
+
+const getPollDelayMs = (attempt) => {
+    const baseMs = 4000;
+    const backoffMs = Math.min(Math.floor(attempt / 5) * 1000, 4000);
+    const jitterMs = Math.floor(Math.random() * 1000) - 500; // -500..+499
+    return Math.max(2500, baseMs + backoffMs + jitterMs);
+};
+
 export default function SpeakingFlow() {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -32,11 +53,11 @@ export default function SpeakingFlow() {
     }, [id, navigate]);
 
     const pollSpeakingResult = async (sessionId) => {
-        const maxAttempts = 90; // ~3 minutes at 2s interval
+        const maxAttempts = 45; // ~3-5 minutes with backoff polling
 
         for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
             const statusRes = await api.getSpeakingSession(sessionId);
-            const session = statusRes?.data || {};
+            const session = normalizeSpeakingSessionPayload(statusRes);
 
             if (session.status === 'completed') {
                 setResult({
@@ -61,7 +82,7 @@ export default function SpeakingFlow() {
                 throw new Error('AI grading failed. Please retry.');
             }
 
-            await wait(2000);
+            await wait(getPollDelayMs(attempt));
         }
 
         throw new Error('AI grading timed out. Please check again in a minute.');
@@ -82,13 +103,27 @@ export default function SpeakingFlow() {
             }
 
             const res = await api.submitSpeaking(formData);
+            const submitPayload = normalizeSpeakingSessionPayload(res);
+            const sessionId = getSpeakingSessionId(submitPayload);
+            const statusValue = String(submitPayload?.status || '').toLowerCase().trim();
+            const hasAnalysis = Boolean(submitPayload?.analysis);
+            const shouldPoll =
+                Boolean(sessionId) &&
+                !hasAnalysis &&
+                (
+                    submitPayload?.queued === true ||
+                    statusValue === 'processing' ||
+                    statusValue === 'queued' ||
+                    statusValue === 'pending' ||
+                    !statusValue
+                );
 
-            if (res?.status === 'processing' || res?.queued) {
-                await pollSpeakingResult(res.session_id);
+            if (shouldPoll) {
+                await pollSpeakingResult(sessionId);
                 return;
             }
 
-            setResult(res);
+            setResult(submitPayload);
             setPhase('result');
         } catch (error) {
             console.error('Submission failed:', error);
@@ -109,7 +144,7 @@ export default function SpeakingFlow() {
                     <span className="badge badge-purple" style={{ background: '#e0e7ff', color: '#4338ca', padding: '4px 12px', borderRadius: '50px', fontSize: '0.8rem', fontWeight: 700 }}>
                         PART {topic.part}
                     </span>
-                    <h1 style={{ margin: 0 }}>{topic.title}</h1>
+                    <h1 style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{topic.title}</h1>
                 </div>
             </div>
 

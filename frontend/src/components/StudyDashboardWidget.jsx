@@ -37,16 +37,16 @@ export default function StudyDashboardWidget() {
         }
     };
 
-    const handleToggleTask = async (taskId, currentStatus) => {
-        const newStatus = currentStatus === 'completed' ? 'pending' : 'completed';
+    const handleToggleTask = async (task) => {
+        const newStatus = task.status === 'completed' ? 'pending' : 'completed';
 
         // Optimistic update
         setTasks(prev => prev.map(t =>
-            t._id === taskId ? { ...t, status: newStatus } : t
+            t._id === task._id ? { ...t, status: newStatus } : t
         ));
 
         try {
-            await api.updateTaskStatus(taskId, newStatus);
+            await api.updateTaskStatus(task, newStatus);
         } catch (error) {
             console.error("Update failed", error);
             fetchPlan(); // Revert on fail
@@ -146,7 +146,7 @@ export default function StudyDashboardWidget() {
                                 <input
                                     type="checkbox"
                                     checked={task.status === 'completed'}
-                                    onChange={() => handleToggleTask(task._id, task.status)}
+                                    onChange={() => handleToggleTask(task)}
                                     style={{
                                         width: '100%',
                                         height: '100%',

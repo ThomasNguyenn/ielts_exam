@@ -33,64 +33,97 @@ const WritingPhase = ({ question, sessionId, outline, materials, onNext }) => {
     };
 
     return (
-        <div className="practice-grid-sidebar">
-            {/* Sidebar Reference */}
-            <div className="sidebar-ref">
-                <div style={{ marginBottom: '1.5rem' }}>
-                    <h4 className="form-label" style={{ color: '#d03939', textTransform: 'uppercase', fontSize: '0.75rem', fontWeight: 800 }}>Topic</h4>
-                    <div className="topic-box" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', background: '#FFF9F1', padding: '1rem', borderRadius: '12px', border: '1px solid #fdf4e3' }}>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 p-6 lg:p-10 h-[calc(100vh-140px)]">
+            {/* Left Sidebar: Reference Materials (Sticky) */}
+            <div className="lg:col-span-4 flex flex-col gap-6 overflow-y-auto pr-2 custom-scrollbar h-full">
+                {/* Topic Reference */}
+                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Topic</h4>
+                    <div className="space-y-3">
                         {question.image_url && (
-                            <div className="task-image" style={{ textAlign: 'center', background: '#ffffff', padding: '1rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                            <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
                                 <img
                                     src={question.image_url}
                                     alt="Task Graph/Chart"
-                                    style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain' }}
+                                    className="max-w-full max-h-[200px] object-contain mx-auto"
+                                    onClick={() => window.open(question.image_url, '_blank')}
+                                    style={{ cursor: 'zoom-in' }}
                                 />
                             </div>
                         )}
-                        <div style={{ whiteSpace: 'pre-wrap', color: '#1e293b' }}>{question.prompt}</div>
+                        <div className="text-slate-700 text-sm leading-relaxed font-medium whitespace-pre-wrap">{question.prompt}</div>
                     </div>
                 </div>
 
-                <div style={{ marginBottom: '1.5rem' }}>
-                    <h4 className="form-label" style={{ color: '#d03939', textTransform: 'uppercase', fontSize: '0.75rem', fontWeight: 800 }}>
+                {/* Outline Reference */}
+                <div className="bg-[#FFF9F1] p-5 rounded-xl border border-rose-100">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-[#d03939] mb-3">
                         {question.task_type === 'task1' || question.task_type === 1 ? 'Key Features' : 'My Outline'}
                     </h4>
-                    <div style={{ paddingLeft: '2rem', borderLeft: '1px solid #e2e8f0' }}>
-                        <ul style={{ padding: 0, listStyle: 'disc', fontSize: '0.9rem', color: '#1e293b', fontWeight: 500 }}>
-                            {outline?.mainIdeas?.map((idea, i) => <li key={i} style={{ marginBottom: '0.25rem' }}>{idea}</li>)}
-                        </ul>
-                    </div>
-                </div>
-
-                <div>
-                    <h4 className="form-label" style={{ color: 'var(--color-text-muted)', textTransform: 'uppercase', fontSize: '0.8rem' }}>Key Vocab</h4>
-                    <ul style={{ padding: 0, listStyle: 'none' }}>
-                        {materials?.vocab?.map((v, i) => (
-                            <li key={i} style={{ color: '#d03939', marginBottom: '0.5rem', cursor: 'help', fontSize: '0.95rem', fontWeight: 700 }} title={v.meaning}>
-                                • {v.word}
+                    <ul className="space-y-2">
+                        {outline?.mainIdeas?.map((idea, i) => (
+                            <li key={i} className="flex gap-2 text-sm text-slate-700">
+                                <span className="text-[#d03939]">•</span>
+                                {idea}
                             </li>
                         ))}
                     </ul>
                 </div>
+
+                {/* Vocab Reference */}
+                {materials?.vocab?.length > 0 && (
+                    <div className="bg-white p-5 rounded-xl border border-slate-200">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Suggested Vocab</h4>
+                        <div className="flex flex-wrap gap-2">
+                            {materials.vocab.map((v, i) => (
+                                <span
+                                    key={i}
+                                    className="px-2 py-1 bg-rose-50 border border-rose-100 text-[#d03939] text-xs font-bold rounded shadow-sm cursor-help"
+                                    title={v.meaning}
+                                >
+                                    {v.word}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
 
-            {/* Editor */}
-            <div className="editor-area">
+            {/* Main Content: Editor */}
+            <div className="lg:col-span-8 flex flex-col h-full bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden relative">
+                {/* Editor Toolbar/Header */}
+                <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                    <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-red-400"></div>
+                        <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
+                        <div className="w-3 h-3 rounded-full bg-green-400"></div>
+                        <span className="ml-2 text-sm font-bold text-slate-400 uppercase tracking-wider">Writer Mode</span>
+                    </div>
+                    <div className="text-sm font-medium text-slate-500 bg-white px-3 py-1 rounded-full border border-slate-200 shadow-sm">
+                        Word Count: <span className="text-slate-800 font-bold">{essay.trim().split(/\s+/).filter(w => w).length}</span>
+                    </div>
+                </div>
+
                 <textarea
-                    className="essay-editor"
+                    className="flex-1 w-full p-8 text-lg text-slate-800 leading-8 resize-none outline-none font-serif placeholder:text-slate-300 focus:bg-[#fff9f9] transition-colors"
                     placeholder="Start writing your essay here..."
                     value={essay}
                     onChange={(e) => setEssay(e.target.value)}
+                    spellCheck="false"
                 />
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span className="muted">Word Count: {essay.trim().split(/\s+/).filter(w => w).length}</span>
+                {/* Footer Actions */}
+                <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end items-center gap-4">
+                    <span className="text-xs text-slate-400">
+                        {essay.trim().length === 0 ? 'Start typing to see word count' : 'Keep writing...'}
+                    </span>
                     <button
                         onClick={handlePreSubmit}
                         disabled={loading}
-                        className="btn-submit"
-                        style={{ width: 'auto', paddingLeft: '3rem', paddingRight: '3rem' }}
+                        className={`px-8 py-3 rounded-xl font-bold text-white shadow-lg transition-all transform hover:-translate-y-0.5
+                            ${loading
+                                ? 'bg-slate-400 cursor-not-allowed shadow-none'
+                                : 'bg-[#d03939] hover:bg-[#b53232] shadow-rose-200'}`}
                     >
                         {loading ? 'Processing...' : 'Submit Essay'}
                     </button>

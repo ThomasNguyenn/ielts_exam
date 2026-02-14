@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../api/client';
 import WritingScoreDashboard from './WritingScoreDashboard';
+import WritingAnalysisLoading from './WritingAnalysisLoading';
 import './Practice.css';
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -13,6 +14,7 @@ export default function WritingAIResult() {
     const [loading, setLoading] = useState(true);
     const [scoring, setScoring] = useState(false);
     const [error, setError] = useState(null);
+    const [analysisFinished, setAnalysisFinished] = useState(false);
 
     const mapToDashboard = (submission) => {
         if (!submission?.writing_answers || submission.writing_answers.length === 0) {
@@ -28,6 +30,9 @@ export default function WritingAIResult() {
             fullEssay: answer.answer_text,
             task_title: answer.task_title,
         });
+
+        // Trigger finish animation
+        setAnalysisFinished(true);
     };
 
     const pollSubmission = async (submissionId) => {
@@ -67,6 +72,9 @@ export default function WritingAIResult() {
 
                 if ((submission.status === 'scored' || submission.is_ai_graded) && submission.ai_result) {
                     mapToDashboard(submission);
+                    // If already scored, we can skip animation or show it briefly?
+                    // For better UX, let's just show it briefly so transition is smooth
+                    // or if it's instant, maybe just setAnalysisFinished(true) immediately.
                     return;
                 }
 
@@ -91,21 +99,25 @@ export default function WritingAIResult() {
                 console.error(err);
                 setError(err.message || 'Failed to load result');
             } finally {
-                setScoring(false);
-                setLoading(false);
+                // setLoading(false); // We don't turn off loading here anymore, we wait for animation
             }
         };
 
         loadResult();
     }, [id]);
 
+    // Handler for when animation is done (100% progress)
+    const handleAnimationComplete = () => {
+        setLoading(false);
+        setScoring(false);
+    };
+
     if (loading || scoring) {
         return (
-            <div className="page" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
-                <div className="spinner"></div>
-                <h2>{scoring ? 'AI is analyzing your writing...' : 'Loading results...'}</h2>
-                <p className="muted">This can take up to 30-120 seconds depending on queue load.</p>
-            </div>
+            <WritingAnalysisLoading
+                isFinished={analysisFinished}
+                onAnimationComplete={handleAnimationComplete}
+            />
         );
     }
 

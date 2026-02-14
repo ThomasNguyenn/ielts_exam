@@ -2,7 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api/client';
 import PracticeCardSkeleton from '../../components/PracticeCardSkeleton';
+import PaginationControls from '../../components/PaginationControls';
 import './Practice.css';
+
+const PAGE_SIZE = 12;
 
 export default function SpeakingList() {
     const [tasks, setTasks] = useState([]);
@@ -10,43 +13,41 @@ export default function SpeakingList() {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedTopic, setSelectedTopic] = useState('all');
     const [filterType, setFilterType] = useState('all');
+    const [uniqueTopics, setUniqueTopics] = useState([]);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pagination, setPagination] = useState(null);
+
+    useEffect(() => {
+        api.getSpeakings({ topicsOnly: true })
+            .then((res) => setUniqueTopics(res.topics || []))
+            .catch((err) => console.error(err));
+    }, []);
 
     useEffect(() => {
         setLoading(true);
-        api.getSpeakings()
+        api.getSpeakings({
+            page: currentPage,
+            limit: PAGE_SIZE,
+            q: searchQuery.trim() || undefined,
+            part: filterType !== 'all' ? filterType : undefined,
+            topic: selectedTopic !== 'all' ? selectedTopic : undefined
+        })
             .then((res) => {
                 setTasks(res.data || []);
+                setPagination(res.pagination || null);
             })
             .catch((err) => console.error(err))
             .finally(() => setLoading(false));
-    }, []);
+    }, [currentPage, searchQuery, filterType, selectedTopic]);
 
-    const filteredTasks = tasks.filter(t => {
-        const title = t.title || '';
-        const prompt = t.prompt || '';
-        const matchesSearch = title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            prompt.toLowerCase().includes(searchQuery.toLowerCase());
-
-        const matchesType = filterType === 'all' || String(t.part) === filterType;
-        const matchesTopic = selectedTopic === 'all' || title === selectedTopic;
-
-        return matchesSearch && matchesType && matchesTopic;
-    });
-
-    // Extract unique topics
-    const uniqueTopics = [...new Set(tasks.map(t => t.title))].sort();
-
-    // Group filtered tasks by topic
-    const groupedTasks = filteredTasks.reduce((groups, task) => {
+    // Group current page tasks by topic
+    const groupedTasks = tasks.reduce((groups, task) => {
         const topic = task.title;
-        if (!groups[topic]) {
-            groups[topic] = [];
-        }
+        if (!groups[topic]) groups[topic] = [];
         groups[topic].push(task);
         return groups;
     }, {});
 
-    // Sort tasks within groups by Part
     Object.keys(groupedTasks).forEach(topic => {
         groupedTasks[topic].sort((a, b) => a.part - b.part);
     });
@@ -89,28 +90,34 @@ export default function SpeakingList() {
         <div className="page practice-list-page" style={{ maxWidth: '80vw', width: '100%', margin: '0 auto', padding: '2rem' }}>
             <div className="practice-header" style={{ marginBottom: '2rem', background: '#FFF9F1' }}>
                 <h1 style={{ fontSize: '2rem', color: '#d03939', marginBottom: '1rem' }}>
-                    Thư viện luyện nói Speaking
+                    Thu vien luyen noi Speaking
                 </h1>
-                <p className="muted">Chọn chủ đề để bắt đầu luyện nói với AI feedback.</p>
+                <p className="muted">Chon chu de de bat dau luyen noi voi AI feedback.</p>
             </div>
 
             <div className="practice-controls" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '2rem' }}>
                 <input
                     type="search"
-                    placeholder="Tìm kiếm chủ đề..."
+                    placeholder="Tim kiem chu de..."
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={(e) => {
+                        setSearchQuery(e.target.value);
+                        setCurrentPage(1);
+                    }}
                     className="form-input"
                     style={{ flex: 1, minWidth: '200px', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}
                 />
 
                 <select
                     value={selectedTopic}
-                    onChange={(e) => setSelectedTopic(e.target.value)}
+                    onChange={(e) => {
+                        setSelectedTopic(e.target.value);
+                        setCurrentPage(1);
+                    }}
                     className="form-select"
                     style={{ width: 'auto', minWidth: '200px', cursor: 'pointer' }}
                 >
-                    <option value="all">Tất cả chủ đề (Topics)</option>
+                    <option value="all">Tat ca chu de (Topics)</option>
                     {uniqueTopics.map(topic => (
                         <option key={topic} value={topic}>{topic}</option>
                     ))}
@@ -120,7 +127,10 @@ export default function SpeakingList() {
                     {['all', '1', '2', '3'].map(type => (
                         <button
                             key={type}
-                            onClick={() => setFilterType(type)}
+                            onClick={() => {
+                                setFilterType(type);
+                                setCurrentPage(1);
+                            }}
                             className={`btn ${filterType === type ? 'btn-active-red' : 'btn-ghost'}`}
                             style={{
                                 textTransform: 'capitalize',
@@ -140,17 +150,17 @@ export default function SpeakingList() {
             <div className="practice-content-area">
                 {Object.keys(groupedTasks).length === 0 ? (
                     <div className="empty-state" style={{ textAlign: 'center', padding: '4rem', color: '#64748b' }}>
-                        <p>Không tìm thấy chủ đề nào.</p>
+                        <p>Khong tim thay chu de nao.</p>
                     </div>
                 ) : (
-                    Object.entries(groupedTasks).map(([topic, tasks]) => (
+                    Object.entries(groupedTasks).map(([topic, topicTasks]) => (
                         <div key={topic} className="topic-group">
                             <div className="topic-group-header">
-                                <h3 className="topic-group-title">{topic}</h3>
-                                <span className="topic-group-count">{tasks.length} câu hỏi</span>
+                                <h3 className="topic-group-title" style={{ whiteSpace: 'pre-wrap' }}>{topic}</h3>
+                                <span className="topic-group-count">{topicTasks.length} cau hoi</span>
                             </div>
                             <div className="topic-group-content">
-                                {tasks.map(t => (
+                                {topicTasks.map(t => (
                                     <div key={t._id} className="practice-card" style={{ background: 'white', padding: '1.5rem', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', transition: 'all 0.3s ease', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem' }}>
                                             <span className="badge"
@@ -163,7 +173,7 @@ export default function SpeakingList() {
                                         </p>
 
                                         <Link to={`/practice/speaking/${t._id}`} className="btn-sidebar-start" style={{ textDecoration: 'none', background: '#3b82f6', color: 'white', padding: '0.75rem', borderRadius: '8px', textAlign: 'center', fontWeight: '600' }}>
-                                            Bắt đầu trả lời
+                                            Bat dau tra loi
                                         </Link>
                                     </div>
                                 ))}
@@ -172,6 +182,13 @@ export default function SpeakingList() {
                     ))
                 )}
             </div>
+
+            <PaginationControls
+                pagination={pagination}
+                loading={loading}
+                itemLabel="topics"
+                onPageChange={setCurrentPage}
+            />
         </div>
     );
 }

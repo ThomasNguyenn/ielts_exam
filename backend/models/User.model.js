@@ -43,6 +43,14 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  activeSessionId: {
+    type: String,
+    default: null,
+  },
+  activeSessionIssuedAt: {
+    type: Date,
+    default: null,
+  },
 });
 
 userSchema.index({ role: 1, createdAt: -1 });

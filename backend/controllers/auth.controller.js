@@ -1,9 +1,27 @@
 import User from "../models/User.model.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { randomUUID } from "crypto";
 import { JWT_SECRET, VALID_GIFTCODES } from "../config/security.config.js";
 
 const ALLOWED_ROLES = new Set(["student", "teacher", "admin"]);
+const JWT_EXPIRES_IN = "7d";
+
+const createStudentSessionId = () => randomUUID();
+
+const issueTokenForUser = (user, sessionId = null) => {
+  const payload = {
+    userId: user._id,
+    email: user.email,
+    role: user.role,
+  };
+
+  if (sessionId) {
+    payload.sessionId = sessionId;
+  }
+
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+};
 
 export const register = async (req, res) => {
   try {
@@ -57,14 +75,16 @@ export const register = async (req, res) => {
       isConfirmed: finalRole === 'teacher' || finalRole === 'admin' ? true : false,
     });
 
+    let studentSessionId = null;
+    if (user.role === "student") {
+      studentSessionId = createStudentSessionId();
+      user.activeSessionId = studentSessionId;
+      user.activeSessionIssuedAt = new Date();
+    }
+
     await user.save();
 
-    // Generate token
-    const token = jwt.sign(
-      { userId: user._id, email: user.email, role: user.role },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    const token = issueTokenForUser(user, studentSessionId);
 
     res.status(201).json({
       success: true,
@@ -107,12 +127,15 @@ export const login = async (req, res) => {
       return res.status(401).json({ success: false, message: "Invalid credentials" });
     }
 
-    // Generate token
-    const token = jwt.sign(
-      { userId: user._id, email: user.email, role: user.role },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    let studentSessionId = null;
+    if (user.role === "student") {
+      studentSessionId = createStudentSessionId();
+      user.activeSessionId = studentSessionId;
+      user.activeSessionIssuedAt = new Date();
+      await user.save();
+    }
+
+    const token = issueTokenForUser(user, studentSessionId);
 
     res.json({
       success: true,

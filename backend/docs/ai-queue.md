@@ -16,6 +16,7 @@ This project supports asynchronous AI grading for `writing` and `speaking`.
   - `GEMINI_FALLBACK_MODEL=gemini-2.0-flash`
   - `OPENAI_TIMEOUT_MS`
   - `GEMINI_TIMEOUT_MS`
+  - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` (needed for auto-deleting speaking audio after scoring)
 
 ## Run
 1. Start API:

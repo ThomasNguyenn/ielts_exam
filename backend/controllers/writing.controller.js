@@ -47,19 +47,25 @@ export const updateWriting = async (req, res) => {
 
     try {
         const updatedWriting = await Writing.findByIdAndUpdate(id, writing, { new: true });
-        res.status(200).json({ success: true, data: updatedWriting });
+        if (!updatedWriting) {
+            return res.status(404).json({ success: false, message: "Writing not found" });
+        }
+        return res.status(200).json({ success: true, data: updatedWriting });
     } catch (error) {
-        res.status(500).json({ success: false, message: "Server Error" });
+        return res.status(500).json({ success: false, message: "Server Error" });
     }
 };
 
 export const deleteWriting = async (req, res) => {
     const { id } = req.params;
     try {
-        await Writing.findByIdAndDelete(id);
-        res.status(201).json({ success: true, message: "Delete Success" });
+        const deletedWriting = await Writing.findByIdAndDelete(id);
+        if (!deletedWriting) {
+            return res.status(404).json({ success: false, message: "Writing not found" });
+        }
+        return res.status(200).json({ success: true, message: "Delete Success" });
     } catch (error) {
-        res.status(404).json({ success: false, message: "Can not find and delete" });
+        return res.status(500).json({ success: false, message: "Server Error" });
     }
 };
 

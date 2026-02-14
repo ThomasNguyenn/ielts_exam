@@ -20,6 +20,15 @@ const studyPlanSchema = new mongoose.Schema({
         type: Number,
         default: 0,
     },
+    startDate: {
+        type: Date,
+        required: true,
+        default: Date.now,
+    },
+    generationVersion: {
+        type: Number,
+        default: 1,
+    },
     generatedAt: {
         type: Date,
         default: Date.now,
@@ -29,5 +38,7 @@ const studyPlanSchema = new mongoose.Schema({
         default: true,
     }
 });
+
+studyPlanSchema.index({ userId: 1, isActive: 1 });
 
 export default mongoose.model('StudyPlan', studyPlanSchema);

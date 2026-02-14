@@ -26,7 +26,7 @@ export default function RecordingPhase({ topic, onComplete }) {
     const startRecording = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            
+
             // Visualizer Setup
             const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             audioContextRef.current = audioCtx;
@@ -51,7 +51,7 @@ export default function RecordingPhase({ topic, onComplete }) {
                 const blob = new Blob(chunksRef.current, { type: mimeType });
                 setAudioBlob(blob);
                 stream.getTracks().forEach(track => track.stop());
-                
+
                 // Stop visualizer
                 cancelAnimationFrame(animationFrameRef.current);
             };
@@ -74,19 +74,19 @@ export default function RecordingPhase({ topic, onComplete }) {
         const canvasCtx = canvas.getContext('2d');
         const bufferLength = analyserRef.current.frequencyBinCount;
         const dataArray = new Uint8Array(bufferLength);
-        
+
         const draw = () => {
             animationFrameRef.current = requestAnimationFrame(draw);
             analyserRef.current.getByteFrequencyData(dataArray);
-            
+
             canvasCtx.fillStyle = '#f8fafc';
             canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
-            
+
             const barWidth = (canvas.width / bufferLength) * 2.5;
             let barHeight;
             let x = 0;
-            
-            for(let i = 0; i < bufferLength; i++) {
+
+            for (let i = 0; i < bufferLength; i++) {
                 barHeight = dataArray[i] / 2;
                 canvasCtx.fillStyle = `rgb(${barHeight + 100}, 50, 50)`;
                 canvasCtx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
@@ -114,7 +114,9 @@ export default function RecordingPhase({ topic, onComplete }) {
         <div className="recording-phase" style={{ textAlign: 'center' }}>
             <div className="topic-display" style={{ marginBottom: '2rem', padding: '1.5rem', background: '#f8fafc', borderRadius: '12px', borderLeft: '4px solid #3b82f6' }}>
                 <h3 style={{ marginBottom: '1rem', color: '#1e293b' }}>Yêu cầu bài nói:</h3>
-                <p style={{ fontSize: '1.1rem', lineHeight: '1.6', color: '#334155', fontWeight: 500 }}>{topic.prompt}</p>
+                <p style={{ fontSize: '1.1rem', lineHeight: '1.6', color: '#334155', fontWeight: 500, whiteSpace: 'pre-wrap', textAlign: 'left' }}>
+                    {topic.prompt}
+                </p>
                 {topic.sub_questions?.length > 0 && (
                     <ul style={{ textAlign: 'left', marginTop: '1rem', color: '#64748b' }}>
                         {topic.sub_questions.map((q, i) => <li key={i}>{q}</li>)}
@@ -133,7 +135,7 @@ export default function RecordingPhase({ topic, onComplete }) {
                 </div>
 
                 {!isRecording && !audioBlob && (
-                    <button 
+                    <button
                         onClick={startRecording}
                         style={{ width: '80px', height: '80px', borderRadius: '50%', border: 'none', background: '#3b82f6', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 15px rgba(59, 130, 246, 0.4)', transition: 'transform 0.2s' }}
                         onMouseEnter={(e) => e.target.style.transform = 'scale(1.05)'}
@@ -144,7 +146,7 @@ export default function RecordingPhase({ topic, onComplete }) {
                 )}
 
                 {isRecording && (
-                    <button 
+                    <button
                         onClick={stopRecording}
                         className="pulse"
                         style={{ width: '80px', height: '80px', borderRadius: '50%', border: 'none', background: '#ef4444', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 15px rgba(239, 68, 68, 0.4)' }}
@@ -157,14 +159,14 @@ export default function RecordingPhase({ topic, onComplete }) {
                     <div style={{ width: '100%' }}>
                         <audio src={URL.createObjectURL(audioBlob)} controls style={{ marginBottom: '2rem', width: '100%' }} />
                         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-                            <button 
+                            <button
                                 onClick={() => { setAudioBlob(null); setRecordingTime(0); }}
                                 className="btn-ghost"
                                 style={{ padding: '0.75rem 1.5rem', borderRadius: '8px' }}
                             >
                                 Ghi âm lại
                             </button>
-                            <button 
+                            <button
                                 onClick={() => onComplete(audioBlob)}
                                 className="btn-sidebar-start"
                                 style={{ padding: '0.75rem 2rem', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}
@@ -174,7 +176,7 @@ export default function RecordingPhase({ topic, onComplete }) {
                         </div>
                     </div>
                 )}
-                
+
                 <p className="muted" style={{ marginTop: '1rem' }}>
                     {isRecording ? 'Đang ghi âm... Nhấn nút đỏ để dừng.' : (audioBlob ? 'Nghe lại hoặc nhấn Gửi để AI chấm bài.' : 'Nhấn vào Mic để bắt đầu trả lời.')}
                 </p>

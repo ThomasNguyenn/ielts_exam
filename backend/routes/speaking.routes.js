@@ -12,7 +12,10 @@ const upload = multer({
         if (file.mimetype.startsWith('audio/')) {
             cb(null, true);
         } else {
-            cb(new Error('Not an audio file!'), false);
+            const typeError = new Error('Only audio files are allowed for speaking uploads');
+            typeError.statusCode = 415;
+            typeError.code = 'UNSUPPORTED_MEDIA_TYPE';
+            cb(typeError, false);
         }
     }
 });

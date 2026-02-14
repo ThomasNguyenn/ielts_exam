@@ -58,9 +58,12 @@ export const updateSection = async(req, res) => {
 export const deleteSection = async(req, res) => {
     const { id } = req.params;
     try{
-        await Section.findByIdAndDelete(id);
-        res.status(201).json({ success: true, message: "Delete Success"});
+        const deletedSection = await Section.findByIdAndDelete(id);
+        if (!deletedSection) {
+            return res.status(404).json({ success: false, message: "Section not found" });
+        }
+        return res.status(200).json({ success: true, message: "Delete Success"});
     } catch (error){
-        res.status(404).json({ success: false, message: "Can not find and delete"});
+        return res.status(500).json({ success: false, message: "Server Error" });
     }
 };

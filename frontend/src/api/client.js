@@ -49,7 +49,9 @@ function isTokenExpired(token) {
   try {
     const payloadPart = token.split('.')[1];
     if (!payloadPart) return true;
-    const payload = JSON.parse(atob(payloadPart));
+    const base64 = payloadPart.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+    const payload = JSON.parse(atob(padded));
     if (!payload?.exp) return false;
     return Date.now() >= payload.exp * 1000;
   } catch {
@@ -129,6 +131,10 @@ export const api = {
   getUser,
   setUser,
   removeUser,
+  logout: () => {
+    removeToken();
+    removeUser();
+  },
   isAuthenticated: () => {
     const token = getToken();
     if (!token) return false;
@@ -141,7 +147,10 @@ export const api = {
   },
 
   // Tests
-  getTests: () => request('/api/tests'),
+  getTests: (params = {}) => {
+    const query = toQueryString(params);
+    return request(`/api/tests${query ? `?${query}` : ''}`);
+  },
   getMyLatestTestAttempts: () => request('/api/tests/my-latest-attempts'),
   getMyAttemptSummary: () => request('/api/tests/my-attempts-summary'),
   getMyTestHistory: (id) => request(`/api/tests/${id}/attempts`),
@@ -201,9 +210,38 @@ export const api = {
   // Study Plan
   createStudyPlan: (body) => request('/api/study-plan', { method: 'POST', body: JSON.stringify(body) }),
   updateStudyPlan: (body) => request('/api/study-plan', { method: 'PUT', body: JSON.stringify(body) }),
-  getMyPlan: () => request('/api/study-plan'),
-  getStudyHistory: () => request('/api/study-plan/history'),
-  updateTaskStatus: (id, status) => request(`/api/study-plan/tasks/${id}`, { method: 'PUT', body: JSON.stringify({ status }) }),
+  getMyPlan: (params = {}) => {
+    const query = toQueryString(params);
+    return request(`/api/study-plan${query ? `?${query}` : ''}`);
+  },
+  getStudyHistory: (params = {}) => {
+    const query = toQueryString(params);
+    return request(`/api/study-plan/history${query ? `?${query}` : ''}`);
+  },
+  updateTaskStatus: (taskOrId, status) => {
+    const isTaskObject = taskOrId && typeof taskOrId === 'object';
+    const idValue = isTaskObject ? (taskOrId._id || taskOrId.taskKey || '') : taskOrId;
+    const safeId = encodeURIComponent(String(idValue || ''));
+    const body = isTaskObject
+      ? {
+        status,
+        task: {
+          _id: taskOrId._id,
+          taskKey: taskOrId.taskKey,
+          date: taskOrId.date,
+          type: taskOrId.type,
+          referenceId: taskOrId.referenceId,
+          title: taskOrId.title,
+          link: taskOrId.link,
+        }
+      }
+      : { status };
+
+    return request(`/api/study-plan/tasks/${safeId}`, {
+      method: 'PUT',
+      body: JSON.stringify(body)
+    });
+  },
 
   // Vocabulary
   getVocabulary: (params) => request(`/api/vocabulary${params ? `?${new URLSearchParams(params)}` : ''}`),
@@ -245,7 +283,10 @@ export const api = {
   deleteUser: (userId) => request(`/api/admin/users/${userId}`, { method: 'DELETE' }),
 
   // Speaking
-  getSpeakings: () => request('/api/speaking'),
+  getSpeakings: (params = {}) => {
+    const query = toQueryString(params);
+    return request(`/api/speaking${query ? `?${query}` : ''}`);
+  },
   getRandomSpeaking: () => request('/api/speaking/random'),
   getSpeakingById: (id) => request(`/api/speaking/${id}`),
   getSpeakingSession: (sessionId) => request(`/api/speaking/sessions/${sessionId}`),
