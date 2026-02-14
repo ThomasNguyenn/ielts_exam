@@ -1,11 +1,11 @@
 import express from 'express';
 import * as skillsController from '../controllers/skills.controller.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { verifyToken } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
 
 // All skill routes require authentication
-router.use(authenticateToken);
+router.use(verifyToken);
 
 // Get all modules
 router.get('/modules', skillsController.getAllModules);

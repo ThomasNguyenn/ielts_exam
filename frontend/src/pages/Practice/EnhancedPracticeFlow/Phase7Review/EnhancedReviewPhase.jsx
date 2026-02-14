@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { api } from '../../api/client';
+import { api } from '../../../../api/client';
 import { useNavigate } from 'react-router-dom';
-import { useNotification } from '../../components/NotificationContext';
+import { useNotification } from '../../../../components/NotificationContext';
 import './EnhancedReviewPhase.css';
 
 const EnhancedReviewPhase = ({ question, essay, sessionData, onRestart }) => {

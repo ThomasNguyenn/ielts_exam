@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { api } from '../../../api/client';
+import { api } from '../../../../api/client';
 import './CheckpointQuiz.css';
 
 const CheckpointQuiz = ({ module, onComplete, onBack }) => {

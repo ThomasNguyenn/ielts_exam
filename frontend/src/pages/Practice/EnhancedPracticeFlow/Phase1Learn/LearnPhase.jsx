@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { api } from '../../../api/client';
-import { useNotification } from '../../../components/NotificationContext';
+import { api } from '../../../../api/client';
+import { useNotification } from '../../../../components/NotificationContext';
 import SkillModuleCard from './SkillModuleCard';
 import LessonViewer from './LessonViewer';
 import CheckpointQuiz from './CheckpointQuiz';

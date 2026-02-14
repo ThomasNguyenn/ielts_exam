@@ -92,7 +92,7 @@ export default function App() {
           <Route path="tests/:id/exam" element={<ProtectedRoute>{withSuspense(<Exam />)}</ProtectedRoute>} />
 
           {/* Writing Practice/Test Route */}
-          <Route path="tests/writing/:id" element={<ProtectedRoute>{withSuspense(<PracticeFlow />)}</ProtectedRoute>} />
+          <Route path="tests/writing/:id" element={<ProtectedRoute>{withSuspense(<PracticeFlowContainer />)}</ProtectedRoute>} />
 
           {/* <Route path="practice" element={<Navigate to="/tests" replace />} /> Redirect old practice to tests */}
           <Route path="practice" element={<ProtectedRoute>{withSuspense(<PracticeList />)}</ProtectedRoute>} />

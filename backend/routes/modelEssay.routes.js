@@ -1,11 +1,11 @@
 import express from 'express';
 import * as modelEssayController from '../controllers/modelEssay.controller.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { verifyToken } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
 
-// All routes require authentication
-router.use(authenticateToken);
+// All model essay routes require authentication
+router.use(verifyToken);
 
 // Get model essays (with filters)
 router.get('/', modelEssayController.getModelEssays);

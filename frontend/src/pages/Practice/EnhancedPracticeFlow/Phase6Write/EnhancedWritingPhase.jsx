@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNotification } from '../../components/NotificationContext';
+import { useNotification } from '../../../../components/NotificationContext';
 import './EnhancedWritingPhase.css';
 
 const EnhancedWritingPhase = ({ question, outline, scaffoldedParagraphs, onNext, onBack }) => {

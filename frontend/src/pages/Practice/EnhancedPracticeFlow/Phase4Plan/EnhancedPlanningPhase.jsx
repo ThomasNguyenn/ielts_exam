@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { api } from '../../api/client';
-import { useNotification } from '../../components/NotificationContext';
+import { api } from '../../../../api/client';
+import { useNotification } from '../../../../components/NotificationContext';
 import { task1Templates, task2Templates, ideaBank, linkingPhrases } from './planningTemplates';
 import VisualMindMap from './VisualMindMap';
 import './EnhancedPlanningPhase.css';
@@ -122,7 +122,7 @@ const EnhancedPlanningPhase = ({ question, onNext, onBack }) => {
                                 {Object.entries(task1Templates).map(([key, template]) => (
                                     <button
                                         key={key}
-                                        className={`template-option ${selectedTemplate?.name === template.name ? 'active' : ''}`}
+                                        className={`template - option ${selectedTemplate?.name === template.name ? 'active' : ''} `}
                                         onClick={() => handleTemplateChange(template)}
                                     >
                                         {template.name}
@@ -134,7 +134,7 @@ const EnhancedPlanningPhase = ({ question, onNext, onBack }) => {
                                 {Object.entries(task2Templates).map(([key, template]) => (
                                     <button
                                         key={key}
-                                        className={`template-option ${selectedTemplate?.name === template.name ? 'active' : ''}`}
+                                        className={`template - option ${selectedTemplate?.name === template.name ? 'active' : ''} `}
                                         onClick={() => handleTemplateChange(template)}
                                     >
                                         <div className="template-name">{template.name}</div>
@@ -150,13 +150,13 @@ const EnhancedPlanningPhase = ({ question, onNext, onBack }) => {
                     {/* Helper Tools */}
                     <div className="helper-tools">
                         <button
-                            className={`tool-btn ${viewMode === 'outline' ? 'active' : ''}`}
+                            className={`tool - btn ${viewMode === 'outline' ? 'active' : ''} `}
                             onClick={() => setViewMode('outline')}
                         >
                             📋 Outline
                         </button>
                         <button
-                            className={`tool-btn ${viewMode === 'mindmap' ? 'active' : ''}`}
+                            className={`tool - btn ${viewMode === 'mindmap' ? 'active' : ''} `}
                             onClick={() => setViewMode('mindmap')}
                         >
                             🗺️ Mind Map

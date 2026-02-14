@@ -147,7 +147,6 @@ const studentProgressSchema = new mongoose.Schema({
 });
 
 // Indexes
-studentProgressSchema.index({ userId: 1 });
 studentProgressSchema.index({ currentLevel: 1 });
 studentProgressSchema.index({ lastPracticeDate: -1 });
 

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { api } from '../../api/client';
-import { useNotification } from '../../components/NotificationContext';
+import React, { useState, useEffect } from 'react';
+import { api } from '../../../../api/client';
+import { useNotification } from '../../../../components/NotificationContext';
 import './EnhancedScaffoldingPhase.css';
 
 const EnhancedScaffoldingPhase = ({ question, outline, onNext, onBack }) => {

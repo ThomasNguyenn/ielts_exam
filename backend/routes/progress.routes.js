@@ -1,11 +1,11 @@
 import express from 'express';
 import * as progressController from '../controllers/progress.controller.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { verifyToken } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
 
 // All progress routes require authentication
-router.use(authenticateToken);
+router.use(verifyToken);
 
 // Get my progress
 router.get('/me', progressController.getMyProgress);
