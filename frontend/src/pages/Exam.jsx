@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, useMemo, useCallback } from 'react';
+import { lazy, Suspense, useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import './Exam.css';
@@ -131,6 +131,9 @@ export default function Exam() {
   const [theme, setTheme] = useState('light');
   const [textSize, setTextSize] = useState('regular');
   const [brightness, setBrightness] = useState(100);
+  const timerRef = useRef(null);
+  const isMountedRef = useRef(true);
+  const autoSubmitTriggeredRef = useRef(false);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -138,6 +141,16 @@ export default function Exam() {
   // Determine single mode based on params. 
   // We strictly require 'part' param to be present for Single Mode to avoid "Full Test bug" where mode=single is always present.
   const isSingleMode = searchParams.get('mode') === 'single' && searchParams.get('part') !== null;
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -158,6 +171,8 @@ export default function Exam() {
         // Initialize timer based on duration (in minutes)
         const duration = res.data.duration || 60;
         setTimeRemaining(duration * 60); // Convert to seconds
+        setTimeWarning(false);
+        autoSubmitTriggeredRef.current = false;
 
         // Handle deep link to specific part
         const searchParams = new URLSearchParams(location.search);
@@ -176,30 +191,51 @@ export default function Exam() {
 
   // Timer countdown effect - Optimized to avoid re-creating interval every second
   useEffect(() => {
-    if (timeRemaining === null || timeRemaining <= 0 || submitted) return;
+    const shouldRun = timeRemaining !== null && timeRemaining > 0 && !submitted;
 
-    const timer = setInterval(() => {
+    if (!shouldRun) {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      return;
+    }
+
+    if (timerRef.current) return;
+
+    timerRef.current = setInterval(() => {
       setTimeRemaining((prev) => {
+        if (prev === null) return prev;
+
         if (prev <= 1) {
-          // Time's up - auto submit
-          handleAutoSubmit();
-          clearInterval(timer);
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+          }
+
+          // Time's up - auto submit once
+          if (!autoSubmitTriggeredRef.current) {
+            autoSubmitTriggeredRef.current = true;
+            handleAutoSubmit();
+          }
           return 0;
         }
+
         // Set warning when less than 5 minutes remaining
-        // Note: we check the value here to avoid unnecessary state updates
-        if (prev <= 301 && !timeWarning) {
-          setTimeWarning(true);
+        if (prev <= 301) {
+          setTimeWarning((current) => (current ? current : true));
         }
         return prev - 1;
       });
     }, 1000);
-
-    return () => clearInterval(timer);
-  }, [submitted, timeWarning, timeRemaining === null]); // Restart if submission status or warning flag changes, or when initialized
+  }, [submitted, timeRemaining]);
 
   const performSubmit = (returnOnly = false) => {
     if (submitLoading || submitted) return Promise.resolve(null);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
     setSubmitLoading(true);
     setShowSubmitConfirm(false);
     setShowScoreChoice(false);
@@ -245,16 +281,22 @@ export default function Exam() {
         }
 
         if (!returnOnly) {
-          setSubmitted(resultData);
+          if (isMountedRef.current) setSubmitted(resultData);
         }
         return resultData;
       })
       .catch((err) => {
-        setError(err.message);
-        setSubmitLoading(false);
+        if (isMountedRef.current) {
+          setError(err.message);
+          setSubmitLoading(false);
+        }
         throw err;
       })
-      .finally(() => setSubmitLoading(false));
+      .finally(() => {
+        if (isMountedRef.current) {
+          setSubmitLoading(false);
+        }
+      });
   };
 
   const handleScoreChoice = (mode) => {

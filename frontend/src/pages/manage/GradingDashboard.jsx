@@ -4,6 +4,56 @@ import './Manage.css';
 import { Link } from 'react-router-dom';
 import PaginationControls from '../../components/PaginationControls';
 
+const PDF_FONT_FAMILY = 'NotoSans';
+const PDF_FONT_SOURCES = [
+    { fileName: 'NotoSans-Regular.ttf', style: 'normal', url: '/fonts/NotoSans-Regular.ttf' },
+    { fileName: 'NotoSans-Bold.ttf', style: 'bold', url: '/fonts/NotoSans-Bold.ttf' },
+];
+
+let pdfFontCachePromise = null;
+
+const arrayBufferToBase64 = (buffer) => {
+    const bytes = new Uint8Array(buffer);
+    const chunkSize = 0x8000;
+    let binary = '';
+
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+        const chunk = bytes.subarray(i, i + chunkSize);
+        binary += String.fromCharCode.apply(null, chunk);
+    }
+
+    return btoa(binary);
+};
+
+const loadPdfFontData = async () => {
+    if (!pdfFontCachePromise) {
+        pdfFontCachePromise = Promise.all(
+            PDF_FONT_SOURCES.map(async (font) => {
+                const response = await fetch(font.url);
+                if (!response.ok) {
+                    throw new Error(`Font fetch failed: ${font.url}`);
+                }
+                const buffer = await response.arrayBuffer();
+                return {
+                    ...font,
+                    base64: arrayBufferToBase64(buffer),
+                };
+            })
+        );
+    }
+
+    return pdfFontCachePromise;
+};
+
+const applyUnicodePdfFont = async (doc) => {
+    const fonts = await loadPdfFontData();
+    fonts.forEach((font) => {
+        doc.addFileToVFS(font.fileName, font.base64);
+        doc.addFont(font.fileName, PDF_FONT_FAMILY, font.style);
+    });
+    doc.setFont(PDF_FONT_FAMILY, 'normal');
+};
+
 export default function GradingDashboard() {
     const PAGE_SIZE = 10;
     const [activeTab, setActiveTab] = useState('pending'); // 'pending' or 'scored'
@@ -15,6 +65,7 @@ export default function GradingDashboard() {
 
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedDate, setSelectedDate] = useState('');
+    const [exportingId, setExportingId] = useState(null);
 
     useEffect(() => {
         setCurrentPage(1);
@@ -26,6 +77,7 @@ export default function GradingDashboard() {
 
     const fetchSubmissions = async (status, date, page = 1) => {
         setLoading(true);
+        setError(null);
         try {
             let params = { status, page, limit: PAGE_SIZE };
             if (date) {
@@ -40,6 +92,7 @@ export default function GradingDashboard() {
             if (res.success) {
                 setSubmissions(res.data);
                 setPagination(res.pagination || null);
+                setError(null);
             }
         } catch (err) {
             setError('Failed to load submissions');
@@ -48,67 +101,240 @@ export default function GradingDashboard() {
         }
     };
 
-    const handleExportPDF = async (sub) => {
-        const { jsPDF } = await import('jspdf');
-        const doc = new jsPDF();
-        let y = 20;
+    const formatDate = (value) => {
+        if (!value) return 'N/A';
+        const parsed = new Date(value);
+        return Number.isNaN(parsed.getTime()) ? 'N/A' : parsed.toLocaleString();
+    };
 
-        doc.setFontSize(18);
-        doc.text("Writing Submission Report", 105, y, { align: 'center' });
-        y += 15;
+    const normalizeBand = (value) => {
+        if (typeof value !== 'number' || Number.isNaN(value)) return null;
+        return Math.round(value * 2) / 2;
+    };
 
-        doc.setFontSize(12);
-        doc.text(`Student: ${sub.student_name || 'Anonymous'}`, 20, y);
-        y += 10;
-        doc.text(`Date: ${new Date(sub.submitted_at).toLocaleDateString()}`, 20, y);
-        y += 15;
+    const getOverallBand = (submission) => {
+        const directScore = normalizeBand(submission?.score);
+        if (directScore !== null) return directScore;
 
-        // Writing Tasks
-        doc.setFontSize(14);
-        doc.text("Tasks & Scores", 20, y);
-        y += 10;
-        doc.setLineWidth(0.5);
-        doc.line(20, y - 2, 190, y - 2);
+        const validScores = (submission?.scores || []).filter((item) => typeof item?.score === 'number' && !Number.isNaN(item.score));
+        if (validScores.length === 0) return null;
 
-        sub.writing_answers.forEach((ans, i) => {
-            const scoreData = (sub.scores || []).find(s => s.task_id === ans.task_id);
-
-            if (y > 270) { doc.addPage(); y = 20; }
-
-            doc.setFontSize(12);
-            doc.setFont(undefined, 'bold');
-            doc.text(`Task ${i + 1}: ${ans.task_title || 'Untitled'}`, 20, y);
-            doc.setFont(undefined, 'normal');
-            doc.text(`Score: ${scoreData?.score ?? 'N/A'}`, 150, y);
-            y += 10;
-
-            // Answer text (simple wrap)
-            const splitText = doc.splitTextToSize(ans.answer_text, 170);
-            doc.setFontSize(10);
-            doc.setTextColor(50);
-            doc.text(splitText, 20, y);
-
-            const textHeight = splitText.length * 5; // approx line height
-            y += textHeight + 10;
-        });
-
-        // Overall Score (if linked attempt)
-        if (sub.scores && sub.scores.length > 0) {
-            const validScores = sub.scores.filter(s => typeof s.score === 'number');
-            if (validScores.length > 0) {
-                const avg = validScores.reduce((a, b) => a + b.score, 0) / validScores.length;
-                const final = Math.round(avg * 2) / 2;
-
-                if (y > 270) { doc.addPage(); y = 20; }
-                y += 10;
-                doc.setFontSize(14);
-                doc.setTextColor(0);
-                doc.setFont(undefined, 'bold');
-                doc.text(`Overall Band Score: ${final}`, 20, y);
-            }
+        if (validScores.length === 2) {
+            const task1 = validScores[0].score;
+            const task2 = validScores[1].score;
+            return normalizeBand((task2 * 2 + task1) / 3);
         }
 
-        doc.save(`Grading_${sub.student_name || 'Student'}_${new Date().toISOString().slice(0, 10)}.pdf`);
+        const avg = validScores.reduce((sum, item) => sum + item.score, 0) / validScores.length;
+        return normalizeBand(avg);
+    };
+
+    const getAiResultForTask = (submission, taskId) => {
+        const aiResult = submission?.ai_result;
+        if (!aiResult || typeof aiResult !== 'object') return null;
+
+        if (Array.isArray(aiResult.tasks)) {
+            const taskNode = aiResult.tasks.find((task) => String(task?.task_id) === String(taskId));
+            return taskNode?.result || null;
+        }
+
+        if ((submission?.writing_answers || []).length === 1) {
+            return aiResult;
+        }
+
+        return null;
+    };
+
+    const toSafeFilename = (name) => {
+        const base = String(name || 'Student')
+            .trim()
+            .replace(/[^a-zA-Z0-9 _-]/g, '')
+            .replace(/\s+/g, '_')
+            .slice(0, 40);
+        return base || 'Student';
+    };
+
+    const handleExportPDF = async (sub) => {
+        if (!sub?._id || exportingId === sub._id) return;
+
+        setError(null);
+        setExportingId(sub._id);
+
+        try {
+            let fullSubmission = sub;
+            try {
+                const detailRes = await api.getSubmissionById(sub._id);
+                if (detailRes?.success && detailRes?.data) {
+                    fullSubmission = detailRes.data;
+                }
+            } catch (detailErr) {
+                console.warn('Failed to load full submission details for PDF export:', detailErr);
+            }
+
+            const { jsPDF } = await import('jspdf');
+            const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+            await applyUnicodePdfFont(doc);
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const pageHeight = doc.internal.pageSize.getHeight();
+            const margin = 16;
+            const contentWidth = pageWidth - margin * 2;
+            const bottomMargin = 14;
+            let y = margin;
+
+            const ensureSpace = (requiredHeight = 6) => {
+                if (y + requiredHeight <= pageHeight - bottomMargin) return;
+                doc.addPage();
+                y = margin;
+            };
+
+            const writeLines = (text, opts = {}) => {
+                const {
+                    fontSize = 10,
+                    bold = false,
+                    color = [40, 40, 40],
+                    lineHeight = 4.8,
+                    indent = 0,
+                    width = contentWidth,
+                } = opts;
+
+                const raw = typeof text === 'string' ? text.trim() : String(text ?? '').trim();
+                const value = raw || 'N/A';
+                const lines = doc.splitTextToSize(value, Math.max(width - indent, 20));
+                doc.setFontSize(fontSize);
+                doc.setFont(undefined, bold ? 'bold' : 'normal');
+                doc.setTextColor(color[0], color[1], color[2]);
+
+                lines.forEach((line) => {
+                    ensureSpace(lineHeight);
+                    doc.text(line, margin + indent, y);
+                    y += lineHeight;
+                });
+            };
+
+            const sectionTitle = (title) => {
+                ensureSpace(10);
+                doc.setFontSize(13);
+                doc.setFont(undefined, 'bold');
+                doc.setTextColor(20, 20, 20);
+                doc.text(title, margin, y);
+                y += 5;
+                doc.setDrawColor(220, 220, 220);
+                doc.setLineWidth(0.3);
+                doc.line(margin, y, pageWidth - margin, y);
+                y += 4;
+            };
+
+            const getScoreForTask = (taskId) => {
+                const teacherScore = (fullSubmission.scores || []).find((item) => String(item?.task_id) === String(taskId));
+                const direct = normalizeBand(teacherScore?.score);
+                if (direct !== null) return direct;
+                const aiTask = getAiResultForTask(fullSubmission, taskId);
+                return normalizeBand(aiTask?.band_score);
+            };
+
+            const writingAnswers = fullSubmission.writing_answers || [];
+            const scoredBy = fullSubmission?.scores?.find((score) => score?.scored_by)?.scored_by || 'Teacher';
+            const scoredAt = fullSubmission?.scores?.find((score) => score?.scored_at)?.scored_at || fullSubmission?.updatedAt;
+            const overallBand = getOverallBand(fullSubmission);
+            const generatedAt = new Date().toLocaleString();
+
+            doc.setFontSize(18);
+            doc.setTextColor(20, 20, 20);
+            doc.setFont(undefined, 'bold');
+            doc.text('Writing Grading Report', pageWidth / 2, y, { align: 'center' });
+            y += 8;
+            doc.setFontSize(10);
+            doc.setFont(undefined, 'normal');
+            doc.setTextColor(100, 100, 100);
+            doc.text(`Generated: ${generatedAt}`, pageWidth / 2, y, { align: 'center' });
+            y += 8;
+
+            sectionTitle('Submission Summary');
+            writeLines(`Student: ${fullSubmission.student_name || 'Anonymous'}`);
+            writeLines(`Email: ${fullSubmission.student_email || 'N/A'}`);
+            writeLines(`Submission ID: ${fullSubmission._id || 'N/A'}`);
+            writeLines(`Submitted At: ${formatDate(fullSubmission.submitted_at)}`);
+            writeLines(`Scored At: ${formatDate(scoredAt)}`);
+            writeLines(`Scored By: ${fullSubmission.is_ai_graded ? 'AI Scoring' : scoredBy}`);
+            writeLines(`Status: ${fullSubmission.status || 'N/A'}`);
+            writeLines(`Overall Band: ${overallBand !== null ? overallBand : 'N/A'}`, { bold: true, color: [180, 40, 40] });
+            y += 2;
+
+            sectionTitle('Task Scores');
+            if (writingAnswers.length === 0) {
+                writeLines('No writing task answers found.');
+            } else {
+                writingAnswers.forEach((answer, index) => {
+                    const score = getScoreForTask(answer.task_id);
+                    const wordCount = answer.word_count ?? (answer.answer_text || '').split(/\s+/).filter(Boolean).length;
+                    writeLines(`${index + 1}. ${answer.task_title || `Task ${index + 1}`}`, { bold: true });
+                    writeLines(`Band: ${score !== null ? score : 'N/A'} | Words: ${wordCount}`);
+                    const taskScore = (fullSubmission.scores || []).find((item) => String(item?.task_id) === String(answer.task_id));
+                    if (taskScore?.feedback) {
+                        writeLines(`Feedback: ${taskScore.feedback}`, { fontSize: 9.6, color: [70, 70, 70], indent: 2 });
+                    }
+                    y += 1;
+                });
+            }
+
+            writingAnswers.forEach((answer, index) => {
+                const taskScore = (fullSubmission.scores || []).find((item) => String(item?.task_id) === String(answer.task_id));
+                const aiTaskResult = getAiResultForTask(fullSubmission, answer.task_id);
+                const band = getScoreForTask(answer.task_id);
+
+                y += 2;
+                sectionTitle(`Task ${index + 1}: ${answer.task_title || 'Untitled Task'}`);
+                writeLines(`Band: ${band !== null ? band : 'N/A'} | Word Count: ${answer.word_count ?? 'N/A'}`, { bold: true });
+
+                writeLines('Prompt', { bold: true, color: [25, 25, 25] });
+                writeLines(answer.task_prompt || 'No prompt available for this task.', { fontSize: 9.8, color: [55, 55, 55], indent: 2 });
+                y += 1;
+
+                writeLines('Student Answer', { bold: true, color: [25, 25, 25] });
+                writeLines(answer.answer_text || 'No answer text.', { fontSize: 9.8, color: [30, 30, 30], indent: 2, lineHeight: 4.6 });
+                y += 1;
+
+                if (taskScore?.feedback) {
+                    writeLines('Teacher Feedback', { bold: true, color: [25, 25, 25] });
+                    writeLines(taskScore.feedback, { fontSize: 9.8, color: [55, 55, 55], indent: 2 });
+                    y += 1;
+                }
+
+                if (aiTaskResult?.criteria_scores && typeof aiTaskResult.criteria_scores === 'object') {
+                    writeLines('AI Criteria Scores', { bold: true, color: [25, 25, 25] });
+                    Object.entries(aiTaskResult.criteria_scores).forEach(([key, value]) => {
+                        const label = key.replace(/_/g, ' ');
+                        writeLines(`${label}: ${value}`, { fontSize: 9.6, color: [60, 60, 60], indent: 2 });
+                    });
+                    y += 1;
+                }
+
+                if (Array.isArray(aiTaskResult?.feedback) && aiTaskResult.feedback.length > 0) {
+                    writeLines('AI Feedback', { bold: true, color: [25, 25, 25] });
+                    aiTaskResult.feedback.forEach((point, feedbackIndex) => {
+                        writeLines(`${feedbackIndex + 1}. ${point}`, { fontSize: 9.6, color: [60, 60, 60], indent: 2 });
+                    });
+                }
+            });
+
+            const totalPages = doc.getNumberOfPages();
+            for (let pageNo = 1; pageNo <= totalPages; pageNo += 1) {
+                doc.setPage(pageNo);
+                doc.setFontSize(8.5);
+                doc.setFont(undefined, 'normal');
+                doc.setTextColor(130, 130, 130);
+                doc.text(`Page ${pageNo} / ${totalPages}`, pageWidth - margin, pageHeight - 7, { align: 'right' });
+            }
+
+            const student = toSafeFilename(fullSubmission.student_name);
+            const dateStamp = new Date().toISOString().slice(0, 10);
+            doc.save(`GradingReport_${student}_${dateStamp}.pdf`);
+        } catch (pdfError) {
+            console.error('PDF export failed:', pdfError);
+            setError('Failed to export PDF. Please try again.');
+        } finally {
+            setExportingId(null);
+        }
     };
 
     const filteredSubmissions = submissions.filter(sub => {
@@ -175,6 +401,11 @@ export default function GradingDashboard() {
                     style={{ padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}
                 />
             </div>
+            {error && (
+                <div className="form-error" style={{ marginBottom: '1rem' }}>
+                    {error}
+                </div>
+            )}
 
             {loading ? <div>Loading...</div> : (
                 <>
@@ -218,9 +449,10 @@ export default function GradingDashboard() {
                                                     <button
                                                         className="btn btn-ghost btn-sm"
                                                         onClick={() => handleExportPDF(sub)}
-                                                        style={{ color: '#d03939', fontWeight: 800 }}
+                                                        disabled={exportingId === sub._id}
+                                                        style={{ color: '#d03939', fontWeight: 800, opacity: exportingId === sub._id ? 0.65 : 1 }}
                                                     >
-                                                        PDF
+                                                        {exportingId === sub._id ? 'Exporting...' : 'PDF'}
                                                     </button>
                                                 </>
                                             )}

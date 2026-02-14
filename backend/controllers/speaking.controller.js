@@ -59,8 +59,15 @@ export const getSpeakings = async (req, res) => {
 
     if (isTopicsOnly) {
       const topics = await Speaking.distinct('title', { is_active: true });
-      const sortedTopics = topics
-        .filter(Boolean)
+      const normalizedTopics = Array.from(
+        new Set(
+          topics
+            .map((topic) => String(topic || '').trim())
+            .filter(Boolean)
+        )
+      );
+
+      const sortedTopics = normalizedTopics
         .sort((a, b) => String(a).localeCompare(String(b)));
       return res.json({ success: true, topics: sortedTopics });
     }
@@ -75,8 +82,10 @@ export const getSpeakings = async (req, res) => {
       }
     }
 
-    if (req.query.topic && String(req.query.topic).trim() && String(req.query.topic) !== 'all') {
-      filter.title = String(req.query.topic).trim();
+    if (req.query.topic && String(req.query.topic).trim() && String(req.query.topic).trim().toLowerCase() !== 'all') {
+      const normalizedTopic = String(req.query.topic).trim();
+      // Avoid strict equality mismatch from historical data with casing/whitespace inconsistencies.
+      filter.title = new RegExp(`^\\s*${escapeRegex(normalizedTopic)}\\s*$`, 'i');
     }
 
     if (req.query.q && String(req.query.q).trim()) {

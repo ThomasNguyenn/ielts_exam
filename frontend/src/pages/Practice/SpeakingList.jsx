@@ -25,13 +25,13 @@ export default function SpeakingList() {
 
     useEffect(() => {
         setLoading(true);
-        api.getSpeakings({
-            page: currentPage,
-            limit: PAGE_SIZE,
-            q: searchQuery.trim() || undefined,
-            part: filterType !== 'all' ? filterType : undefined,
-            topic: selectedTopic !== 'all' ? selectedTopic : undefined
-        })
+                api.getSpeakings({
+                    page: currentPage,
+                    limit: PAGE_SIZE,
+                    q: searchQuery.trim() || undefined,
+                    part: filterType !== 'all' ? filterType : undefined,
+                    topic: selectedTopic !== 'all' ? selectedTopic.trim() : undefined
+                })
             .then((res) => {
                 setTasks(res.data || []);
                 setPagination(res.pagination || null);
@@ -90,15 +90,15 @@ export default function SpeakingList() {
         <div className="page practice-list-page" style={{ maxWidth: '80vw', width: '100%', margin: '0 auto', padding: '2rem' }}>
             <div className="practice-header" style={{ marginBottom: '2rem', background: '#FFF9F1' }}>
                 <h1 style={{ fontSize: '2rem', color: '#d03939', marginBottom: '1rem' }}>
-                    Thu vien luyen noi Speaking
+                    Thư viện luyện nói Speaking
                 </h1>
-                <p className="muted">Chon chu de de bat dau luyen noi voi AI feedback.</p>
+                <p className="muted">Chọn chủ đề để bắt đầu luyện nói với AI feedback.</p>
             </div>
 
             <div className="practice-controls" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '2rem' }}>
                 <input
                     type="search"
-                    placeholder="Tim kiem chu de..."
+                    placeholder="Tìm kiếm chủ đề..."
                     value={searchQuery}
                     onChange={(e) => {
                         setSearchQuery(e.target.value);
@@ -117,7 +117,7 @@ export default function SpeakingList() {
                     className="form-select"
                     style={{ width: 'auto', minWidth: '200px', cursor: 'pointer' }}
                 >
-                    <option value="all">Tat ca chu de (Topics)</option>
+                    <option value="all">Tất cả chủ đề</option>
                     {uniqueTopics.map(topic => (
                         <option key={topic} value={topic}>{topic}</option>
                     ))}
