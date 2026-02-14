@@ -36,9 +36,27 @@ const GEMINI_MODELS = [primaryModel, fallbackModel].filter(
 
 const isHttpUrl = (value) => /^https?:\/\//i.test(String(value || ""));
 
+const isSupportedAudioMime = (mimeType) =>
+  /^audio\/(webm|wav|x-wav|mpeg|mp3|ogg|mp4)$/i.test(String(mimeType || ""));
+
+const normalizeGeminiAudioMimeType = (preferredMimeType, fetchedContentType) => {
+  const preferred = String(preferredMimeType || "").split(";")[0].trim();
+  const fetched = String(fetchedContentType || "").split(";")[0].trim();
+
+  if (isSupportedAudioMime(preferred)) {
+    return preferred;
+  }
+
+  if (isSupportedAudioMime(fetched)) {
+    return fetched;
+  }
+
+  return "audio/webm";
+};
+
 const toAudioPart = async (audioSource, mimeType) => {
   let fileBuffer;
-  let resolvedMimeType = mimeType || "audio/webm";
+  let fetchedContentType = "";
 
   if (isHttpUrl(audioSource)) {
     const response = await fetch(audioSource);
@@ -46,16 +64,15 @@ const toAudioPart = async (audioSource, mimeType) => {
       throw new Error(`Unable to fetch remote audio: ${response.status}`);
     }
 
-    const contentType = response.headers.get("content-type");
-    if (contentType) {
-      resolvedMimeType = contentType.split(";")[0].trim() || resolvedMimeType;
-    }
+    fetchedContentType = response.headers.get("content-type") || "";
 
     const arrayBuffer = await response.arrayBuffer();
     fileBuffer = Buffer.from(arrayBuffer);
   } else {
     fileBuffer = await fs.promises.readFile(audioSource);
   }
+
+  const resolvedMimeType = normalizeGeminiAudioMimeType(mimeType, fetchedContentType);
 
   return {
     inlineData: {
@@ -175,6 +192,8 @@ export const scoreSpeakingSessionById = async ({ sessionId, force = false } = {}
 
   let analysis;
   let aiSource = "fallback";
+  let usedMimeType = session.audioMimeType || "audio/webm";
+  let audioBytes = 0;
 
   try {
     if (!genAI) {
@@ -184,6 +203,8 @@ export const scoreSpeakingSessionById = async ({ sessionId, force = false } = {}
       session.audioUrl,
       session.audioMimeType || "audio/webm",
     );
+    usedMimeType = audioPart.inlineData.mimeType;
+    audioBytes = Buffer.byteLength(audioPart.inlineData.data || "", "base64");
     const aiResponse = await requestGeminiJsonWithFallback({
       genAI,
       models: GEMINI_MODELS,
@@ -195,7 +216,12 @@ export const scoreSpeakingSessionById = async ({ sessionId, force = false } = {}
     analysis = aiResponse.data;
     aiSource = aiResponse.model;
   } catch (aiError) {
-    console.error("Speaking AI fallback triggered:", aiError.message);
+    console.error("Speaking AI fallback triggered:", {
+      error: aiError.message,
+      models: GEMINI_MODELS,
+      mimeType: usedMimeType,
+      audioBytes,
+    });
     analysis = buildFallbackAnalysis(clientTranscript);
   }
 
