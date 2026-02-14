@@ -12,6 +12,8 @@ This project supports asynchronous AI grading for `writing` and `speaking`.
 - `REDIS_URL=redis://<host>:6379`
 - Optional:
   - `AI_WORKER_CONCURRENCY=1`
+  - `GEMINI_PRIMARY_MODEL=gemini-2.5-flash`
+  - `GEMINI_FALLBACK_MODEL=gemini-2.0-flash`
   - `OPENAI_TIMEOUT_MS`
   - `GEMINI_TIMEOUT_MS`
 
