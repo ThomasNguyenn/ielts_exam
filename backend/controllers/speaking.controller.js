@@ -76,20 +76,10 @@ export const getSpeakings = async (req, res) => {
     const isTopicsOnly = String(req.query.topicsOnly || '').toLowerCase() === 'true';
 
     if (isTopicsOnly) {
-      try {
-        const topics = await Speaking.distinct('title', { is_active: true });
-        return res.json({ success: true, topics: normalizeTopicList(topics) });
-      } catch (distinctError) {
-        console.error(
-          `[getSpeakings][topicsOnly][distinct] requestId=${req.requestId || "n/a"} failed:`,
-          distinctError?.message || distinctError
-        );
-
-        // Fallback query in case distinct fails due data/index inconsistencies.
-        const docs = await Speaking.find({ is_active: true }).select({ title: 1, _id: 0 }).lean();
-        const fallbackTopics = docs.map((doc) => doc?.title);
-        return res.json({ success: true, topics: normalizeTopicList(fallbackTopics) });
-      }
+      // Do not use `distinct` here because it is blocked under Mongo API Version 1 with apiStrict=true.
+      const docs = await Speaking.find({ is_active: true }).select({ title: 1, _id: 0 }).lean();
+      const topics = docs.map((doc) => doc?.title);
+      return res.json({ success: true, topics: normalizeTopicList(topics) });
     }
 
     const shouldPaginate = req.query.page !== undefined || req.query.limit !== undefined;
