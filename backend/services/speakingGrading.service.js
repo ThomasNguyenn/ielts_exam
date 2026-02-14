@@ -10,7 +10,7 @@ dotenv.config();
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const genAI = GEMINI_API_KEY ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
 const GEMINI_MODELS = [
-  process.env.GEMINI_PRIMARY_MODEL || "gemini-2.0-flash",
+  process.env.GEMINI_PRIMARY_MODEL || "gemini-2.5-flash",
   process.env.GEMINI_FALLBACK_MODEL || "gemini-1.5-flash",
 ];
 
