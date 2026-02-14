@@ -38,11 +38,19 @@ export default function SpeakingFlow() {
             const statusRes = await api.getSpeakingSession(sessionId);
             const session = statusRes?.data || {};
 
-            if (session.status === 'completed' && session.analysis) {
+            if (session.status === 'completed') {
                 setResult({
                     session_id: session.session_id || sessionId,
                     transcript: session.transcript || '',
-                    analysis: session.analysis,
+                    analysis: session.analysis || {
+                        band_score: 0,
+                        general_feedback: 'AI result is unavailable for this attempt.',
+                        sample_answer: 'N/A',
+                        fluency_coherence: { score: 0, feedback: 'N/A' },
+                        lexical_resource: { score: 0, feedback: 'N/A' },
+                        grammatical_range: { score: 0, feedback: 'N/A' },
+                        pronunciation: { score: 0, feedback: 'N/A' },
+                    },
                     ai_source: session.ai_source || null,
                 });
                 setPhase('result');
@@ -135,4 +143,3 @@ export default function SpeakingFlow() {
         </div>
     );
 }
-

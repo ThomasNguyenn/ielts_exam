@@ -176,7 +176,13 @@ export const submitSpeaking = async (req, res) => {
     await session.save();
 
     const shouldQueue = isAiAsyncModeEnabled() && isAiQueueReady();
-    if (shouldQueue) {
+    const canUseAsyncQueue = shouldQueue && Boolean(userId);
+
+    if (shouldQueue && !userId) {
+      console.warn("Speaking async queue skipped: missing authenticated user, falling back to sync scoring");
+    }
+
+    if (canUseAsyncQueue) {
       try {
         const queueResult = await enqueueSpeakingAiScoreJob({ sessionId: String(session._id) });
         if (queueResult.queued) {
