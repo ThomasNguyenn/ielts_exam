@@ -151,6 +151,10 @@ export const api = {
     const query = toQueryString(params);
     return request(`/api/tests${query ? `?${query}` : ''}`);
   },
+  getTestCategories: (params = {}) => {
+    const query = toQueryString(params);
+    return request(`/api/tests/categories${query ? `?${query}` : ''}`);
+  },
   getMyLatestTestAttempts: () => request('/api/tests/my-latest-attempts'),
   getMyAttemptSummary: () => request('/api/tests/my-attempts-summary'),
   getMyTestHistory: (id) => request(`/api/tests/${id}/attempts`),

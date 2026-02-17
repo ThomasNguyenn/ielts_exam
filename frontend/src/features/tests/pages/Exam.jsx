@@ -134,6 +134,9 @@ export default function Exam() {
   const timerRef = useRef(null);
   const isMountedRef = useRef(true);
   const autoSubmitTriggeredRef = useRef(false);
+  const submitInFlightRef = useRef(false);
+  const answersRef = useRef([]);
+  const writingAnswersRef = useRef([]);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -143,6 +146,8 @@ export default function Exam() {
   const isSingleMode = searchParams.get('mode') === 'single' && searchParams.get('part') !== null;
 
   useEffect(() => {
+    // Reset on mount so StrictMode's dev double-invocation does not leave it false.
+    isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
       if (timerRef.current) {
@@ -163,16 +168,21 @@ export default function Exam() {
         const slots = buildQuestionSlots(res.data);
         const steps = buildSteps(res.data);
         // console.log("Built Steps:", steps); // Debug log
-        setAnswers(Array(slots.length).fill(''));
+        const initialAnswers = Array(slots.length).fill('');
+        setAnswers(initialAnswers);
+        answersRef.current = initialAnswers;
         // Initialize writing answers array
         const writingCount = (res.data.writing || []).length;
-        setWritingAnswers(Array(writingCount).fill(''));
+        const initialWritingAnswers = Array(writingCount).fill('');
+        setWritingAnswers(initialWritingAnswers);
+        writingAnswersRef.current = initialWritingAnswers;
 
         // Initialize timer based on duration (in minutes)
         const duration = res.data.duration || 60;
         setTimeRemaining(duration * 60); // Convert to seconds
         setTimeWarning(false);
         autoSubmitTriggeredRef.current = false;
+        submitInFlightRef.current = false;
 
         // Handle deep link to specific part
         const searchParams = new URLSearchParams(location.search);
@@ -231,7 +241,9 @@ export default function Exam() {
   }, [submitted, timeRemaining]);
 
   const performSubmit = (returnOnly = false) => {
-    if (submitLoading || submitted) return Promise.resolve(null);
+    if (submitLoading || submitted || submitInFlightRef.current) return Promise.resolve(null);
+    submitInFlightRef.current = true;
+    autoSubmitTriggeredRef.current = true;
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -250,17 +262,26 @@ export default function Exam() {
     });
 
     return api
-      .submitExam(id, { answers, writing: writingAnswers, timeTaken, isPractice: isSingleMode })
+      .submitExam(id, {
+        answers: answersRef.current,
+        writing: writingAnswersRef.current,
+        timeTaken,
+        isPractice: isSingleMode
+      })
       .then((res) => {
-        let resultData = res.data;
+        const payload = res?.data ?? res;
+        if (!payload || typeof payload !== 'object') {
+          throw new Error('Invalid submit response');
+        }
+        let resultData = payload;
 
         // If single mode, recalculate score based only on current part
-        if (isSingleMode && steps[currentStep]) {
+        if (isSingleMode && steps[currentStep] && Array.isArray(payload.question_review)) {
           const step = steps[currentStep];
           const start = step.startSlotIndex;
           const end = step.endSlotIndex;
 
-          const partReview = res.data.question_review.filter((_, idx) => idx >= start && idx < end);
+          const partReview = payload.question_review.filter((_, idx) => idx >= start && idx < end);
 
           let partScore = 0;
           let partTotal = 0;
@@ -271,7 +292,7 @@ export default function Exam() {
           });
 
           resultData = {
-            ...res.data,
+            ...payload,
             question_review: partReview,
             score: partScore,
             total: partTotal,
@@ -288,11 +309,11 @@ export default function Exam() {
       .catch((err) => {
         if (isMountedRef.current) {
           setError(err.message);
-          setSubmitLoading(false);
         }
         throw err;
       })
       .finally(() => {
+        submitInFlightRef.current = false;
         if (isMountedRef.current) {
           setSubmitLoading(false);
         }
@@ -391,6 +412,7 @@ export default function Exam() {
     setAnswers((prev) => {
       const next = [...prev];
       next[index] = value;
+      answersRef.current = next;
       return next;
     });
   };
@@ -399,6 +421,7 @@ export default function Exam() {
     setWritingAnswers((prev) => {
       const next = [...prev];
       next[taskIndex] = value;
+      writingAnswersRef.current = next;
       return next;
     });
   };

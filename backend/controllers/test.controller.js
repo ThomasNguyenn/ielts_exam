@@ -5,29 +5,36 @@ import WritingSubmission from "../models/WritingSubmission.model.js";
 import { parsePagination, buildPaginationMeta } from "../utils/pagination.js";
 
 const escapeRegex = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const ALLOWED_TEST_TYPES = ['reading', 'listening', 'writing'];
+
+const buildTestFilter = (query = {}, { includeCategory = true } = {}) => {
+    const filter = {};
+
+    if (query.type && ALLOWED_TEST_TYPES.includes(query.type)) {
+        filter.type = query.type;
+    }
+
+    if (includeCategory && query.category && query.category !== 'all') {
+        filter.category = query.category;
+    }
+
+    if (query.q && String(query.q).trim()) {
+        const safeRegex = new RegExp(escapeRegex(String(query.q).trim()), 'i');
+        filter.$or = [
+            { title: safeRegex },
+            { _id: safeRegex },
+            { category: safeRegex },
+            { type: safeRegex }
+        ];
+    }
+
+    return filter;
+};
 
 export const getAllTests = async (req, res) => {
     try {
         const shouldPaginate = req.query.page !== undefined || req.query.limit !== undefined;
-        const filter = {};
-
-        if (req.query.type && ['reading', 'listening', 'writing'].includes(req.query.type)) {
-            filter.type = req.query.type;
-        }
-
-        if (req.query.category && req.query.category !== 'all') {
-            filter.category = req.query.category;
-        }
-
-        if (req.query.q && String(req.query.q).trim()) {
-            const safeRegex = new RegExp(escapeRegex(String(req.query.q).trim()), 'i');
-            filter.$or = [
-                { title: safeRegex },
-                { _id: safeRegex },
-                { category: safeRegex },
-                { type: safeRegex }
-            ];
-        }
+        const filter = buildTestFilter(req.query);
 
         const baseQuery = Test.find(filter)
             .populate('reading_passages', 'title')
@@ -51,6 +58,48 @@ export const getAllTests = async (req, res) => {
             data: tests,
             pagination: buildPaginationMeta({ page, limit, totalItems })
         });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Server Error" });
+    }
+};
+
+export const getTestCategories = async (req, res) => {
+    try {
+        const filter = buildTestFilter(req.query, { includeCategory: false });
+
+        const rows = await Test.aggregate([
+            { $match: filter },
+            {
+                $project: {
+                    category: {
+                        $trim: {
+                            input: { $ifNull: ['$category', ''] }
+                        }
+                    }
+                }
+            },
+            {
+                $addFields: {
+                    category: {
+                        $cond: [{ $eq: ['$category', ''] }, 'Uncategorized', '$category']
+                    }
+                }
+            },
+            {
+                $group: {
+                    _id: '$category',
+                    count: { $sum: 1 }
+                }
+            },
+            { $sort: { _id: 1 } }
+        ]);
+
+        const data = rows.map((row) => ({
+            category: row._id,
+            count: row.count
+        }));
+
+        res.status(200).json({ success: true, data });
     } catch (error) {
         res.status(500).json({ success: false, message: "Server Error" });
     }

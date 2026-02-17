@@ -4,6 +4,8 @@ import './LessonViewer.css';
 
 const LessonViewer = ({ module, onClose, onStartQuiz, isCompleted }) => {
   const [activeTab, setActiveTab] = useState('lesson');
+  const lessonContent = module.content?.lesson || '';
+  const hasHtmlTags = /<[^>]+>/.test(lessonContent);
 
   return (
     <div className="lesson-viewer">
@@ -47,7 +49,11 @@ const LessonViewer = ({ module, onClose, onStartQuiz, isCompleted }) => {
       <div className="lesson-content">
         {activeTab === 'lesson' && (
           <div className="lesson-text">
-            <ReactMarkdown>{module.content?.lesson || ''}</ReactMarkdown>
+            {hasHtmlTags ? (
+              <div dangerouslySetInnerHTML={{ __html: lessonContent }} />
+            ) : (
+              <ReactMarkdown>{lessonContent}</ReactMarkdown>
+            )}
           </div>
         )}
 

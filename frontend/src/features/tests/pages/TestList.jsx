@@ -112,6 +112,7 @@ export default function TestList() {
   const [attemptSummary, setAttemptSummary] = useState({});
   const [currentPage, setCurrentPage] = useState(1);
   const [pagination, setPagination] = useState(null);
+  const [allCategoryCounts, setAllCategoryCounts] = useState({});
   const isLoggedIn = api.isAuthenticated();
 
   useEffect(() => {
@@ -139,6 +140,35 @@ export default function TestList() {
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, [currentPage, selectedType, selectedCategory, searchQuery]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    api
+      .getTestCategories({
+        type: selectedType !== 'all' ? selectedType : undefined,
+        q: searchQuery.trim() || undefined,
+      })
+      .then((res) => {
+        if (!isMounted) return;
+
+        const counts = (res.data || []).reduce((acc, row) => {
+          const category = (row?.category || '').trim() || 'Uncategorized';
+          acc[category] = Number(row?.count || 0);
+          return acc;
+        }, {});
+
+        setAllCategoryCounts(counts);
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setAllCategoryCounts({});
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedType, searchQuery]);
 
   useEffect(() => {
     if (!isLoggedIn) return;
@@ -229,12 +259,19 @@ export default function TestList() {
   let flattenedParts = [];
 
   if (viewMode === 'full') {
-    // ... [Same as before] ...
-    categories = Array.from(new Set(typeFilteredTests.map(getCategory))).sort((a, b) => a.localeCompare(b));
-    categoryCounts = categories.reduce((acc, cat) => {
-      acc[cat] = typeFilteredTests.filter((t) => getCategory(t) === cat).length;
+    const fallbackCategoryCounts = typeFilteredTests.reduce((acc, test) => {
+      const cat = getCategory(test);
+      acc[cat] = (acc[cat] || 0) + 1;
       return acc;
     }, {});
+    const hasAllCategoriesData = Object.keys(allCategoryCounts).length > 0;
+    categoryCounts = hasAllCategoriesData ? { ...allCategoryCounts } : fallbackCategoryCounts;
+
+    if (selectedCategory !== 'all' && categoryCounts[selectedCategory] === undefined) {
+      categoryCounts[selectedCategory] = 0;
+    }
+
+    categories = Object.keys(categoryCounts).sort((a, b) => a.localeCompare(b));
 
     groupedTests = filteredTests.reduce((acc, test) => {
       const cat = getCategory(test);
@@ -301,12 +338,33 @@ export default function TestList() {
       flattenedParts = flattenedParts.filter(p => p.partIndex === targetIndex);
     }
 
-    // Re-calculate categories based on parts
-    categories = Array.from(new Set(flattenedParts.map(p => p.category))).sort();
-    categoryCounts = categories.reduce((acc, cat) => {
-      acc[cat] = flattenedParts.filter(p => p.category === cat).length;
+    const pagePartCategoryCounts = flattenedParts.reduce((acc, part) => {
+      acc[part.category] = (acc[part.category] || 0) + 1;
       return acc;
     }, {});
+
+    const mergedCategoryCounts = Object.keys(allCategoryCounts).reduce((acc, cat) => {
+      acc[cat] = 0;
+      return acc;
+    }, {});
+
+    categoryCounts = Object.keys(pagePartCategoryCounts).reduce((acc, cat) => {
+      acc[cat] = pagePartCategoryCounts[cat];
+      return acc;
+    }, mergedCategoryCounts);
+
+    if (selectedCategory !== 'all' && categoryCounts[selectedCategory] === undefined) {
+      categoryCounts[selectedCategory] = 0;
+    }
+
+    categories = Object.keys(categoryCounts).sort((a, b) => a.localeCompare(b));
+    if (Object.keys(categoryCounts).length === 0) {
+      categories = Array.from(new Set(flattenedParts.map(p => p.category))).sort();
+      categoryCounts = categories.reduce((acc, cat) => {
+        acc[cat] = flattenedParts.filter(p => p.category === cat).length;
+        return acc;
+      }, {});
+    }
 
     // Group parts
     groupedTests = flattenedParts.reduce((acc, part) => {

@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
 import ConfirmationModal from '@/shared/components/ConfirmationModal';
+import LessonEditor from '../components/LessonEditor';
 import './Manage.css';
 
 const emptyQuizItem = () => ({
@@ -316,8 +317,8 @@ export default function AddSkillModules() {
         </div>
 
         <div className="form-row">
-          <label>Lesson content (Markdown) *</label>
-          <textarea value={form.lesson} onChange={(e) => updateField('lesson', e.target.value)} rows={12} required />
+          <label>Lesson content *</label>
+          <LessonEditor value={form.lesson} onChange={(html) => updateField('lesson', html)} />
         </div>
 
         <div className="form-row">
