@@ -1,4 +1,5 @@
 import React from 'react';
+import { Clock, FileQuestion, Check, Lock, ChevronRight } from 'lucide-react';
 import './SkillModuleCard.css';
 
 const SkillModuleCard = ({ module, index, isUnlocked, isCompleted, onClick }) => {
@@ -10,9 +11,9 @@ const SkillModuleCard = ({ module, index, isUnlocked, isCompleted, onClick }) =>
             <div className="module-header">
                 <div className="module-number">
                     {isCompleted ? (
-                        <span className="check-icon">✓</span>
+                        <span className="check-icon"><Check size={16} strokeWidth={3} /></span>
                     ) : !isUnlocked ? (
-                        <span className="lock-icon">🔒</span>
+                        <span className="lock-icon"><Lock size={16} /></span>
                     ) : (
                         <span>{module.moduleNumber}</span>
                     )}
@@ -26,12 +27,12 @@ const SkillModuleCard = ({ module, index, isUnlocked, isCompleted, onClick }) =>
 
                 <div className="module-meta">
                     <span className="meta-item">
-                        <span className="meta-icon">⏱️</span>
+                        <span className="meta-icon"><Clock size={14} /></span>
                         {module.estimatedMinutes} min
                     </span>
                     {module.content?.checkpointQuiz?.length > 0 && (
                         <span className="meta-item">
-                            <span className="meta-icon">📝</span>
+                            <span className="meta-icon"><FileQuestion size={14} /></span>
                             {module.content.checkpointQuiz.length} questions
                         </span>
                     )}
@@ -41,15 +42,15 @@ const SkillModuleCard = ({ module, index, isUnlocked, isCompleted, onClick }) =>
             <div className="module-footer">
                 {isCompleted ? (
                     <div className="status-badge completed-badge">
-                        <span>✓</span> Completed
+                        <Check size={14} style={{ marginRight: '4px' }} /> Completed
                     </div>
                 ) : !isUnlocked ? (
                     <div className="status-badge locked-badge">
-                        <span>🔒</span> Locked
+                        <Lock size={14} style={{ marginRight: '4px' }} /> Locked
                     </div>
                 ) : (
                     <div className="status-badge start-badge">
-                        Start Learning →
+                        Start Learning <ChevronRight size={14} style={{ marginLeft: '4px' }} />
                     </div>
                 )}
             </div>

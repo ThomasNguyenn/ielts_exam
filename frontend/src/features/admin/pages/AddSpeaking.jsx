@@ -4,8 +4,9 @@ import { api } from '@/shared/api/client';
 import './Manage.css';
 import { useNotification } from '@/shared/context/NotificationContext';
 
-export default function AddSpeaking() {
-  const { id: editId } = useParams();
+export default function AddSpeaking({ editIdOverride = null, embedded = false, hideExistingList = false, onSaved = null, onCancel = null }) {
+  const { id: routeEditId } = useParams();
+  const editId = editIdOverride ?? routeEditId;
   const { showNotification } = useNotification();
   const [speakings, setSpeakings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -186,6 +187,9 @@ export default function AddSpeaking() {
           is_active: true
         });
       }
+      if (typeof onSaved === 'function') {
+        onSaved();
+      }
 
       // Refresh list
       const res = await api.getSpeakings();
@@ -299,11 +303,11 @@ export default function AddSpeaking() {
           <button type="submit" className="btn-manage-add" disabled={submitLoading} style={{ width: '100%', justifyContent: 'center', fontSize: '1.1rem', padding: '1.25rem' }}>
             {submitLoading ? (editId ? 'Đang lưu…' : 'Đang tạo…') : (editId ? 'Cập nhật chủ đề' : 'Tạo chủ đề mới')}
           </button>
-          {editId && <Link to="/manage/speaking" className="btn btn-ghost" style={{ marginTop: '1rem', width: '100%', textAlign: 'center' }}>Hủy bỏ</Link>}
+          {!embedded && editId && <Link to="/manage/speaking" className="btn btn-ghost" style={{ marginTop: '1rem', width: '100%', textAlign: 'center' }}>Hủy bỏ</Link>}
         </div>
       </form>
 
-      <div className="search-container" style={{ marginTop: '4rem', paddingTop: '3rem', borderTop: '2px solid #EEF2FF' }}>
+      {!hideExistingList && <div className="search-container" style={{ marginTop: '4rem', paddingTop: '3rem', borderTop: '2px solid #EEF2FF' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
           <h3 style={{ color: '#6366F1', margin: 0 }}>Danh sách chủ đề Speaking hiện có</h3>
           <button
@@ -378,7 +382,14 @@ export default function AddSpeaking() {
             </div>
           </>
         )}
-      </div>
+      </div>}
+      {embedded && typeof onCancel === 'function' && (
+        <div style={{ marginTop: '1rem' }}>
+          <button type="button" className="btn btn-ghost" onClick={onCancel}>
+            Back to list
+          </button>
+        </div>
+      )}
     </div>
   );
 }

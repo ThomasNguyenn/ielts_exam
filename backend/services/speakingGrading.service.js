@@ -183,7 +183,7 @@ RETURN ONLY VALID JSON (no markdown, no extra text):
     "feedback": "string with these sections: Am nguyen am, Am cuoi, Trong am, Ngu dieu, Nhip dieu, Ke hoach hanh dong"
   },
   "general_feedback": "string (strict overall summary with top priority fixes)",
-  "sample_answer": "string (Band 8.0+ model answer for this topic)"
+  "sample_answer": "string (Band 7.0+ model answer for this topic)"
 }
 `;
 

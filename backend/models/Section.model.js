@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { QUESTION_GROUP_LAYOUTS, SECTION_QUESTION_TYPES } from "../constants/questionTypes.js";
 
 
 // Schema cho tung cau hoi nho
@@ -32,12 +33,12 @@ const QuestionGroupSchema = new mongoose.Schema({
     type: {
         type: String,
         required: true,
-        enum: ['true_false_notgiven', 'gap_fill', 'matching_headings', 'mult_choice', 'matching_features', 'summary_completion', 'listening_map', 'matching_information']
+        enum: SECTION_QUESTION_TYPES
     },
 
     instructions: { type: String, required: false }, // Huong dan cho nhom cau hoi
     text: { type: String, required: false }, // Noi dung summary (cho summary_completion)
-    group_layout: { type: String, enum: ['default', 'radio', 'checkbox'], default: 'default' }, // Controls rendering mode
+    group_layout: { type: String, enum: QUESTION_GROUP_LAYOUTS, default: 'default' }, // Controls rendering mode
     headings: [QuestionHeadingSchema], // For matching_headings / matching_features
     options: [QuestionHeadingSchema], // Danh sach lua chon sharing (cho summary_completion)
     questions: [QuestionSchema] // Mang cac cau hoi thuoc nhom cau hoi nay

@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
+const AUTO_RESUME_FALLBACK_MS = 20000;
+
 const toConversationQuestions = (topic) => {
     const part = Number(topic?.part || 0);
     if (part !== 3) return [];
@@ -34,6 +36,8 @@ const toConversationQuestions = (topic) => {
 
 export default function RecordingPhase({ topic, onComplete }) {
     const [isRecording, setIsRecording] = useState(false);
+    const [isRecorderPaused, setIsRecorderPaused] = useState(false);
+    const [isAutoAdvancing, setIsAutoAdvancing] = useState(false);
     const [recordingTime, setRecordingTime] = useState(0);
     const [audioBlob, setAudioBlob] = useState(null);
     const [questionIndex, setQuestionIndex] = useState(0);
@@ -41,6 +45,8 @@ export default function RecordingPhase({ topic, onComplete }) {
     const mediaRecorderRef = useRef(null);
     const chunksRef = useRef([]);
     const timerRef = useRef(null);
+    const autoResumeTimeoutRef = useRef(null);
+    const questionAudioRef = useRef(null);
 
     // Visualizer refs
     const canvasRef = useRef(null);
@@ -53,15 +59,44 @@ export default function RecordingPhase({ topic, onComplete }) {
     const currentQuestion = isPart3Conversational ? conversationQuestions[questionIndex] : null;
     const atLastConversationQuestion = !isPart3Conversational || questionIndex >= conversationQuestions.length - 1;
 
-    useEffect(() => {
+    const clearTimer = () => {
+        if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+        }
+    };
+
+    const startTimer = () => {
+        clearTimer();
+        timerRef.current = setInterval(() => {
+            setRecordingTime((value) => value + 1);
+        }, 1000);
+    };
+
+    const clearAutoResumeTimeout = () => {
+        if (autoResumeTimeoutRef.current) {
+            clearTimeout(autoResumeTimeoutRef.current);
+            autoResumeTimeoutRef.current = null;
+        }
+    };
+
+    const resetQuestionFlow = () => {
         setQuestionIndex(0);
+        setIsRecorderPaused(false);
+        setIsAutoAdvancing(false);
+        clearAutoResumeTimeout();
+    };
+
+    useEffect(() => {
+        resetQuestionFlow();
         setAudioBlob(null);
         setRecordingTime(0);
         setIsRecording(false);
     }, [topic?._id]);
 
     useEffect(() => () => {
-        if (timerRef.current) clearInterval(timerRef.current);
+        clearTimer();
+        clearAutoResumeTimeout();
         if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
         if (audioContextRef.current) {
             audioContextRef.current.close().catch(() => { });
@@ -97,10 +132,10 @@ export default function RecordingPhase({ topic, onComplete }) {
 
             mediaRecorderRef.current.start();
             setIsRecording(true);
+            setIsRecorderPaused(false);
+            setIsAutoAdvancing(false);
             setRecordingTime(0);
-            timerRef.current = setInterval(() => {
-                setRecordingTime((value) => value + 1);
-            }, 1000);
+            startTimer();
         } catch (error) {
             console.error('Mic access denied:', error);
             alert('Please allow microphone access to record your answer.');
@@ -142,18 +177,101 @@ export default function RecordingPhase({ topic, onComplete }) {
         if (!mediaRecorderRef.current || !isRecording) return;
         mediaRecorderRef.current.stop();
         setIsRecording(false);
-        if (timerRef.current) clearInterval(timerRef.current);
+        setIsRecorderPaused(false);
+        setIsAutoAdvancing(false);
+        clearTimer();
+        clearAutoResumeTimeout();
     };
 
-    const moveToNextQuestion = () => {
-        if (!isPart3Conversational) return;
+    const resumeRecordingAfterAdvance = () => {
+        const recorder = mediaRecorderRef.current;
+        if (!recorder || recorder.state === 'inactive') {
+            setIsRecorderPaused(false);
+            setIsAutoAdvancing(false);
+            clearAutoResumeTimeout();
+            return;
+        }
+
+        try {
+            if (recorder.state === 'paused') {
+                recorder.resume();
+            }
+        } catch (error) {
+            console.error('Failed to resume recorder:', error);
+        }
+
+        setIsRecorderPaused(false);
+        setIsAutoAdvancing(false);
+        clearAutoResumeTimeout();
+        startTimer();
+    };
+
+    const pauseAndGoNextQuestion = () => {
+        if (!isPart3Conversational || !isRecording || isRecorderPaused || isAutoAdvancing || atLastConversationQuestion) return;
+        const recorder = mediaRecorderRef.current;
+        if (!recorder || recorder.state === 'inactive') return;
+
+        try {
+            if (recorder.state === 'recording') {
+                recorder.pause();
+            }
+        } catch (error) {
+            console.error('Failed to pause recorder:', error);
+        }
+
+        setIsRecorderPaused(true);
+        setIsAutoAdvancing(true);
+        clearTimer();
         setQuestionIndex((value) => Math.min(value + 1, conversationQuestions.length - 1));
     };
+
+    useEffect(() => {
+        if (!isPart3Conversational || !isAutoAdvancing || !isRecording) return;
+
+        const audioEl = questionAudioRef.current;
+        let removed = false;
+
+        const completeAdvance = () => {
+            if (removed) return;
+            resumeRecordingAfterAdvance();
+        };
+
+        clearAutoResumeTimeout();
+        autoResumeTimeoutRef.current = setTimeout(() => {
+            completeAdvance();
+        }, AUTO_RESUME_FALLBACK_MS);
+
+        if (!currentQuestion?.audioUrl || !audioEl) {
+            setTimeout(() => completeAdvance(), 600);
+            return () => {
+                removed = true;
+                clearAutoResumeTimeout();
+            };
+        }
+
+        const onEnded = () => completeAdvance();
+        const onError = () => completeAdvance();
+
+        audioEl.addEventListener('ended', onEnded);
+        audioEl.addEventListener('error', onError);
+
+        audioEl.currentTime = 0;
+        audioEl.play().catch(() => {
+            setTimeout(() => completeAdvance(), 600);
+        });
+
+        return () => {
+            removed = true;
+            audioEl.removeEventListener('ended', onEnded);
+            audioEl.removeEventListener('error', onError);
+            clearAutoResumeTimeout();
+        };
+    }, [currentQuestion?.audioUrl, isAutoAdvancing, isPart3Conversational, isRecording]);
 
     const resetForRetry = () => {
         setAudioBlob(null);
         setRecordingTime(0);
-        setQuestionIndex(0);
+        resetQuestionFlow();
     };
 
     const formatTime = (seconds) => {
@@ -179,9 +297,10 @@ export default function RecordingPhase({ topic, onComplete }) {
                         </p>
                         {currentQuestion?.audioUrl ? (
                             <audio
+                                ref={questionAudioRef}
                                 key={`${currentQuestion.key}-${currentQuestion.audioUrl}`}
                                 src={currentQuestion.audioUrl}
-                                controls
+                                controls={!isRecording}
                                 autoPlay
                                 preload="auto"
                                 style={{ marginTop: '0.75rem', width: '100%' }}
@@ -191,24 +310,6 @@ export default function RecordingPhase({ topic, onComplete }) {
                                 Read-aloud audio is not available yet for this question.
                             </p>
                         )}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.85rem', gap: '0.75rem', flexWrap: 'wrap' }}>
-                            <button
-                                type="button"
-                                className="btn-ghost"
-                                onClick={() => setQuestionIndex((value) => Math.max(value - 1, 0))}
-                                disabled={questionIndex === 0}
-                            >
-                                Previous Question
-                            </button>
-                            <button
-                                type="button"
-                                className="btn-ghost"
-                                onClick={moveToNextQuestion}
-                                disabled={atLastConversationQuestion}
-                            >
-                                Next Question
-                            </button>
-                        </div>
                     </div>
                 ) : (
                     <>
@@ -226,11 +327,15 @@ export default function RecordingPhase({ topic, onComplete }) {
 
             <div className="recorder-controls" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem' }}>
                 <div style={{ position: 'relative', height: '60px', width: '100%', maxWidth: '300px', marginBottom: '1rem' }}>
-                    {isRecording && <canvas ref={canvasRef} width="300" height="60" style={{ width: '100%', height: '100%', borderRadius: '8px' }} />}
-                    {!isRecording && !audioBlob && <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>Audio wave appears here while recording</div>}
+                    {isRecording && !isRecorderPaused && <canvas ref={canvasRef} width="300" height="60" style={{ width: '100%', height: '100%', borderRadius: '8px' }} />}
+                    {(!isRecording || isRecorderPaused) && !audioBlob && (
+                        <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
+                            {isRecorderPaused ? 'Paused between questions...' : 'Audio wave appears here while recording'}
+                        </div>
+                    )}
                 </div>
 
-                <div className="timer" style={{ fontSize: '2.5rem', fontWeight: 800, color: isRecording ? '#ef4444' : '#1e293b', fontFamily: 'monospace' }}>
+                <div className="timer" style={{ fontSize: '2.5rem', fontWeight: 800, color: isRecording && !isRecorderPaused ? '#ef4444' : '#1e293b', fontFamily: 'monospace' }}>
                     {formatTime(recordingTime)}
                 </div>
 
@@ -246,13 +351,26 @@ export default function RecordingPhase({ topic, onComplete }) {
                 )}
 
                 {isRecording && (
-                    <button
-                        onClick={stopRecording}
-                        className="pulse"
-                        style={{ width: '80px', height: '80px', borderRadius: '50%', border: 'none', background: '#ef4444', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 15px rgba(239, 68, 68, 0.4)' }}
-                    >
-                        <div style={{ width: '20px', height: '20px', background: 'white', borderRadius: '2px' }}></div>
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+                        {isPart3Conversational && !atLastConversationQuestion && (
+                            <button
+                                type="button"
+                                onClick={pauseAndGoNextQuestion}
+                                className="btn-ghost"
+                                style={{ padding: '0.75rem 1rem', borderRadius: '8px', fontWeight: 700 }}
+                                disabled={isRecorderPaused || isAutoAdvancing}
+                            >
+                                {isAutoAdvancing ? 'Loading Next Question...' : 'Pause & Next Question'}
+                            </button>
+                        )}
+                        <button
+                            onClick={stopRecording}
+                            className="pulse"
+                            style={{ width: '80px', height: '80px', borderRadius: '50%', border: 'none', background: '#ef4444', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 15px rgba(239, 68, 68, 0.4)' }}
+                        >
+                            <div style={{ width: '20px', height: '20px', background: 'white', borderRadius: '2px' }}></div>
+                        </button>
+                    </div>
                 )}
 
                 {audioBlob && !isRecording && (
@@ -260,7 +378,7 @@ export default function RecordingPhase({ topic, onComplete }) {
                         <audio src={URL.createObjectURL(audioBlob)} controls style={{ marginBottom: '1rem', width: '100%' }} />
                         {isPart3Conversational && !atLastConversationQuestion && (
                             <p className="muted" style={{ marginBottom: '0.9rem' }}>
-                                Continue to the next question(s) before submitting this Part 3 recording.
+                                You have not reached the last question yet. Please record again and use Pause & Next Question.
                             </p>
                         )}
                         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -276,7 +394,7 @@ export default function RecordingPhase({ topic, onComplete }) {
                                 className="btn-sidebar-start"
                                 style={{ padding: '0.75rem 2rem', background: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: atLastConversationQuestion ? 'pointer' : 'not-allowed', fontWeight: 700, opacity: atLastConversationQuestion ? 1 : 0.6 }}
                                 disabled={!atLastConversationQuestion}
-                                title={atLastConversationQuestion ? '' : 'Please finish all Part 3 questions first.'}
+                                title={atLastConversationQuestion ? '' : 'Please finish all Part 3 questions before submitting.'}
                             >
                                 Submit for AI Grading
                             </button>
@@ -286,11 +404,13 @@ export default function RecordingPhase({ topic, onComplete }) {
 
                 <p className="muted" style={{ marginTop: '1rem' }}>
                     {isRecording
-                        ? 'Recording in progress. Stop when you finish answering.'
+                        ? (isPart3Conversational
+                            ? 'Answer the current question, tap "Pause & Next Question", then recording will continue automatically.'
+                            : 'Recording in progress. Stop when you finish answering.')
                         : (audioBlob
                             ? 'Review your recording and submit.'
                             : (isPart3Conversational
-                                ? 'Follow each question in sequence and answer naturally as a conversation.'
+                                ? 'Start recording and use Pause & Next Question after each answer.'
                                 : 'Press record and answer the prompt.'))}
                 </p>
             </div>

@@ -44,8 +44,9 @@ function writingToForm(w) {
   };
 }
 
-export default function AddWriting() {
-  const { id: editId } = useParams();
+export default function AddWriting({ editIdOverride = null, embedded = false, hideExistingList = false, onSaved = null, onCancel = null }) {
+  const { id: routeEditId } = useParams();
+  const editId = editIdOverride ?? routeEditId;
   const navigate = useNavigate();
   const [writings, setWritings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -209,6 +210,9 @@ export default function AddWriting() {
           band_score: '',
           is_real_test: false,
         });
+      }
+      if (typeof onSaved === 'function') {
+        onSaved();
       }
     } catch (err) {
       showNotification(err.message, 'error');
@@ -394,11 +398,11 @@ export default function AddWriting() {
           <button type="submit" className="btn-manage-add" disabled={submitLoading} style={{ width: '100%', justifyContent: 'center', fontSize: '1.1rem', padding: '1.25rem' }}>
             {submitLoading ? (editId ? 'Đang lưu…' : 'Đang tạo…') : (editId ? 'Cập nhật bài Writing' : 'Tạo bài Writing mới')}
           </button>
-          {editId && <Link to="/manage/writings" className="btn btn-ghost" style={{ marginTop: '1rem', width: '100%', textAlign: 'center' }}>Hủy bỏ</Link>}
+          {!embedded && editId && <Link to="/manage/writings" className="btn btn-ghost" style={{ marginTop: '1rem', width: '100%', textAlign: 'center' }}>Hủy bỏ</Link>}
         </div>
       </form>
 
-      <div className="search-container" style={{ marginTop: '4rem', paddingTop: '3rem', borderTop: '2px solid #EEF2FF' }}>
+      {!hideExistingList && <div className="search-container" style={{ marginTop: '4rem', paddingTop: '3rem', borderTop: '2px solid #EEF2FF' }}>
         <h3 style={{ color: '#6366F1' }}>Danh sách bài Writing hiện có</h3>
         {!editId && (
           <>
@@ -438,7 +442,14 @@ export default function AddWriting() {
             </div>
           </>
         )}
-      </div>
+      </div>}
+      {embedded && typeof onCancel === 'function' && (
+        <div style={{ marginTop: '1rem' }}>
+          <button type="button" className="btn btn-ghost" onClick={onCancel}>
+            Back to list
+          </button>
+        </div>
+      )}
       <ConfirmationModal
         isOpen={confirmModal.isOpen}
         onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}

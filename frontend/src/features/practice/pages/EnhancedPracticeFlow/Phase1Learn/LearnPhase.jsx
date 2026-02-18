@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
+import { ArrowLeft, BookOpen, CheckCircle2, Award, ChevronRight } from 'lucide-react';
 import SkillModuleCard from './SkillModuleCard';
 import LessonViewer from './LessonViewer';
 import CheckpointQuiz from './CheckpointQuiz';
@@ -145,13 +146,15 @@ const LearnPhase = ({ onComplete, onBack }) => {
         <div className="learn-phase">
             <div className="phase-header">
                 <button onClick={onBack} className="back-button">
-                    ← Back
+                    <ArrowLeft size={20} />
+                    <span>Back</span>
                 </button>
                 <div className="header-content">
                     <h1 className="phase-title">
-                        <span className="phase-icon">📚</span>
+                        <BookOpen className="phase-icon" size={48} />
                         Lí Thuyết IELTS WRITING
                     </h1>
+                    <p className="phase-subtitle">Master the essential skills and strategies for a high band score</p>
                 </div>
             </div>
 
@@ -163,7 +166,7 @@ const LearnPhase = ({ onComplete, onBack }) => {
                     </div>
                     <div className="stat">
                         <span className="stat-value">{progressPercentage}%</span>
-                        <span className="stat-label">Progress</span>
+                        <span className="stat-label">Overall Progress</span>
                     </div>
                 </div>
                 <div className="progress-bar-container">
@@ -190,14 +193,15 @@ const LearnPhase = ({ onComplete, onBack }) => {
             {completedCount === totalModules && totalModules > 0 && (
                 <div className="completion-banner">
                     <div className="completion-content">
-                        <span className="completion-icon">🎉</span>
+                        <Award className="completion-icon" size={64} />
                         <div>
                             <h3>All Modules Completed!</h3>
                             <p>You're ready to start writing practice</p>
                         </div>
                     </div>
                     <button onClick={handleContinueToNext} className="btn-continue">
-                        Continue to Practice →
+                        Continue to Practice
+                        <ChevronRight size={20} style={{ marginLeft: '8px', verticalAlign: 'middle' }} />
                     </button>
                 </div>
             )}

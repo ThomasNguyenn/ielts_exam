@@ -1,5 +1,4 @@
 import React from 'react';
-import MockExaminerPanel from './MockExaminerPanel';
 
 const CircularProgress = ({ score, maxScore = 9, size = 120, strokeWidth = 8 }) => {
     const radius = (size - strokeWidth) / 2;
@@ -48,7 +47,6 @@ export default function SpeakingResultPhase({ result, topic, onRetry }) {
     if (!result) return null;
 
     const { transcript } = result;
-    const sessionId = result?.session_id || result?._id || result?.id || null;
     let { analysis } = result;
 
     if (typeof analysis === 'string') {
@@ -139,7 +137,7 @@ export default function SpeakingResultPhase({ result, topic, onRetry }) {
                         </svg>
                     </div>
                     <h3 className="text-lg font-bold text-emerald-800 mb-4 flex items-center gap-2 relative z-10">
-                        <span className="bg-emerald-200 text-emerald-800 text-xs px-2 py-1 rounded uppercase tracking-wider font-extrabold">Band 8.0+</span>
+                        <span className="bg-emerald-200 text-emerald-800 text-xs px-2 py-1 rounded uppercase tracking-wider font-extrabold">Band 7.0+</span>
                         Model Answer
                     </h3>
                     <p className="text-emerald-900 leading-7 font-serif text-lg relative z-10 whitespace-pre-wrap">
@@ -147,13 +145,6 @@ export default function SpeakingResultPhase({ result, topic, onRetry }) {
                     </p>
                 </div>
             </div>
-
-            {Number(topic?.part) === 3 && (
-                <MockExaminerPanel
-                    sessionId={sessionId}
-                    topicPrompt={topic?.prompt || ''}
-                />
-            )}
 
             {/* Action Buttons */}
             <div className="flex justify-center pt-4">

@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
 import { requestOpenAIJsonWithFallback } from '../utils/aiClient.js';
+import { PASSAGE_QUESTION_TYPES, SECTION_QUESTION_TYPES } from '../constants/questionTypes.js';
 dotenv.config();
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.OPEN_API_KEY;
@@ -20,6 +21,8 @@ const OPENAI_MODELS = [
  */
 export const parseContent = async (rawText, imageUrls = [], type = 'passage') => {
     const isPassage = type === 'passage';
+    const allowedTypes = isPassage ? PASSAGE_QUESTION_TYPES : SECTION_QUESTION_TYPES;
+    const enumListText = allowedTypes.map((value) => `'${value}'`).join(', ');
     
     // Define the specific schema structure based on the model type
     const systemPrompt = `
@@ -35,7 +38,7 @@ You are an expert IELTS content digitizer. Your job is to convert raw text and i
   "source": "string (e.g. Cambridge 18 Test 1)",
   "question_groups": [
     {
-      "type": "string (ENUM: ${isPassage ? "'mult_choice', 'true_false_notgiven', 'gap_fill', 'matching_headings', 'matching_features', 'summary_completion'" : "'mult_choice', 'true_false_notgiven', 'gap_fill', 'matching_headings', 'matching_features', 'summary_completion', 'listening_map'"} )",
+      "type": "string (ENUM: ${enumListText})",
       "instructions": "string (Optional instructions)",
       "text": "string (Optional: Only for split summary/gap-fill text or map image URL)",
       "headings": [ { "id": "string", "text": "string" } ], // For matching_headings or matching_features
@@ -56,12 +59,24 @@ You are an expert IELTS content digitizer. Your job is to convert raw text and i
 **RULES FOR PARSING**:
 1. **Detect Question Types**:
    - Multiple Choice: 'mult_choice'
-   - True/False/Not Given OR Yes/No/Not Given: 'true_false_notgiven'
-   - Filling in blanks (Sentences, Notes, Tables, Flow-charts): 'gap_fill'
+   - True/False/Not Given: 'true_false_notgiven'
+   - Yes/No/Not Given: 'yes_no_notgiven'
+   - Filling in blanks:
+     - Sentence completion: 'sentence_completion'
+     - Form completion: 'form_completion'
+     - Note completion: 'note_completion'
+     - Table completion: 'table_completion'
+     - Flow-chart completion: 'flow_chart_completion'
+     - Diagram label completion: 'diagram_label_completion'
+     - Legacy generic fallback: 'gap_fill'
    - Matching Headings to paragraphs: 'matching_headings'
-   - Matching Information/Features: 'matching_features'
-   - Summary with word list OR without: 'summary_completion' (If it's a summary with gaps, usually use this. If it's isolated sentences, use gap_fill).
-   ${!isPassage ? "- Labeling a plan/map: 'listening_map'" : ""}
+   - Matching Information: 'matching_info' (or legacy 'matching_information')
+   - Matching Features: 'matching_features'
+   - Matching Sentence Endings: 'matching_sentence_endings'
+   - Summary with word list OR without: 'summary_completion'
+   - Short answer questions: 'short_answer'
+   ${!isPassage ? "- Generic listening matching blocks: 'matching'" : ""}
+   ${!isPassage ? "- Labeling a plan/map/diagram: 'plan_map_diagram' or 'listening_map'" : ""}
 
 2. **Handle Gap Fills / Summary Completion**:
    - If the raw text has "[...]" or "______" indicating gaps, replace them with "[number]" corresponding to the question number if possible, or just parse the questions.

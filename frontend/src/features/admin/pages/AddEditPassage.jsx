@@ -4,25 +4,8 @@ import { api } from '@/shared/api/client';
 import './Manage.css';
 import { useNotification } from '@/shared/context/NotificationContext';
 import AIContentGeneratorModal from '@/shared/components/AIContentGeneratorModal';
+import QuestionGroup from './QuestionGroup';
 
-const Icons = {
-  Writing: () => (
-    <svg className="manage-nav-icon" style={{ width: '18px', height: '18px' }} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
-    </svg>
-  )
-};
-
-const QUESTION_GROUP_TYPES = [
-  { value: 'mult_choice', label: 'Multiple choice' },
-  { value: 'true_false_notgiven', label: 'True / False / Not given' },
-  { value: 'gap_fill', label: 'Gap fill' },
-  { value: 'matching_headings', label: 'Matching headings' },
-  { value: 'matching_features', label: 'Matching features' },
-  { value: 'matching_information', label: 'Matching information' },
-  { value: 'summary_completion', label: 'Summary completion' },
-  { value: 'listening_map', label: 'Listening Map' },
-];
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D'];
 
@@ -123,8 +106,9 @@ function passageToForm(p) {
   };
 }
 
-export default function AddPassage() {
-  const { id: editId } = useParams();
+export default function AddPassage({ editIdOverride = null, embedded = false, hideExistingList = false, onSaved = null, onCancel = null }) {
+  const { id: routeEditId } = useParams();
+  const editId = editIdOverride ?? routeEditId;
   const { showNotification } = useNotification();
   const [passages, setPassages] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -557,6 +541,9 @@ export default function AddPassage() {
         showNotification('Passage created successfully.', 'success');
         setForm({ _id: `passage-${Date.now()}`, title: '', content: '', source: '', question_groups: [emptyQuestionGroup()] });
       }
+      if (typeof onSaved === 'function') {
+        onSaved();
+      }
     } catch (err) {
       setError(err.message);
       showNotification(err.message, 'error');
@@ -618,293 +605,35 @@ export default function AddPassage() {
 
         <h3 style={{ color: '#6366F1', marginTop: '2rem' }}>Các nhóm câu hỏi</h3>
         {
-          form.question_groups.map((group, gi) => {
-            const isGroupCollapsed = collapsedGroups.has(gi);
-            return (
-              <div key={gi} className="question-group-block">
-                <div className="group-header" onClick={() => toggleGroupCollapse(gi)} style={{ padding: '0.5rem 0.3rem', borderRadius: '0.5rem' }} >
-                  <div className="group-title p-4">
-                    <Icons.Writing /> Question Group {gi + 1} ({group.type})
-                  </div>
-                  <div className="item-actions">
-                    <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); moveGroup(gi, -1); }} disabled={gi === 0}>▲</button>
-                    <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); moveGroup(gi, 1); }} disabled={gi === form.question_groups.length - 1}>▼</button>
-                    <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); removeQuestionGroup(gi); }} disabled={form.question_groups.length <= 1} style={{ color: '#ef4444', fontWeight: 700 }}>Xóa nhóm</button>
-                    <span style={{ marginLeft: '0.5rem', opacity: 0.5 }}>{isGroupCollapsed ? '▼' : '▲'}</span>
-                  </div>
-                </div>
-                {!isGroupCollapsed && (
-                  <div className="group-content">
-                    <div className="form-row">
-                      <label>Loại câu hỏi</label>
-                      <select value={group.type} onChange={(e) => updateQuestionGroup(gi, 'type', e.target.value)}>
-                        {QUESTION_GROUP_TYPES.map((opt) => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {group.type === 'mult_choice' && (
-                      <div style={{ background: '#f0f9ff', padding: '1rem', borderRadius: '0.5rem', marginBottom: '1rem', border: '1px solid #bae6fd' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
-                          <label style={{ fontWeight: 'bold', color: '#0369a1' }}>Question Format:</label>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                            <input
-                              type="radio"
-                              name={`q-mode-${gi}`}
-                              checked={group.group_layout === 'radio' || (!group.group_layout && group.questions.length === 1)}
-                              onChange={() => setMultiSelectMode(gi, 'radio')}
-                            />
-                            <span>Single Answer (Radio)</span>
-                          </label>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                            <input
-                              type="radio"
-                              name={`q-mode-${gi}`}
-                              checked={group.group_layout === 'checkbox' || (!group.group_layout && group.questions.length > 1)}
-                              onChange={() => setMultiSelectMode(gi, 'checkbox', 2)}
-                            />
-                            <span>Choose Multiple (Checkbox)</span>
-                          </label>
-                        </div>
-
-                        {(group.group_layout === 'checkbox' || (!group.group_layout && group.questions.length > 1)) && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginLeft: '0.5rem' }}>
-                            <label>Number of answers needed:</label>
-                            <input
-                              type="number"
-                              min="2" max="10"
-                              value={group.questions.length}
-                              onChange={(e) => {
-                                const val = parseInt(e.target.value) || 2;
-                                if (val >= 2) setMultiSelectMode(gi, 'checkbox', val);
-                              }}
-                              style={{ width: '60px', padding: '0.25rem' }}
-                            />
-                            <span style={{ fontSize: '0.9rem', color: '#666', fontStyle: 'italic' }}>
-                              (This will create {group.questions.length} questions sharing the same options.)
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="form-row">
-                      <label>Hướng dẫn (Instructions)</label>
-                      <textarea
-                        value={group.instructions}
-                        onChange={(e) => updateQuestionGroup(gi, 'instructions', e.target.value)}
-                        onKeyDown={(e) => handleBoldShortcut(e, group.instructions, (next) => updateQuestionGroup(gi, 'instructions', next))}
-                        rows={2}
-                      />
-                    </div>
-
-                    {(group.type === 'summary_completion' || group.type === 'gap_fill' || (group.type === 'mult_choice' && group.questions.length > 1)) && (
-                      <div className="form-row">
-                        <label>
-                          {group.type === 'mult_choice' ? 'Nội dung câu hỏi chung (Prompt)' : 'Nội dung đoạn văn có lỗ hổng (Ví dụ: [1], [2])'}
-                        </label>
-                        <textarea
-                          value={group.text}
-                          onChange={(e) => updateQuestionGroup(gi, 'text', e.target.value)}
-                          onKeyDown={(e) => handleBoldShortcut(e, group.text, (next) => updateQuestionGroup(gi, 'text', next))}
-                          rows={4}
-                          placeholder={group.type === 'mult_choice' ? "Enter the common question prompt here..." : ""}
-                        />
-                      </div>
-                    )}
-
-                    {(group.type === 'matching_headings' || group.type === 'matching_features' || group.type === 'matching_information') && (
-                      <div className="form-section">
-                        <h4>{group.type === 'matching_headings' ? 'Danh sách Headings' : group.type === 'matching_information' ? 'Danh sách Paragraphs' : 'Danh sách Features'}</h4>
-                        <p className="form-hint">Thêm các lựa chọn để học viên nối. Đáp án đúng của mỗi câu hỏi sẽ là ID (ví dụ: i, ii, iii hoặc A, B, C).</p>
-                        {(group.headings || []).map((h, hi) => (
-                          <div key={hi} className="heading-row">
-                            <input
-                              value={h.id}
-                              onChange={(e) => updateHeading(gi, hi, 'id', e.target.value)}
-                              placeholder="ID"
-                              className="heading-id"
-                            />
-                              <textarea
-                                value={h.text}
-                                onChange={(e) => updateHeading(gi, hi, 'text', e.target.value)}
-                                onKeyDown={(e) => handleBoldShortcut(e, h.text, (next) => updateHeading(gi, hi, 'text', next))}
-                                placeholder={group.type === 'matching_information' ? "e.g. Paragraph A" : "Nội dung heading hoặc feature..."}
-                                className="heading-text"
-                                rows={1}
-                              onInput={(e) => {
-                                e.target.style.height = 'auto';
-                                e.target.style.height = e.target.scrollHeight + 'px';
-                              }}
-                            />
-                            <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeHeading(gi, hi)} style={{ color: '#ef4444' }}>Xóa</button>
-                          </div>
-                        ))}
-                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => addHeading(gi)}>+ Thêm hàng mới</button>
-                      </div>
-                    )}
-
-                    {group.type === 'summary_completion' && (
-                      <div className="form-section">
-                        <h4>Danh sách lựa chọn (Options)</h4>
-                        <p className="form-hint">Nếu bài điền từ có danh sách từ cho sẵn, hãy thêm ở đây.</p>
-                        {(group.options || []).map((o, oi) => (
-                          <div key={oi} className="heading-row">
-                            <input
-                              value={o.id}
-                              onChange={(e) => updateOption(gi, oi, 'id', e.target.value)}
-                              placeholder="ID"
-                              className="heading-id"
-                            />
-                              <textarea
-                                value={o.text}
-                                onChange={(e) => updateOption(gi, oi, 'text', e.target.value)}
-                                onKeyDown={(e) => handleBoldShortcut(e, o.text, (next) => updateOption(gi, oi, 'text', next))}
-                                placeholder="Nội dung lựa chọn..."
-                                className="heading-text"
-                                rows={1}
-                              onInput={(e) => {
-                                e.target.style.height = 'auto';
-                                e.target.style.height = e.target.scrollHeight + 'px';
-                              }}
-                            />
-                            <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeOption(gi, oi)} style={{ color: '#ef4444' }}>Xóa</button>
-                          </div>
-                        ))}
-                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => addOption(gi)}>+ Thêm lựa chọn</button>
-                      </div>
-                    )}
-
-                    {group.questions.map((q, qi) => {
-                      const isQuestionCollapsed = collapsedQuestions.has(`${gi}-${qi}`);
-                      return (
-                        <div key={qi} className="question-block" style={{ border: '1px solid #E0E7FF', background: '#EEF2FF', padding: '1rem', borderRadius: '1rem', marginBottom: '1.5rem' }}>
-                          <div className="group-header" onClick={() => toggleQuestionCollapse(gi, qi)} style={{ padding: '0.5rem 0.3rem', borderRadius: '0.5rem', background: 'transparent', borderBottom: 'none' }}>
-                            <span style={{ fontWeight: 800, color: '#6366F1' }}>Câu {q.q_number}</span>
-                            <span style={{ opacity: 0.5 }}>{isQuestionCollapsed ? '▼' : '▲'}</span>
-                          </div>
-                          {!isQuestionCollapsed && (
-                            <div className="form-row">
-                              <label>Nội dung câu hỏi</label>
-                              <textarea
-                                value={q.text}
-                                onChange={(e) => updateQuestion(gi, qi, 'text', e.target.value)}
-                                onKeyDown={(e) => handleBoldShortcut(e, q.text, (next) => updateQuestion(gi, qi, 'text', next))}
-                                rows={2}
-                                placeholder="Nhập câu hỏi..."
-                              />
-
-                              {(group.type === 'mult_choice' || group.type === 'true_false_notgiven') && (
-                                <div style={{ marginTop: '1rem', marginBottom: '1rem' }}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                                    <label style={{ color: '#64748b', fontSize: '0.8rem', textTransform: 'uppercase' }}>Các lựa chọn (Options)</label>
-
-                                    {group.type === 'true_false_notgiven' && (
-                                      <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                        <button
-                                          type="button"
-                                          className="btn btn-ghost btn-xs"
-                                          style={{ fontSize: '0.7rem', border: '1px solid #ccc' }}
-                                          onClick={() => {
-                                            // Auto fill TRUE / FALSE / NOT GIVEN
-                                            const opts = [
-                                              { label: 'A', text: 'TRUE' },
-                                              { label: 'B', text: 'FALSE' },
-                                              { label: 'C', text: 'NOT GIVEN' },
-                                            ];
-                                            updateQuestion(gi, qi, 'option', opts);
-                                          }}
-                                        >
-                                          Auto: TRUE/FALSE...
-                                        </button>
-                                        <button
-                                          type="button"
-                                          className="btn btn-ghost btn-xs"
-                                          style={{ fontSize: '0.7rem', border: '1px solid #ccc' }}
-                                          onClick={() => {
-                                            // Auto fill YES / NO / NOT GIVEN
-                                            const opts = [
-                                              { label: 'A', text: 'YES' },
-                                              { label: 'B', text: 'NO' },
-                                              { label: 'C', text: 'NOT GIVEN' },
-                                            ];
-                                            updateQuestion(gi, qi, 'option', opts);
-                                          }}
-                                        >
-                                          Auto: YES/NO...
-                                        </button>
-                                      </div>
-                                    )}
-                                  </div>
-
-                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.5rem', marginTop: '0.5rem' }}>
-                                    {(q.option || []).map((o, oi) => (
-                                      <div key={oi} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%' }}>
-                                        <span style={{ fontWeight: 800, color: '#6366F1', width: '20px', textAlign: 'center' }}>{o.label}</span>
-                                        <input
-                                          value={o.text}
-                                          onChange={(e) => setQuestionOption(gi, qi, oi, e.target.value)}
-                                          placeholder={`Lựa chọn ${o.label}`}
-                                          style={{ background: '#ffffff', flex: 1 }}
-                                        />
-                                        {/* Only show remove if we have more than 2 options to avoid breaking basic format */}
-                                        <button
-                                          type="button"
-                                          className="btn btn-ghost btn-xs"
-                                          onClick={() => removeQuestionOption(gi, qi, oi)}
-                                          disabled={(q.option || []).length <= 2}
-                                          style={{ color: '#999', fontSize: '0.8rem' }}
-                                          title="Xóa lựa chọn này"
-                                        >
-                                          ✕
-                                        </button>
-                                      </div>
-                                    ))}
-                                  </div>
-                                  <button
-                                    type="button"
-                                    className="btn btn-ghost btn-xs"
-                                    onClick={() => addQuestionOption(gi, qi)}
-                                    style={{ marginTop: '0.5rem', color: '#4F46E5' }}
-                                  >
-                                    + Thêm lựa chọn
-                                  </button>
-                                </div>
-                              )}
-                              <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                <label>Đáp án đúng (ngăn cách bởi dấu phẩy)</label>
-                                <input
-                                  value={q.correct_answers.join(', ')}
-                                  onChange={(e) => setCorrectAnswers(gi, qi, e.target.value)}
-                                  onKeyDown={(e) => handleBoldShortcut(e, q.correct_answers.join(', '), (next) => setCorrectAnswers(gi, qi, next))}
-                                  placeholder="e.g. A hoặc Answer1, Answer2"
-                                  style={{ background: '#ffffff' }}
-                                />
-                              </div>
-                              <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                <label>Giải thích</label>
-                                <textarea
-                                  value={q.explanation}
-                                  onChange={(e) => updateQuestion(gi, qi, 'explanation', e.target.value)}
-                                  onKeyDown={(e) => handleBoldShortcut(e, q.explanation, (next) => updateQuestion(gi, qi, 'explanation', next))}
-                                  rows={2}
-                                  placeholder="Giải thích tại sao đây là đáp án đúng..."
-                                  style={{ background: '#ffffff' }}
-                                />
-                              </div>
-                            </div>
-                          )}
-                          <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeQuestion(gi, qi)} style={{ color: '#ef4444', marginTop: '1rem', fontWeight: 700 }}>✕ Xóa câu hỏi</button>
-                        </div>
-                      );
-                    })}
-                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => addQuestion(gi)}>+ Thêm câu hỏi</button>
-                  </div>
-                )}
-              </div>
-            );
-          })
+          form.question_groups.map((group, gi) => (
+            <QuestionGroup
+              key={gi}
+              group={group}
+              gi={gi}
+              totalGroups={form.question_groups.length}
+              isGroupCollapsed={collapsedGroups.has(gi)}
+              collapsedQuestions={collapsedQuestions}
+              onToggleCollapse={toggleGroupCollapse}
+              onMove={moveGroup}
+              onRemove={removeQuestionGroup}
+              onUpdateGroup={updateQuestionGroup}
+              onUpdateQuestion={updateQuestion}
+              onAddQuestion={addQuestion}
+              onRemoveQuestion={removeQuestion}
+              onSetQuestionOption={setQuestionOption}
+              onSetCorrectAnswers={setCorrectAnswers}
+              onAddHeading={addHeading}
+              onRemoveHeading={removeHeading}
+              onUpdateHeading={updateHeading}
+              onAddOption={addOption}
+              onRemoveOption={removeOption}
+              onUpdateOption={updateOption}
+              onAddQuestionOption={addQuestionOption}
+              onRemoveQuestionOption={removeQuestionOption}
+              onSetMultiSelectMode={setMultiSelectMode}
+              handleBoldShortcut={(e, val, cb) => handleBoldShortcut(e, val, cb)}
+            />
+          ))
         }
         <button type="button" className="btn-manage-add" onClick={addQuestionGroup}>+ Thêm nhóm câu hỏi</button>
 
@@ -915,7 +644,7 @@ export default function AddPassage() {
         </div>
       </form >
 
-      <div className="search-container" style={{ marginTop: '4rem', paddingTop: '3rem', borderTop: '2px solid #EEF2FF' }}>
+      {!hideExistingList && <div className="search-container" style={{ marginTop: '4rem', paddingTop: '3rem', borderTop: '2px solid #EEF2FF' }}>
         <h3 style={{ color: '#6366F1' }}>Danh sách bài Reading hiện có</h3>
         {!editId && (
           loading ? <p className="muted">Đang tải...</p> : (
@@ -944,7 +673,14 @@ export default function AddPassage() {
             </>
           )
         )}
-      </div>
+      </div>}
+      {embedded && typeof onCancel === 'function' && (
+        <div style={{ marginTop: '1rem' }}>
+          <button type="button" className="btn btn-ghost" onClick={onCancel}>
+            Back to list
+          </button>
+        </div>
+      )}
     </div >
   );
 }

@@ -293,3 +293,12 @@ a {
     transform: translateY(0) scale(1);
   }
 }
+
+/* Profile custom width */
+.layout-main--profile {
+  max-width: 90rem !important;
+}
+
+.layout-main--analytics {
+  max-width: none !important;
+}

@@ -654,7 +654,7 @@ export const submitExam = async (req, res) => {
                         let isCorrect = correctOptions.length && correctOptions.includes(userAnswer);
 
                         // Special logic for Matching Headings / Features / Information
-                        if (!isCorrect && (g.type === 'matching_headings' || g.type === 'matching_features' || g.type === 'matching_information')) {
+                        if (!isCorrect && ['matching_headings', 'matching_features', 'matching_information', 'matching_info', 'matching'].includes(g.type)) {
                             const headings = g.headings || [];
                             // Find the heading object selected by the user (userAnswer is the ID)
                             // Note: userAnswer is normalized (lowercase). Heading IDs are usually "i", "ii", or "A", "B". 

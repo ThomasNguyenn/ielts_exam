@@ -278,6 +278,8 @@ export const api = {
   },
 
   // Analytics
+  getAnalyticsDashboard: () => request('/api/analytics/dashboard'),
+  getAdminStudentAnalyticsDashboard: (studentId) => request(`/api/analytics/admin/${studentId}/dashboard`),
   getAnalyticsSkills: () => request('/api/analytics/skills'),
   getAnalyticsWeaknesses: () => request('/api/analytics/weaknesses'),
   getAnalyticsHistory: () => request('/api/analytics/history'),

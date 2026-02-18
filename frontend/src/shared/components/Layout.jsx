@@ -51,6 +51,11 @@ export default function Layout() {
 
   // Test detail pages (e.g. /tests/abc123 but not /tests or /tests/abc123/exam)
   const isTestDetailPage = /^\/tests\/[^/]+$/.test(location.pathname);
+
+  // Profile page custom width
+  const isProfilePage = location.pathname.includes('/profile');
+  const isAnalyticsPage = location.pathname.startsWith('/analytics');
+
   const closeMobileMenu = () => setIsMobileMenuOpen(false);
 
   return (
@@ -84,94 +89,94 @@ export default function Layout() {
                 }
               }}
             >
-            {/* <NavLink to="/" className="nav-brand">
+              {/* <NavLink to="/" className="nav-brand">
               IELTS MASTER
             </NavLink> */}
 
-            <NavLink to="/" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-              Trang chủ
-            </NavLink>
+              <NavLink to="/" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                Trang chủ
+              </NavLink>
 
-            <NavLink to="/tests" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-              Luyện tập
-            </NavLink>
+              <NavLink to="/tests" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                Luyện tập
+              </NavLink>
 
-            <NavLink to="/practice" className={() => `nav-item ${location.pathname.includes('/practice') && !location.pathname.includes('/speaking') ? 'active' : ''}`}>
-              Luyện viết
-            </NavLink>
+              <NavLink to="/practice" className={() => `nav-item ${location.pathname.includes('/practice') && !location.pathname.includes('/speaking') ? 'active' : ''}`}>
+                Luyện viết
+              </NavLink>
 
-            <NavLink to="/learn/skills" className={() => `nav-item ${location.pathname.includes('/learn/skills') ? 'active' : ''}`}>
-              Lí Thuyết
-            </NavLink>
+              <NavLink to="/learn/skills" className={() => `nav-item ${location.pathname.includes('/learn/skills') ? 'active' : ''}`}>
+                Lí Thuyết
+              </NavLink>
 
-            <NavLink to="/speaking" className={`nav-item ${location.pathname.includes('/speaking') ? 'active' : ''}`}>
-              Luyện nói
-            </NavLink>
+              <NavLink to="/speaking" className={`nav-item ${location.pathname.includes('/speaking') ? 'active' : ''}`}>
+                Luyện nói
+              </NavLink>
 
-            <div className="nav-spacer"></div>
+              <div className="nav-spacer"></div>
 
-            {user && (
-              <>
-                <NavLink to="/vocabulary" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-                  Vocabulary
-                </NavLink>
-                <NavLink to="/profile" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-                  Profile
-                </NavLink>
-                <NavLink to="/analytics" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-                  Phân Tích Sâu 📊
-                </NavLink>
-              </>
-            )}
+              {user && (
+                <>
+                  <NavLink to="/vocabulary" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                    Vocabulary
+                  </NavLink>
+                  <NavLink to="/profile" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                    Profile
+                  </NavLink>
+                  <NavLink to="/analytics" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                    Phân Tích Sâu 📊
+                  </NavLink>
+                </>
+              )}
 
-            {(user?.role === 'teacher' || user?.role === 'admin') && (
-              <>
-                <div className="nav-divider"></div>
-                <NavLink to="/grading" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-                  Chấm Bài
-                </NavLink>
-                <NavLink to="/scores" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-                  Kết Quả
-                </NavLink>
-              </>
-            )}
-            {(user?.role === 'admin') && (
-              <>
-                <NavLink to="/manage" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-                  Quản Lý
-                </NavLink>
-              </>
-            )}
+              {(user?.role === 'teacher' || user?.role === 'admin') && (
+                <>
+                  <div className="nav-divider"></div>
+                  <NavLink to="/grading" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                    Chấm Bài
+                  </NavLink>
+                  <NavLink to="/scores" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                    Kết Quả
+                  </NavLink>
+                </>
+              )}
+              {(user?.role === 'admin') && (
+                <>
+                  <NavLink to="/manage" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                    Quản Lý
+                  </NavLink>
+                </>
+              )}
 
 
-            {user ? (
-              <div className="nav-user-section">
-                <LevelProgress user={user} />
-                <button type="button" className="nav-item logout-btn" onClick={() => {
-                  api.removeToken();
-                  api.removeUser();
-                  window.location.href = '/login';
-                }}>
-                  <Icons.Logout />
-                  {/* Logout <span className="user-badge">{user.name}</span> */}
-                </button>
-              </div>
-            ) : (
-              <>
-                <div className="nav-divider"></div>
-                <NavLink to="/login" className={({ isActive }) => `nav-item btn-login ${isActive ? 'active' : ''}`}>
-                  <Icons.Login /> Login
-                </NavLink>
-                <NavLink to="/register" className={({ isActive }) => `nav-item btn-register ${isActive ? 'active' : ''}`}>
-                  <Icons.Register /> Register
-                </NavLink>
-              </>
-            )}
+              {user ? (
+                <div className="nav-user-section">
+                  <LevelProgress user={user} />
+                  <button type="button" className="nav-item logout-btn" onClick={() => {
+                    api.removeToken();
+                    api.removeUser();
+                    window.location.href = '/login';
+                  }}>
+                    <Icons.Logout />
+                    {/* Logout <span className="user-badge">{user.name}</span> */}
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="nav-divider"></div>
+                  <NavLink to="/login" className={({ isActive }) => `nav-item btn-login ${isActive ? 'active' : ''}`}>
+                    <Icons.Login /> Login
+                  </NavLink>
+                  <NavLink to="/register" className={({ isActive }) => `nav-item btn-register ${isActive ? 'active' : ''}`}>
+                    <Icons.Register /> Register
+                  </NavLink>
+                </>
+              )}
             </nav>
           </div>
         </header>
       )}
-      <main className={`layout-main ${isExamPage ? 'layout-main--fullscreen' : ''} ${isPracticePage || isTestDetailPage ? 'layout-main--wide' : ''} ${isResultAiPage ? 'layout-main--result-ai' : ''} ${isManagePage ? 'layout-main--manage' : ''} ${location.pathname === '/' ? 'layout-main--home' : ''}`}>
+      <main className={`layout-main ${isExamPage ? 'layout-main--fullscreen' : ''} ${isPracticePage || isTestDetailPage ? 'layout-main--wide' : ''} ${isResultAiPage ? 'layout-main--result-ai' : ''} ${isManagePage ? 'layout-main--manage' : ''} ${location.pathname === '/' ? 'layout-main--home' : ''} ${isProfilePage ? 'layout-main--profile' : ''} ${isAnalyticsPage ? 'layout-main--analytics' : ''}`}>
         <Outlet />
       </main>
     </div>

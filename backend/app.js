@@ -178,7 +178,7 @@ export const createApp = ({ startBackgroundJobs = true } = {}) => {
     });
   });
 
-  app.use("/api/auth", authRateLimit);
+  app.use("/api/auth", applyIf((req) => req.path !== "/profile", authRateLimit));
   app.use("/api/content-gen", aiRateLimit);
   app.use("/api/practice", applyIf((req) => req.path === "/outline-check" || req.path === "/submit" || req.path.startsWith("/materials/"), aiRateLimit));
   app.use("/api/writings", applyIf((req) => req.method === "POST" && /\/submissions\/[^/]+\/ai-score$/.test(req.path), aiRateLimit));

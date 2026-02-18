@@ -9,12 +9,12 @@ const TestList = lazy(() => import('@/features/tests/pages/TestList'));
 const TestDetail = lazy(() => import('@/features/tests/pages/TestDetail'));
 const Exam = lazy(() => import('@/features/tests/pages/Exam'));
 const TestHistory = lazy(() => import('@/features/tests/pages/TestHistory'));
-const ManageLayout = lazy(() => import('@/shared/components/ManageLayout'));
-const AddPassage = lazy(() => import('@/features/admin/pages/AddPassage'));
-const AddSection = lazy(() => import('@/features/admin/pages/AddSection'));
-const AddTest = lazy(() => import('@/features/admin/pages/AddTest'));
-const AddWriting = lazy(() => import('@/features/admin/pages/AddWriting'));
-const AddSpeaking = lazy(() => import('@/features/admin/pages/AddSpeaking'));
+const ManageLayout = lazy(() => import('@/features/admin/components/ManageLayout'));
+const ManagePassagesSinglePage = lazy(() => import('@/features/admin/pages/ManagePassagesSinglePage'));
+const ManageSectionsSinglePage = lazy(() => import('@/features/admin/pages/ManageSectionsSinglePage'));
+const ManageTestsSinglePage = lazy(() => import('@/features/admin/pages/ManageTestsSinglePage'));
+const ManageWritingsSinglePage = lazy(() => import('@/features/admin/pages/ManageWritingsSinglePage'));
+const ManageSpeakingSinglePage = lazy(() => import('@/features/admin/pages/ManageSpeakingSinglePage'));
 const AddSkillModules = lazy(() => import('@/features/admin/pages/AddSkillModules'));
 const Login = lazy(() => import('@/features/auth/pages/Login'));
 const Register = lazy(() => import('@/features/auth/pages/Register'));
@@ -138,16 +138,16 @@ export default function App() {
             <Route index element={<Navigate to="/manage/passages" replace />} />
             <Route path="requests" element={withSuspense(<StudentRequests />)} />
             <Route path="users" element={withSuspense(<ManageUsers />)} />
-            <Route path="passages" element={withSuspense(<AddPassage />)} />
-            <Route path="passages/:id" element={withSuspense(<AddPassage />)} />
-            <Route path="sections" element={withSuspense(<AddSection />)} />
-            <Route path="sections/:id" element={withSuspense(<AddSection />)} />
-            <Route path="tests" element={withSuspense(<AddTest />)} />
-            <Route path="tests/:id" element={withSuspense(<AddTest />)} />
-            <Route path="writings" element={withSuspense(<AddWriting />)} />
-            <Route path="writings/:id" element={withSuspense(<AddWriting />)} />
-            <Route path="speaking" element={withSuspense(<AddSpeaking />)} />
-            <Route path="speaking/:id" element={withSuspense(<AddSpeaking />)} />
+            <Route path="passages" element={withSuspense(<ManagePassagesSinglePage />)} />
+            <Route path="passages/:id" element={withSuspense(<ManagePassagesSinglePage />)} />
+            <Route path="sections" element={withSuspense(<ManageSectionsSinglePage />)} />
+            <Route path="sections/:id" element={withSuspense(<ManageSectionsSinglePage />)} />
+            <Route path="tests" element={withSuspense(<ManageTestsSinglePage />)} />
+            <Route path="tests/:id" element={withSuspense(<ManageTestsSinglePage />)} />
+            <Route path="writings" element={withSuspense(<ManageWritingsSinglePage />)} />
+            <Route path="writings/:id" element={withSuspense(<ManageWritingsSinglePage />)} />
+            <Route path="speaking" element={withSuspense(<ManageSpeakingSinglePage />)} />
+            <Route path="speaking/:id" element={withSuspense(<ManageSpeakingSinglePage />)} />
             <Route path="skill-modules" element={withSuspense(<AddSkillModules />)} />
             <Route path="skill-modules/:id" element={withSuspense(<AddSkillModules />)} />
           </Route>

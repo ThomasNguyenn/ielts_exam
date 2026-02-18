@@ -12,6 +12,11 @@ export const createRateLimiter = ({
   const bucket = new Map();
 
   return (req, res, next) => {
+    // Do not rate-limit CORS preflight requests.
+    if (req.method === "OPTIONS") {
+      return next();
+    }
+
     const key = keyGenerator(req);
     const now = Date.now();
     const current = bucket.get(key);

@@ -58,8 +58,9 @@ function SortableItem({ id, title, subtitle, onRemove, type }) {
   );
 }
 
-export default function AddTest() {
-  const { id: editId } = useParams();
+export default function AddTest({ editIdOverride = null, embedded = false, hideExistingList = false, onSaved = null, onCancel = null }) {
+  const { id: routeEditId } = useParams();
+  const editId = editIdOverride ?? routeEditId;
   const [passages, setPassages] = useState([]);
   const [sections, setSections] = useState([]);
   const [writings, setWritings] = useState([]);
@@ -325,6 +326,9 @@ export default function AddTest() {
           listening_sections: [],
           writing_tasks: [],
         });
+      }
+      if (typeof onSaved === 'function') {
+        onSaved();
       }
     } catch (err) {
       showNotification(err.message, 'error');
@@ -621,12 +625,12 @@ export default function AddTest() {
               </button>
             )}
 
-            {editId && <Link to="/manage/tests" className="btn btn-ghost" style={{ flex: 1, textAlign: 'center', border: '1px solid #e2e8f0' }}>Hủy bỏ</Link>}
+            {!embedded && editId && <Link to="/manage/tests" className="btn btn-ghost" style={{ flex: 1, textAlign: 'center', border: '1px solid #e2e8f0' }}>Hủy bỏ</Link>}
           </div>
         </div>
       </form>
 
-      <div className="search-container" style={{ marginTop: '4rem', paddingTop: '3rem', borderTop: '2px solid #EEF2FF' }}>
+      {!hideExistingList && <div className="search-container" style={{ marginTop: '4rem', paddingTop: '3rem', borderTop: '2px solid #EEF2FF' }}>
         <h3 style={{ color: '#6366F1' }}>Các bài thi hiện có trong hệ thống</h3>
         {!editId && (
           <>
@@ -666,7 +670,14 @@ export default function AddTest() {
             </div>
           </>
         )}
-      </div>
+      </div>}
+      {embedded && typeof onCancel === 'function' && (
+        <div style={{ marginTop: '1rem' }}>
+          <button type="button" className="btn btn-ghost" onClick={onCancel}>
+            Back to list
+          </button>
+        </div>
+      )}
       <ConfirmationModal
         isOpen={modalConfig.isOpen}
         title={modalConfig.title}

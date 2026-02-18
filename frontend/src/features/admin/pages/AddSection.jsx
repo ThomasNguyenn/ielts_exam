@@ -158,8 +158,9 @@ function sectionToForm(s) {
   };
 }
 
-export default function AddSection() {
-  const { id: editId } = useParams();
+export default function AddSection({ editIdOverride = null, embedded = false, hideExistingList = false, onSaved = null, onCancel = null }) {
+  const { id: routeEditId } = useParams();
+  const editId = editIdOverride ?? routeEditId;
   const { showNotification } = useNotification();
   const [sections, setSections] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -610,6 +611,9 @@ export default function AddSection() {
           source: '',
           question_groups: [emptyQuestionGroup()],
         });
+      }
+      if (typeof onSaved === 'function') {
+        onSaved();
       }
     } catch (err) {
       setError(err.message);
@@ -1125,11 +1129,11 @@ export default function AddSection() {
           <button type="submit" className="btn-manage-add" disabled={submitLoading} style={{ width: '100%', justifyContent: 'center', fontSize: '1.1rem', padding: '1.25rem' }}>
             {submitLoading ? (editId ? 'Đang lưu...' : 'Đang tạo...') : (editId ? 'Cập nhật bài nghe' : 'Tạo bài nghe mới')}
           </button>
-          {editId && <Link to="/manage/sections" className="btn btn-ghost" style={{ marginTop: '1rem', width: '100%', textAlign: 'center' }}>Hủy bỏ</Link>}
+          {!embedded && editId && <Link to="/manage/sections" className="btn btn-ghost" style={{ marginTop: '1rem', width: '100%', textAlign: 'center' }}>Hủy bỏ</Link>}
         </div>
       </form >
 
-      <div className="search-container" style={{ marginTop: '4rem', paddingTop: '3rem', borderTop: '2px solid #EEF2FF' }}>
+      {!hideExistingList && <div className="search-container" style={{ marginTop: '4rem', paddingTop: '3rem', borderTop: '2px solid #EEF2FF' }}>
         <h3 style={{ color: '#6366F1' }}>Danh sách bài Listening hiện có</h3>
         {!editId && (
           loading ? <p className="muted">Đang tải...</p> : (
@@ -1171,7 +1175,14 @@ export default function AddSection() {
             </>
           )
         )}
-      </div>
+      </div>}
+      {embedded && typeof onCancel === 'function' && (
+        <div style={{ marginTop: '1rem' }}>
+          <button type="button" className="btn btn-ghost" onClick={onCancel}>
+            Back to list
+          </button>
+        </div>
+      )}
     </div >
   );
 }
