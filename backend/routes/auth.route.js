@@ -10,7 +10,7 @@ router.post("/verify-giftcode", verifyGiftcode);
 router.post("/verify-email", verifyEmail);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);
-router.get("/profile", authenticateToken, getProfile);
-router.put("/profile", authenticateToken, updateProfile);
+router.get("/profile", verifyToken, getProfile);
+router.put("/profile", verifyToken, updateProfile);
 
 export default router;
