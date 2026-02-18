@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { api } from '@/shared/api/client';
-import { Lock, ArrowLeft, CheckCircle } from 'lucide-react';
+import { Lock, ArrowLeft, CheckCircle, KeyRound } from 'lucide-react';
 import './Auth.css';
 
 export default function ResetPassword() {
@@ -46,9 +46,15 @@ export default function ResetPassword() {
     if (!token) {
         return (
             <div className="auth-page">
-                <div className="auth-container">
-                    <div className="error-message">Invalid request. No token provided.</div>
-                    <Link to="/login" className="btn btn-ghost">Back to Login</Link>
+                <div className="auth-container auth-container--compact">
+                    <div className="auth-form-panel" style={{ textAlign: 'center' }}>
+                        <div className="auth-error" style={{ justifyContent: 'center', marginBottom: '1.5rem' }}>
+                            Invalid request. No token provided.
+                        </div>
+                        <Link to="/login" className="btn btn-ghost">
+                            <ArrowLeft size={16} style={{ marginRight: 8 }} /> Back to Login
+                        </Link>
+                    </div>
                 </div>
             </div>
         );
@@ -56,61 +62,71 @@ export default function ResetPassword() {
 
     return (
         <div className="auth-page">
-            <div className="auth-container">
-                <div className="auth-header">
-                    <h1>Reset Password</h1>
-                    <p>Enter your new password below.</p>
-                </div>
-
-                {status === 'success' ? (
-                    <div className="auth-success-message" style={{ textAlign: 'center', padding: '2rem 0' }}>
-                        <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#DEF7EC', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#03543F', margin: '0 auto 1.5rem' }}>
-                            <CheckCircle size={32} />
+            <div className="auth-container auth-container--compact">
+                <div className="auth-form-panel">
+                    <div className="auth-form-header">
+                        <div className="auth-greeting">
+                            <KeyRound size={18} /> Secure Reset
                         </div>
-                        <h3>Password Reset Successful!</h3>
-                        <p>You can now login with your new password.</p>
-                        <p style={{ fontSize: '0.875rem', color: '#666', marginTop: '1rem' }}>Redirecting to login...</p>
-                        <Link to="/login" className="btn btn-primary" style={{ marginTop: '1rem' }}>
-                            Login Now
-                        </Link>
+                        <h1>Reset Password</h1>
+                        <p>Enter your new password below.</p>
                     </div>
-                ) : (
-                    <form onSubmit={handleSubmit} className="auth-form">
-                        <div className="form-group">
-                            <label>New Password</label>
-                            <div className="input-with-icon">
-                                <Lock size={18} />
-                                <input
-                                    type="password"
-                                    placeholder="••••••••"
-                                    value={newPassword}
-                                    onChange={(e) => setNewPassword(e.target.value)}
-                                    required
-                                />
+
+                    {status === 'success' ? (
+                        <div className="auth-success-card">
+                            <div className="auth-success-icon" style={{ background: '#DEF7EC', color: '#03543F' }}>
+                                <CheckCircle />
                             </div>
-                        </div>
+                            <h3>Password Reset!</h3>
+                            <p>You can now login with your new password.<br />Redirecting to login...</p>
 
-                        <div className="form-group">
-                            <label>Confirm Password</label>
-                            <div className="input-with-icon">
-                                <Lock size={18} />
-                                <input
-                                    type="password"
-                                    placeholder="••••••••"
-                                    value={confirmPassword}
-                                    onChange={(e) => setConfirmPassword(e.target.value)}
-                                    required
-                                />
+                            <Link to="/login" className="auth-submit-btn" style={{ display: 'block', textDecoration: 'none', textAlign: 'center' }}>
+                                Login Now
+                            </Link>
+                        </div>
+                    ) : (
+                        <form onSubmit={handleSubmit} className="auth-form">
+                            <div className="auth-field">
+                                <label>New Password</label>
+                                <div className="auth-input-wrapper">
+                                    <Lock className="auth-input-icon" />
+                                    <input
+                                        type="password"
+                                        placeholder="••••••••"
+                                        value={newPassword}
+                                        onChange={(e) => setNewPassword(e.target.value)}
+                                        required
+                                        autoFocus
+                                    />
+                                </div>
                             </div>
-                        </div>
 
-                        {status === 'error' && <div className="error-message">{message}</div>}
+                            <div className="auth-field">
+                                <label>Confirm Password</label>
+                                <div className="auth-input-wrapper">
+                                    <Lock className="auth-input-icon" />
+                                    <input
+                                        type="password"
+                                        placeholder="••••••••"
+                                        value={confirmPassword}
+                                        onChange={(e) => setConfirmPassword(e.target.value)}
+                                        required
+                                    />
+                                </div>
+                            </div>
 
-                        <button type="submit" className="btn btn-primary" disabled={status === 'loading'}>
-                            {status === 'loading' ? 'Resetting...' : 'Reset Password'}
-                        </button>
-                    </form>
-                )}
+                            {status === 'error' && (
+                                <div className="auth-error">
+                                    {message}
+                                </div>
+                            )}
+
+                            <button type="submit" className="auth-submit-btn" disabled={status === 'loading'}>
+                                {status === 'loading' ? 'Resetting...' : 'Reset Password'}
+                            </button>
+                        </form>
+                    )}
+                </div>
             </div>
         </div>
     );

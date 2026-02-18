@@ -503,6 +503,89 @@
     }
 }
 
+/* === Compact Container (for Forgot/Reset Password) === */
+.auth-container.auth-container--compact {
+    max-width: 480px;
+    flex-direction: column;
+}
+
+.auth-container--compact .auth-form-panel {
+    padding: 3rem 2.5rem;
+    width: 100%;
+}
+
+/* === Success State Card === */
+.auth-success-card {
+    text-align: center;
+    padding: 1rem 0;
+    animation: auth-fadeIn 0.5s ease-out;
+}
+
+.auth-success-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    margin: 0 auto 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    position: relative;
+}
+
+.auth-success-icon::after {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    border-radius: 50%;
+    border: 2px solid currentColor;
+    opacity: 0.2;
+    animation: auth-pulse 2s infinite;
+}
+
+.auth-success-card h3 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #0F172A;
+    margin: 0 0 0.75rem;
+}
+
+.auth-success-card p {
+    font-size: 0.9375rem;
+    color: #64748B;
+    line-height: 1.6;
+    margin-bottom: 2rem;
+}
+
+@keyframes auth-fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes auth-pulse {
+    0% {
+        transform: scale(1);
+        opacity: 0.2;
+    }
+
+    50% {
+        transform: scale(1.1);
+        opacity: 0.1;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 0.2;
+    }
+}
+
 /* Legacy compat — keep old auth-info classes */
 .auth-info {
     display: flex;

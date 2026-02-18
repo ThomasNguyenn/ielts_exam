@@ -1,7 +1,7 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import { Menu, X } from 'lucide-react';
 import { api } from '@/shared/api/client';
-import Logout from './Logout';
 import LevelProgress from './LevelProgress';
 import './Navigation.css';
 import './Navigation-mobile.css';
@@ -26,9 +26,11 @@ const Icons = {
 export default function Layout() {
   const location = useLocation();
   const [user, setUser] = useState(() => api.getUser());
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     setUser(api.getUser());
+    setIsMobileMenuOpen(false);
   }, [location.pathname]);
 
   useEffect(() => {
@@ -49,12 +51,39 @@ export default function Layout() {
 
   // Test detail pages (e.g. /tests/abc123 but not /tests or /tests/abc123/exam)
   const isTestDetailPage = /^\/tests\/[^/]+$/.test(location.pathname);
+  const closeMobileMenu = () => setIsMobileMenuOpen(false);
 
   return (
     <div className="layout">
       {!isExamPage && (
         <header className="layout-header">
           <div className="nav-container">
+            <div className="nav-mobile-head">
+              <NavLink to="/" className="nav-mobile-brand" onClick={closeMobileMenu}>
+                IELTS MASTER
+              </NavLink>
+              <button
+                type="button"
+                className={`nav-toggle ${isMobileMenuOpen ? 'open' : ''}`}
+                aria-label="Toggle navigation"
+                aria-expanded={isMobileMenuOpen}
+                aria-controls="layout-navigation"
+                onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+              >
+                {isMobileMenuOpen ? <X className="nav-toggle-icon" /> : <Menu className="nav-toggle-icon" />}
+              </button>
+            </div>
+
+            <nav
+              id="layout-navigation"
+              className={`nav-links ${isMobileMenuOpen ? 'open' : ''}`}
+              onClick={(event) => {
+                const target = event.target;
+                if (target && typeof target.closest === 'function' && target.closest('.nav-item')) {
+                  closeMobileMenu();
+                }
+              }}
+            >
             {/* <NavLink to="/" className="nav-brand">
               IELTS MASTER
             </NavLink> */}
@@ -116,16 +145,16 @@ export default function Layout() {
 
 
             {user ? (
-              <div className="nav-user-section" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div className="nav-user-section">
                 <LevelProgress user={user} />
-                <div className="nav-item logout-btn" style={{ cursor: 'pointer' }} onClick={() => {
+                <button type="button" className="nav-item logout-btn" onClick={() => {
                   api.removeToken();
                   api.removeUser();
                   window.location.href = '/login';
                 }}>
                   <Icons.Logout />
                   {/* Logout <span className="user-badge">{user.name}</span> */}
-                </div>
+                </button>
               </div>
             ) : (
               <>
@@ -138,6 +167,7 @@ export default function Layout() {
                 </NavLink>
               </>
             )}
+            </nav>
           </div>
         </header>
       )}

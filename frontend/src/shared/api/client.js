@@ -70,6 +70,9 @@ function handleUnauthorized(path) {
     '/api/auth/login',
     '/api/auth/register',
     '/api/auth/verify-giftcode',
+    '/api/auth/verify-email',
+    '/api/auth/forgot-password',
+    '/api/auth/reset-password',
   ]);
 
   if (publicAuthPaths.has(path)) return;
@@ -126,6 +129,9 @@ export const api = {
   // Auth
   register: (body) => request('/api/auth/register', { method: 'POST', body: JSON.stringify(body) }),
   login: (body) => request('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
+  verifyEmail: (token) => request('/api/auth/verify-email', { method: 'POST', body: JSON.stringify({ token }) }),
+  forgotPassword: (email) => request('/api/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
+  resetPassword: (token, newPassword) => request('/api/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, newPassword }) }),
   getProfile: () => request('/api/auth/profile'),
   updateProfile: (body) => request('/api/auth/profile', { method: 'PUT', body: JSON.stringify(body) }),
   verifyGiftcode: (data) => request('/api/auth/verify-giftcode', { method: 'POST', body: JSON.stringify(data) }),

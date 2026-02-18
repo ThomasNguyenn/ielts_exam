@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '@/shared/api/client';
-import { Mail, ArrowLeft, Send } from 'lucide-react';
+import { Mail, ArrowLeft, Send, KeyRound, CheckCircle } from 'lucide-react';
 import './Auth.css';
 
 export default function ForgotPassword() {
@@ -26,53 +26,78 @@ export default function ForgotPassword() {
 
     return (
         <div className="auth-page">
-            <div className="auth-container">
-                <div className="auth-header">
-                    <h1>Forgot Password</h1>
-                    <p>Enter your email via which you registered.</p>
-                </div>
-
-                {status === 'success' ? (
-                    <div className="auth-success-message" style={{ textAlign: 'center', padding: '2rem 0' }}>
-                        <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#E0E7FF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4F46E5', margin: '0 auto 1.5rem' }}>
-                            <Mail size={32} />
+            <div className="auth-container auth-container--compact">
+                <div className="auth-form-panel">
+                    <div className="auth-form-header">
+                        <div className="auth-greeting">
+                            <KeyRound size={18} /> Password Recovery
                         </div>
-                        <h3>Check your email</h3>
-                        <p>{message}</p>
-                        <Link to="/login" className="btn btn-ghost" style={{ marginTop: '1.5rem' }}>
-                            <ArrowLeft size={16} /> Back to Login
-                        </Link>
+                        <h1>Forgot Password?</h1>
+                        <p>No worries! Enter your email and we will send you a reset link.</p>
                     </div>
-                ) : (
-                    <form onSubmit={handleSubmit} className="auth-form">
-                        <div className="form-group">
-                            <label>Email Address</label>
-                            <div className="input-with-icon">
-                                <Mail size={18} />
-                                <input
-                                    type="email"
-                                    placeholder="name@example.com"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    required
-                                />
+
+                    {status === 'success' ? (
+                        <div className="auth-success-card">
+                            <div className="auth-success-icon" style={{ background: '#E0E7FF', color: '#4F46E5' }}>
+                                <Mail />
                             </div>
-                        </div>
+                            <h3>Check your email</h3>
+                            <p>We've sent a password reset link to <br /><strong>{email}</strong></p>
 
-                        {status === 'error' && <div className="error-message">{message}</div>}
+                            <div className="auth-divider">
+                                <span>Did not receive the email?</span>
+                            </div>
 
-                        <button type="submit" className="btn btn-primary" disabled={status === 'loading'}>
-                            {status === 'loading' ? 'Sending...' : 'Send Reset Link'}
-                            {!status === 'loading' && <Send size={18} />}
-                        </button>
+                            <button
+                                onClick={() => setStatus('idle')}
+                                className="btn btn-ghost"
+                                style={{ width: '100%', marginTop: '1rem', color: '#6366F1' }}
+                            >
+                                Try another email address
+                            </button>
 
-                        <div className="auth-footer">
-                            <Link to="/login" className="back-link">
-                                <ArrowLeft size={16} /> Back to Login
+                            <Link to="/login" className="btn btn-ghost" style={{ marginTop: '0.5rem', width: '100%' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                                    <ArrowLeft size={16} /> Back to Login
+                                </div>
                             </Link>
                         </div>
-                    </form>
-                )}
+                    ) : (
+                        <form onSubmit={handleSubmit} className="auth-form">
+                            <div className="auth-field">
+                                <label>Email Address</label>
+                                <div className="auth-input-wrapper">
+                                    <Mail className="auth-input-icon" />
+                                    <input
+                                        type="email"
+                                        placeholder="name@example.com"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        required
+                                        autoFocus
+                                    />
+                                </div>
+                            </div>
+
+                            {status === 'error' && (
+                                <div className="auth-error">
+                                    {message}
+                                </div>
+                            )}
+
+                            <button type="submit" className="auth-submit-btn" disabled={status === 'loading'}>
+                                {status === 'loading' ? 'Sending Link...' : 'Send Reset Link'}
+                            </button>
+
+                            <div className="auth-footer">
+                                <Link to="/login">
+                                    <ArrowLeft size={14} style={{ display: 'inline', marginRight: '4px' }} />
+                                    Back to Login
+                                </Link>
+                            </div>
+                        </form>
+                    )}
+                </div>
             </div>
         </div>
     );
