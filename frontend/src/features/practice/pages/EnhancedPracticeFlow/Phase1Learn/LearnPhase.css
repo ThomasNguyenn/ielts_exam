@@ -1,6 +1,6 @@
 .learn-phase {
     min-height: 100vh;
-    background: linear-gradient(135deg, #FFF9F1 0%, #FFE8DC 100%);
+    background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%);
     padding: 2rem;
 }
 
@@ -22,8 +22,8 @@
 
 .back-button:hover {
     background: #f8fafc;
-    border-color: #d03939;
-    color: #d03939;
+    border-color: #6366F1;
+    color: #6366F1;
 }
 
 .header-content {
@@ -75,7 +75,7 @@
     display: block;
     font-size: 2.5rem;
     font-weight: 800;
-    color: #d03939;
+    color: #6366F1;
     line-height: 1;
     margin-bottom: 0.5rem;
 }
@@ -98,7 +98,7 @@
 
 .progress-bar-fill {
     height: 100%;
-    background: linear-gradient(90deg, #d03939 0%, #f87171 100%);
+    background: linear-gradient(90deg, #6366F1 0%, #f87171 100%);
     transition: width 0.5s ease;
     border-radius: 999px;
 }
@@ -111,7 +111,7 @@
 }
 
 .completion-banner {
-    background: linear-gradient(135deg, #d03939 0%, #f87171 100%);
+    background: linear-gradient(135deg, #6366F1 0%, #f87171 100%);
     color: white;
     border-radius: 20px;
     padding: 2rem;
@@ -144,7 +144,7 @@
 
 .btn-continue {
     background: white;
-    color: #d03939;
+    color: #6366F1;
     border: none;
     padding: 1rem 2rem;
     border-radius: 12px;
@@ -173,7 +173,7 @@
     width: 50px;
     height: 50px;
     border: 4px solid #f3f4f6;
-    border-top-color: #d03939;
+    border-top-color: #6366F1;
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }

@@ -21,7 +21,7 @@
 }
 
 .btn-hero-start {
-    background-color: #FF4747;
+    background-color: #4F46E5;
     color: white;
     padding: 12px 24px;
     border-radius: 8px;
@@ -31,7 +31,7 @@
 }
 
 .btn-hero-start:hover {
-    background-color: #d03939;
+    background-color: #6366F1;
     color: white;
     cursor: pointer;
 }

@@ -109,7 +109,7 @@
 .form-row textarea:focus,
 .form-row input[type="text"]:focus {
     outline: none;
-    border-color: #3b82f6;
+    border-color: #6366F1;
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
@@ -153,12 +153,12 @@
 }
 
 .btn-manage-add {
-    background: #FF4747;
+    background: #4F46E5;
     color: white;
 }
 
 .btn-manage-add:hover:not(:disabled) {
-    background: #d03939;
+    background: #6366F1;
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(208, 57, 57, 0.2);
 }

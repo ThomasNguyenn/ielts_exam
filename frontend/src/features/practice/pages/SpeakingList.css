@@ -1,0 +1,491 @@
+/* ============================================================
+   Speaking List — Premium IELTS Speaking Practice UI
+   ============================================================ */
+
+/* === Page Layout === */
+.speaking-page {
+    max-width: 1200px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+    animation: sp-fadeIn 0.4s ease-out;
+}
+
+@keyframes sp-fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(16px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* === Hero Header === */
+.sp-hero {
+    background: linear-gradient(135deg, #4F46E5 0%, #6366F1 40%, #818CF8 100%);
+    border-radius: 20px;
+    padding: 2.5rem 3rem;
+    margin-bottom: 2rem;
+    position: relative;
+    overflow: hidden;
+    color: white;
+}
+
+.sp-hero::before {
+    content: '';
+    position: absolute;
+    top: -40px;
+    right: -40px;
+    width: 200px;
+    height: 200px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 50%;
+}
+
+.sp-hero::after {
+    content: '';
+    position: absolute;
+    bottom: -30px;
+    left: 30%;
+    width: 140px;
+    height: 140px;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 50%;
+}
+
+.sp-hero-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 2rem;
+}
+
+.sp-hero-text h1 {
+    font-size: 1.875rem;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    margin: 0 0 0.5rem;
+}
+
+.sp-hero-text p {
+    font-size: 0.9375rem;
+    opacity: 0.85;
+    margin: 0;
+    line-height: 1.6;
+}
+
+.sp-hero-stats {
+    display: flex;
+    gap: 1.5rem;
+    flex-shrink: 0;
+}
+
+.sp-hero-stat {
+    text-align: center;
+    padding: 0.75rem 1.25rem;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 14px;
+    backdrop-filter: blur(8px);
+    min-width: 80px;
+}
+
+.sp-hero-stat-value {
+    font-size: 1.5rem;
+    font-weight: 800;
+    display: block;
+}
+
+.sp-hero-stat-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    opacity: 0.8;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    display: block;
+    margin-top: 0.125rem;
+}
+
+/* === Controls Bar === */
+.sp-controls {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.sp-search-wrapper {
+    flex: 1;
+    min-width: 220px;
+    position: relative;
+}
+
+.sp-search-icon {
+    position: absolute;
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 18px;
+    height: 18px;
+    color: #94A3B8;
+    pointer-events: none;
+    transition: color 0.2s;
+}
+
+.sp-search-wrapper:focus-within .sp-search-icon {
+    color: #6366F1;
+}
+
+.sp-search {
+    width: 100%;
+    padding: 0.75rem 1rem 0.75rem 2.75rem;
+    border: 1.5px solid #E2E8F0;
+    border-radius: 12px;
+    font-size: 0.875rem;
+    font-family: inherit;
+    color: #0F172A;
+    background: #F8FAFC;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+}
+
+.sp-search::placeholder {
+    color: #94A3B8;
+}
+
+.sp-search:focus {
+    outline: none;
+    border-color: #6366F1;
+    background: white;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.sp-topic-select {
+    padding: 0.75rem 2.5rem 0.75rem 1rem;
+    border: 1.5px solid #E2E8F0;
+    border-radius: 12px;
+    font-size: 0.875rem;
+    font-family: inherit;
+    color: #0F172A;
+    background: #F8FAFC;
+    cursor: pointer;
+    min-width: 180px;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%2394A3B8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
+    transition: all 0.2s;
+}
+
+.sp-topic-select:focus {
+    outline: none;
+    border-color: #6366F1;
+    background-color: white;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+/* Part filter pills */
+.sp-part-filters {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.sp-part-pill {
+    padding: 0.5rem 1.25rem;
+    border-radius: 50px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1.5px solid #E2E8F0;
+    background: white;
+    color: #64748B;
+}
+
+.sp-part-pill:hover {
+    border-color: #C7D2FE;
+    color: #6366F1;
+    background: #EEF2FF;
+}
+
+.sp-part-pill--active {
+    background: #6366F1;
+    color: white;
+    border-color: #6366F1;
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+}
+
+.sp-part-pill--active:hover {
+    background: #4F46E5;
+    border-color: #4F46E5;
+    color: white;
+}
+
+/* === Topic Groups === */
+.sp-topic-group {
+    margin-bottom: 2.5rem;
+}
+
+.sp-topic-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid #EEF2FF;
+}
+
+.sp-topic-title {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #0F172A;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+    white-space: pre-wrap;
+}
+
+.sp-topic-title::before {
+    content: '';
+    width: 4px;
+    height: 20px;
+    background: #6366F1;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+.sp-topic-count {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #6366F1;
+    background: #EEF2FF;
+    padding: 0.25rem 0.75rem;
+    border-radius: 50px;
+}
+
+/* === Practice Cards Grid === */
+.sp-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.25rem;
+}
+
+/* === Individual Card === */
+.sp-card {
+    background: white;
+    border: 1.5px solid #E2E8F0;
+    border-radius: 16px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    position: relative;
+    overflow: hidden;
+}
+
+.sp-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #6366F1, #818CF8);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.3s ease;
+}
+
+.sp-card:hover {
+    border-color: #C7D2FE;
+    box-shadow: 0 8px 24px -4px rgba(99, 102, 241, 0.12);
+    transform: translateY(-3px);
+}
+
+.sp-card:hover::before {
+    transform: scaleX(1);
+}
+
+.sp-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.sp-card-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 50px;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.sp-card-badge--p1 {
+    background: #DBEAFE;
+    color: #2563EB;
+}
+
+.sp-card-badge--p2 {
+    background: #E0E7FF;
+    color: #6366F1;
+}
+
+.sp-card-badge--p3 {
+    background: #FEF3C7;
+    color: #D97706;
+}
+
+.sp-card-mic {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    background: #F1F5F9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.sp-card:hover .sp-card-mic {
+    background: #EEF2FF;
+}
+
+.sp-card-mic svg {
+    width: 16px;
+    height: 16px;
+    color: #94A3B8;
+    transition: color 0.2s;
+}
+
+.sp-card:hover .sp-card-mic svg {
+    color: #6366F1;
+}
+
+.sp-card-prompt {
+    font-size: 0.9375rem;
+    color: #334155;
+    line-height: 1.65;
+    margin: 0 0 1.25rem;
+    flex: 1;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.sp-card-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+    color: white;
+    border-radius: 12px;
+    font-size: 0.875rem;
+    font-weight: 700;
+    text-decoration: none;
+    transition: all 0.25s ease;
+}
+
+.sp-card-link:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px -4px rgba(99, 102, 241, 0.4);
+}
+
+.sp-card-link svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* === Empty State === */
+.sp-empty {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: #64748B;
+}
+
+.sp-empty-icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 1.25rem;
+    background: #F1F5F9;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sp-empty-icon svg {
+    width: 28px;
+    height: 28px;
+    color: #94A3B8;
+}
+
+.sp-empty h3 {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: #334155;
+    margin: 0 0 0.5rem;
+}
+
+.sp-empty p {
+    margin: 0;
+    font-size: 0.875rem;
+}
+
+/* === Fetching overlay === */
+.sp-fetching {
+    opacity: 0.55;
+    pointer-events: none;
+    transition: opacity 0.3s;
+}
+
+/* === Responsive === */
+@media (max-width: 768px) {
+    .sp-hero {
+        padding: 2rem 1.5rem;
+    }
+
+    .sp-hero-content {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .sp-hero-text h1 {
+        font-size: 1.5rem;
+    }
+
+    .sp-hero-stats {
+        width: 100%;
+    }
+
+    .sp-controls {
+        flex-direction: column;
+    }
+
+    .sp-search-wrapper {
+        width: 100%;
+    }
+
+    .sp-topic-select {
+        width: 100%;
+    }
+
+    .sp-cards-grid {
+        grid-template-columns: 1fr;
+    }
+}

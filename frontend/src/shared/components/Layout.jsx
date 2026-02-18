@@ -4,6 +4,7 @@ import { api } from '@/shared/api/client';
 import Logout from './Logout';
 import LevelProgress from './LevelProgress';
 import './Navigation.css';
+import './Navigation-mobile.css';
 
 // Simple SVG Icons
 // Colorful Icons matching the design
@@ -30,6 +31,12 @@ export default function Layout() {
     setUser(api.getUser());
   }, [location.pathname]);
 
+  useEffect(() => {
+    const syncUser = () => setUser(api.getUser());
+    window.addEventListener('auth-user-updated', syncUser);
+    return () => window.removeEventListener('auth-user-updated', syncUser);
+  }, []);
+
   // Hide header on exam pages for full-screen experience
   const isExamPage = location.pathname.includes('/exam');
   // Use wide layout for practice pages
@@ -39,6 +46,9 @@ export default function Layout() {
 
   // Use wide layout for AI result pages
   const isResultAiPage = location.pathname.includes('/result-ai');
+
+  // Test detail pages (e.g. /tests/abc123 but not /tests or /tests/abc123/exam)
+  const isTestDetailPage = /^\/tests\/[^/]+$/.test(location.pathname);
 
   return (
     <div className="layout">
@@ -131,7 +141,7 @@ export default function Layout() {
           </div>
         </header>
       )}
-      <main className={`layout-main ${isExamPage ? 'layout-main--fullscreen' : ''} ${isPracticePage ? 'layout-main--wide' : ''} ${isResultAiPage ? 'layout-main--result-ai' : ''} ${isManagePage ? 'layout-main--manage' : ''} ${location.pathname === '/' ? 'layout-main--home' : ''}`}>
+      <main className={`layout-main ${isExamPage ? 'layout-main--fullscreen' : ''} ${isPracticePage || isTestDetailPage ? 'layout-main--wide' : ''} ${isResultAiPage ? 'layout-main--result-ai' : ''} ${isManagePage ? 'layout-main--manage' : ''} ${location.pathname === '/' ? 'layout-main--home' : ''}`}>
         <Outlet />
       </main>
     </div>

@@ -3,13 +3,23 @@ import { Link } from 'react-router-dom';
 import { api } from '@/shared/api/client';
 import PracticeCardSkeleton from '@/shared/components/PracticeCardSkeleton';
 import PaginationControls from '@/shared/components/PaginationControls';
-import './Practice.css';
+import { Mic, Search, ArrowRight, MessageSquare } from 'lucide-react';
+import './SpeakingList.css';
 
 const PAGE_SIZE = 12;
+
+/* Assign a badge style per part number */
+const partBadgeClass = (part) => {
+    if (part === 1) return 'sp-card-badge--p1';
+    if (part === 2) return 'sp-card-badge--p2';
+    return 'sp-card-badge--p3';
+};
 
 export default function SpeakingList() {
     const [tasks, setTasks] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [isFetching, setIsFetching] = useState(false);
+    const [searchInput, setSearchInput] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedTopic, setSelectedTopic] = useState('all');
     const [filterType, setFilterType] = useState('all');
@@ -17,14 +27,26 @@ export default function SpeakingList() {
     const [currentPage, setCurrentPage] = useState(1);
     const [pagination, setPagination] = useState(null);
 
+    /* Debounced search */
+    useEffect(() => {
+        if (searchInput === searchQuery) return;
+        const timer = setTimeout(() => {
+            setSearchQuery(searchInput);
+            setCurrentPage(1);
+        }, 350);
+        return () => clearTimeout(timer);
+    }, [searchInput, searchQuery]);
+
+    /* Fetch unique topics */
     useEffect(() => {
         api.getSpeakings({ topicsOnly: true })
             .then((res) => setUniqueTopics(res.topics || []))
             .catch((err) => console.error(err));
     }, []);
 
+    /* Fetch tasks */
     useEffect(() => {
-        setLoading(true);
+        if (!loading) setIsFetching(true);
         api.getSpeakings({
             page: currentPage,
             limit: PAGE_SIZE,
@@ -37,10 +59,13 @@ export default function SpeakingList() {
                 setPagination(res.pagination || null);
             })
             .catch((err) => console.error(err))
-            .finally(() => setLoading(false));
+            .finally(() => {
+                setLoading(false);
+                setIsFetching(false);
+            });
     }, [currentPage, searchQuery, filterType, selectedTopic]);
 
-    // Group current page tasks by topic
+    /* Group tasks by topic */
     const groupedTasks = tasks.reduce((groups, task) => {
         const topic = task.title;
         if (!groups[topic]) groups[topic] = [];
@@ -52,61 +77,82 @@ export default function SpeakingList() {
         groupedTasks[topic].sort((a, b) => a.part - b.part);
     });
 
+    const totalItems = pagination?.totalItems ?? tasks.length;
+
+    /* Skeleton loading state */
     if (loading) {
         return (
-            <div className="page practice-list-page" style={{ maxWidth: '80vw', width: '100%', margin: '0 auto', padding: '2rem' }}>
-                <div className="practice-header" style={{ marginBottom: '2rem', background: '#FFF9F1' }}>
-                    <div className="h-10 bg-gray-200 rounded w-1/3 mb-4 animate-pulse"></div>
-                    <div className="h-4 bg-gray-200 rounded w-1/2 animate-pulse"></div>
+            <div className="speaking-page">
+                {/* Hero skeleton */}
+                <div style={{
+                    background: 'linear-gradient(135deg, #4F46E5, #818CF8)',
+                    borderRadius: '20px',
+                    padding: '2.5rem 3rem',
+                    marginBottom: '2rem'
+                }}>
+                    <div style={{ height: '2rem', width: '40%', background: 'rgba(255,255,255,0.15)', borderRadius: '8px', marginBottom: '0.75rem' }} />
+                    <div style={{ height: '1rem', width: '55%', background: 'rgba(255,255,255,0.1)', borderRadius: '6px' }} />
                 </div>
 
-                <div className="practice-controls" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '2rem' }}>
-                    <div className="h-12 bg-gray-200 rounded-lg flex-1 animate-pulse" style={{ minWidth: '200px' }}></div>
-                    <div className="h-12 bg-gray-200 rounded-lg w-48 animate-pulse"></div>
-                    <div className="flex gap-2">
+                {/* Controls skeleton */}
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '2rem' }}>
+                    <div style={{ flex: 1, minWidth: '200px', height: '44px', background: '#F1F5F9', borderRadius: '12px' }} />
+                    <div style={{ width: '180px', height: '44px', background: '#F1F5F9', borderRadius: '12px' }} />
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
                         {[1, 2, 3, 4].map(i => (
-                            <div key={i} className="h-10 w-24 bg-gray-200 rounded-full animate-pulse"></div>
+                            <div key={i} style={{ width: '80px', height: '36px', background: '#F1F5F9', borderRadius: '50px' }} />
                         ))}
                     </div>
                 </div>
 
-                <div className="practice-content-area">
-                    <div className="topic-group">
-                        <div className="topic-group-header mb-4">
-                            <div className="h-8 bg-gray-200 rounded w-1/4 animate-pulse"></div>
-                        </div>
-                        <div className="topic-group-content" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
-                            {[1, 2, 3, 4, 5, 6].map(i => (
-                                <PracticeCardSkeleton key={i} />
-                            ))}
-                        </div>
-                    </div>
+                {/* Cards skeleton */}
+                <div className="sp-cards-grid">
+                    {[1, 2, 3, 4, 5, 6].map(i => (
+                        <PracticeCardSkeleton key={i} />
+                    ))}
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="page practice-list-page" style={{ maxWidth: '80vw', width: '100%', margin: '0 auto', padding: '2rem' }}>
-            <div className="practice-header" style={{ marginBottom: '2rem', background: '#FFF9F1' }}>
-                <h1 style={{ fontSize: '2rem', color: '#d03939', marginBottom: '1rem' }}>
-                    Thư viện luyện nói Speaking
-                </h1>
-                <p className="muted">Chọn chủ đề để bắt đầu luyện nói với AI feedback.</p>
+        <div className="speaking-page">
+            {/* ── Hero Banner ── */}
+            <div className="sp-hero">
+                <div className="sp-hero-content">
+                    <div className="sp-hero-text">
+                        <h1>🎙️ Luyện nói Speaking</h1>
+                        <p>Chọn chủ đề và thực hành trả lời với AI feedback thông minh. Nâng band Speaking hiệu quả!</p>
+                    </div>
+                    <div className="sp-hero-stats">
+                        <div className="sp-hero-stat">
+                            <span className="sp-hero-stat-value">{totalItems}</span>
+                            <span className="sp-hero-stat-label">Câu hỏi</span>
+                        </div>
+                        <div className="sp-hero-stat">
+                            <span className="sp-hero-stat-value">{uniqueTopics.length}</span>
+                            <span className="sp-hero-stat-label">Chủ đề</span>
+                        </div>
+                        <div className="sp-hero-stat">
+                            <span className="sp-hero-stat-value">3</span>
+                            <span className="sp-hero-stat-label">Parts</span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <div className="practice-controls" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '2rem' }}>
-                <input
-                    type="search"
-                    placeholder="Tìm kiếm chủ đề..."
-                    value={searchQuery}
-                    onChange={(e) => {
-                        setSearchQuery(e.target.value);
-                        setCurrentPage(1);
-                    }}
-                    className="form-input"
-                    style={{ flex: 1, minWidth: '200px', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}
-                />
+            {/* ── Controls Bar ── */}
+            <div className="sp-controls">
+                <div className="sp-search-wrapper">
+                    <Search className="sp-search-icon" />
+                    <input
+                        type="search"
+                        placeholder="Tìm kiếm chủ đề..."
+                        value={searchInput}
+                        onChange={(e) => setSearchInput(e.target.value)}
+                        className="sp-search"
+                    />
+                </div>
 
                 <select
                     value={selectedTopic}
@@ -114,8 +160,7 @@ export default function SpeakingList() {
                         setSelectedTopic(e.target.value);
                         setCurrentPage(1);
                     }}
-                    className="form-select"
-                    style={{ width: 'auto', minWidth: '200px', cursor: 'pointer' }}
+                    className="sp-topic-select"
                 >
                     <option value="all">Tất cả chủ đề</option>
                     {uniqueTopics.map(topic => (
@@ -123,7 +168,7 @@ export default function SpeakingList() {
                     ))}
                 </select>
 
-                <div className="filter-buttons" style={{ display: 'flex', gap: '0.5rem' }}>
+                <div className="sp-part-filters">
                     {['all', '1', '2', '3'].map(type => (
                         <button
                             key={type}
@@ -131,49 +176,49 @@ export default function SpeakingList() {
                                 setFilterType(type);
                                 setCurrentPage(1);
                             }}
-                            className={`btn ${filterType === type ? 'btn-active-red' : 'btn-ghost'}`}
-                            style={{
-                                textTransform: 'capitalize',
-                                background: filterType === type ? '#d03939' : 'transparent',
-                                color: filterType === type ? 'white' : '#64748b',
-                                border: filterType === type ? 'none' : '1px solid #e2e8f0',
-                                borderRadius: '50px',
-                                padding: '0.5rem 1.25rem'
-                            }}
+                            className={`sp-part-pill ${filterType === type ? 'sp-part-pill--active' : ''}`}
                         >
-                            {type === 'all' ? 'All Parts' : `Part ${type}`}
+                            {type === 'all' ? 'Tất cả' : `Part ${type}`}
                         </button>
                     ))}
                 </div>
             </div>
 
-            <div className="practice-content-area">
+            {/* ── Topic Groups ── */}
+            <div className={isFetching ? 'sp-fetching' : ''}>
                 {Object.keys(groupedTasks).length === 0 ? (
-                    <div className="empty-state" style={{ textAlign: 'center', padding: '4rem', color: '#64748b' }}>
-                        <p>Không tìm thấy chủ đề nào.</p>
+                    <div className="sp-empty">
+                        <div className="sp-empty-icon">
+                            <MessageSquare />
+                        </div>
+                        <h3>Không tìm thấy chủ đề nào</h3>
+                        <p>Thử tìm kiếm với từ khoá khác hoặc bỏ bộ lọc.</p>
                     </div>
                 ) : (
                     Object.entries(groupedTasks).map(([topic, topicTasks]) => (
-                        <div key={topic} className="topic-group">
-                            <div className="topic-group-header">
-                                <h3 className="topic-group-title" style={{ whiteSpace: 'pre-wrap' }}>{topic}</h3>
-                                <span className="topic-group-count">{topicTasks.length} câu hỏi</span>
+                        <div key={topic} className="sp-topic-group">
+                            <div className="sp-topic-header">
+                                <h3 className="sp-topic-title">{topic}</h3>
+                                <span className="sp-topic-count">{topicTasks.length} câu hỏi</span>
                             </div>
-                            <div className="topic-group-content">
+
+                            <div className="sp-cards-grid">
                                 {topicTasks.map(t => (
-                                    <div key={t._id} className="practice-card" style={{ background: 'white', padding: '1.5rem', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', transition: 'all 0.3s ease', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem' }}>
-                                            <span className="badge"
-                                                style={{ background: '#fdf4e3', color: '#d03939', padding: '4px 12px', borderRadius: '50px', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                    <div key={t._id} className="sp-card">
+                                        <div className="sp-card-top">
+                                            <span className={`sp-card-badge ${partBadgeClass(t.part)}`}>
                                                 Part {t.part}
                                             </span>
+                                            <div className="sp-card-mic">
+                                                <Mic />
+                                            </div>
                                         </div>
-                                        <p className="muted" style={{ fontSize: '1rem', color: '#334155', lineHeight: '1.6', marginBottom: '1.5rem', flex: 1, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                                            {t.prompt}
-                                        </p>
 
-                                        <Link to={`/practice/speaking/${t._id}`} className="btn-sidebar-start" style={{ textDecoration: 'none', background: '#3b82f6', color: 'white', padding: '0.75rem', borderRadius: '8px', textAlign: 'center', fontWeight: '600' }}>
+                                        <p className="sp-card-prompt">{t.prompt}</p>
+
+                                        <Link to={`/practice/speaking/${t._id}`} className="sp-card-link">
                                             Bắt đầu trả lời
+                                            <ArrowRight />
                                         </Link>
                                     </div>
                                 ))}
@@ -183,9 +228,10 @@ export default function SpeakingList() {
                 )}
             </div>
 
+            {/* ── Pagination ── */}
             <PaginationControls
                 pagination={pagination}
-                loading={loading}
+                loading={loading || isFetching}
                 itemLabel="topics"
                 onPageChange={setCurrentPage}
             />

@@ -17,7 +17,7 @@
     left: 0;
     right: 0;
     height: 4px;
-    background: linear-gradient(90deg, #d03939 0%, #f87171 100%);
+    background: linear-gradient(90deg, #6366F1 0%, #f87171 100%);
     transform: scaleX(0);
     transition: transform 0.3s;
 }
@@ -25,7 +25,7 @@
 .skill-module-card:hover {
     transform: translateY(-4px);
     box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1);
-    border-color: #d03939;
+    border-color: #6366F1;
 }
 
 .skill-module-card:hover:before {
@@ -63,7 +63,7 @@
 .module-number {
     width: 48px;
     height: 48px;
-    background: linear-gradient(135deg, #d03939 0%, #f87171 100%);
+    background: linear-gradient(135deg, #6366F1 0%, #f87171 100%);
     color: white;
     border-radius: 12px;
     display: flex;
@@ -156,7 +156,7 @@
 
 .start-badge {
     background: #fef2f2;
-    color: #d03939;
+    color: #6366F1;
 }
 
 @media (max-width: 768px) {

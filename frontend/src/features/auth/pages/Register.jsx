@@ -1,16 +1,21 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '@/shared/api/client';
+import {
+  Sparkles, User, Mail, Lock, Shield, Gift,
+  BookOpen, Check, AlertCircle
+} from 'lucide-react';
+import './Auth.css';
 
 export default function Register() {
   const navigate = useNavigate();
-  const [form, setForm] = useState({ 
-    name: '', 
-    email: '', 
-    password: '', 
-    confirmPassword: '', 
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
     role: 'student',
-    giftcode: '' 
+    giftcode: ''
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -88,7 +93,6 @@ export default function Register() {
       return;
     }
 
-    // Validate giftcode for teacher/admin
     if (requiresGiftcode) {
       if (!form.giftcode.trim()) {
         setError('Giftcode is required for ' + form.role + ' registration');
@@ -105,9 +109,35 @@ export default function Register() {
     try {
       const { confirmPassword, ...registerData } = form;
       const res = await api.register(registerData);
+
+      // If we got a token, it means auto-login (or we could change backend to not return token if verification required)
+      // But based on our new backend, we DO return token but also a message.
+      // However, if strict verification is on, maybe we shouldn't login?
+      // For now, let's show the success message and NOT auto-login if we want them to verify.
+      // But the backend DOES return a token.
+      // Let's check the backend logic again.
+      // Backend: 
+      // if (!user.isConfirmed) sendVerificationEmail
+      // token = issueTokenForUser...
+      // res.json({ ..., token, message: "Registration successful..." })
+
+      // So the user IS logged in. They can use the app.
+      // But we want to tell them to check email.
+      // If `isConfirmed` is enforced in `ProtectedRoute`, they will be redirected to `/wait-for-confirmation`.
+      // Let's use that flow.
+
       api.setToken(res.data.token);
       api.setUser(res.data.user);
-      navigate('/');
+
+      // If user is not confirmed (which they won't be), ProtectedRoute will handle it?
+      // Or we can explicitly verify:
+      if (!res.data.user.isConfirmed && res.data.user.role === 'student') {
+        // We can redirect to /wait-for-confirmation or show a modal here.
+        // Let's redirect to a new "check email" page or use /wait-for-confirmation which seems to exist.
+        navigate('/wait-for-confirmation');
+      } else {
+        navigate('/');
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -117,93 +147,176 @@ export default function Register() {
 
   return (
     <div className="page auth-page">
-      <div className="auth-card">
-        <h1>Register</h1>
-        {error && <p className="form-error">{error}</p>}
-        <form onSubmit={handleSubmit}>
-          <div className="form-row">
-            <label>Name</label>
-            <input
-              type="text"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="Your name"
-              required
-            />
+      <div className="auth-container">
+        {/* Left — Brand Panel */}
+        <div className="auth-brand-panel">
+          <div className="auth-brand-content">
+            <div className="auth-brand-logo">
+              <div className="auth-brand-logo-icon">
+                <BookOpen />
+              </div>
+              <span className="auth-brand-logo-text">IELTS Master</span>
+            </div>
+
+            <h2 className="auth-brand-tagline">
+              Bắt đầu hành trình chinh phục IELTS
+            </h2>
+            <p className="auth-brand-desc">
+              Tạo tài khoản miễn phí để truy cập hàng trăm đề thi, nhận phản hồi từ AI và theo dõi tiến trình học tập.
+            </p>
+
+            <ul className="auth-brand-features">
+              <li>
+                <span className="auth-feature-check"><Check /></span>
+                Đề thi Reading & Listening thực tế
+              </li>
+              <li>
+                <span className="auth-feature-check"><Check /></span>
+                AI chấm Writing chi tiết
+              </li>
+              <li>
+                <span className="auth-feature-check"><Check /></span>
+                Luyện Speaking với AI
+              </li>
+              <li>
+                <span className="auth-feature-check"><Check /></span>
+                Hoàn toàn miễn phí cho học sinh
+              </li>
+            </ul>
           </div>
-          <div className="form-row">
-            <label>Email</label>
-            <input
-              type="email"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              placeholder="your@email.com"
-              required
-            />
+        </div>
+
+        {/* Right — Form Panel */}
+        <div className="auth-form-panel">
+          <div className="auth-form-header">
+            <div className="auth-greeting">
+              <Sparkles /> Tạo tài khoản mới
+            </div>
+            <h1>Đăng ký</h1>
+            <p>Điền thông tin bên dưới để bắt đầu</p>
           </div>
-          <div className="form-row">
-            <label>Password</label>
-            <input
-              type="password"
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-              placeholder="At least 6 characters"
-              required
-            />
-          </div>
-          <div className="form-row">
-            <label>Confirm Password</label>
-            <input
-              type="password"
-              value={form.confirmPassword}
-              onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
-              placeholder="Confirm your password"
-              required
-            />
-          </div>
-          <div className="form-row">
-            <label>Role</label>
-            <select
-              value={form.role}
-              onChange={(e) => setForm({ ...form, role: e.target.value, giftcode: '' })}
-            >
-              <option value="student">Student</option>
-              <option value="teacher">Teacher</option>
-              <option value="admin">Admin</option>
-            </select>
-          </div>
-          
-          {requiresGiftcode && (
-            <div className={`form-row ${giftcodeError ? 'has-error' : ''}`}>
-              <label>
-                Giftcode *
-                <span className="form-hint">(Required for {form.role})</span>
-              </label>
-              <input
-                type="text"
-                value={form.giftcode}
-                onChange={(e) => setForm({ ...form, giftcode: e.target.value.toUpperCase() })}
-                placeholder="Enter giftcode"
-                required
-              />
-              {verifyingGiftcode && <span className="form-hint">Verifying...</span>}
-              {giftcodeError && <span className="form-error">{giftcodeError}</span>}
-              {!giftcodeError && form.giftcode && !verifyingGiftcode && (
-                <span className="form-success">Valid giftcode</span>
-              )}
-              <small className="form-hint">
-                Contact administrator for teacher giftcode
-              </small>
+
+          {error && (
+            <div className="auth-error">
+              <AlertCircle />
+              {error}
             </div>
           )}
-          
-          <button type="submit" className="btn btn-primary" disabled={loading}>
-            {loading ? 'Registering...' : 'Register'}
-          </button>
-        </form>
-        <p className="auth-link">
-          Already have an account? <Link to="/login">Login</Link>
-        </p>
+
+          <form className="auth-form" onSubmit={handleSubmit}>
+            <div className="auth-field-row">
+              <div className="auth-field">
+                <label>Họ và tên</label>
+                <div className="auth-input-wrapper">
+                  <User className="auth-input-icon" />
+                  <input
+                    type="text"
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    placeholder="Nguyễn Văn A"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="auth-field">
+                <label>Email</label>
+                <div className="auth-input-wrapper">
+                  <Mail className="auth-input-icon" />
+                  <input
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    placeholder="your@email.com"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="auth-field-row">
+              <div className="auth-field">
+                <label>Mật khẩu</label>
+                <div className="auth-input-wrapper">
+                  <Lock className="auth-input-icon" />
+                  <input
+                    type="password"
+                    value={form.password}
+                    onChange={(e) => setForm({ ...form, password: e.target.value })}
+                    placeholder="Ít nhất 6 ký tự"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="auth-field">
+                <label>Xác nhận mật khẩu</label>
+                <div className="auth-input-wrapper">
+                  <Lock className="auth-input-icon" />
+                  <input
+                    type="password"
+                    value={form.confirmPassword}
+                    onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
+                    placeholder="Nhập lại mật khẩu"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="auth-field">
+              <label>Vai trò</label>
+              <div className="auth-input-wrapper">
+                <Shield className="auth-input-icon" />
+                <select
+                  value={form.role}
+                  onChange={(e) => setForm({ ...form, role: e.target.value, giftcode: '' })}
+                >
+                  <option value="student">Học sinh</option>
+                  <option value="teacher">Giáo viên</option>
+                  <option value="admin">Quản trị viên</option>
+                </select>
+              </div>
+            </div>
+
+            {requiresGiftcode && (
+              <div className="auth-field">
+                <label>
+                  Mã quà tặng *
+                  <span className="form-hint" style={{ marginLeft: 8, fontWeight: 400 }}>
+                    (Bắt buộc cho {form.role === 'teacher' ? 'giáo viên' : 'quản trị viên'})
+                  </span>
+                </label>
+                <div className="auth-input-wrapper">
+                  <Gift className="auth-input-icon" />
+                  <input
+                    type="text"
+                    value={form.giftcode}
+                    onChange={(e) => setForm({ ...form, giftcode: e.target.value.toUpperCase() })}
+                    placeholder="Nhập mã quà tặng"
+                    required
+                  />
+                </div>
+                {verifyingGiftcode && <span className="form-hint">Đang xác minh...</span>}
+                {giftcodeError && <span className="form-error">{giftcodeError}</span>}
+                {!giftcodeError && form.giftcode && !verifyingGiftcode && (
+                  <span className="form-success">✓ Mã hợp lệ</span>
+                )}
+                <small className="form-hint">
+                  Liên hệ quản trị viên để lấy mã
+                </small>
+              </div>
+            )}
+
+            <button type="submit" className="auth-submit-btn" disabled={loading}>
+              {loading ? 'Đang đăng ký...' : 'Tạo tài khoản'}
+            </button>
+          </form>
+
+          <p className="auth-footer">
+            Đã có tài khoản? <Link to="/login">Đăng nhập</Link>
+          </p>
+        </div>
       </div>
     </div>
   );

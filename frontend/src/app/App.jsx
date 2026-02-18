@@ -18,6 +18,9 @@ const AddSpeaking = lazy(() => import('@/features/admin/pages/AddSpeaking'));
 const AddSkillModules = lazy(() => import('@/features/admin/pages/AddSkillModules'));
 const Login = lazy(() => import('@/features/auth/pages/Login'));
 const Register = lazy(() => import('@/features/auth/pages/Register'));
+const VerifyEmail = lazy(() => import('@/features/auth/pages/VerifyEmail'));
+const ForgotPassword = lazy(() => import('@/features/auth/pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('@/features/auth/pages/ResetPassword'));
 const Profile = lazy(() => import('@/features/profile/pages/Profile'));
 const GradingDashboard = lazy(() => import('@/features/admin/pages/GradingDashboard'));
 const GradingInterface = lazy(() => import('@/features/admin/pages/GradingInterface'));
@@ -123,6 +126,9 @@ export default function App() {
           <Route path="register" element={
             <PublicRoute>{withSuspense(<Register />)}</PublicRoute>
           } />
+          <Route path="verify-email" element={<PublicRoute>{withSuspense(<VerifyEmail />)}</PublicRoute>} />
+          <Route path="forgot-password" element={<PublicRoute>{withSuspense(<ForgotPassword />)}</PublicRoute>} />
+          <Route path="reset-password" element={<PublicRoute>{withSuspense(<ResetPassword />)}</PublicRoute>} />
           <Route path="wait-for-confirmation" element={withSuspense(<WaitForConfirmation />)} />
 
           {/* Protected Manage Routes (Teacher/Admin) */}

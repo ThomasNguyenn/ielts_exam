@@ -290,7 +290,7 @@ export default function AddWriting() {
               onChange={(e) => updateForm('is_real_test', e.target.checked)}
               style={{ width: '1.2rem', height: '1.2rem' }}
             />
-            <span style={{ fontWeight: 600, color: '#d03939' }}>Is Real Test? (Standard Submission Only, No AI)</span>
+            <span style={{ fontWeight: 600, color: '#6366F1' }}>Is Real Test? (Standard Submission Only, No AI)</span>
           </label>
           <small className="muted" style={{ display: 'block', marginTop: '0.25rem' }}>
             Check this if you want students to submit without seeing AI scores immediately.
@@ -298,8 +298,8 @@ export default function AddWriting() {
         </div>
 
         {(form.task_type === 'task1') && (
-          <div className="form-row" style={{ background: '#FFF9F1', padding: '1.5rem', borderRadius: '1.25rem', border: '1px solid #fdf4e3' }}>
-            <label style={{ color: '#d03939', fontSize: '1rem' }}>Hình ảnh minh họa (Task 1 - Graph/Chart/Diagram)</label>
+          <div className="form-row" style={{ background: '#EEF2FF', padding: '1.5rem', borderRadius: '1.25rem', border: '1px solid #E0E7FF' }}>
+            <label style={{ color: '#6366F1', fontSize: '1rem' }}>Hình ảnh minh họa (Task 1 - Graph/Chart/Diagram)</label>
             <input
               type="url"
               value={form.image_url}
@@ -307,7 +307,7 @@ export default function AddWriting() {
               placeholder="https://example.com/graph.png"
               style={{ background: '#ffffff' }}
             />
-            <small className="form-hint" style={{ color: '#d03939' }}>
+            <small className="form-hint" style={{ color: '#6366F1' }}>
               Nhập link hình ảnh biểu đồ, đồ thị hoặc sơ đồ cho Task 1 (hoặc tải ảnh lên)
             </small>
 
@@ -398,8 +398,8 @@ export default function AddWriting() {
         </div>
       </form>
 
-      <div className="search-container" style={{ marginTop: '4rem', paddingTop: '3rem', borderTop: '2px solid #FFF9F1' }}>
-        <h3 style={{ color: '#d03939' }}>Danh sách bài Writing hiện có</h3>
+      <div className="search-container" style={{ marginTop: '4rem', paddingTop: '3rem', borderTop: '2px solid #EEF2FF' }}>
+        <h3 style={{ color: '#6366F1' }}>Danh sách bài Writing hiện có</h3>
         {!editId && (
           <>
             <div className="search-box">

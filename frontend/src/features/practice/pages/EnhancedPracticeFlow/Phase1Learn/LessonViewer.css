@@ -6,7 +6,7 @@
 }
 
 .lesson-header {
-    background: linear-gradient(135deg, #d03939 0%, #f87171 100%);
+    background: linear-gradient(135deg, #6366F1 0%, #f87171 100%);
     color: white;
     padding: 2rem;
 }
@@ -85,7 +85,7 @@
 
 .tab.active {
     background: white;
-    color: #d03939;
+    color: #6366F1;
     box-shadow: 0 2px 4px rgb(0 0 0 / 0.05);
 }
 
@@ -132,7 +132,7 @@
 }
 
 .lesson-text strong {
-    color: #d03939;
+    color: #6366F1;
     font-weight: 700;
 }
 
@@ -148,7 +148,7 @@
 
 .lesson-text code {
     background: #fef2f2;
-    color: #d03939;
+    color: #6366F1;
     padding: 0.125rem 0.4rem;
     border-radius: 4px;
     font-size: 0.9em;
@@ -165,7 +165,7 @@
 }
 
 .lesson-text blockquote {
-    border-left: 4px solid #d03939;
+    border-left: 4px solid #6366F1;
     background: #fef2f2;
     padding: 1rem 1.5rem;
     margin: 1.5rem 0;
@@ -187,7 +187,7 @@
 
 .example-card {
     background: #f8fafc;
-    border-left: 4px solid #d03939;
+    border-left: 4px solid #6366F1;
     padding: 1.5rem;
     border-radius: 0 12px 12px 0;
     margin-bottom: 1.5rem;
@@ -195,7 +195,7 @@
 
 .example-number {
     font-weight: 700;
-    color: #d03939;
+    color: #6366F1;
     font-size: 0.875rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -225,7 +225,7 @@
 }
 
 .keypoint-icon {
-    background: #d03939;
+    background: #6366F1;
     color: white;
     width: 24px;
     height: 24px;
@@ -273,7 +273,7 @@
 }
 
 .btn-start-quiz {
-    background: linear-gradient(135deg, #d03939 0%, #f87171 100%);
+    background: linear-gradient(135deg, #6366F1 0%, #f87171 100%);
     color: white;
     border: none;
     padding: 1rem 2rem;

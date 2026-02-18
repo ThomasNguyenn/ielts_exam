@@ -4,6 +4,11 @@ import { Link } from 'react-router-dom';
 import { useNotification } from '@/shared/context/NotificationContext';
 import ConfirmationModal from '@/shared/components/ConfirmationModal';
 import VocabCardSkeleton from '@/shared/components/VocabCardSkeleton';
+import {
+    Book, Clock, Trash2, Search, Plus,
+    ArrowLeft, RotateCcw, Check, Sparkles,
+    AlertCircle, GraduationCap, Brain, Zap
+} from 'lucide-react';
 import './Vocabulary.css';
 
 export default function Vocabulary() {
@@ -69,6 +74,7 @@ export default function Vocabulary() {
             showNotification('Failed to delete word', 'error');
         } finally {
             setWordToDelete(null);
+            setIsDeleteModalOpen(false);
         }
     };
 
@@ -139,52 +145,42 @@ export default function Vocabulary() {
 
     if (loading && vocabulary.length === 0) {
         return (
-            <div className="page">
-                <div className="container">
-                    <div className="vocab-header mb-8">
-                        <div className="h-10 bg-gray-200 rounded w-1/3 animate-pulse"></div>
-                    </div>
+            <div className="vocab-page">
+                <div style={{
+                    background: 'linear-gradient(135deg, #4F46E5, #818CF8)',
+                    borderRadius: '20px',
+                    padding: '2rem 2.5rem',
+                    marginBottom: '2rem',
+                    height: '160px'
+                }} />
 
-                    {/* Stats Skeleton */}
-                    <div className="vocab-stats mb-8 flex gap-4">
-                        <div className="h-24 bg-gray-200 rounded-xl flex-1 animate-pulse"></div>
-                        <div className="h-24 bg-gray-200 rounded-xl flex-1 animate-pulse"></div>
-                        <div className="h-24 bg-gray-200 rounded-xl flex-1 animate-pulse"></div>
-                    </div>
+                <div className="voc-stats">
+                    <div className="voc-stat-card" style={{ height: '100px', background: '#f1f5f9' }} />
+                    <div className="voc-stat-card" style={{ height: '100px', background: '#f1f5f9' }} />
+                    <div style={{ width: '200px', height: '100px', background: '#f1f5f9', borderRadius: '16px' }} />
+                </div>
 
-                    {/* Form Skeleton */}
-                    <div className="vocab-add-form mb-8 p-6 border border-gray-200 rounded-xl bg-white">
-                        <div className="h-6 bg-gray-200 rounded w-32 mb-4 animate-pulse"></div>
-                        <div className="space-y-4">
-                            <div className="flex gap-4">
-                                <div className="h-10 bg-gray-200 rounded flex-1 animate-pulse"></div>
-                                <div className="h-10 bg-gray-200 rounded flex-1 animate-pulse"></div>
-                            </div>
-                            <div className="h-20 bg-gray-200 rounded w-full animate-pulse"></div>
-                            <div className="h-10 bg-gray-200 rounded w-32 animate-pulse"></div>
-                        </div>
-                    </div>
+                <div className="voc-add-form" style={{ height: '200px', background: '#f1f5f9' }} />
 
-                    <div className="vocab-list">
-                        {[1, 2, 3, 4].map(i => (
-                            <VocabCardSkeleton key={i} />
-                        ))}
-                    </div>
+                <div className="voc-word-list">
+                    {[1, 2, 3, 4].map(i => (
+                        <VocabCardSkeleton key={i} />
+                    ))}
                 </div>
             </div>
         );
     }
 
-    // Flashcard Mode
+    // ─── FLASHCARD MODE ───
     if (mode === 'flashcard') {
         const currentWord = vocabulary[currentCardIndex];
         if (!currentWord) {
             return (
-                <div className="page">
-                    <div className="container">
-                        <p>Không có từ nào để ôn tập.</p>
-                        <button onClick={() => setMode('list')} className="btn btn-secondary">
-                            Quay lại danh sách
+                <div className="voc-flashcard-page">
+                    <div className="voc-flashcard-container" style={{ textAlign: 'center' }}>
+                        <h3>Không có từ nào để ôn tập</h3>
+                        <button onClick={() => setMode('list')} className="voc-fc-back">
+                            <ArrowLeft /> Quay lại danh sách
                         </button>
                     </div>
                 </div>
@@ -192,43 +188,53 @@ export default function Vocabulary() {
         }
 
         return (
-            <div className="page vocab-flashcard-page">
-                <div className="vocab-flashcard-container">
-                    <div className="flashcard-header">
-                        <button onClick={() => setMode('list')} className="btn btn-ghost">
-                            ← Quay lại danh sách
+            <div className="voc-flashcard-page">
+                <div className="voc-flashcard-container">
+                    <div className="voc-fc-header">
+                        <button onClick={() => setMode('list')} className="voc-fc-back">
+                            <ArrowLeft /> Thoát
                         </button>
-                        <span className="flashcard-progress">
+                        <span className="voc-fc-progress">
                             {currentCardIndex + 1} / {vocabulary.length}
                         </span>
                     </div>
 
-                    <div className={`flashcard ${showAnswer ? 'flipped' : ''}`} onClick={() => setShowAnswer(!showAnswer)}>
-                        <div className="flashcard-front">
-                            <h2 className="flashcard-word">{currentWord.word}</h2>
-                            <p className="flashcard-hint">Click để xem ngữ cảnh</p>
+                    <div
+                        className={`voc-fc-card ${showAnswer ? 'flipped' : ''}`}
+                        onClick={() => setShowAnswer(!showAnswer)}
+                    >
+                        <div className="voc-fc-front">
+                            <h2 className="voc-fc-word">{currentWord.word}</h2>
+                            <div className="voc-fc-hint">
+                                <RotateCcw /> Click để lật thẻ
+                            </div>
                         </div>
-                        <div className="flashcard-back">
-                            <h3 className="flashcard-word">{currentWord.word}</h3>
-                            <p className="flashcard-context">"{currentWord.context}"</p>
+
+                        <div className="voc-fc-back-content">
+                            <h3 className="voc-fc-word">{currentWord.word}</h3>
+                            <p className="voc-fc-context">"{currentWord.context}"</p>
                             {currentWord.definition && (
-                                <p className="flashcard-definition"><strong>Định nghĩa:</strong> {currentWord.definition}</p>
+                                <p className="voc-fc-definition">
+                                    <strong>Định nghĩa:</strong> {currentWord.definition}
+                                </p>
                             )}
                             {currentWord.notes && (
-                                <p className="flashcard-notes"><strong>Ghi chú:</strong> {currentWord.notes}</p>
+                                <p className="voc-fc-notes">
+                                    <strong>Ghi chú:</strong> {currentWord.notes}
+                                </p>
                             )}
                         </div>
                     </div>
 
                     {showAnswer && (
-                        <div className="flashcard-actions">
-                            <button onClick={() => handleReview('hard')} className="btn btn-difficulty btn-hard">
+                        <div className="voc-fc-actions">
+                            <button onClick={() => handleReview('hard')} className="voc-fc-diff-btn voc-fc-diff-btn--hard">
                                 Khó
                             </button>
-                            <button onClick={() => handleReview('medium')} className="btn btn-difficulty btn-medium">
+                            <button onClick={() => handleReview('medium')} className="voc-fc-diff-btn voc-fc-diff-btn--medium">
                                 Trung bình
                             </button>
-                            <button onClick={() => handleReview('easy')} className="btn btn-difficulty btn-easy">
+                            <button onClick={() => handleReview('easy')} className="voc-fc-diff-btn voc-fc-diff-btn--easy">
                                 Dễ
                             </button>
                         </div>
@@ -238,183 +244,207 @@ export default function Vocabulary() {
         );
     }
 
-    // List Mode
+    // ─── LIST MODE ───
     return (
-        <div className="page">
-            <div className="container">
-                <div className="vocab-header">
-                    <h1>My Vocabulary</h1>
-                    <Link to="/tests" className="btn btn-ghost">Quay lại Tests</Link>
-                </div>
-
-                {stats && (
-                    <div className="vocab-stats">
-                        <div className="vocab-stat-card">
-                            <div className="vocab-stat-value">{stats.total}</div>
-                            <div className="vocab-stat-label">Tổng số từ</div>
-                        </div>
-                        <div className="vocab-stat-card vocab-stat-card--due">
-                            <div className="vocab-stat-value">{stats.due}</div>
-                            <div className="vocab-stat-label">Đang cần ôn tập</div>
-                        </div>
-                        <button onClick={startFlashcards} className="btn-vocab-primary" disabled={vocabulary.length === 0}>
-                            📚 Bắt đầu ôn tập
-                        </button>
+        <div className="vocab-page">
+            {/* Hero */}
+            <div className="voc-hero">
+                <div className="voc-hero-content">
+                    <div className="voc-hero-text">
+                        <h1>📚 My Vocabulary</h1>
+                        <p>Quản lý và ôn tập từ vựng cá nhân theo chuẩn Spaced Repetition.</p>
                     </div>
-                )}
+                </div>
+            </div>
 
-                {/* Manual Add Word Form */}
-                <div className="vocab-add-form">
-                    <h3>Add New Word</h3>
-                    <form onSubmit={(e) => {
-                        e.preventDefault();
-                        const formData = new FormData(e.target);
-                        const word = formData.get('word').trim();
-                        const context = formData.get('context').trim();
-                        const definition = formData.get('definition').trim();
-
-                        if (!word || !context) {
-                            showNotification('Từ và ngữ cảnh là bắt buộc!', 'warning');
-                            return;
-                        }
-
-                        api.addVocabulary({ word, context, definition })
-                            .then(() => {
-                                e.target.reset();
-                                loadVocabulary();
-                                loadStats();
-                                showNotification(`"${word}" added to vocabulary!`, 'success');
-                            })
-                            .catch(err => {
-                                console.error('Error adding vocabulary:', err);
-                                const errorMsg = err.message || 'Unknown error';
-
-                                if (errorMsg.includes('already in your vocabulary')) {
-                                    showNotification('This word is already in your vocabulary list!', 'warning');
-                                } else if (errorMsg.includes('Unauthorized') || errorMsg.includes('401')) {
-                                    showNotification('Please log in to add vocabulary words.', 'error');
-                                } else if (errorMsg.includes('Network') || errorMsg.includes('Failed to fetch')) {
-                                    showNotification('Cannot connect to server. Please make sure the backend is running.', 'error');
-                                } else {
-                                    showNotification(`Failed to add word: ${errorMsg}`, 'error');
-                                }
-                            });
-                    }}>
-                        <div className="vocab-form-row">
-                            <input
-                                type="text"
-                                name="word"
-                                placeholder="Word (e.g., 'ubiquitous')"
-                                className="vocab-input"
-                                required
-                            />
-                            <input
-                                type="text"
-                                name="definition"
-                                placeholder="Definition (optional)"
-                                className="vocab-input"
-                            />
+            {/* Stats */}
+            {stats && (
+                <div className="voc-stats">
+                    <div className="voc-stat-card">
+                        <div className="voc-stat-icon voc-stat-icon--total">
+                            <Book />
                         </div>
-                        <textarea
-                            name="context"
-                            placeholder="Context sentence (e.g., 'The smartphone has become ubiquitous in modern society.')"
-                            className="vocab-textarea"
-                            rows="2"
+                        <div className="voc-stat-info">
+                            <div className="voc-stat-value">{stats.total}</div>
+                            <div className="voc-stat-label">Tổng số từ</div>
+                        </div>
+                    </div>
+                    <div className="voc-stat-card">
+                        <div className="voc-stat-icon voc-stat-icon--due">
+                            <Clock />
+                        </div>
+                        <div className="voc-stat-info">
+                            <div className="voc-stat-value">{stats.due}</div>
+                            <div className="voc-stat-label">Cần ôn tập</div>
+                        </div>
+                    </div>
+                    <button
+                        onClick={startFlashcards}
+                        className="voc-review-btn"
+                        disabled={vocabulary.length === 0}
+                    >
+                        <Zap style={{ marginRight: '0.5rem' }} />
+                        Bắt đầu ôn tập
+                    </button>
+                </div>
+            )}
+
+            {/* Add Form */}
+            <div className="voc-add-form">
+                <div className="voc-add-form-header">
+                    <Sparkles />
+                    <h3>Thêm từ mới</h3>
+                </div>
+                <form onSubmit={(e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.target);
+                    const word = formData.get('word').trim();
+                    const context = formData.get('context').trim();
+                    const definition = formData.get('definition').trim();
+
+                    if (!word || !context) {
+                        showNotification('Từ và ngữ cảnh là bắt buộc!', 'warning');
+                        return;
+                    }
+
+                    api.addVocabulary({ word, context, definition })
+                        .then(() => {
+                            e.target.reset();
+                            loadVocabulary();
+                            loadStats();
+                            showNotification(`"${word}" added to vocabulary!`, 'success');
+                        })
+                        .catch(err => {
+                            console.error('Error adding vocabulary:', err);
+                            const errorMsg = err.message || 'Unknown error';
+                            showNotification(errorMsg.includes('already') ? 'Từ này đã tồn tại!' : 'Lỗi khi thêm từ', 'error');
+                        });
+                }}>
+                    <div className="voc-form-row">
+                        <input
+                            type="text"
+                            name="word"
+                            placeholder="Word (e.g., 'ubiquitous')"
+                            className="voc-input"
                             required
                         />
-                        <button type="submit" className="btn-vocab-primary">
-                            ➕ Add Word
-                        </button>
-                    </form>
-                </div>
+                        <input
+                            type="text"
+                            name="definition"
+                            placeholder="Definition (optional)"
+                            className="voc-input"
+                        />
+                    </div>
+                    <textarea
+                        name="context"
+                        placeholder="Context sentence (e.g., 'The smartphone has become ubiquitous in modern society.')"
+                        className="voc-textarea"
+                        rows="2"
+                        required
+                    />
+                    <button type="submit" className="voc-add-btn">
+                        <Plus /> Add Word
+                    </button>
+                </form>
+            </div>
 
-                <div className="vocab-filters">
+            {/* Filters */}
+            <div className="voc-filters">
+                <div className="voc-search-wrapper">
+                    <Search className="voc-search-icon" />
                     <input
                         type="text"
                         placeholder="Tìm kiếm từ vựng..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="vocab-search"
+                        className="voc-search"
                     />
-                    <select
-                        value={filterMastery}
-                        onChange={(e) => setFilterMastery(e.target.value)}
-                        className="vocab-filter"
-                    >
-                        <option value="">Tất cả cấp độ</option>
-                        <option value="0">New</option>
-                        <option value="1">Learning</option>
-                        <option value="2">Familiar</option>
-                        <option value="3">Known</option>
-                        <option value="4">Mastered</option>
-                        <option value="5">Perfect</option>
-                    </select>
-                    <label className="vocab-checkbox">
-                        <input
-                            type="checkbox"
-                            checked={dueOnly}
-                            onChange={(e) => setDueOnly(e.target.checked)}
-                        />
-                        Chỉ từ vựng cần ôn tập
-                    </label>
                 </div>
-
-                {vocabulary.length === 0 ? (
-                    <div className="vocab-empty">
-                        <p>Không có từ vựng nào.</p>
-                        <p>Sử dụng form trên để thêm từ vựng thủ công!</p>
-                    </div>
-                ) : (
-                    <div className="vocab-list">
-                        {vocabulary.map((word) => (
-                            <div key={word._id} className="vocab-card">
-                                <div className="vocab-card-header">
-                                    <h3 className="vocab-word">{word.word}</h3>
-                                    <span
-                                        className="vocab-mastery-badge"
-                                        style={{ backgroundColor: getMasteryColor(word.mastery_level) }}
-                                    >
-                                        {getMasteryLabel(word.mastery_level)}
-                                    </span>
-                                </div>
-                                <p className="vocab-context">"{word.context}"</p>
-                                {word.definition && (
-                                    <p className="vocab-definition"><strong>Định nghĩa:</strong> {word.definition}</p>
-                                )}
-                                {word.notes && (
-                                    <p className="vocab-notes"><strong>Ghi chú:</strong> {word.notes}</p>
-                                )}
-                                <div className="vocab-meta">
-                                    <span className="vocab-date">
-                                        Thêm vào: {new Date(word.added_at).toLocaleDateString()}
-                                    </span>
-                                    {word.review_count > 0 && (
-                                        <span className="vocab-reviews">
-                                            Đã đánh giá {word.review_count} lần
-                                        </span>
-                                    )}
-                                    <button
-                                        onClick={() => handleDelete(word)}
-                                        className="btn-delete-vocab"
-                                    >
-                                        Delete
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-
-                <ConfirmationModal
-                    isOpen={isDeleteModalOpen}
-                    onClose={() => setIsDeleteModalOpen(false)}
-                    onConfirm={confirmDelete}
-                    title="Xóa từ vựng"
-                    message={`Bạn có chắc chắn muốn xóa "${wordToDelete?.word}"? Hành động này không thể được hoàn tác.`}
-                    confirmText="Xóa"
-                    isDanger={true}
-                />
+                <select
+                    value={filterMastery}
+                    onChange={(e) => setFilterMastery(e.target.value)}
+                    className="voc-filter-select"
+                >
+                    <option value="">Tất cả cấp độ</option>
+                    <option value="0">New</option>
+                    <option value="1">Learning</option>
+                    <option value="2">Familiar</option>
+                    <option value="3">Known</option>
+                    <option value="4">Mastered</option>
+                    <option value="5">Perfect</option>
+                </select>
+                <label className={`voc-due-toggle ${dueOnly ? 'voc-due-toggle--active' : ''}`}>
+                    <input
+                        type="checkbox"
+                        checked={dueOnly}
+                        onChange={(e) => setDueOnly(e.target.checked)}
+                    />
+                    {dueOnly ? <Check /> : <Clock />}
+                    Chỉ từ cần ôn tập
+                </label>
             </div>
+
+            {/* List */}
+            {vocabulary.length === 0 ? (
+                <div className="voc-empty">
+                    <div className="voc-empty-icon">
+                        <Book />
+                    </div>
+                    <h3>Không có từ vựng nào</h3>
+                    <p>Hãy thêm từ vựng mới để bắt đầu học!</p>
+                </div>
+            ) : (
+                <div className="voc-word-list">
+                    {vocabulary.map((word) => (
+                        <div key={word._id} className="voc-word-card">
+                            <div className="voc-word-card-header">
+                                <h3 className="voc-word-name">{word.word}</h3>
+                                <span
+                                    className="voc-mastery-badge"
+                                    style={{ backgroundColor: getMasteryColor(word.mastery_level) }}
+                                >
+                                    {getMasteryLabel(word.mastery_level)}
+                                </span>
+                            </div>
+                            <p className="voc-word-context">"{word.context}"</p>
+                            {word.definition && (
+                                <p className="voc-word-definition"><strong>Định nghĩa:</strong> {word.definition}</p>
+                            )}
+                            {word.notes && (
+                                <p className="voc-word-notes"><strong>Ghi chú:</strong> {word.notes}</p>
+                            )}
+                            <div className="voc-word-meta">
+                                <span>
+                                    <Clock size={12} />
+                                    Thêm vào: {new Date(word.added_at).toLocaleDateString()}
+                                </span>
+                                {word.review_count > 0 && (
+                                    <span>
+                                        <Brain size={12} />
+                                        Đã ôn {word.review_count} lần
+                                    </span>
+                                )}
+                                <button
+                                    onClick={() => handleDelete(word)}
+                                    className="voc-delete-btn"
+                                >
+                                    <Trash2 /> Xóa
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            <ConfirmationModal
+                isOpen={isDeleteModalOpen}
+                onClose={() => setIsDeleteModalOpen(false)}
+                onConfirm={confirmDelete}
+                title="Xóa từ vựng"
+                message={`Bạn có chắc chắn muốn xóa "${wordToDelete?.word}"? Hành động này không thể được hoàn tác.`}
+                confirmText="Xóa"
+                isDanger={true}
+            />
         </div>
     );
 }

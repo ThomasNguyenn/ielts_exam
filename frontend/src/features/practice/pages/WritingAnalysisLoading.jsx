@@ -66,13 +66,13 @@ const WritingAnalysisLoading = ({ isFinished, onAnimationComplete }) => {
             <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 border border-slate-100 flex flex-col items-center relative overflow-hidden animate-fade-in-up">
 
                 {/* Decorative Background Blob */}
-                <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-teal-400 to-[#d03939]"></div>
+                <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-teal-400 to-[#6366F1]"></div>
 
                 {/* Main Spinner/Icon */}
                 <div className="mb-6 relative">
-                    <div className="w-16 h-16 border-4 border-slate-100 border-t-[#d03939] rounded-full animate-spin"></div>
+                    <div className="w-16 h-16 border-4 border-slate-100 border-t-[#6366F1] rounded-full animate-spin"></div>
                     <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="w-2 h-2 bg-[#d03939] rounded-full"></div>
+                        <div className="w-2 h-2 bg-[#6366F1] rounded-full"></div>
                     </div>
                 </div>
 
@@ -111,7 +111,7 @@ const WritingAnalysisLoading = ({ isFinished, onAnimationComplete }) => {
                 {/* Progress Bar */}
                 <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden mb-2">
                     <div
-                        className="h-full bg-gradient-to-r from-teal-400 to-[#d03939] transition-all duration-100 ease-out"
+                        className="h-full bg-gradient-to-r from-teal-400 to-[#6366F1] transition-all duration-100 ease-out"
                         style={{ width: `${progress}%` }}
                     ></div>
                 </div>

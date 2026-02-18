@@ -18,7 +18,7 @@ const VisualMindMap = ({ outline, onOutlineChange, essayStructure }) => {
             content: '',
             x: 400,
             y: 50,
-            color: '#d03939'
+            color: '#6366F1'
         });
 
         // Create nodes for each section
@@ -44,7 +44,7 @@ const VisualMindMap = ({ outline, onOutlineChange, essayStructure }) => {
     }
 
     function getSectionColor(index) {
-        const colors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
+        const colors = ['#6366F1', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'];
         return colors[index % colors.length];
     }
 

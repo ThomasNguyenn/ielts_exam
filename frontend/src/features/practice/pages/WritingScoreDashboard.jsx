@@ -26,7 +26,7 @@ const WritingScoreDashboard = ({ result, onRestart }) => {
                         Return to Tests
                     </button>
                     <button
-                        className="px-5 py-2.5 bg-[#d03939] text-white rounded-xl font-bold hover:bg-[#b53232] transition-colors shadow-lg shadow-rose-200"
+                        className="px-5 py-2.5 bg-[#6366F1] text-white rounded-xl font-bold hover:bg-[#4338CA] transition-colors shadow-lg shadow-rose-200"
                         onClick={onRestart}
                     >
                         New Practice
@@ -40,7 +40,7 @@ const WritingScoreDashboard = ({ result, onRestart }) => {
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidde mb-6">
                         <div className="bg-slate-50/50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
                             <h3 className="font-bold text-slate-700 flex items-center gap-2">
-                                <span className="w-2 h-6 bg-[#d03939] rounded-full"></span>
+                                <span className="w-2 h-6 bg-[#6366F1] rounded-full"></span>
                                 Your Essay
                             </h3>
                             <span className="bg-white px-3 py-1 rounded-full text-xs font-bold text-slate-500 border border-slate-200 shadow-sm">
@@ -79,7 +79,7 @@ const WritingScoreDashboard = ({ result, onRestart }) => {
                                     {(selectedFeedback.improved || selectedFeedback.correction) && (
                                         <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
                                             <strong className="block text-xs uppercase text-slate-400 font-bold mb-1">Suggestion</strong>
-                                            <span className="text-[#d03939] font-semibold">{selectedFeedback.improved || selectedFeedback.correction}</span>
+                                            <span className="text-[#6366F1] font-semibold">{selectedFeedback.improved || selectedFeedback.correction}</span>
                                         </div>
                                     )}
 

@@ -1,8 +1,9 @@
 import User from "../models/User.model.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { randomUUID } from "crypto";
+import { randomUUID, randomBytes } from "crypto";
 import { JWT_SECRET, VALID_GIFTCODES } from "../config/security.config.js";
+import { sendVerificationEmail, sendPasswordResetEmail } from "../services/email.service.js";
 
 const ALLOWED_ROLES = new Set(["student", "teacher", "admin"]);
 const JWT_EXPIRES_IN = "7d";
@@ -65,6 +66,10 @@ export const register = async (req, res) => {
 
     const finalRole = requestedRole;
 
+    // Generate verification token
+    const verificationToken = randomBytes(32).toString('hex');
+    const verificationTokenExpires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
+
     // Create user
     const user = new User({
       email: email.toLowerCase(),
@@ -72,7 +77,10 @@ export const register = async (req, res) => {
       name,
       role: finalRole,
       giftcode: normalizedGiftcode || null,
-      isConfirmed: finalRole === 'teacher' || finalRole === 'admin' ? true : false,
+      isConfirmed: finalRole === 'teacher' || finalRole === 'admin' ? true : false, // Auto-confirm teachers/admins? Or require email too? 
+      // For now, let's stick to existing logic for isConfirmed but add token
+      verificationToken,
+      verificationTokenExpires,
     });
 
     let studentSessionId = null;
@@ -83,6 +91,12 @@ export const register = async (req, res) => {
     }
 
     await user.save();
+
+    // Send verification email
+    // We only send if not auto-confirmed (or maybe always send welcome?)
+    if (!user.isConfirmed) {
+      await sendVerificationEmail(user.email, verificationToken);
+    }
 
     const token = issueTokenForUser(user, studentSessionId);
 
@@ -97,12 +111,97 @@ export const register = async (req, res) => {
           isConfirmed: user.isConfirmed,
         },
         token,
+        message: "Registration successful. Please check your email to verify your account.",
       },
     });
   } catch (error) {
     if (error.code === 11000) {
       return res.status(400).json({ success: false, message: "Email already registered" });
     }
+    console.error("Register Error:", error);
+    res.status(500).json({ success: false, message: "Server Error" });
+  }
+};
+
+export const verifyEmail = async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ success: false, message: "Token is required" });
+    }
+
+    const user = await User.findOne({
+      verificationToken: token,
+      verificationTokenExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ success: false, message: "Invalid or expired token" });
+    }
+
+    user.isConfirmed = true;
+    user.verificationToken = undefined;
+    user.verificationTokenExpires = undefined;
+    await user.save();
+
+    res.json({ success: true, message: "Email verified successfully" });
+  } catch (error) {
+    console.error("Verify Email Error:", error);
+    res.status(500).json({ success: false, message: "Server Error" });
+  }
+};
+
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email: email.toLowerCase() });
+
+    if (!user) {
+      // Security: Don't reveal user existence
+      return res.json({ success: true, message: "If an account exists, a reset email has been sent." });
+    }
+
+    const resetToken = randomBytes(32).toString('hex');
+    user.resetPasswordToken = resetToken;
+    user.resetPasswordExpires = Date.now() + 1 * 60 * 60 * 1000; // 1 hour
+    await user.save();
+
+    await sendPasswordResetEmail(user.email, resetToken);
+
+    res.json({ success: true, message: "If an account exists, a reset email has been sent." });
+  } catch (error) {
+    console.error("Forgot Password Error:", error);
+    res.status(500).json({ success: false, message: "Server Error" });
+  }
+};
+
+export const resetPassword = async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+
+    if (!token || !newPassword) {
+      return res.status(400).json({ success: false, message: "Token and new password are required" });
+    }
+
+    const user = await User.findOne({
+      resetPasswordToken: token,
+      resetPasswordExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ success: false, message: "Invalid or expired token" });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    res.json({ success: true, message: "Password reset successfully" });
+  } catch (error) {
+    console.error("Reset Password Error:", error);
     res.status(500).json({ success: false, message: "Server Error" });
   }
 };

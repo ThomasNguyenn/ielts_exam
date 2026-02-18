@@ -369,7 +369,7 @@ export default function AddTest() {
             placeholder="e.g. Cambridge 18"
             required
           />
-          <small className="form-hint" style={{ color: '#d03939' }}>
+          <small className="form-hint" style={{ color: '#6366F1' }}>
             Dùng để nhóm các bài thi từ cùng một bộ sách.
           </small>
         </div>
@@ -419,8 +419,8 @@ export default function AddTest() {
         </div>
 
         {form.type === 'reading' && (
-          <div className="form-row multi-select-block" style={{ background: '#FFF9F1', padding: '1.5rem', borderRadius: '1.25rem', border: '1px solid #fdf4e3' }}>
-            <label style={{ color: '#d03939', fontSize: '1rem' }}>Chọn bài Reading (kéo để sắp xếp)</label>
+          <div className="form-row multi-select-block" style={{ background: '#EEF2FF', padding: '1.5rem', borderRadius: '1.25rem', border: '1px solid #E0E7FF' }}>
+            <label style={{ color: '#6366F1', fontSize: '1rem' }}>Chọn bài Reading (kéo để sắp xếp)</label>
             <input
               type="search"
               value={passageSearch}
@@ -477,8 +477,8 @@ export default function AddTest() {
         )}
 
         {form.type === 'listening' && (
-          <div className="form-row multi-select-block" style={{ background: '#FFF9F1', padding: '1.5rem', borderRadius: '1.25rem', border: '1px solid #fdf4e3' }}>
-            <label style={{ color: '#d03939', fontSize: '1rem' }}>Chọn bài Listening (kéo để sắp xếp)</label>
+          <div className="form-row multi-select-block" style={{ background: '#EEF2FF', padding: '1.5rem', borderRadius: '1.25rem', border: '1px solid #E0E7FF' }}>
+            <label style={{ color: '#6366F1', fontSize: '1rem' }}>Chọn bài Listening (kéo để sắp xếp)</label>
             <div className="form-row" style={{ marginTop: '1rem' }}>
               <label>Full Audio (Optional)</label>
               <input
@@ -546,8 +546,8 @@ export default function AddTest() {
         )}
 
         {form.type === 'writing' && (
-          <div className="form-row multi-select-block" style={{ background: '#FFF9F1', padding: '1.5rem', borderRadius: '1.25rem', border: '1px solid #fdf4e3' }}>
-            <label style={{ color: '#d03939', fontSize: '1rem' }}>Writing tasks (drag to reorder)</label>
+          <div className="form-row multi-select-block" style={{ background: '#EEF2FF', padding: '1.5rem', borderRadius: '1.25rem', border: '1px solid #E0E7FF' }}>
+            <label style={{ color: '#6366F1', fontSize: '1rem' }}>Writing tasks (drag to reorder)</label>
             <input
               type="search"
               value={writingSearch}
@@ -615,7 +615,7 @@ export default function AddTest() {
                 className="btn btn-secondary"
                 onClick={handleRenumber}
                 disabled={submitLoading}
-                style={{ flex: 1, background: '#FFF9F1', borderColor: '#fdf4e3', color: '#d03939', fontWeight: 700 }}
+                style={{ flex: 1, background: '#EEF2FF', borderColor: '#E0E7FF', color: '#6366F1', fontWeight: 700 }}
               >
                 Auto Renumber Questions
               </button>
@@ -626,8 +626,8 @@ export default function AddTest() {
         </div>
       </form>
 
-      <div className="search-container" style={{ marginTop: '4rem', paddingTop: '3rem', borderTop: '2px solid #FFF9F1' }}>
-        <h3 style={{ color: '#d03939' }}>Các bài thi hiện có trong hệ thống</h3>
+      <div className="search-container" style={{ marginTop: '4rem', paddingTop: '3rem', borderTop: '2px solid #EEF2FF' }}>
+        <h3 style={{ color: '#6366F1' }}>Các bài thi hiện có trong hệ thống</h3>
         {!editId && (
           <>
             <div className="search-box">

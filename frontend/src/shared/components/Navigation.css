@@ -1,11 +1,19 @@
 :root {
-    --nav-bg: #FFF9F1;
-    --nav-text: #475569;
-    --nav-active-bg: #d03939;
+    --nav-bg: #0F172A;
+    --nav-text: #CBD5E1;
+    --nav-active-bg: #6366F1;
     --nav-active-text: #ffffff;
-    --nav-hover-bg: #fdf4e3;
-    --nav-hover-text: #1e293b;
-    --nav-shadow: 0 4px 12px rgba(208, 57, 57, 0.1);
+    --nav-hover-bg: rgba(99, 102, 241, 0.18);
+    --nav-hover-text: #ffffff;
+    --nav-shadow: 0 8px 24px rgba(15, 23, 42, 0.35);
+    --nav-divider-color: rgba(148, 163, 184, 0.3);
+    --nav-border-color: rgba(148, 163, 184, 0.2);
+    --nav-login-bg: rgba(99, 102, 241, 0.14);
+    --nav-login-border: #818CF8;
+    --nav-login-text: #C7D2FE;
+    --nav-register-bg: #F59E0B;
+    --nav-register-hover: #D97706;
+    --nav-register-text: #0F172A;
     --nav-height: 70px;
 }
 
@@ -16,7 +24,7 @@
     height: var(--nav-height);
     display: flex;
     align-items: center;
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 1px solid var(--nav-border-color);
     position: sticky;
     top: 0;
     z-index: 1000;
@@ -71,7 +79,7 @@
 .nav-item.active {
     background: var(--nav-active-bg) !important;
     color: var(--nav-active-text) !important;
-    box-shadow: 0 4px 12px rgba(208, 57, 57, 0.25);
+    box-shadow: 0 6px 14px rgba(99, 102, 241, 0.35);
     font-weight: 700;
 }
 
@@ -86,7 +94,7 @@
 .nav-divider {
     width: 1px;
     height: 24px;
-    background-color: #e2e8f0;
+    background-color: var(--nav-divider-color);
     margin: 0 0.5rem;
 }
 
@@ -113,28 +121,34 @@
 
 .user-badge {
     padding: 0.4rem 1rem;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
+    background: rgba(248, 250, 252, 0.08);
+    border: 1px solid var(--nav-border-color);
     border-radius: 50px;
     font-size: 0.85rem;
     font-weight: 700;
-    color: #475569;
+    color: #E2E8F0;
     margin-left: 0.5rem;
 }
 
 /* Auth Buttons */
 .btn-login {
-    background: #fdf4e3;
-    color: #d03939;
-    border: 1px solid #d03939;
+    background: var(--nav-login-bg);
+    color: var(--nav-login-text);
+    border: 1px solid var(--nav-login-border);
+}
+
+.btn-login:hover {
+    background: rgba(99, 102, 241, 0.28);
+    color: #EEF2FF;
+    border-color: #A5B4FC;
 }
 
 .btn-register {
-    background: #d03939;
-    color: white;
+    background: var(--nav-register-bg);
+    color: var(--nav-register-text);
 }
 
 .btn-register:hover {
-    background: #b53232;
-    color: white;
+    background: var(--nav-register-hover);
+    color: var(--nav-register-text);
 }

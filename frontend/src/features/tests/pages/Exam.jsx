@@ -542,7 +542,7 @@ export default function Exam() {
                   {showReview ? 'Ẩn giải thích chi tiết' : 'Xem giải thích chi tiết'}
                 </button>
               ) : (
-                <div className="real-test-notice" style={{ color: '#d03939', fontWeight: 'bold', padding: '0.5rem 1rem', background: '#fff5f5', borderRadius: '8px', border: '1px solid #feb2b2' }}>
+                <div className="real-test-notice" style={{ color: '#6366F1', fontWeight: 'bold', padding: '0.5rem 1rem', background: '#fff5f5', borderRadius: '8px', border: '1px solid #feb2b2' }}>
                   Đây là bài thi thật - Bạn không thể xem chi tiết đáp án.
                 </div>
               )}

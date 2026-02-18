@@ -8,7 +8,7 @@ const WritingSidebar = ({ result, activeTab, setActiveTab, selectedCriterion, se
             <div
                 className={`bg-white rounded-2xl p-6 text-center border transition-all cursor-pointer relative overflow-hidden group
                     ${selectedCriterion === 'all'
-                        ? 'border-[#d03939] shadow-lg shadow-rose-100 ring-4 ring-rose-50'
+                        ? 'border-[#6366F1] shadow-lg shadow-rose-100 ring-4 ring-rose-50'
                         : 'border-slate-200 hover:border-rose-200 hover:shadow-md'}`}
                 onClick={() => setSelectedCriterion('all')}
             >
@@ -18,10 +18,10 @@ const WritingSidebar = ({ result, activeTab, setActiveTab, selectedCriterion, se
                         {result.band_score}
                         <span className="text-lg text-slate-400 font-medium ml-1">/9.0</span>
                     </div>
-                    <div className="text-xs font-bold uppercase tracking-wider text-[#d03939]">Overall Band Score</div>
+                    <div className="text-xs font-bold uppercase tracking-wider text-[#6366F1]">Overall Band Score</div>
                 </div>
                 {selectedCriterion === 'all' && (
-                    <div className="absolute bottom-2 right-2 text-[#d03939] opacity-20">
+                    <div className="absolute bottom-2 right-2 text-[#6366F1] opacity-20">
                         <svg className="w-12 h-12" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
                     </div>
                 )}
@@ -39,11 +39,11 @@ const WritingSidebar = ({ result, activeTab, setActiveTab, selectedCriterion, se
                         key={item.id}
                         className={`p-4 rounded-xl border transition-all cursor-pointer text-center
                             ${selectedCriterion === item.id
-                                ? 'bg-rose-50 border-[#d03939] text-[#d03939] shadow-sm'
+                                ? 'bg-rose-50 border-[#6366F1] text-[#6366F1] shadow-sm'
                                 : 'bg-white border-slate-200 text-slate-500 hover:border-rose-200 hover:bg-slate-50'}`}
                         onClick={() => setSelectedCriterion(item.id)}
                     >
-                        <div className={`text-2xl font-black mb-1 ${selectedCriterion === item.id ? 'text-[#d03939]' : 'text-slate-700'}`}>
+                        <div className={`text-2xl font-black mb-1 ${selectedCriterion === item.id ? 'text-[#6366F1]' : 'text-slate-700'}`}>
                             {item.score}
                         </div>
                         <div className="text-[10px] font-bold uppercase tracking-wide truncate">
@@ -76,7 +76,7 @@ const WritingSidebar = ({ result, activeTab, setActiveTab, selectedCriterion, se
                         <ul className="space-y-3">
                             {result.feedback?.map((f, i) => (
                                 <li key={i} className="text-sm text-slate-600 leading-relaxed flex gap-3">
-                                    <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-[#d03939] mt-2"></span>
+                                    <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-[#6366F1] mt-2"></span>
                                     {f}
                                 </li>
                             ))}

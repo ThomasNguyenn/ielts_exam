@@ -32,11 +32,17 @@ function getUser() {
 // Set user in localStorage
 function setUser(user) {
   localStorage.setItem('user', JSON.stringify(user));
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('auth-user-updated', { detail: user }));
+  }
 }
 
 // Remove user from localStorage
 function removeUser() {
   localStorage.removeItem('user');
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('auth-user-updated', { detail: null }));
+  }
 }
 
 function toQueryString(params = {}) {

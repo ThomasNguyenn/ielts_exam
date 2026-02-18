@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '@/shared/api/client';
 import PracticeCardSkeleton from '@/shared/components/PracticeCardSkeleton';
-import './Practice.css'; // Re-use practice styles if possible, or add new ones
+import { PenTool, Search, ArrowRight, FileText, Sparkles } from 'lucide-react';
+import './PracticeList.css';
 
 export default function PracticeList() {
     const [tasks, setTasks] = useState([]);
@@ -33,24 +34,33 @@ export default function PracticeList() {
         return matchesSearch && matchesType;
     });
 
+    const task1Count = tasks.filter(t => t.task_type === 'task1').length;
+    const task2Count = tasks.filter(t => t.task_type === 'task2').length;
+
+    /* Skeleton loading */
     if (loading) {
         return (
-            <div className="page practice-list-page" style={{ maxWidth: '80vw', width: '100%', margin: '0 auto', padding: '2rem' }}>
-                <div className="practice-header" style={{ marginBottom: '2rem', background: '#FFF9F1' }}>
-                    <div className="h-10 bg-gray-200 rounded w-1/3 mb-4 animate-pulse"></div>
-                    <div className="h-4 bg-gray-200 rounded w-1/2 animate-pulse"></div>
+            <div className="writing-page">
+                <div style={{
+                    background: 'linear-gradient(135deg, #4F46E5, #818CF8)',
+                    borderRadius: '20px',
+                    padding: '2.5rem 3rem',
+                    marginBottom: '2rem'
+                }}>
+                    <div style={{ height: '2rem', width: '40%', background: 'rgba(255,255,255,0.15)', borderRadius: '8px', marginBottom: '0.75rem' }} />
+                    <div style={{ height: '1rem', width: '55%', background: 'rgba(255,255,255,0.1)', borderRadius: '6px' }} />
                 </div>
 
-                <div className="practice-controls" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '2rem' }}>
-                    <div className="h-12 bg-gray-200 rounded-lg flex-1 animate-pulse" style={{ minWidth: '200px' }}></div>
-                    <div className="flex gap-2">
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '2rem' }}>
+                    <div style={{ flex: 1, minWidth: '200px', height: '44px', background: '#F1F5F9', borderRadius: '12px' }} />
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
                         {[1, 2, 3].map(i => (
-                            <div key={i} className="h-10 w-24 bg-gray-200 rounded-full animate-pulse"></div>
+                            <div key={i} style={{ width: '80px', height: '36px', background: '#F1F5F9', borderRadius: '50px' }} />
                         ))}
                     </div>
                 </div>
 
-                <div className="practice-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
+                <div className="wr-cards-grid">
                     {[1, 2, 3, 4, 5, 6].map(i => (
                         <PracticeCardSkeleton key={i} />
                     ))}
@@ -60,75 +70,84 @@ export default function PracticeList() {
     }
 
     return (
-        <div className="page practice-list-page" style={{ maxWidth: '80vw', width: '100%', margin: '0 auto', padding: '2rem' }}>
-            <div className="practice-header" style={{ marginBottom: '2rem', background: '#FFF9F1' }}>
-                <h1 style={{ fontSize: '2rem', color: '#d03939', marginBottom: '1rem' }}>
-                    Thư viện luyện viết Writing
-                </h1>
-                <p className="muted">Chọn chủ đề để bắt đầu luyện viết với AI feedback.</p>
+        <div className="writing-page">
+            {/* ── Hero Banner ── */}
+            <div className="wr-hero">
+                <div className="wr-hero-content">
+                    <div className="wr-hero-text">
+                        <h1>✍️ Luyện viết Writing</h1>
+                        <p>Chọn đề bài và luyện viết với AI chấm điểm chi tiết theo 4 tiêu chí IELTS.</p>
+                    </div>
+                    <div className="wr-hero-actions">
+                        <Link to="/learn/skills" className="wr-hero-btn wr-hero-btn--primary">
+                            <Sparkles size={16} />
+                            Skill Workshop
+                        </Link>
+                    </div>
+                </div>
             </div>
 
-            <div className="practice-controls" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '2rem' }}>
-                <input
-                    type="search"
-                    placeholder="Tìm kiếm chủ đề..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="form-input"
-                    style={{ flex: 1, minWidth: '200px', padding: '0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}
-                />
-                <Link
-                    to="/learn/skills"
-                    className="btn-manage-add"
-                    style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}
-                >
-                    Skill Workshop
-                </Link>
-                <div className="filter-buttons" style={{ display: 'flex', gap: '0.5rem' }}>
-                    {['all', 'task1', 'task2'].map(type => (
+            {/* ── Controls ── */}
+            <div className="wr-controls">
+                <div className="wr-search-wrapper">
+                    <Search className="wr-search-icon" />
+                    <input
+                        type="search"
+                        placeholder="Tìm kiếm đề bài..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="wr-search"
+                    />
+                </div>
+
+                <div className="wr-task-filters">
+                    {[
+                        { key: 'all', label: 'Tất cả', count: tasks.length },
+                        { key: 'task1', label: 'Task 1', count: task1Count },
+                        { key: 'task2', label: 'Task 2', count: task2Count }
+                    ].map(f => (
                         <button
-                            key={type}
-                            onClick={() => setFilterType(type)}
-                            className={`btn ${filterType === type ? 'btn-active-red' : 'btn-ghost'}`}
-                            style={{
-                                textTransform: 'capitalize',
-                                background: filterType === type ? '#d03939' : 'transparent',
-                                color: filterType === type ? 'white' : '#64748b',
-                                border: filterType === type ? 'none' : '1px solid #e2e8f0',
-                                borderRadius: '50px',
-                                padding: '0.5rem 1.25rem'
-                            }}
+                            key={f.key}
+                            onClick={() => setFilterType(f.key)}
+                            className={`wr-pill ${filterType === f.key ? 'wr-pill--active' : ''}`}
                         >
-                            {type === 'all' ? 'All Tasks' : type === 'task1' ? 'Task 1' : 'Task 2'}
+                            {f.label} ({f.count})
                         </button>
                     ))}
                 </div>
             </div>
 
-            <div className="practice-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
-                {filteredTasks.map(t => (
-                    <div key={t._id} className="practice-card" style={{ background: 'white', padding: '1.5rem', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', transition: 'all 0.3s ease', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.03)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem' }}>
-                            <span className="badge"
-                                style={{ background: '#fdf4e3', color: '#d03939', padding: '4px 12px', borderRadius: '50px', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                {t.task_type === 'task1' ? 'Task 1' : 'Task 2'}
-                            </span>
-                        </div>
-                        <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem', color: '#0f172a', fontWeight: 800, flex: 1 }}>{t.title}</h3>
-                        <p className="muted" style={{ fontSize: '0.9rem', marginBottom: '1.5rem', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                            {t.prompt}
-                        </p>
-
-                        <Link to={`/practice/${t._id}`} className="btn-sidebar-start" style={{ textDecoration: 'none' }}>
-                            Bắt đầu luyện tập
-                        </Link>
+            {/* ── Cards Grid ── */}
+            {filteredTasks.length === 0 ? (
+                <div className="wr-empty">
+                    <div className="wr-empty-icon">
+                        <FileText />
                     </div>
-                ))}
-            </div>
+                    <h3>Không tìm thấy đề bài nào</h3>
+                    <p>Thử tìm kiếm với từ khoá khác hoặc bỏ bộ lọc.</p>
+                </div>
+            ) : (
+                <div className="wr-cards-grid">
+                    {filteredTasks.map(t => (
+                        <div key={t._id} className="wr-card">
+                            <div className="wr-card-top">
+                                <span className={`wr-card-badge ${t.task_type === 'task1' ? 'wr-card-badge--t1' : 'wr-card-badge--t2'}`}>
+                                    {t.task_type === 'task1' ? 'Task 1' : 'Task 2'}
+                                </span>
+                                <div className="wr-card-icon">
+                                    <PenTool />
+                                </div>
+                            </div>
 
-            {filteredTasks.length === 0 && (
-                <div className="empty-state" style={{ textAlign: 'center', padding: '4rem', color: '#64748b' }}>
-                    <p>Không tìm thấy chủ đề nào.</p>
+                            <h3 className="wr-card-title">{t.title}</h3>
+                            <p className="wr-card-prompt">{t.prompt}</p>
+
+                            <Link to={`/practice/${t._id}`} className="wr-card-link">
+                                Bắt đầu luyện tập
+                                <ArrowRight />
+                            </Link>
+                        </div>
+                    ))}
                 </div>
             )}
         </div>

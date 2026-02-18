@@ -28,8 +28,8 @@
 
 .tool-btn:hover {
     background: #fef2f2;
-    border-color: #d03939;
-    color: #d03939;
+    border-color: #6366F1;
+    color: #6366F1;
 }
 
 .tool-info {
@@ -150,7 +150,7 @@
 
 .node-content:focus {
     outline: none;
-    border-color: #3b82f6;
+    border-color: #6366F1;
     box-shadow: 0 0 0 3px rgb(59 130 246 / 0.1);
 }
 
@@ -169,7 +169,7 @@
     bottom: 1rem;
     width: 350px;
     background: white;
-    border: 2px solid #3b82f6;
+    border: 2px solid #6366F1;
     border-radius: 12px;
     box-shadow: 0 10px 25px rgb(0 0 0 / 0.2);
     z-index: 1000;
@@ -180,7 +180,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 1rem 1.5rem;
-    background: #3b82f6;
+    background: #6366F1;
     color: white;
     border-radius: 10px 10px 0 0;
 }
@@ -223,7 +223,7 @@
 
 .detail-textarea:focus {
     outline: none;
-    border-color: #3b82f6;
+    border-color: #6366F1;
     box-shadow: 0 0 0 3px rgb(59 130 246 / 0.1);
 }
 
@@ -231,7 +231,7 @@
     margin-top: 1rem;
     padding: 1rem;
     background: #f0f9ff;
-    border-left: 3px solid #3b82f6;
+    border-left: 3px solid #6366F1;
     border-radius: 0 8px 8px 0;
 }
 

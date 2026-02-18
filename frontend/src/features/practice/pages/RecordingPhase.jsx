@@ -112,7 +112,7 @@ export default function RecordingPhase({ topic, onComplete }) {
 
     return (
         <div className="recording-phase" style={{ textAlign: 'center' }}>
-            <div className="topic-display" style={{ marginBottom: '2rem', padding: '1.5rem', background: '#f8fafc', borderRadius: '12px', borderLeft: '4px solid #3b82f6' }}>
+            <div className="topic-display" style={{ marginBottom: '2rem', padding: '1.5rem', background: '#f8fafc', borderRadius: '12px', borderLeft: '4px solid #6366F1' }}>
                 <h3 style={{ marginBottom: '1rem', color: '#1e293b' }}>Yêu cầu bài nói:</h3>
                 <p style={{ fontSize: '1.1rem', lineHeight: '1.6', color: '#334155', fontWeight: 500, whiteSpace: 'pre-wrap', textAlign: 'left' }}>
                     {topic.prompt}
@@ -137,7 +137,7 @@ export default function RecordingPhase({ topic, onComplete }) {
                 {!isRecording && !audioBlob && (
                     <button
                         onClick={startRecording}
-                        style={{ width: '80px', height: '80px', borderRadius: '50%', border: 'none', background: '#3b82f6', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 15px rgba(59, 130, 246, 0.4)', transition: 'transform 0.2s' }}
+                        style={{ width: '80px', height: '80px', borderRadius: '50%', border: 'none', background: '#6366F1', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 15px rgba(59, 130, 246, 0.4)', transition: 'transform 0.2s' }}
                         onMouseEnter={(e) => e.target.style.transform = 'scale(1.05)'}
                         onMouseLeave={(e) => e.target.style.transform = 'scale(1)'}
                     >

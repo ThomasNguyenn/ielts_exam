@@ -75,21 +75,21 @@ export default function ManageUsers() {
             <button
               className={`btn btn-sm ${roleFilter === '' ? 'btn-primary' : 'btn-outline'}`}
               onClick={() => setRoleFilter('')}
-              style={{ background: roleFilter === '' ? '#d03939' : 'transparent', color: roleFilter === '' ? 'white' : '#64748b', border: '1px solid #e2e8f0', padding: '0.5rem 1rem', borderRadius: '0.5rem', fontWeight: 600, cursor: 'pointer' }}
+              style={{ background: roleFilter === '' ? '#6366F1' : 'transparent', color: roleFilter === '' ? 'white' : '#64748b', border: '1px solid #e2e8f0', padding: '0.5rem 1rem', borderRadius: '0.5rem', fontWeight: 600, cursor: 'pointer' }}
             >
               All
             </button>
             <button
               className={`btn btn-sm ${roleFilter === 'student' ? 'btn-primary' : 'btn-outline'}`}
               onClick={() => setRoleFilter('student')}
-              style={{ background: roleFilter === 'student' ? '#d03939' : 'transparent', color: roleFilter === 'student' ? 'white' : '#64748b', border: '1px solid #e2e8f0', padding: '0.5rem 1rem', borderRadius: '0.5rem', fontWeight: 600, cursor: 'pointer' }}
+              style={{ background: roleFilter === 'student' ? '#6366F1' : 'transparent', color: roleFilter === 'student' ? 'white' : '#64748b', border: '1px solid #e2e8f0', padding: '0.5rem 1rem', borderRadius: '0.5rem', fontWeight: 600, cursor: 'pointer' }}
             >
               Students
             </button>
             <button
               className={`btn btn-sm ${roleFilter === 'teacher' ? 'btn-primary' : 'btn-outline'}`}
               onClick={() => setRoleFilter('teacher')}
-              style={{ background: roleFilter === 'teacher' ? '#d03939' : 'transparent', color: roleFilter === 'teacher' ? 'white' : '#64748b', border: '1px solid #e2e8f0', padding: '0.5rem 1rem', borderRadius: '0.5rem', fontWeight: 600, cursor: 'pointer' }}
+              style={{ background: roleFilter === 'teacher' ? '#6366F1' : 'transparent', color: roleFilter === 'teacher' ? 'white' : '#64748b', border: '1px solid #e2e8f0', padding: '0.5rem 1rem', borderRadius: '0.5rem', fontWeight: 600, cursor: 'pointer' }}
             >
               Teachers
             </button>
@@ -127,8 +127,8 @@ export default function ManageUsers() {
                       to={`/analytics/student/${user._id}`}
                       style={{
                         textDecoration: 'none',
-                        color: '#3b82f6',
-                        border: '1px solid #3b82f6',
+                        color: '#6366F1',
+                        border: '1px solid #6366F1',
                         padding: '0.4rem 0.8rem',
                         borderRadius: '6px',
                         fontSize: '0.85rem',

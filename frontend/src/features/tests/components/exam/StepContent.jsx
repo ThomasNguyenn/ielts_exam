@@ -424,8 +424,8 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
   const { item, startSlotIndex, type } = step;
   const isReading = type === 'reading';
   const isListening = type === 'listening';
-  const audioUrl = isListening ? listeningAudioUrl : item.audio_url;
-  const hasAudio = isListening && audioUrl;
+  const audioUrl = isListening ? (listeningAudioUrl || item.audio_url || null) : item.audio_url;
+  const hasAudio = isListening && Boolean(audioUrl);
   let slotIndex = startSlotIndex;
 
   // Use persisted HTML if available, otherwise original content
@@ -886,10 +886,11 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
   // ==========================================================
   // IELTS LISTENING LAYOUT: Centered questions with audio at bottom
   // ==========================================================
-  if (isListening && hasAudio) {
+  if (isListening) {
     return (
       <div className="ielts-listening-layout">
-        <div className="ielts-audio-controls top-sticky">
+        {hasAudio && (
+          <div className="ielts-audio-controls top-sticky">
           {/* <div className="audio-label-wrapper">
             <span className="audio-icon">🎧</span>
             <span className="audio-text">IELTS Listening Audio</span>
@@ -897,8 +898,9 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
           <Suspense fallback={null}>
             <IELTSAudioPlayer audioUrl={audioUrl} onEnded={onListeningAudioEnded} />
           </Suspense>
-        </div>
-        <div className="listening-content-area-top-padded">
+          </div>
+        )}
+        <div className={`listening-content-area-top-padded${hasAudio ? '' : ' listening-content-area-no-audio'}`}>
           {item.content && (
             <HighlightableContent
               htmlContent={contentHtml}

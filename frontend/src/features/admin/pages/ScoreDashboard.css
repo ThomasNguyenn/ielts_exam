@@ -30,7 +30,7 @@
 
 .search-input:focus {
     outline: none;
-    border-color: #d03939;
+    border-color: #6366F1;
     box-shadow: 0 0 0 4px rgba(208, 57, 57, 0.1);
 }
 
@@ -71,7 +71,7 @@
 }
 
 .scores-table tr:hover {
-    background: #fdf4e3;
+    background: #E0E7FF;
 }
 
 .student-info {
@@ -98,7 +98,7 @@
 .score-value {
     font-weight: 800;
     font-size: 1.125rem;
-    color: #d03939;
+    color: #6366F1;
 }
 
 .score-meta {
@@ -113,9 +113,9 @@
 }
 
 .btn-see-more {
-    background: #FFF9F1;
-    color: #d03939;
-    border: 1px solid #fdf4e3;
+    background: #EEF2FF;
+    color: #6366F1;
+    border: 1px solid #E0E7FF;
     padding: 0.5rem 1rem;
     border-radius: 0.75rem;
     font-weight: 700;
@@ -125,9 +125,9 @@
 }
 
 .btn-see-more:hover {
-    background: #d03939;
+    background: #6366F1;
     color: white;
-    border-color: #d03939;
+    border-color: #6366F1;
 }
 
 /* Attempt Details Section */
@@ -186,7 +186,7 @@
 .attempt-card:hover {
     transform: translateY(-4px);
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-    border-color: #d03939;
+    border-color: #6366F1;
 }
 
 .attempt-type {
@@ -257,7 +257,7 @@
     width: 48px;
     height: 48px;
     border: 5px solid #f3f3f3;
-    border-top: 5px solid #d03939;
+    border-top: 5px solid #6366F1;
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }
@@ -288,12 +288,12 @@
 
 .filter-tab.active {
     background: white;
-    color: #d03939;
+    color: #6366F1;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
 .band-badge {
-    background: #d03939;
+    background: #6366F1;
     color: white;
     padding: 0.25rem 0.75rem;
     border-radius: 0.5rem;

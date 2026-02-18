@@ -47,9 +47,9 @@
 }
 
 .phase-step.active .phase-step-icon {
-    background: linear-gradient(135deg, #d03939 0%, #f87171 100%);
+    background: linear-gradient(135deg, #6366F1 0%, #f87171 100%);
     color: white;
-    border-color: #d03939;
+    border-color: #6366F1;
     box-shadow: 0 4px 12px rgb(208 57 57 / 0.3);
     transform: scale(1.1);
 }
@@ -68,7 +68,7 @@
 }
 
 .phase-step.active .phase-step-name {
-    color: #d03939;
+    color: #6366F1;
     font-weight: 700;
 }
 

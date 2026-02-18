@@ -89,12 +89,12 @@ export default function GradingInterface() {
             </div>
 
             <div style={{ marginBottom: '3rem' }}>
-                <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem', color: '#d03939' }}>Đánh giá bài nộp</h1>
+                <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem', color: '#6366F1' }}>Đánh giá bài nộp</h1>
                 <div className="item-meta" style={{ fontSize: '1rem' }}>
                     Học viên: <strong>{submission.student_name}</strong> | Ngày nộp: {new Date(submission.submitted_at).toLocaleString()}
                 </div>
                 {submission.score !== undefined && submission.score !== null && (
-                    <div style={{ fontWeight: 800, color: '#d03939', marginTop: '1.25rem', fontSize: '1.5rem', background: '#FFF9F1', display: 'inline-block', padding: '0.5rem 1.5rem', borderRadius: '1rem', border: '1px solid #fdf4e3' }}>
+                    <div style={{ fontWeight: 800, color: '#6366F1', marginTop: '1.25rem', fontSize: '1.5rem', background: '#EEF2FF', display: 'inline-block', padding: '0.5rem 1.5rem', borderRadius: '1rem', border: '1px solid #E0E7FF' }}>
                         Điểm tổng: {submission.score}
                     </div>
                 )}
@@ -162,8 +162,8 @@ export default function GradingInterface() {
                             </div>
                         </div>
 
-                        <div className="grading-box" style={{ background: '#FFF9F1', padding: '2rem', borderRadius: '1.5rem', border: '1px solid #fdf4e3', marginTop: '1.5rem' }}>
-                            <h3 style={{ marginTop: 0, marginBottom: '1.5rem', color: '#d03939', fontWeight: 800 }}>Chấm điểm {answer.task_title || `Task ${index + 1}`}</h3>
+                        <div className="grading-box" style={{ background: '#EEF2FF', padding: '2rem', borderRadius: '1.5rem', border: '1px solid #E0E7FF', marginTop: '1.5rem' }}>
+                            <h3 style={{ marginTop: 0, marginBottom: '1.5rem', color: '#6366F1', fontWeight: 800 }}>Chấm điểm {answer.task_title || `Task ${index + 1}`}</h3>
 
                             <div className="form-row">
                                 <label>Band Score (0-9)</label>

@@ -138,7 +138,7 @@ export default function TestHistory() {
                         <td style={{ padding: '1rem' }}>{w.task1_score ?? '--'}</td>
                         <td style={{ padding: '1rem' }}>{w.task2_score ?? '--'}</td>
                         <td style={{ padding: '1rem' }}>
-                          <span style={{ fontWeight: 'bold', color: '#2563eb' }}>{a.score ?? '--'}</span>
+                          <span style={{ fontWeight: 'bold', color: '#4F46E5' }}>{a.score ?? '--'}</span>
                         </td>
                         <td style={{ padding: '1rem', fontSize: '0.9rem', textAlign: 'left', maxWidth: '300px' }}>
                           {w.feedback ? (

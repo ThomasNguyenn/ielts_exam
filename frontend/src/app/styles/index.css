@@ -1,69 +1,8 @@
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
+/* index.css — Extended utilities (theme.css handles base resets & tokens) */
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@layer base {
-
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6 {
-    font-family: 'Inter', sans-serif;
-  }
-}
-
-
-:root {
-  --color-bg: #f8fafc;
-  --color-surface: #ffffff;
-  --color-border: #e2e8f0;
-  --color-text: #0f172a;
-  --color-text-muted: #64748b;
-  --color-accent: #d03939;
-  --color-accent-hover: #b53232;
-  --font-sans: 'Inter', system-ui, sans-serif;
-}
-
-body {
-  margin: 0;
-  font-family: var(--font-sans);
-  background: var(--color-bg);
-  color: var(--color-text);
-  line-height: 1.6;
-  min-height: 100vh;
-}
-
-#root {
-  min-height: 100vh;
-}
-
-a {
-  color: var(--color-accent);
-  text-decoration: none;
-}
-
-a:hover {
-  color: var(--color-accent-hover);
-}
-
-button {
-  font-family: inherit;
-  cursor: pointer;
-}
-
-input,
-select,
-textarea {
-  font-family: inherit;
-}
 
 /* Highlight and Note Styles */
 .ielts-highlight {
@@ -94,7 +33,7 @@ textarea {
   justify-content: center;
   width: 20px;
   height: 20px;
-  background-color: #3b82f6;
+  background-color: #6366F1;
   color: white;
   border-radius: 4px;
   font-size: 12px;

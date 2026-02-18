@@ -458,8 +458,8 @@ export default function AddSkillModules() {
         </div>
       </form>
 
-      <div className="search-container" style={{ marginTop: '3rem', paddingTop: '2rem', borderTop: '2px solid #FFF9F1' }}>
-        <h3 style={{ color: '#d03939' }}>Existing Skill Modules</h3>
+      <div className="search-container" style={{ marginTop: '3rem', paddingTop: '2rem', borderTop: '2px solid #EEF2FF' }}>
+        <h3 style={{ color: '#6366F1' }}>Existing Skill Modules</h3>
         {!editId && (
           <>
             <div className="form-section" style={{ marginBottom: '1.5rem' }}>

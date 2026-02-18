@@ -75,7 +75,7 @@ export default function AnalyticsDashboard() {
                                 <PolarGrid />
                                 <PolarAngleAxis dataKey="subject" />
                                 <PolarRadiusAxis angle={30} domain={[0, 9]} />
-                                <Radar name="My Skills" dataKey="A" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.6} />
+                                <Radar name="My Skills" dataKey="A" stroke="#6366F1" fill="#6366F1" fillOpacity={0.6} />
                                 <Tooltip />
                             </RadarChart>
                         </ResponsiveContainer>

@@ -12,14 +12,14 @@
 }
 
 .level-badge:hover {
-    border-color: #d03939;
+    border-color: #6366F1;
     box-shadow: 0 4px 12px rgba(208, 57, 57, 0.1);
     transform: translateY(-1px);
 }
 
 /* Admin Special Style */
 .level-badge-admin {
-    background: linear-gradient(135deg, #FFF9F1, #fff);
+    background: linear-gradient(135deg, #EEF2FF, #fff);
     border-color: #fbbf24;
     /* Amber/Gold */
 }
@@ -43,7 +43,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #d03939;
+    color: #6366F1;
     flex-shrink: 0;
 }
 

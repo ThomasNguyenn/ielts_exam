@@ -69,7 +69,7 @@ function CtaButton({
     return (
         <button
             type="button"
-            className="group mt-auto mb-2 inline-flex w-full items-center justify-center gap-3 rounded-2xl bg-[#d03939] px-5 py-4 text-base font-extrabold text-white shadow-lg transition-all duration-300 hover:bg-[#FF4747] hover:scale-[1.02] active:scale-95"
+            className="group mt-auto mb-2 inline-flex w-full items-center justify-center gap-3 rounded-2xl bg-[#6366F1] px-5 py-4 text-base font-extrabold text-white shadow-lg transition-all duration-300 hover:bg-[#4F46E5] hover:scale-[1.02] active:scale-95"
         >
             <span className="opacity-95 transition-transform duration-300 group-hover:scale-110">{icon}</span>
             <span>{children}</span>
@@ -106,7 +106,7 @@ function IconTile({
     const bgMap = {
         emerald: "bg-[#365314]",
         amber: "bg-[#556b2f]",
-        rose: "bg-[#FFF9F1]",
+        rose: "bg-[#EEF2FF]",
     };
 
     return (

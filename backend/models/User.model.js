@@ -51,6 +51,11 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  verificationToken: { type: String, default: null },
+  verificationTokenExpires: { type: Date, default: null },
+  resetPasswordToken: { type: String, default: null },
+  resetPasswordExpires: { type: Date, default: null },
+  isVerified: { type: Boolean, default: false },
 });
 
 userSchema.index({ role: 1, createdAt: -1 });

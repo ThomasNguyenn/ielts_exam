@@ -219,7 +219,7 @@
 }
 
 .settings-option-btn.active {
-    border-color: #3b82f6;
+    border-color: #6366F1;
     background: #eff6ff;
     color: #1d4ed8;
 }
@@ -297,7 +297,7 @@
 
 .ielts-resizer:hover,
 .ielts-resizer[data-panel-resize-handle-active] {
-    background: #3b82f6;
+    background: #6366F1;
 }
 
 .resizer-handle-button {
@@ -361,7 +361,7 @@
 }
 
 .gap-fill-input:focus {
-    border-color: #3b82f6;
+    border-color: #6366F1;
     background: #fff;
     outline: none;
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
@@ -424,7 +424,7 @@
 }
 
 .exam-option-label.selected-multi {
-    border-color: #3b82f6;
+    border-color: #6366F1;
     background: #eff6ff;
     color: #1d4ed8;
 }
@@ -493,7 +493,7 @@
 }
 
 .matching-chip:hover:not(.used) {
-    border-color: #3b82f6;
+    border-color: #6366F1;
     transform: translateY(-1px);
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
@@ -555,14 +555,14 @@
 .matching-dropzone:hover,
 .summary-dropzone:hover,
 .matching-dropzone.drag-over {
-    border-color: #3b82f6;
+    border-color: #6366F1;
     background: #f0f9ff;
     transform: scale(1.02);
 }
 
 .matching-dropzone.has-value,
 .summary-dropzone.has-value {
-    border: 2px solid #3b82f6;
+    border: 2px solid #6366F1;
     background: #eff6ff;
     border-style: solid;
 }
@@ -749,7 +749,7 @@
 }
 
 .writing-textarea:focus {
-    border-color: #3b82f6;
+    border-color: #6366F1;
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
@@ -842,7 +842,7 @@
     display: block;
     width: 4px;
     height: 16px;
-    background: #3b82f6;
+    background: #6366F1;
     border-radius: 2px;
 }
 
@@ -946,6 +946,10 @@
     align-items: center;
 }
 
+.listening-content-area-no-audio {
+    padding-top: 2.5rem;
+}
+
 .listening-questions-centered {
     width: 100%;
     background: transparent;
@@ -970,7 +974,7 @@
     background: #1e293b;
     /* Dark theme standard for players */
     color: white;
-    border-bottom: 2px solid #3b82f6;
+    border-bottom: 2px solid #6366F1;
     padding: 0.75rem 2rem;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     z-index: 50;
@@ -1014,7 +1018,7 @@
 
 .audio-progress-fill {
     height: 100%;
-    background: #3b82f6;
+    background: #6366F1;
     /* IELTS Blue */
     border-radius: 3px;
 }
@@ -1070,7 +1074,7 @@
     border-color: #cbd5e1;
     transform: translateY(-2px);
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-    color: #3b82f6;
+    color: #6366F1;
 }
 
 .footer-nav-arrow:disabled {
@@ -1805,7 +1809,7 @@
     border-radius: 12px;
     font-size: 0.75rem;
     font-weight: 700;
-    background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%);
+    background: linear-gradient(135deg, #6366F1 0%, #60a5fa 100%);
     color: white;
 }
 
@@ -1961,7 +1965,7 @@
     width: 1.25rem;
     height: 1.25rem;
     cursor: pointer;
-    accent-color: #3b82f6;
+    accent-color: #6366F1;
 }
 
 .matching-options-pool-listening {
@@ -2108,7 +2112,7 @@
 }
 
 .note-modal textarea:focus {
-    border-color: #3b82f6;
+    border-color: #6366F1;
 }
 
 .note-modal-actions {
@@ -2125,7 +2129,7 @@
 }
 
 .note-modal-actions .btn-save {
-    background: #3b82f6;
+    background: #6366F1;
     color: white;
     border: none;
 }
@@ -2152,7 +2156,7 @@
 }
 
 .btn-scoring-option:hover {
-    border-color: #3b82f6;
+    border-color: #6366F1;
     background: #eff6ff;
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);

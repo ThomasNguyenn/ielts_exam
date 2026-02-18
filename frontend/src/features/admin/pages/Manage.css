@@ -4,11 +4,11 @@
 
 /* CSS Variables for Consistent Theming */
 :root {
-    --manage-primary: #d03939;
-    --manage-primary-hover: #FF4747;
-    --manage-primary-light: #ff585850;
-    --manage-cream: #FFF9F1;
-    --manage-cream-dark: #fdf4e3;
+    --manage-primary: #6366F1;
+    --manage-primary-hover: #4F46E5;
+    --manage-primary-light: rgba(99, 102, 241, 0.15);
+    --manage-cream: #EEF2FF;
+    --manage-cream-dark: #E0E7FF;
     --manage-bg-white: #ffffff;
     --manage-bg-gray: #f8fafc;
     --manage-border: #e2e8f0;
@@ -20,8 +20,8 @@
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
     --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.1);
-    --shadow-primary: 0 4px 12px rgba(208, 57, 57, 0.2);
-    --shadow-primary-hover: 0 8px 20px rgba(208, 57, 57, 0.3);
+    --shadow-primary: 0 4px 12px rgba(99, 102, 241, 0.25);
+    --shadow-primary-hover: 0 8px 20px rgba(99, 102, 241, 0.35);
 
     --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
     --transition-base: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
@@ -114,7 +114,7 @@
 }
 
 .manage-nav-item.active {
-    background: linear-gradient(135deg, var(--manage-primary) 0%, #e63946 100%);
+    background: linear-gradient(135deg, var(--manage-primary) 0%, #4F46E5 100%);
     color: #ffffff;
     box-shadow: var(--shadow-primary);
     transform: translateX(0);
@@ -163,7 +163,7 @@
 .manage-container h1 {
     font-size: 2rem;
     font-weight: 800;
-    background: linear-gradient(135deg, var(--manage-primary) 0%, #ff6b6b 100%);
+    background: linear-gradient(135deg, var(--manage-primary) 0%, #818CF8 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -402,7 +402,7 @@
    BUTTONS
    ============================================ */
 .btn-manage-add {
-    background: linear-gradient(135deg, var(--manage-primary) 0%, #e63946 100%);
+    background: linear-gradient(135deg, var(--manage-primary) 0%, #4F46E5 100%);
     color: white;
     padding: 0.85rem 1.75rem;
     border-radius: 50px;
@@ -440,7 +440,7 @@
 }
 
 .btn-manage-add:hover {
-    background: linear-gradient(135deg, var(--manage-primary-hover) 0%, #ff5757 100%);
+    background: linear-gradient(135deg, var(--manage-primary-hover) 0%, #4338CA 100%);
     transform: translateY(-3px) scale(1.02);
     box-shadow: var(--shadow-primary-hover);
 }
@@ -674,7 +674,7 @@
 .selection-card.selected {
     border-color: var(--manage-primary);
     background: linear-gradient(135deg, var(--manage-cream) 0%, #fffdf9 100%);
-    box-shadow: 0 6px 16px rgba(208, 57, 57, 0.15);
+    box-shadow: 0 6px 16px rgba(99, 102, 241, 0.15);
 }
 
 .selection-card-header {
@@ -726,9 +726,9 @@
 }
 
 .selection-card.selected .selection-card-checkbox {
-    background: linear-gradient(135deg, var(--manage-primary) 0%, #e63946 100%);
+    background: linear-gradient(135deg, var(--manage-primary) 0%, #4F46E5 100%);
     border-color: var(--manage-primary);
-    box-shadow: 0 2px 8px rgba(208, 57, 57, 0.3);
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
 }
 
 .selection-card-checkbox::after {

@@ -630,7 +630,7 @@ export default function AddSection() {
           className="btn-manage-add"
           type="button"
           onClick={() => setIsAIModalOpen(true)}
-          style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', background: '#2563eb' }}
+          style={{ padding: '0.5rem 1rem', fontSize: '0.9rem', background: '#4F46E5' }}
         >
           ✨ Soạn đề AI
         </button>
@@ -684,7 +684,7 @@ export default function AddSection() {
             onChange={(e) => updateForm('audio_url', e.target.value)}
             placeholder="https://example.com/audio.mp3"
           />
-          <small className="form-hint" style={{ color: '#d03939' }}>
+          <small className="form-hint" style={{ color: '#6366F1' }}>
             Nhập link file audio MP3 cho bài nghe này
           </small>
         </div>
@@ -697,7 +697,7 @@ export default function AddSection() {
           />
         </div>
 
-        <h3 style={{ color: '#d03939', marginTop: '2rem' }}>Các nhóm câu hỏi</h3>
+        <h3 style={{ color: '#6366F1', marginTop: '2rem' }}>Các nhóm câu hỏi</h3>
         {form.question_groups.map((group, gi) => {
           const isGroupCollapsed = collapsedGroups.has(gi);
           return (
@@ -984,9 +984,9 @@ export default function AddSection() {
                       {group.questions.map((q, qi) => {
                         const isQuestionCollapsed = collapsedQuestions.has(`${gi}-${qi}`);
                         return (
-                          <div key={qi} className="question-block" style={{ border: '1px solid #fdf4e3', background: '#FFF9F1', padding: '1rem', borderRadius: '1rem', marginBottom: '1.5rem' }}>
+                          <div key={qi} className="question-block" style={{ border: '1px solid #E0E7FF', background: '#EEF2FF', padding: '1rem', borderRadius: '1rem', marginBottom: '1.5rem' }}>
                             <div className="group-header" onClick={() => toggleQuestionCollapse(gi, qi)} style={{ padding: '0.5rem 0.3rem', borderRadius: '0.5rem', background: 'transparent', borderBottom: 'none' }}>
-                              <span style={{ fontWeight: 800, color: '#d03939' }}>Câu {q.q_number}</span>
+                              <span style={{ fontWeight: 800, color: '#6366F1' }}>Câu {q.q_number}</span>
                               <span style={{ opacity: 0.5 }}>{isQuestionCollapsed ? '▼' : '▲'}</span>
                             </div>
                             {!isQuestionCollapsed && (
@@ -1046,7 +1046,7 @@ export default function AddSection() {
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem', marginTop: '0.5rem' }}>
                                       {(q.option || []).map((o, oi) => (
                                         <div key={o.label} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                          <span style={{ fontWeight: 800, color: '#d03939', width: '25px' }}>{o.label}</span>
+                                          <span style={{ fontWeight: 800, color: '#6366F1', width: '25px' }}>{o.label}</span>
                                           <input
                                             value={o.text}
                                             onChange={(e) => setQuestionOption(gi, qi, oi, e.target.value)}
@@ -1070,7 +1070,7 @@ export default function AddSection() {
                                       type="button"
                                       className="btn btn-ghost btn-xs"
                                       onClick={() => addQuestionOption(gi, qi)}
-                                      style={{ marginTop: '0.5rem', color: '#2563eb' }}
+                                      style={{ marginTop: '0.5rem', color: '#4F46E5' }}
                                     >
                                       + Thêm lựa chọn
                                     </button>
@@ -1129,8 +1129,8 @@ export default function AddSection() {
         </div>
       </form >
 
-      <div className="search-container" style={{ marginTop: '4rem', paddingTop: '3rem', borderTop: '2px solid #FFF9F1' }}>
-        <h3 style={{ color: '#d03939' }}>Danh sách bài Listening hiện có</h3>
+      <div className="search-container" style={{ marginTop: '4rem', paddingTop: '3rem', borderTop: '2px solid #EEF2FF' }}>
+        <h3 style={{ color: '#6366F1' }}>Danh sách bài Listening hiện có</h3>
         {!editId && (
           loading ? <p className="muted">Đang tải...</p> : (
             <>

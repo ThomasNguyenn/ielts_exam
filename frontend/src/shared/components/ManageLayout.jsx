@@ -44,10 +44,10 @@ export default function ManageLayout() {
           marginBottom: '1.5rem',
           padding: '1rem 0.75rem',
           borderRadius: '0.85rem',
-          background: 'linear-gradient(135deg, rgba(208, 57, 57, 0.08) 0%, rgba(208, 57, 57, 0.02) 100%)'
+          background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(99, 102, 241, 0.02) 100%)'
         }}>
           <h2 style={{
-            color: '#d03939',
+            color: '#6366F1',
             fontSize: '1rem',
             marginBottom: '0.25rem',
             fontWeight: 800,

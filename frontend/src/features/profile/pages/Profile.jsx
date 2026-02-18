@@ -73,7 +73,7 @@ export default function Profile() {
         try {
             const res = await api.getProfile();
             if (res.success) {
-                setProfile({
+                const nextProfile = {
                     name: res.data.name,
                     xp: res.data.xp || 0,
                     level: res.data.level || 1,
@@ -84,6 +84,19 @@ export default function Profile() {
                         writing: res.data.targets?.writing || 0,
                         speaking: res.data.targets?.speaking || 0
                     }
+                };
+
+                setProfile(nextProfile);
+
+                // Keep cached header user in sync with latest profile XP/level.
+                const cachedUser = api.getUser() || {};
+                api.setUser({
+                    ...cachedUser,
+                    name: nextProfile.name,
+                    role: nextProfile.role || cachedUser.role,
+                    xp: nextProfile.xp,
+                    level: nextProfile.level,
+                    targets: nextProfile.targets
                 });
             }
         } catch (err) {

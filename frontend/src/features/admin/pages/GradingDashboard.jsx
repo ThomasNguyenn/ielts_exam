@@ -355,11 +355,11 @@ export default function GradingDashboard() {
                     onClick={() => setActiveTab('pending')}
                     style={{
                         padding: '1rem 1.5rem',
-                        borderBottom: activeTab === 'pending' ? '3px solid #d03939' : '3px solid transparent',
+                        borderBottom: activeTab === 'pending' ? '3px solid #6366F1' : '3px solid transparent',
                         fontWeight: 800,
                         background: 'none',
                         cursor: 'pointer',
-                        color: activeTab === 'pending' ? '#d03939' : '#64748b',
+                        color: activeTab === 'pending' ? '#6366F1' : '#64748b',
                         transition: 'all 0.2s',
                         fontSize: '0.95rem'
                     }}
@@ -371,11 +371,11 @@ export default function GradingDashboard() {
                     onClick={() => setActiveTab('scored')}
                     style={{
                         padding: '1rem 1.5rem',
-                        borderBottom: activeTab === 'scored' ? '3px solid #d03939' : '3px solid transparent',
+                        borderBottom: activeTab === 'scored' ? '3px solid #6366F1' : '3px solid transparent',
                         fontWeight: 800,
                         background: 'none',
                         cursor: 'pointer',
-                        color: activeTab === 'scored' ? '#d03939' : '#64748b',
+                        color: activeTab === 'scored' ? '#6366F1' : '#64748b',
                         transition: 'all 0.2s',
                         fontSize: '0.95rem'
                     }}
@@ -450,7 +450,7 @@ export default function GradingDashboard() {
                                                         className="btn btn-ghost btn-sm"
                                                         onClick={() => handleExportPDF(sub)}
                                                         disabled={exportingId === sub._id}
-                                                        style={{ color: '#d03939', fontWeight: 800, opacity: exportingId === sub._id ? 0.65 : 1 }}
+                                                        style={{ color: '#6366F1', fontWeight: 800, opacity: exportingId === sub._id ? 0.65 : 1 }}
                                                     >
                                                         {exportingId === sub._id ? 'Exporting...' : 'PDF'}
                                                     </button>

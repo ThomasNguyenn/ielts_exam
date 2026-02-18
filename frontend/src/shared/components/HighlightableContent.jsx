@@ -350,7 +350,7 @@ const HighlightableContent = forwardRef(({ htmlContent, onUpdateHtml, id, tagNam
               border: 'none', 
               fontSize: '0.8rem', 
               fontWeight: '700', 
-              color: '#3b82f6',
+              color: '#6366F1',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -586,7 +586,7 @@ export function HighlightableWrapper({ children, onUpdateHtml, className = '', t
             type="button" 
             className="tooltip-action-btn"
             onMouseDown={(e) => { e.preventDefault(); handleOpenNote(); }}
-            style={{ background: 'none', border: 'none', fontSize: '0.8rem', fontWeight: '700', color: '#3b82f6', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+            style={{ background: 'none', border: 'none', fontSize: '0.8rem', fontWeight: '700', color: '#6366F1', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
           >
             📝 Note
           </button>

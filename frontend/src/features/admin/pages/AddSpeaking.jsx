@@ -284,8 +284,8 @@ export default function AddSpeaking() {
         </div>
       </form>
 
-      <div className="search-container" style={{ marginTop: '4rem', paddingTop: '3rem', borderTop: '2px solid #FFF9F1' }}>
-        <h3 style={{ color: '#d03939' }}>Danh sách chủ đề Speaking hiện có</h3>
+      <div className="search-container" style={{ marginTop: '4rem', paddingTop: '3rem', borderTop: '2px solid #EEF2FF' }}>
+        <h3 style={{ color: '#6366F1' }}>Danh sách chủ đề Speaking hiện có</h3>
         {!editId && (
           <>
             <div className="search-box" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>

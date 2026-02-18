@@ -8,7 +8,7 @@ const CircularProgress = ({ score, maxScore = 9, size = 120, strokeWidth = 8 }) 
     // Color logic based on score
     let strokeColor = '#ef4444'; // red-500
     if (score >= 4) strokeColor = '#f59e0b'; // amber-500
-    if (score >= 6) strokeColor = '#3b82f6'; // blue-500
+    if (score >= 6) strokeColor = '#6366F1'; // blue-500
     if (score >= 7.5) strokeColor = '#10b981'; // emerald-500
 
     return (

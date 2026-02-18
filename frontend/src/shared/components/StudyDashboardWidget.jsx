@@ -83,7 +83,7 @@ export default function StudyDashboardWidget() {
                     style={{
                         padding: '0.8rem 1.5rem',
                         borderRadius: '30px',
-                        background: '#3b82f6',
+                        background: '#6366F1',
                         color: 'white',
                         border: 'none',
                         fontWeight: 600,
@@ -108,12 +108,12 @@ export default function StudyDashboardWidget() {
                 <div>
                     <h3 style={{ margin: 0, fontSize: '1.2rem' }}>Nhiệm vụ hôm nay</h3>
                     <p style={{ margin: 0, color: '#64748b', fontSize: '0.9rem', marginTop: '0.2rem' }}>
-                        Còn <strong style={{ color: '#3b82f6' }}>{daysLeft} ngày</strong> tới kỳ thi
+                        Còn <strong style={{ color: '#6366F1' }}>{daysLeft} ngày</strong> tới kỳ thi
                     </p>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
-                        <div style={{ background: '#eff6ff', color: '#3b82f6', padding: '0.3rem 0.8rem', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 700 }}>
+                        <div style={{ background: '#eff6ff', color: '#6366F1', padding: '0.3rem 0.8rem', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 700 }}>
                             Target: {plan.targetBand}
                         </div>
                         <button
@@ -151,7 +151,7 @@ export default function StudyDashboardWidget() {
                                         width: '100%',
                                         height: '100%',
                                         cursor: 'pointer',
-                                        accentColor: '#3b82f6',
+                                        accentColor: '#6366F1',
                                         opacity: 0,
                                         position: 'absolute',
                                         zIndex: 2,
@@ -161,12 +161,12 @@ export default function StudyDashboardWidget() {
                                 <div style={{
                                     width: '100%',
                                     height: '100%',
-                                    border: `2px solid ${task.status === 'completed' ? '#3b82f6' : '#cbd5e1'}`,
+                                    border: `2px solid ${task.status === 'completed' ? '#6366F1' : '#cbd5e1'}`,
                                     borderRadius: '6px',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    background: task.status === 'completed' ? '#3b82f6' : 'white',
+                                    background: task.status === 'completed' ? '#6366F1' : 'white',
                                     transition: 'all 0.2s'
                                 }}>
                                     {task.status === 'completed' && <span style={{ color: 'white', fontSize: '14px' }}>✓</span>}
@@ -185,7 +185,7 @@ export default function StudyDashboardWidget() {
                                 to={task.link || `/practice/${task.referenceId}`}
                                 className="btn-start-task"
                                 style={{
-                                    color: task.status === 'completed' ? '#94a3b8' : '#3b82f6',
+                                    color: task.status === 'completed' ? '#94a3b8' : '#6366F1',
                                     fontWeight: 600,
                                     textDecoration: 'none',
                                     padding: '0.5rem 1rem',

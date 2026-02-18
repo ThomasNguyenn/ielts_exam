@@ -1,119 +1,44 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { api } from '@/shared/api/client';
+import { Sparkles, Search, SlidersHorizontal } from 'lucide-react';
 import TestCardSkeleton from '@/shared/components/TestCardSkeleton';
 import PaginationControls from '@/shared/components/PaginationControls';
+import { TestCard, PartCard } from '@/features/tests/components/TestCard';
+import TestSidebar from '@/features/tests/components/TestSidebar';
 import './TestList.css';
 
 const PAGE_SIZE = 12;
 
-function getTestDescription(test) {
-  const readingCount = test.reading_passages?.length || 0;
-  const listeningCount = test.listening_sections?.length || 0;
-  const writingCount = test.writing_tasks?.length || 0;
 
-  const type = test.type || 'reading';
-
-  if (type === 'reading' && readingCount > 0) {
-    return `Reading · ${readingCount} passage${readingCount !== 1 ? 's' : ''}`;
-  }
-  if (type === 'listening' && listeningCount > 0) {
-    return `Listening · ${listeningCount} section${listeningCount !== 1 ? 's' : ''}`;
-  }
-  if (type === 'writing' && writingCount > 0) {
-    return `Writing · ${writingCount} task${writingCount !== 1 ? 's' : ''}`;
-  }
-
-  // Fallback based on available data
-  if (readingCount > 0) {
-    return `Reading · ${readingCount} passage${readingCount !== 1 ? 's' : ''}`;
-  }
-  if (listeningCount > 0) {
-    return `Listening · ${listeningCount} section${listeningCount !== 1 ? 's' : ''}`;
-  }
-  if (writingCount > 0) {
-    return `Writing · ${writingCount} task${writingCount !== 1 ? 's' : ''}`;
-  }
-
-  return 'Empty test';
-}
-
-function getTestTypeLabel(type) {
-  switch (type) {
-    case 'reading':
-      return 'Reading Test';
-    case 'listening':
-      return 'Listening Test';
-    case 'writing':
-      return 'Writing Test';
-    default:
-      return 'Test';
-  }
-}
-
-function calculateIELTSBand(correctCount, testType) {
-  const bands = {
-    listening: [
-      { min: 39, band: 9.0 },
-      { min: 37, band: 8.5 },
-      { min: 35, band: 8.0 },
-      { min: 32, band: 7.5 },
-      { min: 30, band: 7.0 },
-      { min: 26, band: 6.5 },
-      { min: 23, band: 6.0 },
-      { min: 18, band: 5.5 },
-      { min: 16, band: 5.0 },
-      { min: 13, band: 4.5 },
-      { min: 10, band: 4.0 },
-      { min: 8, band: 3.5 },
-      { min: 6, band: 3.0 },
-      { min: 4, band: 2.5 },
-      { min: 2, band: 2.0 },
-      { min: 1, band: 1.0 },
-      { min: 0, band: 0 },
-    ],
-    reading: [
-      { min: 39, band: 9.0 },
-      { min: 37, band: 8.5 },
-      { min: 35, band: 8.0 },
-      { min: 33, band: 7.5 },
-      { min: 30, band: 7.0 },
-      { min: 27, band: 6.5 },
-      { min: 23, band: 6.0 },
-      { min: 19, band: 5.5 },
-      { min: 15, band: 5.0 },
-      { min: 13, band: 4.5 },
-      { min: 10, band: 4.0 },
-      { min: 8, band: 3.5 },
-      { min: 6, band: 3.0 },
-      { min: 4, band: 2.5 },
-      { min: 2, band: 2.0 },
-      { min: 1, band: 1.0 },
-      { min: 0, band: 0 },
-    ],
-  };
-
-  const typeBands = bands[testType] || bands.reading;
-  for (const b of typeBands) {
-    if (correctCount >= b.min) return b.band;
-  }
-  return 0;
-}
 
 export default function TestList() {
   const [tests, setTests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
   const [error, setError] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedPartFilter, setSelectedPartFilter] = useState('all');
   const [selectedType, setSelectedType] = useState('all');
   const [viewMode, setViewMode] = useState('full'); // 'full' | 'parts'
+  const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [attemptSummary, setAttemptSummary] = useState({});
   const [currentPage, setCurrentPage] = useState(1);
   const [pagination, setPagination] = useState(null);
   const [allCategoryCounts, setAllCategoryCounts] = useState({});
+  const [overallTotalTests, setOverallTotalTests] = useState(null);
   const isLoggedIn = api.isAuthenticated();
+
+  useEffect(() => {
+    if (searchInput === searchQuery) return;
+
+    const timer = setTimeout(() => {
+      setSearchQuery(searchInput);
+      setCurrentPage(1);
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [searchInput, searchQuery]);
 
   useEffect(() => {
     setSelectedCategory('all');
@@ -122,8 +47,8 @@ export default function TestList() {
   }, [selectedType]);
 
   useEffect(() => {
-    setLoading(true);
     setError(null);
+    if (!loading) setIsFetching(true);
 
     api
       .getTests({
@@ -138,7 +63,10 @@ export default function TestList() {
         setPagination(res.pagination || null);
       })
       .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        setIsFetching(false);
+      });
   }, [currentPage, selectedType, selectedCategory, searchQuery]);
 
   useEffect(() => {
@@ -185,10 +113,28 @@ export default function TestList() {
       .catch(() => { });
   }, [isLoggedIn]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    api
+      .getTests({ page: 1, limit: 1 })
+      .then((res) => {
+        if (!isMounted) return;
+        setOverallTotalTests(Number(res?.pagination?.totalItems || 0));
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setOverallTotalTests(null);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   if (loading) {
     return (
       <div className="page test-list">
-        <h1>Danh sách bài thi</h1>
         <div className="test-list-layout">
           {/* Skeleton Sidebar */}
           <aside className="test-sidebar">
@@ -374,135 +320,73 @@ export default function TestList() {
     }, {});
   }
 
-  const formatDate = (val) => {
-    if (!val) return '--';
-    const d = new Date(val);
-    if (Number.isNaN(d.getTime())) return '--';
-    return d.toLocaleDateString();
-  };
+  const completedCount = Object.keys(attemptSummary).length;
+  const statsTotalTests = overallTotalTests ?? (pagination?.totalItems ?? tests.length);
 
   return (
     <div className="page test-list">
-      <h1>Danh sách bài thi</h1>
+      {/* Header + Search — full width above layout */}
+      <div className="mb-8" style={{ maxWidth: 1200, margin: '0 auto', padding: '2rem 1.5rem 0' }}>
+        <div className="flex items-end justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Sparkles className="w-4 h-4 text-[#F59E0B]" />
+              <span
+                className="text-[#6366F1]"
+                style={{
+                  fontSize: "0.8125rem",
+                  fontWeight: 600,
+                  letterSpacing: "0.04em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Practice Tests
+              </span>
+            </div>
+            <h1
+              className="text-[#0F172A]"
+              style={{ fontSize: "2rem", fontWeight: 700, lineHeight: 1.25 }}
+            >
+              CHINH PHỤC MỤC TIÊU IELTS
+            </h1>
+            <p className="text-[#64748B] mt-1.5" style={{ fontSize: "0.9375rem" }}>
+              Ngân hàng đề thi được thiết kế để đạt band 7+.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="relative group">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94A3B8] group-focus-within:text-[#6366F1] transition-colors" />
+              <input
+                type="text"
+                placeholder="Filter tests..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="h-10 pl-10 pr-4 w-[220px] bg-white border border-[#E2E8F0] rounded-xl text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#6366F1]/40 focus:shadow-[0_0_0_3px_rgba(99,102,241,0.08)] transition-all"
+                style={{ fontSize: "0.8125rem" }}
+              />
+            </div>
+            <button className="flex items-center gap-2 h-10 px-4 bg-white border border-[#E2E8F0] rounded-xl text-[#64748B] hover:text-[#334155] hover:border-[#CBD5E1] transition-all cursor-pointer shadow-sm">
+              <SlidersHorizontal className="w-4 h-4" />
+              <span style={{ fontSize: "0.8125rem" }}>Sort</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div className="test-list-layout">
-        <aside className="test-sidebar">
-          <h2>Chế độ xem</h2>
-          <div className="view-mode-toggle">
-            <button
-              className={`btn-mode ${viewMode === 'full' ? 'active' : ''}`}
-              onClick={() => setViewMode('full')}
-            >
-              Trọn bộ (Full)
-            </button>
-            <button
-              className={`btn-mode ${viewMode === 'parts' ? 'active' : ''}`}
-              onClick={() => setViewMode('parts')}
-            >
-              Theo phần (Parts)
-            </button>
-          </div>
-
-          <h2>Lọc theo kỹ năng</h2>
-          <div className="filter-group">
-            {['all', 'reading', 'listening', 'writing'].map((type) => (
-              <label key={type} className="filter-option">
-                <input
-                  type="radio"
-                  name="test-type-filter"
-                  value={type}
-                  checked={selectedType === type}
-                  onChange={() => {
-                    setSelectedType(type);
-                    setCurrentPage(1);
-                  }}
-                />
-                <span>{type === 'all' ? 'All skills' : type[0].toUpperCase() + type.slice(1)}</span>
-              </label>
-            ))}
-          </div>
-
-          {viewMode === 'parts' && selectedType !== 'all' && (
-            <>
-              <h2>Filter by Part</h2>
-              <div className="filter-group">
-                {(() => {
-                  let options = [
-                    { value: 'all', label: 'All Parts' },
-                    { value: 'part1', label: 'Part 1' },
-                    { value: 'part2', label: 'Part 2' },
-                    { value: 'part3', label: 'Part 3' },
-                    { value: 'part4', label: 'Part 4' },
-                  ];
-
-                  if (selectedType === 'reading') {
-                    options = [
-                      { value: 'all', label: 'All Passages' },
-                      { value: 'part1', label: 'Passage 1' },
-                      { value: 'part2', label: 'Passage 2' },
-                      { value: 'part3', label: 'Passage 3' },
-                    ];
-                  } else if (selectedType === 'listening') {
-                    options = [
-                      { value: 'all', label: 'All Sections' },
-                      { value: 'part1', label: 'Section 1' },
-                      { value: 'part2', label: 'Section 2' },
-                      { value: 'part3', label: 'Section 3' },
-                      { value: 'part4', label: 'Section 4' },
-                    ];
-                  } else if (selectedType === 'writing') {
-                    options = [
-                      { value: 'all', label: 'All Tasks' },
-                      { value: 'part1', label: 'Task 1' },
-                      { value: 'part2', label: 'Task 2' },
-                    ];
-                  }
-
-                  return options.map((opt) => (
-                    <label key={opt.value} className="filter-option">
-                      <input
-                        type="radio"
-                        name="part-filter"
-                        value={opt.value}
-                        checked={selectedPartFilter === opt.value}
-                        onChange={() => setSelectedPartFilter(opt.value)}
-                      />
-                      <span>{opt.label}</span>
-                    </label>
-                  ));
-                })()}
-              </div>
-            </>
-          )}
-        </aside>
+        <TestSidebar
+          selectedType={selectedType}
+          onTypeChange={(val) => { setSelectedType(val); setCurrentPage(1); }}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          selectedPartFilter={selectedPartFilter}
+          onPartFilterChange={setSelectedPartFilter}
+          totalTests={statsTotalTests}
+          completedTests={completedCount}
+        />
 
         <section className="test-main">
-          {/* Search box */}
-          <div className="test-search-box">
-            <input
-              type="search"
-              className="test-search-input"
-              placeholder={viewMode === 'full' ? "Search tests..." : "Search passages/sections..."}
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setCurrentPage(1);
-              }}
-            />
-            {searchQuery && (
-              <button
-                className="search-clear-btn"
-                onClick={() => {
-                  setSearchQuery('');
-                  setCurrentPage(1);
-                }}
-                aria-label="Clear search"
-              >
-                x
-              </button>
-            )}
-          </div>
-
-          {/* Category filter buttons */}
+          {/* Category filter chips */}
           <div className="test-category-filter">
             <button
               className={`category-btn ${selectedCategory === 'all' ? 'active' : ''}`}
@@ -528,7 +412,7 @@ export default function TestList() {
           </div>
 
           {Object.keys(groupedTests).length === 0 ? (
-            <p className="muted">
+            <p className="muted" style={{ textAlign: 'center', padding: '3rem', color: '#94A3B8' }}>
               {selectedCategory === 'all'
                 ? `No ${viewMode === 'full' ? 'tests' : 'parts'} found.`
                 : `No content available in "${selectedCategory}".`}
@@ -541,80 +425,22 @@ export default function TestList() {
                   <h2>{cat}</h2>
                   <ul className="test-cards">
                     {groupedTests[cat].map((item) => {
-                      // FULL TEST RENDER
                       if (viewMode === 'full') {
                         const test = item;
-                        const bestAttempt = attemptSummary[test._id]?.best;
-                        const canShowBand = bestAttempt?.total && (test.type === 'reading' || test.type === 'listening');
-                        const band = canShowBand ? calculateIELTSBand(bestAttempt.score, test.type) : null;
-
                         return (
-                          <li key={test._id} className="test-card" data-type={test.type}>
-                            <div className="test-card-header">
-                              <h3>{test.title}</h3>
-                              <span className="test-type-badge">{getTestTypeLabel(test.type)}</span>
-                              {canShowBand && (
-                                <span className="test-best-badge">
-                                  {band.toFixed(1)}
-                                </span>
-                              )}
-                            </div>
-                            <p className="muted">
-                              {getTestDescription(test)}
-                            </p>
-                            {isLoggedIn && (
-                              <div className="test-attempts">
-                                <p className="muted test-latest-score">
-                                  {attemptSummary[test._id]?.latest?.total
-                                    ? `Latest: ${attemptSummary[test._id].latest.score}/${attemptSummary[test._id].latest.total} (${attemptSummary[test._id].latest.percentage ?? Math.round((attemptSummary[test._id].latest.score / attemptSummary[test._id].latest.total) * 100)}%)`
-                                    : attemptSummary[test._id]?.latest
-                                      ? 'Latest: submitted'
-                                      : 'Latest: --'}
-                                  <span className="test-attempt-date">
-                                    {attemptSummary[test._id]?.latest?.submitted_at ? ` • ${formatDate(attemptSummary[test._id].latest.submitted_at)}` : ''}
-                                  </span>
-                                </p>
-                                <p className="muted test-best-score">
-                                  {attemptSummary[test._id]?.best?.total
-                                    ? `Best: ${attemptSummary[test._id].best.score}/${attemptSummary[test._id].best.total} (${attemptSummary[test._id].best.percentage ?? Math.round((attemptSummary[test._id].best.score / attemptSummary[test._id].best.total) * 100)}%)`
-                                    : 'Best: --'}
-                                </p>
-                              </div>
-                            )}
-                            <div className="test-card-actions">
-                              <Link to={`/tests/${test._id}`} className="btn-sidebar-start">
-                                Làm bài ngay
-                              </Link>
-                              {isLoggedIn && (
-                                <Link to={`/tests/${test._id}/history`} className="btn btn-ghost">
-                                  Lịch sử
-                                </Link>
-                              )}
-                            </div>
+                          <li key={test._id}>
+                            <TestCard
+                              test={test}
+                              attemptData={attemptSummary[test._id]}
+                              isLoggedIn={isLoggedIn}
+                            />
                           </li>
                         );
-                      }
-
-                      // SINGLE PART RENDER
-                      else {
+                      } else {
                         const part = item;
                         return (
-                          <li key={part.uniqueId} className="test-card" data-type={part.type}>
-                            <div className="test-card-header">
-                              <h3>{part.title}</h3>
-                              <span className="test-type-badge">{part.label}</span>
-                            </div>
-                            <p className="muted">
-                              Thuộc bài thi: <strong>{part.testTitle}</strong>
-                            </p>
-                            <div className="test-card-actions">
-                              <Link
-                                to={`/tests/${part.testId}/exam?part=${part.partIndex}&mode=single`}
-                                className="btn-sidebar-start"
-                              >
-                                Làm bài ngay
-                              </Link>
-                            </div>
+                          <li key={part.uniqueId}>
+                            <PartCard part={part} />
                           </li>
                         );
                       }
@@ -626,12 +452,12 @@ export default function TestList() {
 
           <PaginationControls
             pagination={pagination}
-            loading={loading}
+            loading={loading || isFetching}
             itemLabel={viewMode === 'full' ? 'tests' : 'tests'}
             onPageChange={setCurrentPage}
           />
         </section>
-      </div >
-    </div >
+      </div>
+    </div>
   );
 }

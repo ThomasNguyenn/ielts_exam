@@ -75,7 +75,7 @@ export default function StudyPlanSetup({ onCreated, mode = 'create', initialData
                     type="submit"
                     disabled={loading}
                     className="btn-primary"
-                    style={{ width: '100%', padding: '1rem', borderRadius: '8px', background: '#3b82f6', color: 'white', border: 'none', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer' }}
+                    style={{ width: '100%', padding: '1rem', borderRadius: '8px', background: '#6366F1', color: 'white', border: 'none', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer' }}
                 >
                     {loading
                         ? (isEditMode ? 'Đang cập nhật lộ trình...' : 'Đang tạo lộ trình...')

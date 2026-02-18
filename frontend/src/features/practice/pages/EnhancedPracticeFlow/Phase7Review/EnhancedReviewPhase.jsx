@@ -51,7 +51,7 @@ const EnhancedReviewPhase = ({ question, essay, sessionData, onRestart }) => {
 
     const getBandColor = (score) => {
         if (score >= 8) return '#10b981';
-        if (score >= 7) return '#3b82f6';
+        if (score >= 7) return '#6366F1';
         if (score >= 6) return '#f59e0b';
         return '#ef4444';
     };
