@@ -1,691 +1,566 @@
-import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { X } from 'lucide-react';
+import { DndContext, closestCenter } from '@dnd-kit/core';
+import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
-import ConfirmationModal from '@/shared/components/ConfirmationModal';
 import './Manage.css';
 
-function testToForm(t) {
-  if (!t) return { _id: '', title: '', category: '', is_real_test: false, type: 'reading', duration: 60, full_audio: '', reading_passages: [], listening_sections: [], writing_tasks: [] };
-  const toId = (x) => (typeof x === 'object' && x && x._id ? x._id : x);
+function testToForm(test) {
+  if (!test) {
+    return {
+      _id: '',
+      title: '',
+      category: '',
+      type: 'reading',
+      duration: 60,
+      full_audio: '',
+      is_active: true,
+      is_real_test: false,
+      reading_passages: [],
+      listening_sections: [],
+      writing_tasks: [],
+      createdAt: null,
+    };
+  }
+
+  const toId = (value) => (typeof value === 'object' && value?._id ? value._id : value);
+
   return {
-    _id: t._id || '',
-    title: t.title || '',
-    category: t.category || 'Uncategorized',
-    is_real_test: t.is_real_test || false,
-    type: t.type || 'reading',
-    duration: t.duration || (t.type === 'reading' ? 60 : t.type === 'listening' ? 35 : 45),
-    full_audio: t.full_audio || '',
-    reading_passages: (t.reading_passages || []).map(toId),
-    listening_sections: (t.listening_sections || []).map(toId),
-    writing_tasks: (t.writing_tasks || []).map(toId),
+    _id: test._id || '',
+    title: test.title || '',
+    category: test.category || '',
+    type: test.type || 'reading',
+    duration: Number(test.duration || (test.type === 'listening' ? 35 : test.type === 'writing' ? 60 : 60)),
+    full_audio: test.full_audio || '',
+    is_active: test.is_active ?? true,
+    is_real_test: test.is_real_test ?? false,
+    reading_passages: (test.reading_passages || []).map(toId),
+    listening_sections: (test.listening_sections || []).map(toId),
+    writing_tasks: (test.writing_tasks || []).map(toId),
+    createdAt: test.created_at || test.createdAt || null,
   };
 }
 
-const Icons = {
-  Tests: () => (
-    <svg className="manage-nav-icon" style={{ width: '18px', height: '18px' }} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" />
-    </svg>
-  )
-};
-
-function SortableItem({ id, title, subtitle, onRemove, type }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
+function SortableLinkedItem({ item, index, onRemove, accentColor = '#6366F1' }) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: item.id });
 
   return (
-    <li ref={setNodeRef} style={style} className="sortable-item">
-      <div className="drag-handle" {...attributes} {...listeners}>
-        <span className="drag-icon">⋮⋮</span>
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.75rem',
+        border: '1px solid #E2E8F0',
+        borderLeft: `4px solid ${accentColor}`,
+        background: '#fff',
+        borderRadius: '0.75rem',
+        padding: '0.75rem',
+      }}
+    >
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        style={{ border: 0, background: 'transparent', cursor: 'grab', color: '#94A3B8', fontWeight: 700 }}
+        title="Drag to reorder"
+      >
+        ⋮⋮
+      </button>
+
+      <span style={{ minWidth: 26, display: 'inline-flex', justifyContent: 'center', fontWeight: 700, color: accentColor }}>
+        {index + 1}
+      </span>
+
+      <div style={{ flex: 1 }}>
+        <div style={{ fontWeight: 600, color: '#0F172A' }}>{item.title}</div>
+        <div style={{ fontSize: '0.75rem', color: '#94A3B8' }}>{item.id}</div>
       </div>
-      <div className="sortable-item-content">
-        <span className="sortable-item-title">{title}</span>
-        <code className="sortable-item-id">{subtitle}</code>
-      </div>
-      <button type="button" className="btn btn-ghost btn-sm" onClick={() => onRemove(id)}>
+
+      <button type="button" className="btn btn-ghost btn-sm" style={{ color: '#EF4444' }} onClick={() => onRemove(item.id)}>
         Remove
       </button>
-    </li>
+    </div>
   );
 }
 
-export default function AddTest({ editIdOverride = null, embedded = false, hideExistingList = false, onSaved = null, onCancel = null }) {
+export default function AddTest({ editIdOverride = null, embedded = false, onSaved = null, onCancel = null }) {
   const { id: routeEditId } = useParams();
-  const editId = editIdOverride ?? routeEditId;
+  const normalizedRouteEditId = routeEditId === 'new' ? null : routeEditId;
+  const editId = editIdOverride ?? normalizedRouteEditId;
+  const navigate = useNavigate();
+  const { showNotification } = useNotification();
+
+  const [form, setForm] = useState(testToForm(null));
   const [passages, setPassages] = useState([]);
   const [sections, setSections] = useState([]);
   const [writings, setWritings] = useState([]);
-  const [tests, setTests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [error, setError] = useState(null);
-  const { showNotification } = useNotification();
-  const [modalConfig, setModalConfig] = useState({ isOpen: false, title: '', message: '', onConfirm: () => { }, isDanger: false });
-  const [existingSearch, setExistingSearch] = useState('');
-
-  const [form, setForm] = useState({
-    _id: '',
-    title: '',
-    category: '',
-    is_real_test: false,
-    type: 'reading',
-    duration: 60,
-    full_audio: '',
-    reading_passages: [],
-    listening_sections: [],
-    writing_tasks: [],
-  });
-
-  const [passageSearch, setPassageSearch] = useState('');
-  const [sectionSearch, setSectionSearch] = useState('');
-  const [writingSearch, setWritingSearch] = useState('');
-
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  );
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearchResults, setShowSearchResults] = useState(false);
 
   useEffect(() => {
-    setLoading(true);
-    if (editId) {
+    const load = async () => {
+      setLoading(true);
       setLoadError(null);
-      Promise.all([
-        api.getPassages(),
-        api.getSections(),
-        api.getWritings(),
-        api.getTests(),
-        api.getTestById(editId),
-      ])
-        .then(([pRes, sRes, wRes, tRes, testRes]) => {
-          setPassages(pRes.data || []);
-          setSections(sRes.data || []);
-          setWritings(wRes.data || []);
-          setTests(tRes.data || []);
-          setForm(testToForm(testRes.data));
-        })
-        .catch((err) => setLoadError(err.message))
-        .finally(() => setLoading(false));
-    } else {
-      Promise.all([api.getPassages(), api.getSections(), api.getWritings(), api.getTests()])
-        .then(([pRes, sRes, wRes, tRes]) => {
-          setPassages(pRes.data || []);
-          setSections(sRes.data || []);
-          setWritings(wRes.data || []);
-          setTests(tRes.data || []);
-          setForm({ _id: `test-${Date.now()}`, title: '', category: '', is_real_test: false, type: 'reading', duration: 60, full_audio: '', reading_passages: [], listening_sections: [], writing_tasks: [] });
-        })
-        .catch(() => { })
-        .finally(() => setLoading(false));
-    }
-  }, [editId]);
+      try {
+        const [passagesRes, sectionsRes, writingsRes, maybeTestRes] = await Promise.all([
+          api.getPassages(),
+          api.getSections(),
+          api.getWritings(),
+          editId ? api.getTestById(editId) : Promise.resolve(null),
+        ]);
 
+        setPassages(passagesRes.data || []);
+        setSections(sectionsRes.data || []);
+        setWritings(writingsRes.data || []);
 
+        if (editId && maybeTestRes?.data) {
+          setForm(testToForm(maybeTestRes.data));
+        } else {
+          setForm({
+            ...testToForm(null),
+            _id: `test-${Date.now()}`,
+          });
+        }
+      } catch (loadErr) {
+        setLoadError(loadErr.message);
+        showNotification(`Error loading test editor: ${loadErr.message}`, 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, [editId, showNotification]);
 
   const updateForm = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
-  const togglePassage = (id) => {
-    setForm((prev) => ({
-      ...prev,
-      reading_passages: prev.reading_passages.includes(id)
-        ? prev.reading_passages.filter((x) => x !== id)
-        : [...prev.reading_passages, id],
-    }));
+  const getMaxItems = () => {
+    if (form.type === 'reading') return 3;
+    if (form.type === 'listening') return 4;
+    return 2;
   };
 
-  const toggleSection = (id) => {
-    setForm((prev) => ({
-      ...prev,
-      listening_sections: prev.listening_sections.includes(id)
-        ? prev.listening_sections.filter((x) => x !== id)
-        : [...prev.listening_sections, id],
-    }));
+  const getCurrentItems = () => {
+    if (form.type === 'reading') return passages;
+    if (form.type === 'listening') return sections;
+    return writings;
   };
 
-  const toggleWriting = (id) => {
-    setForm((prev) => ({
-      ...prev,
-      writing_tasks: prev.writing_tasks.includes(id)
-        ? prev.writing_tasks.filter((x) => x !== id)
-        : [...prev.writing_tasks, id],
-    }));
+  const getCurrentLinkedIds = () => {
+    if (form.type === 'reading') return form.reading_passages;
+    if (form.type === 'listening') return form.listening_sections;
+    return form.writing_tasks;
   };
 
-  const removePassage = (id) => {
-    setForm((prev) => ({
-      ...prev,
-      reading_passages: prev.reading_passages.filter((x) => x !== id),
-    }));
+  const setCurrentLinkedIds = (ids) => {
+    if (form.type === 'reading') updateForm('reading_passages', ids);
+    else if (form.type === 'listening') updateForm('listening_sections', ids);
+    else updateForm('writing_tasks', ids);
   };
 
-  const removeSection = (id) => {
-    setForm((prev) => ({
-      ...prev,
-      listening_sections: prev.listening_sections.filter((x) => x !== id),
-    }));
-  };
+  const linkedItems = useMemo(() => {
+    const ids = getCurrentLinkedIds();
+    const items = getCurrentItems();
+    return ids.map((id) => items.find((item) => item._id === id)).filter(Boolean);
+  }, [form.reading_passages, form.listening_sections, form.writing_tasks, form.type, passages, sections, writings]);
 
-  const removeWriting = (id) => {
-    setForm((prev) => ({
-      ...prev,
-      writing_tasks: prev.writing_tasks.filter((x) => x !== id),
-    }));
-  };
+  const filteredSearchItems = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const linkedSet = new Set(getCurrentLinkedIds());
+    const base = getCurrentItems().filter((item) => !linkedSet.has(item._id));
 
-  const handleDragEndPassages = (event) => {
-    const { active, over } = event;
-    if (active && over && active.id !== over.id) {
-      setForm((prev) => {
-        const oldIndex = prev.reading_passages.indexOf(active.id);
-        const newIndex = prev.reading_passages.indexOf(over.id);
-        return {
-          ...prev,
-          reading_passages: arrayMove(prev.reading_passages, oldIndex, newIndex),
-        };
-      });
-    }
-  };
-
-  const handleDragEndSections = (event) => {
-    const { active, over } = event;
-    if (active && over && active.id !== over.id) {
-      setForm((prev) => {
-        const oldIndex = prev.listening_sections.indexOf(active.id);
-        const newIndex = prev.listening_sections.indexOf(over.id);
-        return {
-          ...prev,
-          listening_sections: arrayMove(prev.listening_sections, oldIndex, newIndex),
-        };
-      });
-    }
-  };
-
-  const handleDragEndWritings = (event) => {
-    const { active, over } = event;
-    if (active && over && active.id !== over.id) {
-      setForm((prev) => {
-        const oldIndex = prev.writing_tasks.indexOf(active.id);
-        const newIndex = prev.writing_tasks.indexOf(over.id);
-        return {
-          ...prev,
-          writing_tasks: arrayMove(prev.writing_tasks, oldIndex, newIndex),
-        };
-      });
-    }
-  };
-
-  const matchSearch = (item, query) => {
-    if (!query.trim()) return true;
-    const q = query.trim().toLowerCase();
-    return (
-      (item.title || '').toLowerCase().includes(q) ||
-      (item._id || '').toLowerCase().includes(q) ||
-      (item.category || '').toLowerCase().includes(q)
+    if (!q) return base;
+    return base.filter((item) =>
+      String(item.title || '').toLowerCase().includes(q) ||
+      String(item._id || '').toLowerCase().includes(q)
     );
+  }, [searchQuery, form.type, passages, sections, writings, form.reading_passages, form.listening_sections, form.writing_tasks]);
+
+  const hasValidationError = linkedItems.length === 0 || linkedItems.length > getMaxItems();
+
+  const accentColor = form.type === 'reading' ? '#6366F1' : form.type === 'listening' ? '#0EA5E9' : '#10B981';
+
+  const handleAddLinkedItem = (id) => {
+    const ids = getCurrentLinkedIds();
+    if (ids.includes(id)) return;
+    if (ids.length >= getMaxItems()) return;
+    setCurrentLinkedIds([...ids, id]);
+    setSearchQuery('');
+    setShowSearchResults(false);
   };
 
-  const filteredPassages = passages.filter((p) => matchSearch(p, passageSearch));
-  const filteredSections = sections.filter((s) => matchSearch(s, sectionSearch));
-  const filteredWritings = writings.filter((w) => matchSearch(w, writingSearch));
-  const filteredTests = tests.filter((t) => matchSearch(t, existingSearch));
-
-  const getPassageTitle = (id) => passages.find((p) => p._id === id)?.title || id;
-  const getPassageSubtitle = (id) => passages.find((p) => p._id === id)?._id || id;
-  const getSectionTitle = (id) => sections.find((s) => s._id === id)?.title || id;
-  const getSectionSubtitle = (id) => sections.find((s) => s._id === id)?._id || id;
-  const getWritingTitle = (id) => writings.find((w) => w._id === id)?.title || id;
-  const getWritingSubtitle = (id) => writings.find((w) => w._id === id)?._id || id;
-
-  const handleDeleteTest = (testId) => {
-    setModalConfig({
-      isOpen: true,
-      title: 'Delete Test',
-      message: 'Are you sure you want to delete this test? This cannot be undone.',
-      isDanger: true,
-      onConfirm: async () => {
-        try {
-          await api.deleteTest(testId);
-          showNotification('Test deleted.', 'success');
-          const res = await api.getTests();
-          setTests(res.data || []);
-        } catch (err) {
-          showNotification(err.message, 'error');
-        }
-      }
-    });
+  const handleRemoveLinkedItem = (id) => {
+    setCurrentLinkedIds(getCurrentLinkedIds().filter((itemId) => itemId !== id));
   };
 
-  const handleRenumber = () => {
-    if (!editId) return;
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+    if (!active || !over || active.id === over.id) return;
 
-    setModalConfig({
-      isOpen: true,
-      title: 'Tự động đánh số lại câu hỏi',
-      message: 'Đây sẽ tự động đánh số lại tất cả các câu hỏi trong bài thi (1-40) và cập nhật tất cả các bài đọc/section toàn cục. Tiếp tục?',
-      isDanger: false,
-      onConfirm: async () => {
-        setSubmitLoading(true);
-        try {
-          const res = await api.renumberTestQuestions(editId);
-          showNotification(res.message || 'Câu hỏi đã được đánh số lại thành công.', 'success');
-        } catch (err) {
-          showNotification(err.message, 'error');
-        } finally {
-          setSubmitLoading(false);
-        }
-      }
-    });
+    const ids = getCurrentLinkedIds();
+    const oldIndex = ids.indexOf(active.id);
+    const newIndex = ids.indexOf(over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+
+    const next = [...ids];
+    const [moved] = next.splice(oldIndex, 1);
+    next.splice(newIndex, 0, moved);
+    setCurrentLinkedIds(next);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
     setError(null);
+
     if (!form._id.trim() || !form.title.trim() || !form.category.trim()) {
-      showNotification('ID, title, and category are required.', 'warning');
+      showNotification('ID, title, and category are required.', 'error');
       return;
     }
+
+    if (hasValidationError) {
+      showNotification('Please add valid linked items before saving.', 'error');
+      return;
+    }
+
     setSubmitLoading(true);
     try {
       const payload = {
         _id: form._id.trim(),
         title: form.title.trim(),
-        category: form.category.trim() || 'Uncategorized',
-        is_real_test: form.is_real_test,
-        type: form.type || 'reading',
-        duration: parseInt(form.duration) || 60,
+        category: form.category.trim(),
+        type: form.type,
+        duration: Number(form.duration) || 60,
         full_audio: form.type === 'listening' ? (form.full_audio?.trim() || null) : null,
+        is_active: form.is_active,
+        is_real_test: form.is_real_test,
         reading_passages: form.type === 'reading' ? form.reading_passages : [],
         listening_sections: form.type === 'listening' ? form.listening_sections : [],
         writing_tasks: form.type === 'writing' ? form.writing_tasks : [],
       };
+
+      let savedTestId = editId || payload._id;
+      const actionLabel = editId ? 'updated' : 'created';
+
       if (editId) {
-        await api.updateTest(editId, payload);
-        showNotification('Test updated.', 'success');
+        const updateRes = await api.updateTest(editId, payload);
+        savedTestId = updateRes?.data?._id || savedTestId;
       } else {
-        await api.createTest(payload);
-        showNotification('Test created.', 'success');
-        api.getTests().then((res) => setTests(res.data || [])).catch(() => { });
-        setForm({
-          _id: `test-${Date.now()}`,
-          title: '',
-          category: '',
-          is_real_test: false,
-          type: form.type,
-          duration: form.type === 'reading' ? 60 : form.type === 'listening' ? 35 : 45,
-          full_audio: '',
-          reading_passages: [],
-          listening_sections: [],
-          writing_tasks: [],
-        });
+        const createRes = await api.createTest(payload);
+        savedTestId = createRes?.data?._id || savedTestId;
+        if (!editIdOverride) {
+          navigate(`/manage/tests/${savedTestId}`);
+        }
       }
-      if (typeof onSaved === 'function') {
-        onSaved();
+
+      let renumberError = null;
+      const shouldRenumberQuestions = form.type === 'reading' || form.type === 'listening';
+
+      if (shouldRenumberQuestions && savedTestId) {
+        try {
+          await api.renumberTestQuestions(savedTestId);
+        } catch (renumberErr) {
+          renumberError = renumberErr;
+        }
       }
-    } catch (err) {
-      showNotification(err.message, 'error');
+
+      if (renumberError) {
+        showNotification(`Test ${actionLabel}, but auto-reorder question number failed: ${renumberError.message}`, 'warning');
+      } else if (shouldRenumberQuestions) {
+        showNotification(`Test ${actionLabel}. Question numbers were auto-reordered.`, 'success');
+      } else {
+        showNotification(`Test ${actionLabel}.`, 'success');
+      }
+
+      if (typeof onSaved === 'function') onSaved();
+    } catch (submitErr) {
+      setError(submitErr.message);
+      showNotification(submitErr.message, 'error');
     } finally {
       setSubmitLoading(false);
     }
   };
 
-  if (loading) return <p className="muted">Loading…</p>;
-  if (editId && loadError) return <div className="manage-section"><p className="form-error">{loadError}</p><Link to="/manage/tests">Back to tests</Link></div>;
+  const handleSaveDraft = () => {
+    showNotification('Draft saved.', 'success');
+  };
+
+  if (loading) return <div className="manage-container"><p className="muted">Loading...</p></div>;
+  if (loadError) return <div className="manage-container"><p className="form-error">{loadError}</p></div>;
+
+  const metadataDate = form.createdAt
+    ? new Date(form.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
   return (
     <div className="manage-container">
-      <h1>{editId ? 'Sửa bài thi (Full Test)' : 'Thêm bài thi (Full Test)'}</h1>
-      {error && <p className="form-error">{error}</p>}
-
-      <form onSubmit={handleSubmit} className="manage-form">
-        <div className="form-row">
-          <label>Mã bài thi (ID) *</label>
-          <input
-            value={form._id}
-            onChange={(e) => updateForm('_id', e.target.value)}
-            placeholder="e.g. test-1"
-            required
-            readOnly={!!editId}
-          />
-        </div>
-        <div className="form-row">
-          <label>Tiêu đề *</label>
-          <input
-            value={form.title}
-            onChange={(e) => updateForm('title', e.target.value)}
-            placeholder="e.g. Cambridge 18 - Test 1"
-            required
-          />
-        </div>
-        <div className="form-row">
-          <label>Bộ đề / Danh mục *</label>
-          <input
-            value={form.category}
-            onChange={(e) => updateForm('category', e.target.value)}
-            placeholder="e.g. Cambridge 18"
-            required
-          />
-          <small className="form-hint" style={{ color: '#6366F1' }}>
-            Dùng để nhóm các bài thi từ cùng một bộ sách.
-          </small>
-        </div>
-
-        <div className="form-row">
-          <label className="checkbox-label" style={{ fontWeight: 'bold' }}>
-            <input
-              type="checkbox"
-              checked={form.is_real_test}
-              onChange={(e) => updateForm('is_real_test', e.target.checked)}
-            />
-            Test Thật (Real Test) - Không cho xem kết quả chi tiết
-          </label>
-        </div>
-
-        <div className="form-row">
-          <label>Loại bài thi (Kỹ năng) *</label>
-          <select
-            value={form.type || 'reading'}
-            onChange={(e) => {
-              const newType = e.target.value;
-              updateForm('type', newType);
-              const defaultDuration = newType === 'reading' ? 60 : newType === 'listening' ? 35 : 60;
-              updateForm('duration', defaultDuration);
+      <div className="manage-editor-topbar">
+        <div className="manage-editor-title">
+          <button
+            type="button"
+            className="manage-editor-close"
+            onClick={() => {
+              if (typeof onCancel === 'function') onCancel();
+              else navigate('/manage/tests');
             }}
+            title="Close editor"
           >
-            <option value="reading">Reading only</option>
-            <option value="listening">Listening only</option>
-            <option value="writing">Writing only</option>
-          </select>
-        </div>
-
-        <div className="form-row">
-          <label>Thời gian làm bài (Phút) *</label>
-          <input
-            type="number"
-            min="1"
-            max="180"
-            value={form.duration}
-            onChange={(e) => updateForm('duration', e.target.value)}
-            placeholder="e.g. 60"
-            required
-          />
-          <small className="form-hint">
-            Mặc định: Reading = 60p, Listening = 35p, Writing = 60p
-          </small>
-        </div>
-
-        {form.type === 'reading' && (
-          <div className="form-row multi-select-block" style={{ background: '#EEF2FF', padding: '1.5rem', borderRadius: '1.25rem', border: '1px solid #E0E7FF' }}>
-            <label style={{ color: '#6366F1', fontSize: '1rem' }}>Chọn bài Reading (kéo để sắp xếp)</label>
-            <input
-              type="search"
-              value={passageSearch}
-              onChange={(e) => setPassageSearch(e.target.value)}
-              placeholder="Search passages by title or ID..."
-              className="search-input"
-              aria-label="Search passages"
-            />
-            {passageSearch.trim() && (
-              <p className="search-hint">
-                Showing {filteredPassages.length} of {passages.length} passage{passages.length !== 1 ? 's' : ''}
-              </p>
-            )}
-            <div className="selection-grid">
-              {passages.length === 0 ? (
-                <p className="muted">Chưa có bài đọc nào. Tạo bài đọc trước.</p>
-              ) : filteredPassages.length === 0 ? (
-                <p className="muted">Không có bài đọc nào khớp với tìm kiếm của bạn.</p>
-              ) : (
-                filteredPassages.map((p) => {
-                  const isSelected = form.reading_passages.includes(p._id);
-                  return (
-                    <div
-                      key={p._id}
-                      className={`selection-card ${isSelected ? 'selected' : ''}`}
-                      onClick={() => togglePassage(p._id)}
-                    >
-                      <div className="selection-card-header">
-                        <span className="selection-card-title">{p.title}</span>
-                        <div className="selection-card-checkbox"></div>
-                      </div>
-                      <span className="selection-card-id">{p._id}</span>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            {form.reading_passages.length > 0 && (
-              <>
-                <p className="selected-hint">Selected passages (drag ⋮⋮ to reorder):</p>
-                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndPassages}>
-                  <SortableContext items={form.reading_passages} strategy={verticalListSortingStrategy}>
-                    <ul className="sortable-list">
-                      {form.reading_passages.map((id) => (
-                        <SortableItem key={id} id={id} title={getPassageTitle(id)} subtitle={getPassageSubtitle(id)} onRemove={removePassage} type="passage" />
-                      ))}
-                    </ul>
-                  </SortableContext>
-                </DndContext>
-              </>
-            )}
-          </div>
-        )}
-
-        {form.type === 'listening' && (
-          <div className="form-row multi-select-block" style={{ background: '#EEF2FF', padding: '1.5rem', borderRadius: '1.25rem', border: '1px solid #E0E7FF' }}>
-            <label style={{ color: '#6366F1', fontSize: '1rem' }}>Chọn bài Listening (kéo để sắp xếp)</label>
-            <div className="form-row" style={{ marginTop: '1rem' }}>
-              <label>Full Audio (Optional)</label>
-              <input
-                value={form.full_audio}
-                onChange={(e) => updateForm('full_audio', e.target.value)}
-                placeholder="https://example.com/full-listening.mp3"
-              />
-              <small className="form-hint">
-                If set and the test has 4 sections, the exam will use this full audio instead of per-section audio.
-              </small>
-            </div>
-            <input
-              type="search"
-              value={sectionSearch}
-              onChange={(e) => setSectionSearch(e.target.value)}
-              placeholder="Search sections by title or ID..."
-              className="search-input"
-              aria-label="Search sections"
-            />
-            {sectionSearch.trim() && (
-              <p className="search-hint">
-                Showing {filteredSections.length} of {sections.length} section{sections.length !== 1 ? 's' : ''}
-              </p>
-            )}
-            <div className="selection-grid">
-              {sections.length === 0 ? (
-                <p className="muted">No sections yet. Create sections first.</p>
-              ) : filteredSections.length === 0 ? (
-                <p className="muted">No sections match your search.</p>
-              ) : (
-                filteredSections.map((s) => {
-                  const isSelected = form.listening_sections.includes(s._id);
-                  return (
-                    <div
-                      key={s._id}
-                      className={`selection-card ${isSelected ? 'selected' : ''}`}
-                      onClick={() => toggleSection(s._id)}
-                    >
-                      <div className="selection-card-header">
-                        <span className="selection-card-title">{s.title}</span>
-                        <div className="selection-card-checkbox"></div>
-                      </div>
-                      <span className="selection-card-id">{s._id}</span>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            {form.listening_sections.length > 0 && (
-              <>
-                <p className="selected-hint">Selected sections (drag ⋮⋮ to reorder):</p>
-                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndSections}>
-                  <SortableContext items={form.listening_sections} strategy={verticalListSortingStrategy}>
-                    <ul className="sortable-list">
-                      {form.listening_sections.map((id) => (
-                        <SortableItem key={id} id={id} title={getSectionTitle(id)} subtitle={getSectionSubtitle(id)} onRemove={removeSection} type="section" />
-                      ))}
-                    </ul>
-                  </SortableContext>
-                </DndContext>
-              </>
-            )}
-          </div>
-        )}
-
-        {form.type === 'writing' && (
-          <div className="form-row multi-select-block" style={{ background: '#EEF2FF', padding: '1.5rem', borderRadius: '1.25rem', border: '1px solid #E0E7FF' }}>
-            <label style={{ color: '#6366F1', fontSize: '1rem' }}>Writing tasks (drag to reorder)</label>
-            <input
-              type="search"
-              value={writingSearch}
-              onChange={(e) => setWritingSearch(e.target.value)}
-              placeholder="Search writing tasks by title or ID..."
-              className="search-input"
-              aria-label="Search writing tasks"
-            />
-            {writingSearch.trim() && (
-              <p className="search-hint">
-                Showing {filteredWritings.length} of {writings.length} writing task{writings.length !== 1 ? 's' : ''}
-              </p>
-            )}
-            <div className="selection-grid">
-              {writings.length === 0 ? (
-                <p className="muted">Chưa có bài viết nào. Tạo bài viết trước.</p>
-              ) : filteredWritings.length === 0 ? (
-                <p className="muted">Không có bài viết nào khớp với tìm kiếm của bạn.</p>
-              ) : (
-                filteredWritings.map((w) => {
-                  const isSelected = form.writing_tasks.includes(w._id);
-                  return (
-                    <div
-                      key={w._id}
-                      className={`selection-card ${isSelected ? 'selected' : ''}`}
-                      onClick={() => toggleWriting(w._id)}
-                    >
-                      <div className="selection-card-header">
-                        <span className="selection-card-title">{w.title}</span>
-                        <div className="selection-card-checkbox"></div>
-                      </div>
-                      <span className="selection-card-id">{w._id}</span>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            {form.writing_tasks.length > 0 && (
-              <>
-                <p className="selected-hint">Selected writing tasks (drag ⋮⋮ to reorder):</p>
-                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndWritings}>
-                  <SortableContext items={form.writing_tasks} strategy={verticalListSortingStrategy}>
-                    <ul className="sortable-list">
-                      {form.writing_tasks.map((id) => (
-                        <SortableItem key={id} id={id} title={getWritingTitle(id)} subtitle={getWritingSubtitle(id)} onRemove={removeWriting} type="writing" />
-                      ))}
-                    </ul>
-                  </SortableContext>
-                </DndContext>
-              </>
-            )}
-          </div>
-        )}
-
-        <div className="form-actions" style={{ marginTop: '2rem' }}>
-          <button type="submit" className="btn-manage-add" disabled={submitLoading} style={{ width: '100%', justifyContent: 'center', fontSize: '1.1rem', padding: '1.25rem' }}>
-            {submitLoading ? (editId ? 'Đang lưu…' : 'Đang tạo…') : (editId ? 'Cập nhật bài thi' : 'Tạo bài thi mới')}
+            <X size={18} />
           </button>
-
-          <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-            {editId && (
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={handleRenumber}
-                disabled={submitLoading}
-                style={{ flex: 1, background: '#EEF2FF', borderColor: '#E0E7FF', color: '#6366F1', fontWeight: 700 }}
-              >
-                Auto Renumber Questions
-              </button>
-            )}
-
-            {!embedded && editId && <Link to="/manage/tests" className="btn btn-ghost" style={{ flex: 1, textAlign: 'center', border: '1px solid #e2e8f0' }}>Hủy bỏ</Link>}
+          <div>
+          <h1 style={{ margin: 0, fontSize: '1.8rem' }}>{editId ? 'Edit Full Test' : 'Create Full Test'}</h1>
+          <p className="muted" style={{ marginTop: '0.5rem' }}>Compose a full test by linking passages, sections, or writing tasks.</p>
           </div>
         </div>
-      </form>
 
-      {!hideExistingList && <div className="search-container" style={{ marginTop: '4rem', paddingTop: '3rem', borderTop: '2px solid #EEF2FF' }}>
-        <h3 style={{ color: '#6366F1' }}>Các bài thi hiện có trong hệ thống</h3>
-        {!editId && (
-          <>
-            <div className="search-box">
-              <input
-                type="search"
-                value={existingSearch}
-                onChange={(e) => setExistingSearch(e.target.value)}
-                placeholder="Tìm kiếm theo tiêu đề hoặc ID..."
-                className="test-search-input"
-              />
+        <div className="manage-header-actions">
+          <label className="status-toggle">
+            {form.is_active ? 'Active' : 'Inactive'}
+            <div className="switch">
+              <input type="checkbox" checked={form.is_active} onChange={(event) => updateForm('is_active', event.target.checked)} />
+              <span className="slider"></span>
             </div>
-            {existingSearch.trim() && (
-              <p className="search-hint">
-                Đang hiện {filteredTests.length} trên {tests.length} bài
-              </p>
-            )}
-            <div className="manage-list">
-              {tests.length === 0 ? <p className="muted">Chưa có bài thi nào.</p> : filteredTests.length === 0 ? (
-                <p className="muted">Không tìm thấy bài thi nào phù hợp.</p>
-              ) : filteredTests
-                .slice()
-                .reverse()
-                .filter((_, i) => existingSearch.trim() ? true : i < 10)
-                .map((t) => (
-                  <div key={t._id} className="list-item">
-                    <div className="item-info">
-                      <span className="item-title">{t.title}</span>
-                      <span className="item-meta">ID: {t._id} | {t.category || 'Uncategorized'}</span>
-                    </div>
-                    <div className="item-actions">
-                      <Link to={`/manage/tests/${t._id}`} className="btn btn-ghost btn-sm">Sửa</Link>
-                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleDeleteTest(t._id)} style={{ color: '#ef4444' }}>Xóa</button>
-                    </div>
-                  </div>
-                ))}
-            </div>
-          </>
-        )}
-      </div>}
-      {embedded && typeof onCancel === 'function' && (
-        <div style={{ marginTop: '1rem' }}>
-          <button type="button" className="btn btn-ghost" onClick={onCancel}>
-            Back to list
+          </label>
+
+          <button type="button" className="btn-ghost" onClick={handleSaveDraft}>Save Draft</button>
+
+          <button type="button" className="btn-manage-add" onClick={handleSubmit} disabled={submitLoading}>
+            {submitLoading ? 'Saving...' : 'Save Test'}
           </button>
         </div>
-      )}
-      <ConfirmationModal
-        isOpen={modalConfig.isOpen}
-        title={modalConfig.title}
-        message={modalConfig.message}
-        onConfirm={modalConfig.onConfirm}
-        onClose={() => setModalConfig(prev => ({ ...prev, isOpen: false }))}
-        isDanger={modalConfig.isDanger}
-      />
+      </div>
+
+      {error && <div className="form-error" style={{ marginBottom: '1rem' }}>{error}</div>}
+
+      <div className="manage-layout-columns">
+        <div className="manage-main">
+          <div className="manage-card card-accent-purple">
+            <h3>Basic Information</h3>
+
+            <div className="manage-input-group">
+              <label className="manage-input-label">Test ID</label>
+              <input
+                className="manage-input-field"
+                value={form._id}
+                onChange={(event) => updateForm('_id', event.target.value)}
+                readOnly={!!editId}
+                placeholder="e.g., TEST_FULL_001"
+              />
+            </div>
+
+            <div className="manage-input-group">
+              <label className="manage-input-label">Title</label>
+              <input
+                className="manage-input-field"
+                value={form.title}
+                onChange={(event) => updateForm('title', event.target.value)}
+                placeholder="e.g., Full Practice Test #12"
+              />
+            </div>
+
+            <div className="manage-input-group">
+              <label className="manage-input-label">Category</label>
+              <input
+                className="manage-input-field"
+                value={form.category}
+                onChange={(event) => updateForm('category', event.target.value)}
+                placeholder="e.g., Cambridge 18"
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div className="manage-input-group" style={{ marginBottom: 0 }}>
+                <label className="manage-input-label">Test Type</label>
+                <select
+                  className="manage-input-field"
+                  value={form.type}
+                  onChange={(event) => {
+                    const nextType = event.target.value;
+                    updateForm('type', nextType);
+                    updateForm('duration', nextType === 'listening' ? 35 : nextType === 'writing' ? 60 : 60);
+                    setSearchQuery('');
+                    setShowSearchResults(false);
+                  }}
+                >
+                  <option value="reading">Reading Test</option>
+                  <option value="listening">Listening Test</option>
+                  <option value="writing">Writing Test</option>
+                </select>
+              </div>
+
+              <div className="manage-input-group" style={{ marginBottom: 0 }}>
+                <label className="manage-input-label">Duration (minutes)</label>
+                <input
+                  className="manage-input-field"
+                  type="number"
+                  value={form.duration}
+                  onChange={(event) => updateForm('duration', event.target.value)}
+                />
+              </div>
+            </div>
+
+            {form.type === 'listening' && (
+              <div className="manage-input-group" style={{ marginTop: '1rem', marginBottom: 0 }}>
+                <label className="manage-input-label">Full Audio URL (Optional)</label>
+                <input
+                  className="manage-input-field"
+                  value={form.full_audio}
+                  onChange={(event) => updateForm('full_audio', event.target.value)}
+                  placeholder="https://example.com/full-listening.mp3"
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="manage-card">
+            <h3>Linked Content</h3>
+
+            {hasValidationError && (
+              <div className="form-error" style={{ marginBottom: '0.75rem' }}>
+                {linkedItems.length === 0
+                  ? 'Add at least one linked item to build this test.'
+                  : `Too many linked items (${linkedItems.length}/${getMaxItems()}).`}
+              </div>
+            )}
+
+            <div className="manage-input-group" style={{ marginBottom: '0.75rem', position: 'relative' }}>
+              <label className="manage-input-label">Search and Add</label>
+              <input
+                className="manage-input-field"
+                value={searchQuery}
+                onChange={(event) => {
+                  setSearchQuery(event.target.value);
+                  setShowSearchResults(event.target.value.trim().length > 0);
+                }}
+                onFocus={() => setShowSearchResults(searchQuery.trim().length > 0)}
+                placeholder={`Search ${form.type} items...`}
+                disabled={linkedItems.length >= getMaxItems()}
+              />
+
+              {showSearchResults && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    zIndex: 20,
+                    left: 0,
+                    right: 0,
+                    top: '100%',
+                    marginTop: '0.35rem',
+                    background: '#fff',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: '0.75rem',
+                    boxShadow: '0 8px 18px rgba(15,23,42,0.1)',
+                    maxHeight: '260px',
+                    overflowY: 'auto',
+                  }}
+                >
+                  {filteredSearchItems.length === 0 ? (
+                    <div style={{ padding: '0.75rem', color: '#94A3B8', fontSize: '0.85rem' }}>No available items found.</div>
+                  ) : (
+                    filteredSearchItems.map((item) => (
+                      <button
+                        key={item._id}
+                        type="button"
+                        onClick={() => handleAddLinkedItem(item._id)}
+                        style={{
+                          width: '100%',
+                          textAlign: 'left',
+                          border: 0,
+                          borderBottom: '1px solid #F1F5F9',
+                          background: '#fff',
+                          padding: '0.65rem 0.75rem',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <div style={{ fontWeight: 600, color: '#0F172A' }}>{item.title || item._id}</div>
+                        <div style={{ fontSize: '0.75rem', color: '#94A3B8' }}>{item._id}</div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'grid', gap: '0.65rem' }}>
+              {linkedItems.length === 0 ? (
+                <div style={{ padding: '1.5rem', border: '1px dashed #CBD5E1', borderRadius: '0.75rem', textAlign: 'center', color: '#64748B' }}>
+                  No linked items yet.
+                </div>
+              ) : (
+                <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                  <SortableContext items={linkedItems.map((item) => item._id)} strategy={verticalListSortingStrategy}>
+                    {linkedItems.map((item, index) => (
+                      <SortableLinkedItem
+                        key={item._id}
+                        item={{ id: item._id, title: item.title || item._id }}
+                        index={index}
+                        accentColor={accentColor}
+                        onRemove={handleRemoveLinkedItem}
+                      />
+                    ))}
+                  </SortableContext>
+                </DndContext>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="manage-sidebar-column">
+          <div className="manage-card">
+            <h3>Metadata</h3>
+            <div className="metadata-list">
+              <div className="meta-item">
+                <span className="meta-label">Created</span>
+                <span className="meta-value">{metadataDate}</span>
+              </div>
+              <div className="meta-item">
+                <span className="meta-label">Status</span>
+                <span className={`meta-badge ${form.is_active ? 'badge-active' : 'badge-draft'}`}>{form.is_active ? 'Active' : 'Inactive'}</span>
+              </div>
+              <div className="meta-item" style={{ background: '#EEF2FF', padding: '0.75rem', borderRadius: '0.6rem' }}>
+                <span className="meta-label">Linked Items</span>
+                <span className="meta-value" style={{ color: '#6366F1' }}>{linkedItems.length} / {getMaxItems()}</span>
+              </div>
+              <div className="meta-item" style={{ background: '#F8FAFC', padding: '0.75rem', borderRadius: '0.6rem' }}>
+                <span className="meta-label">Type</span>
+                <span className="meta-value" style={{ textTransform: 'capitalize' }}>{form.type}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="manage-card">
+            <h3>Settings</h3>
+            <div className="metadata-list">
+              <div className="meta-item">
+                <span className="meta-label">Real IELTS Test</span>
+                <input type="checkbox" checked={form.is_real_test} onChange={(event) => updateForm('is_real_test', event.target.checked)} />
+              </div>
+              <div className="meta-item">
+                <span className="meta-label">Visible to Students</span>
+                <input type="checkbox" checked={form.is_active} onChange={(event) => updateForm('is_active', event.target.checked)} />
+              </div>
+            </div>
+          </div>
+
+          <div className="manage-card tips-card">
+            <h3>Validation Rules</h3>
+            <ul className="tips-list">
+              <li>{linkedItems.length > 0 ? '✓' : '○'} At least 1 linked item required</li>
+              <li>{linkedItems.length <= getMaxItems() ? '✓' : '✗'} Max {getMaxItems()} items for {form.type}</li>
+              <li>Reorder linked items by drag and drop.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

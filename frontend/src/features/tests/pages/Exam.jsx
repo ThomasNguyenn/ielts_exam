@@ -452,7 +452,7 @@ export default function Exam() {
       const typeLabel = q.type === 'mult_choice' ? 'Multiple Choice (One Answer)' :
         q.type === 'true_false_notgiven' ? 'True - False - Not Given' :
           q.type === 'yes_no_notgiven' ? 'Yes - No - Not Given' :
-            q.type === 'gap_fill' ? 'Gap Fill' :
+            q.type === 'gap_fill' || q.type === 'note_completion' ? 'Note/Gap Completion' :
               q.type === 'matching_headings' ? 'Matching Headings' :
                 q.type === 'matching_features' ? 'Matching Features' :
                   q.type === 'matching_information' ? 'Matching Information' :

@@ -155,11 +155,11 @@ export function PartCard({ part }) {
             <h3 className="tc-title">{part.title}</h3>
 
             {/* Skill Tags */}
-            <div className="tc-skills">
+            {/* <div className="tc-skills">
                 <span className="tc-skill-tag" data-skill={type}>
                     {part.label}
                 </span>
-            </div>
+            </div> */}
 
             {/* Badges */}
             <div className="tc-meta">

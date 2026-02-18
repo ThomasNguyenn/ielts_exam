@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   LayoutGrid,
   BookOpen,
@@ -24,24 +24,28 @@ const manageNavItems = [
 ];
 
 export default function ManageLayout() {
+  const location = useLocation();
+  const isEditorRoute = /^\/manage\/(passages|sections|writings|speaking|tests)\/[^/]+$/.test(location.pathname);
+
   return (
-    <div className="manage-page">
-      <aside className="manage-sidebar">
-        <div className="manage-admin-head">
-          <LayoutGrid className="manage-admin-head-icon" />
-          <span>ADMIN PANEL</span>
-        </div>
+    <div className={`manage-page ${isEditorRoute ? 'manage-page--editor' : ''}`}>
+      {!isEditorRoute && (
+        <aside className="manage-sidebar">
+          <div className="manage-admin-head">
+            <LayoutGrid className="manage-admin-head-icon" />
+            <span>ADMIN PANEL</span>
+          </div>
 
-        <nav className="manage-nav">
-          {manageNavItems.map(({ to, label, Icon }) => (
-            <NavLink key={to} to={to} className={({ isActive }) => `manage-nav-item ${isActive ? 'active' : ''}`}>
-              <Icon className="manage-nav-icon" />
-              <span>{label}</span>
-            </NavLink>
-          ))}
-        </nav>
-      </aside>
-
+          <nav className="manage-nav">
+            {manageNavItems.map(({ to, label, Icon }) => (
+              <NavLink key={to} to={to} className={({ isActive }) => `manage-nav-item ${isActive ? 'active' : ''}`}>
+                <Icon className="manage-nav-icon" />
+                <span>{label}</span>
+              </NavLink>
+            ))}
+          </nav>
+        </aside>
+      )}
       <main className="manage-shell-content">
         <Outlet />
       </main>

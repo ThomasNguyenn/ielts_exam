@@ -38,10 +38,27 @@ function QuestionInput({ slot, value, onChange, index, onHighlightUpdate, showRe
   };
 
   // --- TRẮC NGHIỆM (Radio) ---
-  if (slot.type === 'mult_choice' || slot.type === 'true_false_notgiven') {
+  if (slot.type === 'mult_choice' || slot.type === 'true_false_notgiven' || slot.type === 'yes_no_notgiven') {
+    const fixedTrueFalseOptions = [
+      { label: 'A', text: 'TRUE' },
+      { label: 'B', text: 'FALSE' },
+      { label: 'C', text: 'NOT GIVEN' },
+    ];
+    const fixedYesNoOptions = [
+      { label: 'A', text: 'YES' },
+      { label: 'B', text: 'NO' },
+      { label: 'C', text: 'NOT GIVEN' },
+    ];
+    const dynamicOptions = (slot.option || []).filter((o) => o.text);
+    const resolvedOptions =
+      slot.type === 'true_false_notgiven'
+        ? (dynamicOptions.length ? dynamicOptions : fixedTrueFalseOptions)
+        : slot.type === 'yes_no_notgiven'
+          ? (dynamicOptions.length ? dynamicOptions : fixedYesNoOptions)
+          : dynamicOptions;
     return (
       <div className="exam-options">
-        {(slot.option || []).filter((o) => o.text).map((opt) => {
+        {resolvedOptions.map((opt) => {
           // Unique key for this option's highlighted state
           const optKey = `opt_${index}_${opt.label}`;
           // Initial tokenized HTML or persisted state
@@ -82,7 +99,7 @@ function QuestionInput({ slot, value, onChange, index, onHighlightUpdate, showRe
   }
 
   // --- ĐIỀN TỪ (Gap Fill) - Inline numbered box ---
-  if (slot.type === 'gap_fill') {
+  if (slot.type === 'gap_fill' || slot.type === 'note_completion') {
     return (
       <input
         type="text"
@@ -95,7 +112,13 @@ function QuestionInput({ slot, value, onChange, index, onHighlightUpdate, showRe
   }
 
   // --- MATCHING (Drag and Drop) - Just render drop zone, options pool is at group level ---
-  if (slot.type === 'matching_headings' || slot.type === 'matching_features' || slot.type === 'matching_information') {
+  if (
+    slot.type === 'matching_headings' ||
+    slot.type === 'matching_features' ||
+    slot.type === 'matching_information' ||
+    slot.type === 'matching_info' ||
+    slot.type === 'matching'
+  ) {
     const options = slot.headings || [];
     const selectedOption = options.find(h => h.id === value);
 
@@ -324,7 +347,7 @@ function ReadingStepLayout({
   // Identify valid matching question placeholders in passage text.
   const matchingQuestionNumbers = new Set();
   (item.question_groups || []).forEach((g) => {
-    if (g.type === 'matching_headings' || g.type === 'matching_information') {
+    if (g.type === 'matching_headings' || g.type === 'matching_information' || g.type === 'matching_info' || g.type === 'matching') {
       g.questions.forEach((q) => matchingQuestionNumbers.add(String(q.q_number)));
     }
   });
@@ -441,8 +464,14 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
     <div className="exam-step-questions">
       {(item.question_groups || []).map((group, groupIdx) => {
         // Check for special group types
-        const isMatching = group.type === 'matching_headings' || group.type === 'matching_features' || group.type === 'matching_information';
+        const isMatching =
+          group.type === 'matching_headings' ||
+          group.type === 'matching_features' ||
+          group.type === 'matching_information' ||
+          group.type === 'matching_info' ||
+          group.type === 'matching';
         const isSummary = group.type === 'summary_completion';
+        const isGapLike = group.type === 'gap_fill' || group.type === 'note_completion';
 
         const groupStartIndex = slotIndex;
 
@@ -531,8 +560,8 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                 );
               }
 
-              // --- SUMMARY & GAP FILL TEXT BLOCK RENDERER ---
-              if (isSummary || (group.type === 'gap_fill' && group.text)) {
+              // --- SUMMARY & GAP-LIKE TEXT BLOCK RENDERER ---
+              if (isSummary || (isGapLike && group.text)) {
                 // We advance slotIndex for all questions in this group
                 const currentGroupStartIndex = slotIndex;
                 slotIndex += group.questions.length;
@@ -651,7 +680,7 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                         </HighlightableWrapper>
                       ) : (
                         <div className="summary-missing-warning">
-                          <strong>{isSummary ? 'Summary' : 'Gap Fill'} text is missing.</strong> Please update this question in the Manage interface.
+                          <strong>{isSummary ? 'Summary' : 'Completion'} text is missing.</strong> Please update this question in the Manage interface.
                         </div>
                       )}
                     </div>
@@ -754,9 +783,9 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                 const currentIndex = slotIndex;
                 slotIndex++;
 
-                // --- GAP FILL (Unified Logic) ---
-                if (group.type === 'gap_fill') {
-                  // Case A: Text Block Gap Fill (New Style similar to Summary)
+                // --- GAP-LIKE COMPLETION (Unified Logic) ---
+                if (isGapLike) {
+                  // Case A: Text Block completion (handled above for group.text)
                   if (group.text) {
                     // We advance slotIndex for all questions in this group
                     // NOTE: This logic assumes the [q_number] placeholders match questions in order or ID
@@ -766,7 +795,7 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                     return null;
                   }
 
-                  // Case B: Standard Line-by-Line Gap Fill (Old Style)
+                  // Case B: Standard line-by-line completion fallback
                   const gapRegex = /_{3,}|\.{3,}/;
 
                   const parseOptions = {

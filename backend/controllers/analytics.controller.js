@@ -22,6 +22,16 @@ const LISTENING_BAND_MAP = [
 ];
 
 const SKILL_LABELS = ["Reading", "Writing", "Listening", "Speaking"];
+const COMPLETION_CANONICAL_TYPES = new Set([
+  "gap_fill",
+  "note_completion",
+  "summary_completion",
+  "sentence_completion",
+  "form_completion",
+  "table_completion",
+  "flow_chart_completion",
+  "diagram_label_completion",
+]);
 
 const average = (items = []) => {
   const nums = items.filter((v) => Number.isFinite(Number(v))).map(Number);
@@ -65,10 +75,43 @@ const getRecentMonthKeys = (count = 7) => {
   return out;
 };
 
-const formatQuestionType = (type = "") =>
-  String(type || "unknown")
+const canonicalQuestionType = (rawType = "") => {
+  const type = String(rawType || "unknown").toLowerCase();
+
+  if (COMPLETION_CANONICAL_TYPES.has(type)) return "note_completion";
+  if (type === "matching_info") return "matching_information";
+  if (type === "true_false_notgiven") return "tfng";
+  if (type === "yes_no_notgiven") return "ynng";
+  if (type === "mult_choice" || type === "multiple_choice_single" || type === "multiple_choice_multi" || type === "mult_choice_multi") {
+    return "multiple_choice";
+  }
+
+  return type;
+};
+
+const formatQuestionType = (type = "") => {
+  const canonicalType = canonicalQuestionType(type);
+  const labels = {
+    tfng: "True/False/Not Given (TFNG)",
+    ynng: "Yes/No/Not Given (YNNG)",
+    multiple_choice: "Multiple Choice",
+    note_completion: "Note Completion",
+    matching_headings: "Matching Headings",
+    matching_features: "Matching Features",
+    matching_information: "Matching Information",
+    matching_sentence_endings: "Matching Sentence Endings",
+    matching: "Matching",
+    short_answer: "Short Answer Questions",
+    plan_map_diagram: "Plan / Map / Diagram Labeling",
+    listening_map: "Listening Map Labeling",
+  };
+
+  if (labels[canonicalType]) return labels[canonicalType];
+
+  return canonicalType
     .replace(/[_-]+/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase());
+};
 
 const serializeHistoryRecords = (records = []) =>
   records
@@ -123,17 +166,6 @@ const buildAnalyticsPayload = async (targetUserId) => {
           },
         },
       },
-      {
-        $project: {
-          _id: 1,
-          totalQuestions: 1,
-          accuracy: {
-            $multiply: [{ $divide: ["$correctQuestions", "$totalQuestions"] }, 100],
-          },
-        },
-      },
-      { $sort: { accuracy: 1 } },
-      { $limit: 6 },
     ]),
   ]);
 
@@ -256,13 +288,33 @@ const buildAnalyticsPayload = async (targetUserId) => {
       .reduce((sum, item) => sum + (Number(item.time_taken_ms || 0) / 3600000), 0)
   );
 
-  const weaknesses = weaknessRows.map((item) => ({
-    category: formatQuestionType(item._id || "unknown"),
-    score: roundOne(item.accuracy || 0),
-    fullMark: 100,
-    total: Number(item.totalQuestions || 0),
-    rawType: item._id || "unknown",
-  }));
+  const weaknessMerged = weaknessRows.reduce((acc, item) => {
+    const canonicalType = canonicalQuestionType(item?._id || "unknown");
+    if (!acc[canonicalType]) {
+      acc[canonicalType] = { totalQuestions: 0, correctQuestions: 0 };
+    }
+    acc[canonicalType].totalQuestions += Number(item?.totalQuestions || 0);
+    acc[canonicalType].correctQuestions += Number(item?.correctQuestions || 0);
+    return acc;
+  }, {});
+
+  const weaknesses = Object.entries(weaknessMerged)
+    .map(([rawType, stat]) => {
+      const totalQuestions = Number(stat.totalQuestions || 0);
+      const accuracy = totalQuestions > 0
+        ? (Number(stat.correctQuestions || 0) / totalQuestions) * 100
+        : 0;
+
+      return {
+        category: formatQuestionType(rawType),
+        score: roundOne(accuracy),
+        fullMark: 100,
+        total: totalQuestions,
+        rawType,
+      };
+    })
+    .sort((a, b) => a.score - b.score)
+    .slice(0, 8);
 
   return {
     summary: {

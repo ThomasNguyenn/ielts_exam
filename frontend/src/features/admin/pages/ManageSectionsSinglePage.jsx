@@ -24,6 +24,7 @@ const countQuestions = (section) =>
 
 export default function ManageSectionsSinglePage() {
   const { id: routeEditId } = useParams();
+  const isCreateRoute = routeEditId === 'new';
   const navigate = useNavigate();
   const { showNotification } = useNotification();
 
@@ -32,7 +33,7 @@ export default function ManageSectionsSinglePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [activeTab, setActiveTab] = useState(routeEditId ? 'editor' : 'list');
-  const [editingId, setEditingId] = useState(routeEditId || null);
+  const [editingId, setEditingId] = useState(isCreateRoute ? null : (routeEditId || null));
 
   const loadSections = async () => {
     setLoading(true);
@@ -52,8 +53,11 @@ export default function ManageSectionsSinglePage() {
 
   useEffect(() => {
     if (routeEditId) {
-      setEditingId(routeEditId);
+      setEditingId(routeEditId === 'new' ? null : routeEditId);
       setActiveTab('editor');
+    } else {
+      setEditingId(null);
+      setActiveTab('list');
     }
   }, [routeEditId]);
 
@@ -86,7 +90,7 @@ export default function ManageSectionsSinglePage() {
   const openCreateTab = () => {
     setEditingId(null);
     setActiveTab('editor');
-    navigate('/manage/sections');
+    navigate('/manage/sections/new');
   };
 
   const openEditTab = (id) => {
@@ -108,26 +112,35 @@ export default function ManageSectionsSinglePage() {
 
   return (
     <div className="manage-main-content">
-      <div className="manage-main-tabs">
-        <button
-          type="button"
-          className={`manage-tab-btn ${activeTab === 'list' ? 'active' : ''}`}
-          onClick={() => {
-            setActiveTab('list');
-            setEditingId(null);
-            navigate('/manage/sections');
-          }}
-        >
-          Manage Listening
-        </button>
-        <button
-          type="button"
-          className={`manage-tab-btn ${activeTab === 'editor' ? 'active' : ''}`}
-          onClick={() => setActiveTab('editor')}
-        >
-          {editingId ? 'Edit Section' : 'Add Section'}
-        </button>
-      </div>
+      {activeTab === 'list' && (
+        <div className="manage-main-tabs">
+          <button
+            type="button"
+            className={`manage-tab-btn ${activeTab === 'list' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveTab('list');
+              setEditingId(null);
+              navigate('/manage/sections');
+            }}
+          >
+            Manage Listening
+          </button>
+          <button
+            type="button"
+            className={`manage-tab-btn ${activeTab === 'editor' ? 'active' : ''}`}
+            onClick={() => {
+              if (editingId) {
+                setActiveTab('editor');
+                navigate(`/manage/sections/${editingId}`);
+                return;
+              }
+              openCreateTab();
+            }}
+          >
+            {editingId ? 'Edit Section' : 'Add Section'}
+          </button>
+        </div>
+      )}
 
       {activeTab === 'list' ? (
         <>

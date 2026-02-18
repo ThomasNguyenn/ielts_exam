@@ -75,7 +75,8 @@ export default function ExamResultReview({ submitted }) {
       mult_choice: 'Multiple Choice',
       true_false_notgiven: 'True/False/Not Given',
       yes_no_notgiven: 'Yes/No/Not Given',
-      gap_fill: 'Gap Fill',
+      gap_fill: 'Note/Gap Completion',
+      note_completion: 'Note/Gap Completion',
       matching_headings: 'Matching Headings',
       matching_features: 'Matching Features',
       matching_information: 'Matching Information',
@@ -146,7 +147,7 @@ export default function ExamResultReview({ submitted }) {
                     </div>
                   )}
 
-                  {q.type === 'gap_fill' && (
+                  {(q.type === 'gap_fill' || q.type === 'note_completion') && (
                     <div className="result-gap-answer">
                       <p className="result-label">Your Answer:</p>
                       <p className="answer-text">{q.your_answer || '(No answer)'}</p>

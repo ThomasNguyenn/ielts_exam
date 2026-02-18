@@ -1,309 +1,586 @@
-import React from 'react';
-import { Trash2 } from 'lucide-react';
+import { useMemo } from 'react';
+import { ChevronDown, ChevronUp, GripVertical, Plus, Trash2 } from 'lucide-react';
+import {
+  ANSWER_LIST_ONLY_TYPES,
+  BOOLEAN_GROUP_TYPES,
+  GROUP_LAYOUT_OPTIONS,
+  GROUP_OPTION_TYPES,
+  MATCHING_GROUP_TYPES,
+  PLACEHOLDER_SYNC_TYPES,
+  REFERENCE_TEXT_TYPES,
+} from './questionGroupConfig';
 
-const Icons = {
-    Writing: () => (
-        <svg className="manage-nav-icon" style={{ width: '18px', height: '18px' }} viewBox="0 0 24 24" fill="currentColor">
-            <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
-        </svg>
-    )
-};
-
-const QUESTION_GROUP_TYPES = [
-    { value: 'mult_choice', label: 'Multiple choice' },
-    { value: 'true_false_notgiven', label: 'True / False / Not given' },
-    { value: 'gap_fill', label: 'Gap fill' },
-    { value: 'matching_headings', label: 'Matching headings' },
-    { value: 'matching_features', label: 'Matching features' },
-    { value: 'matching_information', label: 'Matching information' },
-    { value: 'summary_completion', label: 'Summary completion' },
-    { value: 'listening_map', label: 'Listening Map' },
+const DEFAULT_OPTIONS = [
+  { label: 'A', text: '' },
+  { label: 'B', text: '' },
+  { label: 'C', text: '' },
+  { label: 'D', text: '' },
 ];
 
+function escapeCellHtml(raw = '') {
+  return String(raw)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/\n/g, '<br />');
+}
+
+function createGrid(rows = 2, columns = 2) {
+  return Array.from({ length: rows }, () => Array.from({ length: columns }, () => ''));
+}
+
+function getTableSegment(rawText = '') {
+  const source = String(rawText || '');
+  const match = source.match(/<table[\s\S]*?<\/table>/i);
+  if (!match) return null;
+
+  const start = match.index ?? 0;
+  const end = start + match[0].length;
+  return {
+    before: source.slice(0, start),
+    tableHtml: match[0],
+    after: source.slice(end),
+  };
+}
+
+function parseTableHtmlToGrid(tableHtml = '') {
+  if (typeof DOMParser === 'undefined') return null;
+
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(tableHtml, 'text/html');
+    const rows = Array.from(doc.querySelectorAll('tr'));
+    if (!rows.length) return null;
+
+    const maxColumns = rows.reduce((max, row) => {
+      const count = row.querySelectorAll('th,td').length;
+      return Math.max(max, count);
+    }, 0);
+
+    if (!maxColumns) return null;
+
+    return rows.map((row) => {
+      const cells = Array.from(row.querySelectorAll('th,td')).map((cell) => String(cell.textContent || '').trim());
+      while (cells.length < maxColumns) cells.push('');
+      return cells;
+    });
+  } catch {
+    return null;
+  }
+}
+
+function gridToTableHtml(grid = []) {
+  const rows = grid.length ? grid : createGrid(2, 2);
+  const rowMarkup = rows
+    .map((row) => `<tr>${row.map((cell) => `<td>${escapeCellHtml(cell)}</td>`).join('')}</tr>`)
+    .join('');
+
+  return `<table><tbody>${rowMarkup}</tbody></table>`;
+}
+
 export default function QuestionGroup({
-    group,
-    gi,
-    totalGroups,
-    isGroupCollapsed,
-    collapsedQuestions,
-    onToggleCollapse,
-    onMove,
-    onRemove,
-    onUpdateGroup,
-    onUpdateQuestion,
-    onAddQuestion,
-    onRemoveQuestion,
-    onSetQuestionOption,
-    onSetCorrectAnswers,
-    onAddHeading,
-    onRemoveHeading,
-    onUpdateHeading,
-    onAddOption,
-    onRemoveOption,
-    onUpdateOption,
-    onAddQuestionOption,
-    onRemoveQuestionOption,
-    onSetMultiSelectMode,
-    handleBoldShortcut
+  group,
+  gi,
+  totalGroups,
+  isGroupCollapsed,
+  collapsedQuestions,
+  questionTypeOptions,
+  onToggleGroupCollapse,
+  onToggleQuestionCollapse,
+  onMove,
+  onRemove,
+  onUpdateGroup,
+  onUpdateQuestion,
+  onAddQuestion,
+  onRemoveQuestion,
+  onSetQuestionOption,
+  onSetCorrectAnswers,
+  onAddHeading,
+  onRemoveHeading,
+  onUpdateHeading,
+  onAddOption,
+  onRemoveOption,
+  onUpdateOption,
+  onAddQuestionOption,
+  onRemoveQuestionOption,
+  onSyncQuestionsFromText,
+  onSyncMultiChoiceCount,
+  handleBoldShortcut,
 }) {
-    return (
-        <div className="question-group-block">
-            <div className="group-header" onClick={() => onToggleCollapse(gi)} style={{ padding: '0.5rem 0.3rem', borderRadius: '0.5rem' }} >
-                <div className="group-title p-4">
-                    <Icons.Writing /> Question Group {gi + 1} ({group.type})
-                </div>
-                <div className="item-actions">
-                    <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); onMove(gi, -1); }} disabled={gi === 0}>▲</button>
-                    <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); onMove(gi, 1); }} disabled={gi === totalGroups - 1}>▼</button>
-                    <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); onRemove(gi); }} disabled={totalGroups <= 1} style={{ color: '#ef4444', fontWeight: 700 }}>Xóa nhóm</button>
-                    <span style={{ marginLeft: '0.5rem', opacity: 0.5 }}>{isGroupCollapsed ? '▼' : '▲'}</span>
-                </div>
-            </div>
-            {!isGroupCollapsed && (
-                <div className="group-content">
-                    <div className="form-row">
-                        <label>Loại câu hỏi</label>
-                        <select value={group.type} onChange={(e) => onUpdateGroup(gi, 'type', e.target.value)}>
-                            {QUESTION_GROUP_TYPES.map((opt) => (
-                                <option key={opt.value} value={opt.value}>{opt.label}</option>
-                            ))}
-                        </select>
-                    </div>
+  const isMatchingType = MATCHING_GROUP_TYPES.has(group.type);
+  const isBooleanType = BOOLEAN_GROUP_TYPES.has(group.type);
+  const isMultipleChoiceType = group.type === 'mult_choice';
+  const isTableCompletionType = group.type === 'table_completion';
+  const isAnswerListOnlyType = ANSWER_LIST_ONLY_TYPES.has(group.type);
+  const isMultiChoiceMode = group.group_layout === 'checkbox';
+  const canSyncPlaceholderQuestions = PLACEHOLDER_SYNC_TYPES.has(group.type);
+  const showReferenceText = REFERENCE_TEXT_TYPES.has(group.type) || group.group_layout === 'with_reference';
+  const showGroupOptions = GROUP_OPTION_TYPES.has(group.type);
+  const groupLabel = questionTypeOptions.find((item) => item.value === group.type)?.label || group.type;
+  const booleanAnswerPresets = group.type === 'true_false_notgiven'
+    ? ['TRUE', 'FALSE', 'NOT GIVEN']
+    : ['YES', 'NO', 'NOT GIVEN'];
+  const placeholderSourceLabel = group.type === 'matching_headings' ? 'passage content' : 'reference text';
+  const tableSegment = useMemo(() => getTableSegment(group.text || ''), [group.text]);
+  const tableGrid = useMemo(
+    () => (tableSegment ? parseTableHtmlToGrid(tableSegment.tableHtml) : null),
+    [tableSegment]
+  );
 
-                    {group.type === 'mult_choice' && (
-                        <div style={{ background: '#f0f9ff', padding: '1rem', borderRadius: '0.5rem', marginBottom: '1rem', border: '1px solid #bae6fd' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
-                                <label style={{ fontWeight: 'bold', color: '#0369a1' }}>Question Format:</label>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                                    <input
-                                        type="radio"
-                                        name={`q-mode-${gi}`}
-                                        checked={group.group_layout === 'radio' || (!group.group_layout && group.questions.length === 1)}
-                                        onChange={() => onSetMultiSelectMode(gi, 'radio')}
-                                    />
-                                    <span>Single Answer (Radio)</span>
-                                </label>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                                    <input
-                                        type="radio"
-                                        name={`q-mode-${gi}`}
-                                        checked={group.group_layout === 'checkbox' || (!group.group_layout && group.questions.length > 1)}
-                                        onChange={() => onSetMultiSelectMode(gi, 'checkbox', 2)}
-                                    />
-                                    <span>Choose Multiple (Checkbox)</span>
-                                </label>
-                            </div>
+  const commitTableGrid = (nextGrid) => {
+    const nextTable = gridToTableHtml(nextGrid);
+    if (!tableSegment) {
+      onUpdateGroup(gi, 'text', nextTable);
+      return;
+    }
 
-                            {(group.group_layout === 'checkbox' || (!group.group_layout && group.questions.length > 1)) && (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginLeft: '0.5rem' }}>
-                                    <label>Number of answers needed:</label>
-                                    <input
-                                        type="number"
-                                        min="2" max="10"
-                                        value={group.questions.length}
-                                        onChange={(e) => {
-                                            const val = parseInt(e.target.value) || 2;
-                                            if (val >= 2) onSetMultiSelectMode(gi, 'checkbox', val);
-                                        }}
-                                        style={{ width: '60px', padding: '0.25rem' }}
-                                    />
-                                    <span style={{ fontSize: '0.9rem', color: '#666', fontStyle: 'italic' }}>
-                                        (This will create {group.questions.length} questions sharing the same options.)
-                                    </span>
-                                </div>
-                            )}
-                        </div>
-                    )}
+    onUpdateGroup(gi, 'text', `${tableSegment.before}${nextTable}${tableSegment.after}`);
+  };
 
-                    <div className="form-row">
-                        <label>Hướng dẫn (Instructions)</label>
-                        <textarea
-                            value={group.instructions}
-                            onChange={(e) => onUpdateGroup(gi, 'instructions', e.target.value)}
-                            onKeyDown={(e) => handleBoldShortcut(e, group.instructions, (next) => onUpdateGroup(gi, 'instructions', next))}
-                            rows={2}
-                        />
-                    </div>
+  const createNewTable = () => {
+    commitTableGrid(createGrid(2, 2));
+  };
 
-                    {(group.type === 'summary_completion' || group.type === 'gap_fill' || (group.type === 'mult_choice' && group.questions.length > 1)) && (
-                        <div className="form-row">
-                            <label>
-                                {group.type === 'mult_choice' ? 'Nội dung câu hỏi chung (Prompt)' : 'Nội dung đoạn văn có lỗ hổng (Ví dụ: [1], [2])'}
-                            </label>
-                            <textarea
-                                value={group.text}
-                                onChange={(e) => onUpdateGroup(gi, 'text', e.target.value)}
-                                onKeyDown={(e) => handleBoldShortcut(e, group.text, (next) => onUpdateGroup(gi, 'text', next))}
-                                rows={4}
-                                placeholder={group.type === 'mult_choice' ? "Enter the common question prompt here..." : ""}
-                            />
-                        </div>
-                    )}
+  const addTableRow = () => {
+    const baseGrid = tableGrid || createGrid(2, 2);
+    const columns = baseGrid[0]?.length || 2;
+    const nextGrid = [...baseGrid, Array.from({ length: columns }, () => '')];
+    commitTableGrid(nextGrid);
+  };
 
-                    {(group.type === 'matching_headings' || group.type === 'matching_features' || group.type === 'matching_information') && (
-                        <div className="form-section">
-                            <h4>{group.type === 'matching_headings' ? 'Danh sách Headings' : group.type === 'matching_information' ? 'Danh sách Paragraphs' : 'Danh sách Features'}</h4>
-                            <p className="form-hint">Thêm các lựa chọn để học viên nối. Đáp án đúng của mỗi câu hỏi sẽ là ID (ví dụ: i, ii, iii hoặc A, B, C).</p>
-                            {(group.headings || []).map((h, hi) => (
-                                <div key={hi} className="heading-row">
-                                    <input
-                                        value={h.id}
-                                        onChange={(e) => onUpdateHeading(gi, hi, 'id', e.target.value)}
-                                        placeholder="ID"
-                                        className="heading-id"
-                                    />
-                                    <textarea
-                                        value={h.text}
-                                        onChange={(e) => onUpdateHeading(gi, hi, 'text', e.target.value)}
-                                        onKeyDown={(e) => handleBoldShortcut(e, h.text, (next) => onUpdateHeading(gi, hi, 'text', next))}
-                                        placeholder={group.type === 'matching_information' ? "e.g. Paragraph A" : "Nội dung heading hoặc feature..."}
-                                        className="heading-text"
-                                        rows={1}
-                                        onInput={(e) => {
-                                            e.target.style.height = 'auto';
-                                            e.target.style.height = e.target.scrollHeight + 'px';
-                                        }}
-                                    />
-                                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => onRemoveHeading(gi, hi)} style={{ color: '#ef4444' }}>Xóa</button>
-                                </div>
-                            ))}
-                            <button type="button" className="btn btn-ghost btn-sm" onClick={() => onAddHeading(gi)}>+ Thêm hàng mới</button>
-                        </div>
-                    )}
+  const addTableColumn = () => {
+    const baseGrid = tableGrid || createGrid(2, 2);
+    const nextGrid = baseGrid.map((row) => [...row, '']);
+    commitTableGrid(nextGrid);
+  };
 
-                    {group.type === 'summary_completion' && (
-                        <div className="form-section">
-                            <h4>Danh sách lựa chọn (Options)</h4>
-                            <p className="form-hint">Nếu bài điền từ có danh sách từ cho sẵn, hãy thêm ở đây.</p>
-                            {(group.options || []).map((o, oi) => (
-                                <div key={oi} className="heading-row">
-                                    <input
-                                        value={o.id}
-                                        onChange={(e) => onUpdateOption(gi, oi, 'id', e.target.value)}
-                                        placeholder="ID"
-                                        className="heading-id"
-                                    />
-                                    <textarea
-                                        value={o.text}
-                                        onChange={(e) => onUpdateOption(gi, oi, 'text', e.target.value)}
-                                        onKeyDown={(e) => handleBoldShortcut(e, o.text, (next) => onUpdateOption(gi, oi, 'text', next))}
-                                        placeholder="Nội dung lựa chọn..."
-                                        className="heading-text"
-                                        rows={1}
-                                        onInput={(e) => {
-                                            e.target.style.height = 'auto';
-                                            e.target.style.height = e.target.scrollHeight + 'px';
-                                        }}
-                                    />
-                                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => onRemoveOption(gi, oi)} style={{ color: '#ef4444' }}>Xóa</button>
-                                </div>
-                            ))}
-                            <button type="button" className="btn btn-ghost btn-sm" onClick={() => onAddOption(gi)}>+ Thêm lựa chọn</button>
-                        </div>
-                    )}
+  const updateTableCell = (rowIndex, colIndex, value) => {
+    const baseGrid = tableGrid || createGrid(2, 2);
+    const nextGrid = baseGrid.map((row, currentRowIndex) => {
+      if (currentRowIndex !== rowIndex) return row;
+      return row.map((cell, currentColIndex) => (currentColIndex === colIndex ? value : cell));
+    });
+    commitTableGrid(nextGrid);
+  };
 
-                    {group.questions.map((q, qi) => {
-                        const isQuestionCollapsed = collapsedQuestions.has(`${gi}-${qi}`);
-                        return (
-                            <div key={qi} className="question-block" style={{ border: '1px solid #E0E7FF', background: '#EEF2FF', padding: '1rem', borderRadius: '1rem', marginBottom: '1.5rem' }}>
-                                <div className="group-header" onClick={() => onToggleCollapse(gi, qi)} style={{ padding: '0.5rem 0.3rem', borderRadius: '0.5rem', background: 'transparent', borderBottom: 'none' }}>
-                                    <span style={{ fontWeight: 800, color: '#6366F1' }}>Câu {q.q_number}</span>
-                                    <span style={{ opacity: 0.5 }}>{isQuestionCollapsed ? '▼' : '▲'}</span>
-                                </div>
-                                {!isQuestionCollapsed && (
-                                    <div className="form-row">
-                                        <label>Nội dung câu hỏi</label>
-                                        <textarea
-                                            value={q.text}
-                                            onChange={(e) => onUpdateQuestion(gi, qi, 'text', e.target.value)}
-                                            onKeyDown={(e) => handleBoldShortcut(e, q.text, (next) => onUpdateQuestion(gi, qi, 'text', next))}
-                                            rows={2}
-                                            placeholder="Nhập câu hỏi..."
-                                        />
-
-                                        {/* Options for Mult Choice */}
-                                        {group.type === 'mult_choice' && (
-                                            <div className="options-list">
-                                                <label>Lựa chọn (A, B, C...)</label>
-                                                {/* If checkbox mode, all questions share options. Only show for first question OR if not checkbox mode */}
-                                                {(group.group_layout !== 'checkbox' || qi === 0) ? (
-                                                    <>
-                                                        {(q.option || []).map((opt, oi) => (
-                                                            <div key={oi} className="option-row" style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                                                                <span style={{ fontWeight: 600, width: '20px', display: 'flex', alignItems: 'center' }}>{opt.label}</span>
-                                                                <input
-                                                                    value={opt.text}
-                                                                    onChange={(e) => onSetQuestionOption(gi, qi, oi, e.target.value)}
-                                                                    placeholder={`Option ${opt.label}`}
-                                                                    style={{ flex: 1 }}
-                                                                />
-                                                                <button
-                                                                    type="button"
-                                                                    className="btn btn-ghost btn-sm"
-                                                                    onClick={() => onRemoveQuestionOption(gi, qi, oi)}
-                                                                    style={{ color: '#ef4444', padding: '0.2rem' }}
-                                                                    title="Remove option"
-                                                                >
-                                                                    <Trash2 size={14} />
-                                                                </button>
-                                                            </div>
-                                                        ))}
-                                                        <button
-                                                            type="button"
-                                                            className="btn btn-ghost btn-sm"
-                                                            style={{ fontSize: '0.8rem', color: '#6366F1' }}
-                                                            onClick={() => onAddQuestionOption(gi, qi)}
-                                                        >
-                                                            + Add Option
-                                                        </button>
-                                                    </>
-                                                ) : (
-                                                    <p style={{ fontSize: '0.9rem', color: '#666', fontStyle: 'italic' }}>Options are shared with the first question in this group.</p>
-                                                )}
-                                            </div>
-                                        )}
-
-
-                                        <div className="form-row">
-                                            <label>Đáp án đúng (Correct Answers)</label>
-                                            <input
-                                                value={(q.correct_answers || []).join(', ')}
-                                                onChange={(e) => onSetCorrectAnswers(gi, qi, e.target.value)}
-                                                placeholder="e.g. A, C (ngăn cách bằng dấu phẩy)"
-                                            />
-                                        </div>
-                                        <div className="form-row">
-                                            <label>Giải thích (Explanation)</label>
-                                            <textarea
-                                                value={q.explanation}
-                                                onChange={(e) => onUpdateQuestion(gi, qi, 'explanation', e.target.value)}
-                                                onKeyDown={(e) => handleBoldShortcut(e, q.explanation, (next) => onUpdateQuestion(gi, qi, 'explanation', next))}
-                                                rows={2}
-                                            />
-                                        </div>
-
-                                        <button
-                                            type="button"
-                                            className="btn btn-ghost btn-sm"
-                                            style={{ color: '#ef4444', marginTop: '0.5rem' }}
-                                            onClick={() => onRemoveQuestion(gi, qi)}
-                                            disabled={group.questions.length <= 1 && group.group_layout !== 'checkbox'}
-                                        >
-                                            Xóa câu hỏi này
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
-
-                    {(!group.group_layout || group.group_layout === 'radio') && (
-                        <button type="button" className="btn btn-secondary" onClick={() => onAddQuestion(gi)} style={{ width: '100%', marginTop: '1rem' }}>
-                            + Thêm câu hỏi vào nhóm này
-                        </button>
-                    )}
-                </div>
-            )}
+  return (
+    <div className="manage-card card-accent-blue" style={{ marginBottom: '1rem', padding: 0, overflow: 'hidden' }}>
+      <div
+        className="group-header"
+        onClick={() => onToggleGroupCollapse(gi)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          cursor: 'pointer',
+          borderBottom: isGroupCollapsed ? 'none' : '1px solid #E2E8F0',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <GripVertical size={16} style={{ color: '#94A3B8' }} />
+          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#6366F1' }}>GROUP {gi + 1}</span>
+          <span style={{ fontWeight: 600, color: '#0F172A' }}>{groupLabel}</span>
+          <span style={{ fontSize: '0.75rem', color: '#94A3B8' }}>• {group.questions.length} questions</span>
         </div>
-    );
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }} onClick={(event) => event.stopPropagation()}>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => onMove(gi, -1)} disabled={gi === 0} title="Move Up">
+            ↑
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => onMove(gi, 1)}
+            disabled={gi === totalGroups - 1}
+            title="Move Down"
+          >
+            ↓
+          </button>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => onRemove(gi)} style={{ color: '#EF4444' }} title="Delete Group">
+            <Trash2 size={16} />
+          </button>
+          {isGroupCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+        </div>
+      </div>
+
+      {!isGroupCollapsed && (
+        <div className="group-content">
+          <div className="form-row">
+            <label>Question Type</label>
+            <select value={group.type} onChange={(event) => onUpdateGroup(gi, 'type', event.target.value)}>
+              {questionTypeOptions.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-row">
+            <label>Layout</label>
+            <select value={group.group_layout || 'default'} onChange={(event) => onUpdateGroup(gi, 'group_layout', event.target.value)}>
+              {GROUP_LAYOUT_OPTIONS.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {isMultipleChoiceType && (
+            <div className="form-row">
+              <label>Selection Rule</label>
+              <div className="manage-inline-fields">
+                <select
+                  value={isMultiChoiceMode ? 'multi' : 'single'}
+                  onChange={(event) => onUpdateGroup(gi, 'group_layout', event.target.value === 'multi' ? 'checkbox' : 'radio')}
+                >
+                  <option value="single">Single Answer</option>
+                  <option value="multi">Multiple Answers</option>
+                </select>
+                {isMultiChoiceMode && (
+                  <>
+                    <input
+                      type="number"
+                      min={2}
+                      max={20}
+                      value={group.required_count ?? ''}
+                      onChange={(event) => onUpdateGroup(gi, 'required_count', Number(event.target.value) || '')}
+                      placeholder="Choose N"
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => onSyncMultiChoiceCount?.(gi, Number(group.required_count) || 0)}
+                    >
+                      Sync Question Slots
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="form-row">
+            <label>Instructions</label>
+            <textarea
+              value={group.instructions || ''}
+              onChange={(event) => onUpdateGroup(gi, 'instructions', event.target.value)}
+              onKeyDown={(event) => handleBoldShortcut(event, group.instructions || '', (next) => onUpdateGroup(gi, 'instructions', next))}
+              rows={2}
+              placeholder="Instructions for this question group..."
+            />
+          </div>
+
+          {showReferenceText && (
+            <div className="form-row">
+              <label>Reference Text</label>
+              <textarea
+                value={group.text || ''}
+                onChange={(event) => onUpdateGroup(gi, 'text', event.target.value)}
+                onKeyDown={(event) => handleBoldShortcut(event, group.text || '', (next) => onUpdateGroup(gi, 'text', next))}
+                rows={4}
+                placeholder="Optional reference text, summary, map notes, or context..."
+              />
+            </div>
+          )}
+
+          {isTableCompletionType && (
+            <div className="form-section">
+              <div className="manage-table-builder-header">
+                <h4>Table Builder</h4>
+                <div className="manage-inline-fields">
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={createNewTable}>
+                    {tableGrid ? 'Reset Table' : 'Create Table'}
+                  </button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={addTableRow} disabled={!tableGrid}>
+                    Add Row
+                  </button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={addTableColumn} disabled={!tableGrid}>
+                    Add Column
+                  </button>
+                </div>
+              </div>
+
+              {!tableGrid && (
+                <p className="muted" style={{ marginTop: '0.5rem' }}>
+                  Click "Create Table" to generate a table template. Use placeholders like [1], [2] inside cells.
+                </p>
+              )}
+
+              {tableGrid && (
+                <div className="manage-table-builder-grid">
+                  <table>
+                    <tbody>
+                      {tableGrid.map((row, rowIndex) => (
+                        <tr key={`table-row-${rowIndex}`}>
+                          {row.map((cell, colIndex) => (
+                            <td key={`table-cell-${rowIndex}-${colIndex}`}>
+                              <input
+                                value={cell}
+                                onChange={(event) => updateTableCell(rowIndex, colIndex, event.target.value)}
+                                placeholder={rowIndex === 0 ? 'Header or [1]' : 'Cell text or [n]'}
+                              />
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {canSyncPlaceholderQuestions && (
+            <div className="form-row">
+              <label>Placeholder Sync</label>
+              <div className="manage-inline-fields">
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => onSyncQuestionsFromText?.(gi)}
+                >
+                  Sync Questions from [n]
+                </button>
+                <span className="muted">Auto-create rows from placeholders in {placeholderSourceLabel} (e.g. [1], [2], [15])</span>
+              </div>
+            </div>
+          )}
+
+          {isMatchingType && (
+            <>
+              <div className="form-row">
+                <label>Matching Rule</label>
+                <div className="manage-inline-fields">
+                  <label className="manage-inline-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(group.use_once)}
+                      onChange={(event) => onUpdateGroup(gi, 'use_once', event.target.checked)}
+                    />
+                    <span>Use each option once only</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="form-section">
+                <h4>Headings / Labels</h4>
+                {(group.headings || []).map((heading, headingIndex) => (
+                  <div key={`${gi}-heading-${headingIndex}`} className="heading-row">
+                    <input
+                      value={heading.id}
+                      onChange={(event) => onUpdateHeading(gi, headingIndex, 'id', event.target.value)}
+                      placeholder="ID"
+                      className="heading-id"
+                    />
+                    <input
+                      value={heading.text}
+                      onChange={(event) => onUpdateHeading(gi, headingIndex, 'text', event.target.value)}
+                      placeholder="Heading text"
+                      className="heading-text"
+                    />
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => onRemoveHeading(gi, headingIndex)} style={{ color: '#EF4444' }}>
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                ))}
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => onAddHeading(gi)} style={{ color: '#6366F1' }}>
+                  + Add Heading
+                </button>
+              </div>
+            </>
+          )}
+
+          {showGroupOptions && (
+            <div className="form-section">
+              <h4>Options List</h4>
+              {(group.options || []).map((option, optionIndex) => (
+                <div key={`${gi}-option-${optionIndex}`} className="heading-row">
+                  <input
+                    value={option.id}
+                    onChange={(event) => onUpdateOption(gi, optionIndex, 'id', event.target.value)}
+                    placeholder="ID"
+                    className="heading-id"
+                  />
+                  <input
+                    value={option.text}
+                    onChange={(event) => onUpdateOption(gi, optionIndex, 'text', event.target.value)}
+                    placeholder="Option text"
+                    className="heading-text"
+                  />
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => onRemoveOption(gi, optionIndex)} style={{ color: '#EF4444' }}>
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              ))}
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => onAddOption(gi)} style={{ color: '#6366F1' }}>
+                + Add Option
+              </button>
+            </div>
+          )}
+
+          <div style={{ marginTop: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h4 style={{ marginBottom: 0 }}>Questions</h4>
+              {!isAnswerListOnlyType ? (
+                <button type="button" className="btn btn-sm" style={{ background: '#EEF2FF', color: '#4338CA' }} onClick={() => onAddQuestion(gi)}>
+                  <Plus size={14} />
+                  <span style={{ marginLeft: '0.25rem' }}>Add Question</span>
+                </button>
+              ) : (
+                <span className="muted">Rows are generated from placeholders [n]</span>
+              )}
+            </div>
+
+            {isAnswerListOnlyType ? (
+              <div className="manage-gapfill-answer-list">
+                <div className="manage-gapfill-answer-head">
+                  <span>ID</span>
+                  <span>Correct Answer</span>
+                  <span>Explain</span>
+                </div>
+
+                {group.questions.length === 0 ? (
+                  <div className="manage-gapfill-answer-empty">Press "Sync Questions from [n]" to generate answer rows.</div>
+                ) : (
+                  group.questions.map((question, questionIndex) => (
+                    <div key={`gapfill-answer-${gi}-${questionIndex}`} className="manage-gapfill-answer-row">
+                      <div className="manage-gapfill-answer-id">[{question.q_number}]</div>
+                      <input
+                        value={typeof question.correct_answers_raw === 'string'
+                          ? question.correct_answers_raw
+                          : (question.correct_answers || []).join(', ')}
+                        onChange={(event) => onSetCorrectAnswers(gi, questionIndex, event.target.value)}
+                        placeholder="Correct answer (comma-separated if needed)"
+                      />
+                      <textarea
+                        value={question.explanation || ''}
+                        onChange={(event) => onUpdateQuestion(gi, questionIndex, 'explanation', event.target.value)}
+                        onKeyDown={(event) =>
+                          handleBoldShortcut(event, question.explanation || '', (next) => onUpdateQuestion(gi, questionIndex, 'explanation', next))
+                        }
+                        rows={1}
+                        placeholder="Optional explanation"
+                      />
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : group.questions.map((question, questionIndex) => {
+              const questionCollapseKey = `${gi}-${questionIndex}`;
+              const isQuestionCollapsed = collapsedQuestions.has(questionCollapseKey);
+              const questionOptions = Array.isArray(question.option) && question.option.length ? question.option : DEFAULT_OPTIONS;
+
+              return (
+                <div key={questionCollapseKey} className="question-block" style={{ marginTop: '0.75rem' }}>
+                  <div
+                    className="group-header"
+                    onClick={() => onToggleQuestionCollapse(gi, questionIndex)}
+                    style={{ cursor: 'pointer', borderBottom: 'none', padding: '0.75rem 0.5rem' }}
+                  >
+                    <span style={{ fontWeight: 700, color: '#4F46E5' }}>Q{question.q_number}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }} onClick={(event) => event.stopPropagation()}>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => onRemoveQuestion(gi, questionIndex)} style={{ color: '#EF4444' }}>
+                        <Trash2 size={14} />
+                      </button>
+                      {isQuestionCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+                    </div>
+                  </div>
+
+                  {!isQuestionCollapsed && (
+                    <div style={{ padding: '0 0.5rem 0.75rem' }}>
+                      <div className="form-row">
+                        <label>{canSyncPlaceholderQuestions ? 'Question Text (Optional)' : 'Question Text'}</label>
+                        <textarea
+                          value={question.text || ''}
+                          onChange={(event) => onUpdateQuestion(gi, questionIndex, 'text', event.target.value)}
+                          onKeyDown={(event) =>
+                            handleBoldShortcut(event, question.text || '', (next) => onUpdateQuestion(gi, questionIndex, 'text', next))
+                          }
+                          rows={canSyncPlaceholderQuestions ? 1 : 2}
+                          placeholder={canSyncPlaceholderQuestions ? 'Optional label for this placeholder question' : 'Question text...'}
+                        />
+                      </div>
+
+                      {group.type === 'mult_choice' && (
+                        <div className="form-section" style={{ marginTop: '0.75rem' }}>
+                          <h4>Options</h4>
+                          {questionOptions.map((option, optionIndex) => (
+                            <div key={`${questionCollapseKey}-option-${optionIndex}`} className="option-row" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                              <span style={{ minWidth: 18, fontWeight: 700, color: '#6366F1' }}>{option.label}</span>
+                              <input
+                                value={option.text}
+                                onChange={(event) => onSetQuestionOption(gi, questionIndex, optionIndex, event.target.value)}
+                                placeholder={`Option ${option.label}`}
+                                className="manage-input-field"
+                              />
+                              <button type="button" className="btn btn-ghost btn-sm" onClick={() => onRemoveQuestionOption(gi, questionIndex, optionIndex)} style={{ color: '#EF4444' }}>
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          ))}
+                          <button type="button" className="btn btn-ghost btn-sm" style={{ marginTop: '0.35rem', color: '#6366F1' }} onClick={() => onAddQuestionOption(gi, questionIndex)}>
+                            + Add Option
+                          </button>
+                        </div>
+                      )}
+
+                      <div className="form-row" style={{ marginTop: '0.75rem' }}>
+                        <label>Correct Answer(s)</label>
+                        <input
+                          value={typeof question.correct_answers_raw === 'string'
+                            ? question.correct_answers_raw
+                            : (question.correct_answers || []).join(', ')}
+                          onChange={(event) => onSetCorrectAnswers(gi, questionIndex, event.target.value)}
+                          placeholder={
+                            group.type === 'true_false_notgiven'
+                              ? 'TRUE / FALSE / NOT GIVEN'
+                              : group.type === 'yes_no_notgiven'
+                                ? 'YES / NO / NOT GIVEN'
+                                : (isMultipleChoiceType && isMultiChoiceMode)
+                                  ? 'e.g. A, C'
+                                  : 'Comma-separated answers'
+                          }
+                        />
+                        {isBooleanType && (
+                          <div className="manage-inline-fields" style={{ marginTop: '0.35rem' }}>
+                            {booleanAnswerPresets.map((value) => (
+                              <button
+                                key={`${questionCollapseKey}-preset-${value}`}
+                                type="button"
+                                className="btn btn-ghost btn-sm"
+                                onClick={() => onSetCorrectAnswers(gi, questionIndex, value)}
+                              >
+                                {value}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="form-row">
+                        <label>Explanation</label>
+                        <textarea
+                          value={question.explanation || ''}
+                          onChange={(event) => onUpdateQuestion(gi, questionIndex, 'explanation', event.target.value)}
+                          onKeyDown={(event) =>
+                            handleBoldShortcut(event, question.explanation || '', (next) => onUpdateQuestion(gi, questionIndex, 'explanation', next))
+                          }
+                          rows={2}
+                          placeholder="Optional explanation"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }

@@ -108,6 +108,49 @@ const PERIOD_CONFIG = {
   month: { count: 7, chip: 'Last 7 Months', subtitle: 'Band score trends over the past 7 months' },
 };
 
+const COMPLETION_CANONICAL_TYPES = new Set([
+  'gap_fill',
+  'note_completion',
+  'summary_completion',
+  'sentence_completion',
+  'form_completion',
+  'table_completion',
+  'flow_chart_completion',
+  'diagram_label_completion',
+]);
+
+const canonicalWeaknessType = (rawType = '') => {
+  const type = String(rawType || 'unknown').toLowerCase();
+  if (COMPLETION_CANONICAL_TYPES.has(type)) return 'note_completion';
+  if (type === 'matching_info') return 'matching_information';
+  if (type === 'true_false_notgiven') return 'tfng';
+  if (type === 'yes_no_notgiven') return 'ynng';
+  if (type === 'mult_choice' || type === 'multiple_choice_single' || type === 'multiple_choice_multi' || type === 'mult_choice_multi') {
+    return 'multiple_choice';
+  }
+  return type;
+};
+
+const getWeaknessLabel = (rawType = '') => {
+  const type = canonicalWeaknessType(rawType);
+  const labels = {
+    tfng: 'True/False/Not Given (TFNG)',
+    ynng: 'Yes/No/Not Given (YNNG)',
+    multiple_choice: 'Multiple Choice',
+    note_completion: 'Note Completion',
+    matching_headings: 'Matching Headings',
+    matching_features: 'Matching Features',
+    matching_information: 'Matching Information',
+    matching_sentence_endings: 'Matching Sentence Endings',
+    matching: 'Matching',
+    short_answer: 'Short Answer Questions',
+    plan_map_diagram: 'Plan / Map / Diagram Labeling',
+    listening_map: 'Listening Map Labeling',
+  };
+  if (labels[type]) return labels[type];
+  return type.replace(/[_-]+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
 const typeToSkillField = (type) => {
   if (type === 'reading') return 'Reading';
   if (type === 'writing') return 'Writing';
@@ -297,14 +340,28 @@ const buildDashboardFromLegacy = ({ skills = {}, weaknesses = [], history = [] }
   const firstOverall = overallSeries.length ? Number(overallSeries[0]) : 0;
   const improvement = roundOne(overallBand - firstOverall);
 
-  const normalizedWeaknesses = Array.isArray(weaknesses)
-    ? weaknesses.map((item) => ({
-      category: String(item?.type || 'unknown').replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
-      score: roundOne(item?.accuracy || 0),
+  const weaknessMerged = Array.isArray(weaknesses)
+    ? weaknesses.reduce((acc, item) => {
+      const key = canonicalWeaknessType(item?.type || 'unknown');
+      if (!acc[key]) acc[key] = { total: 0, weighted: 0 };
+      const total = Number(item?.total || 0);
+      const accuracy = Number(item?.accuracy || 0);
+      acc[key].total += total;
+      acc[key].weighted += accuracy * total;
+      return acc;
+    }, {})
+    : {};
+
+  const normalizedWeaknesses = Object.entries(weaknessMerged).map(([type, stat]) => {
+    const total = Number(stat.total || 0);
+    const score = total > 0 ? (Number(stat.weighted || 0) / total) : 0;
+    return {
+      category: getWeaknessLabel(type),
+      score: roundOne(score),
       fullMark: 100,
-      total: Number(item?.total || 0),
-    }))
-    : [];
+      total,
+    };
+  }).sort((a, b) => Number(a.score || 0) - Number(b.score || 0));
 
   return {
     summary: {

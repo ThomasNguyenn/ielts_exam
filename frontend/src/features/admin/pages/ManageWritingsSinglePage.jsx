@@ -21,6 +21,7 @@ const formatDate = (value) => {
 
 export default function ManageWritingsSinglePage() {
   const { id: routeEditId } = useParams();
+  const isCreateRoute = routeEditId === 'new';
   const navigate = useNavigate();
   const { showNotification } = useNotification();
 
@@ -29,7 +30,7 @@ export default function ManageWritingsSinglePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [activeTab, setActiveTab] = useState(routeEditId ? 'editor' : 'list');
-  const [editingId, setEditingId] = useState(routeEditId || null);
+  const [editingId, setEditingId] = useState(isCreateRoute ? null : (routeEditId || null));
 
   const loadWritings = async () => {
     setLoading(true);
@@ -49,8 +50,11 @@ export default function ManageWritingsSinglePage() {
 
   useEffect(() => {
     if (routeEditId) {
-      setEditingId(routeEditId);
+      setEditingId(routeEditId === 'new' ? null : routeEditId);
       setActiveTab('editor');
+    } else {
+      setEditingId(null);
+      setActiveTab('list');
     }
   }, [routeEditId]);
 
@@ -83,7 +87,7 @@ export default function ManageWritingsSinglePage() {
   const openCreateTab = () => {
     setEditingId(null);
     setActiveTab('editor');
-    navigate('/manage/writings');
+    navigate('/manage/writings/new');
   };
 
   const openEditTab = (id) => {
@@ -105,26 +109,35 @@ export default function ManageWritingsSinglePage() {
 
   return (
     <div className="manage-main-content">
-      <div className="manage-main-tabs">
-        <button
-          type="button"
-          className={`manage-tab-btn ${activeTab === 'list' ? 'active' : ''}`}
-          onClick={() => {
-            setActiveTab('list');
-            setEditingId(null);
-            navigate('/manage/writings');
-          }}
-        >
-          Manage Writing Tasks
-        </button>
-        <button
-          type="button"
-          className={`manage-tab-btn ${activeTab === 'editor' ? 'active' : ''}`}
-          onClick={() => setActiveTab('editor')}
-        >
-          {editingId ? 'Edit Writing' : 'Add Writing'}
-        </button>
-      </div>
+      {activeTab === 'list' && (
+        <div className="manage-main-tabs">
+          <button
+            type="button"
+            className={`manage-tab-btn ${activeTab === 'list' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveTab('list');
+              setEditingId(null);
+              navigate('/manage/writings');
+            }}
+          >
+            Manage Writing Tasks
+          </button>
+          <button
+            type="button"
+            className={`manage-tab-btn ${activeTab === 'editor' ? 'active' : ''}`}
+            onClick={() => {
+              if (editingId) {
+                setActiveTab('editor');
+                navigate(`/manage/writings/${editingId}`);
+                return;
+              }
+              openCreateTab();
+            }}
+          >
+            {editingId ? 'Edit Writing' : 'Add Writing'}
+          </button>
+        </div>
+      )}
 
       {activeTab === 'list' ? (
         <>

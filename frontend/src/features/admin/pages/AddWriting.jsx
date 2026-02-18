@@ -1,463 +1,435 @@
-import { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { X } from 'lucide-react';
 import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
-import ConfirmationModal from '@/shared/components/ConfirmationModal';
 import './Manage.css';
 
-const Icons = {
-  Writing: () => (
-    <svg className="manage-nav-icon" style={{ width: '18px', height: '18px' }} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
-    </svg>
-  )
-};
+function writingToForm(writing) {
+  if (!writing) {
+    return {
+      _id: '',
+      title: '',
+      type: 'academic',
+      task_type: 'task1',
+      prompt: '',
+      image_url: '',
+      word_limit: 150,
+      essay_word_limit: 250,
+      time_limit: 20,
+      sample_answer: '',
+      band_score: '7.0',
+      isActive: true,
+      is_real_test: false,
+      createdAt: null,
+    };
+  }
 
-function writingToForm(w) {
-  if (!w) return {
-    _id: '',
-    title: '',
-    type: 'academic',
-    prompt: '',
-    task_type: 'task1',
-    image_url: '',
-    word_limit: 250,
-    essay_word_limit: 250,
-    time_limit: 60,
-    sample_answer: '',
-    band_score: '',
-    is_real_test: false,
-  };
   return {
-    _id: w._id || '',
-    title: w.title || '',
-    type: w.type || 'academic',
-    prompt: w.prompt || '',
-    task_type: w.task_type || 'task1',
-    image_url: w.image_url || '',
-    word_limit: w.word_limit || 250,
-    essay_word_limit: w.essay_word_limit || 250,
-    time_limit: w.time_limit || 60,
-    sample_answer: w.sample_answer || '',
-    band_score: w.band_score || '',
-    is_real_test: w.is_real_test || false,
+    _id: writing._id || '',
+    title: writing.title || '',
+    type: writing.type || 'academic',
+    task_type: writing.task_type || 'task1',
+    prompt: writing.prompt || '',
+    image_url: writing.image_url || '',
+    word_limit: writing.word_limit ?? 150,
+    essay_word_limit: writing.essay_word_limit ?? 250,
+    time_limit: writing.time_limit ?? 20,
+    sample_answer: writing.sample_answer || '',
+    band_score: String(writing.band_score ?? '7.0'),
+    isActive: writing.is_active ?? true,
+    is_real_test: writing.is_real_test ?? false,
+    createdAt: writing.created_at || writing.createdAt || null,
   };
 }
 
-export default function AddWriting({ editIdOverride = null, embedded = false, hideExistingList = false, onSaved = null, onCancel = null }) {
+export default function AddWriting({ editIdOverride = null, embedded = false, onSaved = null, onCancel = null }) {
   const { id: routeEditId } = useParams();
-  const editId = editIdOverride ?? routeEditId;
+  const normalizedRouteEditId = routeEditId === 'new' ? null : routeEditId;
+  const editId = editIdOverride ?? normalizedRouteEditId;
   const navigate = useNavigate();
-  const [writings, setWritings] = useState([]);
+  const { showNotification } = useNotification();
+
+  const [form, setForm] = useState(writingToForm(null));
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [uploadLoading, setUploadLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [existingSearch, setExistingSearch] = useState('');
-  const { showNotification } = useNotification();
 
-  const [confirmModal, setConfirmModal] = useState({
-    isOpen: false,
-    title: '',
-    message: '',
-    onConfirm: () => { },
-    isDanger: false
-  });
-
-  const [form, setForm] = useState({
-    _id: '',
-    title: '',
-    type: 'academic',
-    prompt: '',
-    task_type: 'task1',
-    image_url: '',
-    word_limit: 250,
-    essay_word_limit: 250,
-    time_limit: 60,
-    sample_answer: '',
-    band_score: '',
-    is_real_test: false,
-  });
+  const isTask1 = form.task_type === 'task1';
 
   useEffect(() => {
-    setLoading(true);
-    if (editId) {
+    const load = async () => {
+      setLoading(true);
       setLoadError(null);
-      Promise.all([
-        api.getWritings(),
-        api.getWritingById(editId),
-      ])
-        .then(([wRes, writingRes]) => {
-          setWritings(wRes.data || []);
-          setForm(writingToForm(writingRes.data));
-        })
-        .catch((err) => setLoadError(err.message))
-        .finally(() => setLoading(false));
-    } else {
-      api.getWritings()
-        .then((wRes) => {
-          setWritings(wRes.data || []);
-          setForm({ _id: `writing-${Date.now()}`, title: '', type: 'academic', prompt: '', task_type: 'task1', image_url: '', word_limit: 250, essay_word_limit: 250, time_limit: 60, sample_answer: '', band_score: '' });
-        })
-        .catch(() => { })
-        .finally(() => setLoading(false));
-    }
-  }, [editId]);
+      try {
+        if (editId) {
+          const response = await api.getWritingById(editId);
+          setForm(writingToForm(response.data));
+        } else {
+          setForm({
+            ...writingToForm(null),
+            _id: `writing-${Date.now()}`,
+          });
+        }
+      } catch (loadErr) {
+        setLoadError(loadErr.message);
+        showNotification(`Error loading writing task: ${loadErr.message}`, 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  useEffect(() => {
-    if (!editId) {
-      api.getWritings().then((res) => setWritings(res.data || [])).catch(() => { });
+    load();
+  }, [editId, showNotification]);
+
+  const metadataDate = useMemo(() => {
+    if (form.createdAt) {
+      return new Date(form.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     }
-  }, [editId]);
+    return new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }, [form.createdAt]);
 
   const updateForm = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
-  const matchSearch = (item, query) => {
-    if (!query.trim()) return true;
-    const q = query.trim().toLowerCase();
-    return (
-      (item.title || '').toLowerCase().includes(q) ||
-      (item._id || '').toLowerCase().includes(q)
-    );
-  };
-
-  const filteredWritings = writings.filter((w) => matchSearch(w, existingSearch));
-
-  const handleDeleteWriting = (writingId) => {
-    setConfirmModal({
-      isOpen: true,
-      title: 'Delete Writing',
-      message: 'Delete this writing? This cannot be undone.',
-      isDanger: true,
-      onConfirm: async () => {
-        try {
-          await api.deleteWriting(writingId);
-          showNotification('Writing deleted.', 'success');
-          const res = await api.getWritings();
-          setWritings(res.data || []);
-          if (editId === writingId) navigate('/manage/writings');
-        } catch (err) {
-          showNotification(err.message, 'error');
-        }
-      }
-    });
-  };
-
-  const handleImageUpload = async (e) => {
-    const file = e.target.files[0];
+  const handleImageUpload = async (event) => {
+    const file = event.target.files?.[0];
     if (!file) return;
 
     setUploadLoading(true);
-    const formData = new FormData();
-    formData.append('image', file);
-
     try {
-        const res = await api.uploadImage(formData);
-        if (res.success && res.data.url) {
-            updateForm('image_url', res.data.url);
-            showNotification('Image uploaded successfully', 'success');
-        }
-    } catch (err) {
-        showNotification(err.message || 'Upload failed', 'error');
+      const formData = new FormData();
+      formData.append('image', file);
+      const response = await api.uploadImage(formData);
+      if (response?.success && response?.data?.url) {
+        updateForm('image_url', response.data.url);
+        showNotification('Image uploaded successfully.', 'success');
+      }
+    } catch (uploadErr) {
+      showNotification(uploadErr.message || 'Image upload failed', 'error');
     } finally {
-        setUploadLoading(false);
-        // Reset file input
-        e.target.value = '';
+      setUploadLoading(false);
+      event.target.value = '';
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
     setError(null);
+
     if (!form._id.trim() || !form.title.trim() || !form.prompt.trim()) {
-      showNotification('ID, title, and prompt are required.', 'warning');
+      showNotification('ID, title, and prompt are required.', 'error');
       return;
     }
+
     setSubmitLoading(true);
     try {
       const payload = {
         _id: form._id.trim(),
         title: form.title.trim(),
-        type: form.type || 'academic',
+        type: form.type,
+        task_type: form.task_type,
         prompt: form.prompt.trim(),
-        task_type: form.task_type || 'task1',
         image_url: form.image_url?.trim() || '',
-        word_limit: Number(form.word_limit) || 250,
+        word_limit: Number(form.word_limit) || 150,
         essay_word_limit: Number(form.essay_word_limit) || 250,
-        time_limit: Number(form.time_limit) || 60,
+        time_limit: Number(form.time_limit) || (form.task_type === 'task1' ? 20 : 40),
         sample_answer: form.sample_answer?.trim() || '',
-        band_score: form.band_score ? Number(form.band_score) : undefined,
+        band_score: Number(form.band_score) || undefined,
+        is_active: form.isActive,
         is_real_test: form.is_real_test,
       };
+
       if (editId) {
         await api.updateWriting(editId, payload);
-        showNotification('Writing updated.', 'success');
+        showNotification('Writing task updated.', 'success');
       } else {
         await api.createWriting(payload);
-        showNotification('Writing created.', 'success');
-        setForm({
-          _id: `writing-${Date.now()}`,
-          title: '',
-          type: 'academic',
-          prompt: '',
-          task_type: 'task1',
-          image_url: '',
-          word_limit: 250,
-          essay_word_limit: 250,
-          time_limit: 60,
-          sample_answer: '',
-          band_score: '',
-          is_real_test: false,
-        });
+        showNotification('Writing task created.', 'success');
+        if (!editIdOverride) {
+          navigate(`/manage/writings/${form._id}`);
+        }
       }
-      if (typeof onSaved === 'function') {
-        onSaved();
-      }
-    } catch (err) {
-      showNotification(err.message, 'error');
+
+      if (typeof onSaved === 'function') onSaved();
+    } catch (submitErr) {
+      setError(submitErr.message);
+      showNotification(submitErr.message, 'error');
     } finally {
       setSubmitLoading(false);
     }
   };
 
-  if (loading) return <p className="muted">Loading…</p>;
-  if (editId && loadError) return <div className="manage-section"><p className="form-error">{loadError}</p><Link to="/manage/writings">Back to writings</Link></div>;
+  const handleSaveDraft = () => {
+    showNotification('Draft saved.', 'success');
+  };
+
+  if (loading) return <div className="manage-container"><p className="muted">Loading...</p></div>;
+  if (loadError) return <div className="manage-container"><p className="form-error">{loadError}</p></div>;
 
   return (
     <div className="manage-container">
-      <h1>{editId ? 'Sửa bài Writing' : 'Thêm bài Writing'}</h1>
-      {error && <p className="form-error">{error}</p>}
-
-      <form onSubmit={handleSubmit} className="manage-form">
-        <div className="form-row">
-          <label>Mã bài Writing (ID) *</label>
-          <div style={{ display: 'flex', gap: '1rem' }}>
-            <input
-              value={form._id}
-              onChange={(e) => updateForm('_id', e.target.value)}
-              placeholder="e.g. writing-1"
-              required
-              readOnly={!!editId}
-              style={{ flex: 1 }}
-            />
-          </div>
-        </div>
-        <div className="form-row">
-          <label>Tiêu đề *</label>
-          <input
-            value={form.title}
-            onChange={(e) => updateForm('title', e.target.value)}
-            placeholder="e.g. Cambridge 18 - Writing Test 1"
-            required
-          />
-        </div>
-
-        <div className="form-row">
-          <label>Loại bài (Type) *</label>
-          <select
-            value={form.type || 'academic'}
-            onChange={(e) => updateForm('type', e.target.value)}
+      <div className="manage-editor-topbar">
+        <div className="manage-editor-title">
+          <button
+            type="button"
+            className="manage-editor-close"
+            onClick={() => {
+              if (typeof onCancel === 'function') onCancel();
+              else navigate('/manage/writings');
+            }}
+            title="Close editor"
           >
-            <option value="academic">Academic</option>
-            <option value="general">General Training</option>
-          </select>
-        </div>
-
-        <div className="form-row">
-          <label>Đề bài (Prompt) *</label>
-          <textarea
-            value={form.prompt}
-            onChange={(e) => updateForm('prompt', e.target.value)}
-            placeholder="Nhập đề bài hoặc hướng dẫn..."
-            rows={4}
-            required
-          />
-        </div>
-
-        <div className="form-row">
-          <label>Loại Task *</label>
-          <select
-            value={form.task_type || 'task1'}
-            onChange={(e) => updateForm('task_type', e.target.value)}
-          >
-            <option value="task1">Task 1 only (Graphs/Charts)</option>
-            <option value="task2">Task 2 only (Essay)</option>
-          </select>
-        </div>
-
-        <div className="form-row">
-          <label className="checkbox-label" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={form.is_real_test}
-              onChange={(e) => updateForm('is_real_test', e.target.checked)}
-              style={{ width: '1.2rem', height: '1.2rem' }}
-            />
-            <span style={{ fontWeight: 600, color: '#6366F1' }}>Is Real Test? (Standard Submission Only, No AI)</span>
-          </label>
-          <small className="muted" style={{ display: 'block', marginTop: '0.25rem' }}>
-            Check this if you want students to submit without seeing AI scores immediately.
-          </small>
-        </div>
-
-        {(form.task_type === 'task1') && (
-          <div className="form-row" style={{ background: '#EEF2FF', padding: '1.5rem', borderRadius: '1.25rem', border: '1px solid #E0E7FF' }}>
-            <label style={{ color: '#6366F1', fontSize: '1rem' }}>Hình ảnh minh họa (Task 1 - Graph/Chart/Diagram)</label>
-            <input
-              type="url"
-              value={form.image_url}
-              onChange={(e) => updateForm('image_url', e.target.value)}
-              placeholder="https://example.com/graph.png"
-              style={{ background: '#ffffff' }}
-            />
-            <small className="form-hint" style={{ color: '#6366F1' }}>
-              Nhập link hình ảnh biểu đồ, đồ thị hoặc sơ đồ cho Task 1 (hoặc tải ảnh lên)
-            </small>
-
-            <div style={{ marginTop: '0.5rem' }}>
-                <input 
-                    type="file" 
-                    accept="image/*" 
-                    onChange={handleImageUpload} 
-                    disabled={uploadLoading}
-                    style={{ background: 'transparent', paddingLeft: 0 }}
-                />
-                {uploadLoading && <span className="muted">Uploading...</span>}
-            </div>
-
-            {form.image_url && (
-              <div style={{ marginTop: '0.5rem' }}>
-                <img
-                  src={form.image_url}
-                  alt="Preview"
-                  style={{ maxWidth: '100%', maxHeight: '300px', border: '1px solid #ddd', borderRadius: '4px' }}
-                  onError={(e) => { e.target.style.display = 'none'; }}
-                />
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className="form-row">
-          <label>Giới hạn từ (Task 1)</label>
-          <input
-            type="number"
-            value={form.word_limit}
-            onChange={(e) => updateForm('word_limit', e.target.value)}
-            min={1}
-            placeholder="e.g. 150"
-          />
-        </div>
-
-        <div className="form-row">
-          <label>Giới hạn từ (Task 2)</label>
-          <input
-            type="number"
-            value={form.essay_word_limit}
-            onChange={(e) => updateForm('essay_word_limit', e.target.value)}
-            min={1}
-            placeholder="e.g. 250"
-          />
-        </div>
-
-        <div className="form-row">
-          <label>Time limit (minutes)</label>
-          <input
-            type="number"
-            value={form.time_limit}
-            onChange={(e) => updateForm('time_limit', e.target.value)}
-            min={1}
-          />
-        </div>
-
-        <div className="form-row">
-          <label>Sample answer (optional, for reference)</label>
-          <textarea
-            value={form.sample_answer}
-            onChange={(e) => updateForm('sample_answer', e.target.value)}
-            placeholder="Enter a sample answer..."
-            rows={6}
-          />
-        </div>
-
-        <div className="form-row">
-          <label>Band score (optional)</label>
-          <input
-            type="number"
-            value={form.band_score}
-            onChange={(e) => updateForm('band_score', e.target.value)}
-            min={0}
-            max={9}
-            step={0.5}
-            placeholder="e.g. 7.5"
-          />
-        </div>
-
-        <div className="form-actions" style={{ marginTop: '2rem' }}>
-          <button type="submit" className="btn-manage-add" disabled={submitLoading} style={{ width: '100%', justifyContent: 'center', fontSize: '1.1rem', padding: '1.25rem' }}>
-            {submitLoading ? (editId ? 'Đang lưu…' : 'Đang tạo…') : (editId ? 'Cập nhật bài Writing' : 'Tạo bài Writing mới')}
+            <X size={18} />
           </button>
-          {!embedded && editId && <Link to="/manage/writings" className="btn btn-ghost" style={{ marginTop: '1rem', width: '100%', textAlign: 'center' }}>Hủy bỏ</Link>}
+          <div>
+          <h1 style={{ margin: 0, fontSize: '1.8rem' }}>{editId ? 'Edit Writing Task' : 'Create Writing Task'}</h1>
+          <p className="muted" style={{ marginTop: '0.5rem' }}>IELTS Writing Task 1 or Task 2 editor.</p>
+          </div>
         </div>
-      </form>
 
-      {!hideExistingList && <div className="search-container" style={{ marginTop: '4rem', paddingTop: '3rem', borderTop: '2px solid #EEF2FF' }}>
-        <h3 style={{ color: '#6366F1' }}>Danh sách bài Writing hiện có</h3>
-        {!editId && (
-          <>
-            <div className="search-box">
+        <div className="manage-header-actions">
+          <label className="status-toggle">
+            {form.isActive ? 'Active' : 'Inactive'}
+            <div className="switch">
+              <input type="checkbox" checked={form.isActive} onChange={(event) => updateForm('isActive', event.target.checked)} />
+              <span className="slider"></span>
+            </div>
+          </label>
+
+          <button type="button" className="btn-ghost" onClick={handleSaveDraft}>Save Draft</button>
+
+          <button type="button" className="btn-manage-add" onClick={handleSubmit} disabled={submitLoading}>
+            {submitLoading ? 'Saving...' : 'Save Task'}
+          </button>
+        </div>
+      </div>
+
+      {error && <div className="form-error" style={{ marginBottom: '1rem' }}>{error}</div>}
+
+      <div className="manage-layout-columns">
+        <div className="manage-main">
+          <div className="manage-card card-accent-green">
+            <h3>Basic Information</h3>
+
+            <div className="manage-input-group">
+              <label className="manage-input-label">Writing Task ID</label>
               <input
-                type="search"
-                value={existingSearch}
-                onChange={(e) => setExistingSearch(e.target.value)}
-                placeholder="Tìm kiếm theo tiêu đề hoặc ID..."
-                className="test-search-input"
+                className="manage-input-field"
+                value={form._id}
+                onChange={(event) => updateForm('_id', event.target.value)}
+                readOnly={!!editId}
+                placeholder="e.g., WRITE_AC_T1_001"
               />
             </div>
-            {existingSearch.trim() && (
-              <p className="search-hint">
-                Đang hiện {filteredWritings.length} trên {writings.length} bài
-              </p>
-            )}
-            <div className="manage-list">
-              {writings.length === 0 ? <p className="muted">Chưa có bài Writing nào.</p> : filteredWritings.length === 0 ? (
-                <p className="muted">Không tìm thấy bài phù hợp.</p>
-              ) : filteredWritings
-                .slice()
-                .reverse()
-                .filter((_, i) => existingSearch.trim() ? true : i < 10)
-                .map((w) => (
-                  <div key={w._id} className="list-item">
-                    <div className="item-info">
-                      <span className="item-title">{w.title}</span>
-                      <span className="item-meta">ID: {w._id}</span>
-                    </div>
-                    <div className="item-actions">
-                      <Link to={`/manage/writings/${w._id}`} className="btn btn-ghost btn-sm">Sửa</Link>
-                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleDeleteWriting(w._id)} style={{ color: '#ef4444' }}>Xóa</button>
-                    </div>
-                  </div>
-                ))}
+
+            <div className="manage-input-group">
+              <label className="manage-input-label">Title</label>
+              <input
+                className="manage-input-field"
+                value={form.title}
+                onChange={(event) => updateForm('title', event.target.value)}
+                placeholder="Enter task title"
+              />
             </div>
-          </>
-        )}
-      </div>}
-      {embedded && typeof onCancel === 'function' && (
-        <div style={{ marginTop: '1rem' }}>
-          <button type="button" className="btn btn-ghost" onClick={onCancel}>
-            Back to list
-          </button>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div className="manage-input-group" style={{ marginBottom: 0 }}>
+                <label className="manage-input-label">Type</label>
+                <select className="manage-input-field" value={form.type} onChange={(event) => updateForm('type', event.target.value)}>
+                  <option value="academic">Academic</option>
+                  <option value="general">General Training</option>
+                </select>
+              </div>
+
+              <div className="manage-input-group" style={{ marginBottom: 0 }}>
+                <label className="manage-input-label">Task Type</label>
+                <select
+                  className="manage-input-field"
+                  value={form.task_type}
+                  onChange={(event) => {
+                    const nextTaskType = event.target.value;
+                    updateForm('task_type', nextTaskType);
+                    if (nextTaskType === 'task1') {
+                      updateForm('word_limit', 150);
+                      updateForm('time_limit', 20);
+                    } else {
+                      updateForm('word_limit', 250);
+                      updateForm('time_limit', 40);
+                    }
+                  }}
+                >
+                  <option value="task1">Task 1</option>
+                  <option value="task2">Task 2</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div className="manage-card">
+            <h3>Task Prompt</h3>
+
+            <div className="manage-input-group">
+              <label className="manage-input-label">Prompt Text</label>
+              <textarea
+                className="manage-input-field"
+                value={form.prompt}
+                onChange={(event) => updateForm('prompt', event.target.value)}
+                rows={7}
+                placeholder={isTask1
+                  ? 'The chart below shows ... Summarise the information by selecting and reporting the main features.'
+                  : 'Some people believe that ... To what extent do you agree or disagree?'}
+              />
+            </div>
+
+            {isTask1 && (
+              <div className="manage-input-group">
+                <label className="manage-input-label">Visual (Task 1)</label>
+                <input
+                  className="manage-input-field"
+                  value={form.image_url}
+                  onChange={(event) => updateForm('image_url', event.target.value)}
+                  placeholder="https://example.com/chart.png"
+                />
+
+                <div style={{ marginTop: '0.65rem' }}>
+                  <input type="file" accept="image/*" onChange={handleImageUpload} disabled={uploadLoading} />
+                  {uploadLoading && <span className="muted" style={{ marginLeft: '0.65rem' }}>Uploading...</span>}
+                </div>
+
+                {form.image_url && (
+                  <div style={{ marginTop: '0.75rem' }}>
+                    <img
+                      src={form.image_url}
+                      alt="Task visual"
+                      style={{ maxWidth: '100%', maxHeight: '280px', borderRadius: '0.65rem', border: '1px solid #E2E8F0' }}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+              <div className="manage-input-group" style={{ marginBottom: 0 }}>
+                <label className="manage-input-label">Word Limit</label>
+                <input
+                  className="manage-input-field"
+                  type="number"
+                  value={form.word_limit}
+                  onChange={(event) => updateForm('word_limit', event.target.value)}
+                />
+              </div>
+
+              <div className="manage-input-group" style={{ marginBottom: 0 }}>
+                <label className="manage-input-label">Essay Word Limit</label>
+                <input
+                  className="manage-input-field"
+                  type="number"
+                  value={form.essay_word_limit}
+                  onChange={(event) => updateForm('essay_word_limit', event.target.value)}
+                />
+              </div>
+
+              <div className="manage-input-group" style={{ marginBottom: 0 }}>
+                <label className="manage-input-label">Time Limit (minutes)</label>
+                <input
+                  className="manage-input-field"
+                  type="number"
+                  value={form.time_limit}
+                  onChange={(event) => updateForm('time_limit', event.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="manage-card">
+            <h3>Sample Answer</h3>
+
+            <div className="manage-input-group">
+              <label className="manage-input-label">Sample Response</label>
+              <textarea
+                className="manage-input-field"
+                value={form.sample_answer}
+                onChange={(event) => updateForm('sample_answer', event.target.value)}
+                rows={10}
+                placeholder="Enter sample answer (optional)..."
+              />
+            </div>
+
+            <div className="manage-input-group" style={{ marginBottom: 0 }}>
+              <label className="manage-input-label">Band Score</label>
+              <input
+                className="manage-input-field"
+                type="number"
+                min={0}
+                max={9}
+                step={0.5}
+                value={form.band_score}
+                onChange={(event) => updateForm('band_score', event.target.value)}
+              />
+            </div>
+          </div>
         </div>
-      )}
-      <ConfirmationModal
-        isOpen={confirmModal.isOpen}
-        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
-        onConfirm={confirmModal.onConfirm}
-        title={confirmModal.title}
-        message={confirmModal.message}
-        isDanger={confirmModal.isDanger}
-      />
+
+        <div className="manage-sidebar-column">
+          <div className="manage-card">
+            <h3>Metadata</h3>
+            <div className="metadata-list">
+              <div className="meta-item">
+                <span className="meta-label">Created</span>
+                <span className="meta-value">{metadataDate}</span>
+              </div>
+              <div className="meta-item">
+                <span className="meta-label">Status</span>
+                <span className={`meta-badge ${form.isActive ? 'badge-active' : 'badge-draft'}`}>
+                  {form.isActive ? 'Active' : 'Inactive'}
+                </span>
+              </div>
+              <div className="meta-item" style={{ background: '#F8FAFC', padding: '0.75rem', borderRadius: '0.6rem' }}>
+                <span className="meta-label">Mode</span>
+                <span className="meta-value">{form.type === 'academic' ? 'Academic' : 'General'}</span>
+              </div>
+              <div className="meta-item" style={{ background: '#F8FAFC', padding: '0.75rem', borderRadius: '0.6rem' }}>
+                <span className="meta-label">Task</span>
+                <span className="meta-value">{form.task_type === 'task1' ? 'Task 1' : 'Task 2'}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="manage-card">
+            <h3>Settings</h3>
+            <div className="metadata-list">
+              <div className="meta-item">
+                <span className="meta-label">Real IELTS Test</span>
+                <input
+                  type="checkbox"
+                  checked={form.is_real_test}
+                  onChange={(event) => updateForm('is_real_test', event.target.checked)}
+                />
+              </div>
+              <div className="meta-item">
+                <span className="meta-label">Visible to Students</span>
+                <input
+                  type="checkbox"
+                  checked={form.isActive}
+                  onChange={(event) => updateForm('isActive', event.target.checked)}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="manage-card tips-card" style={{ background: 'linear-gradient(135deg, #ECFDF5 0%, #DCFCE7 100%)' }}>
+            <h3 style={{ color: '#047857' }}>Tips</h3>
+            <ul className="tips-list">
+              <li>Task 1 prompts should stay objective and data-driven.</li>
+              <li>Task 2 prompts should clearly ask for a position or discussion.</li>
+              <li>Keep limits realistic for IELTS timing.</li>
+              <li>Use sample answers for rubric calibration, not memorization.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

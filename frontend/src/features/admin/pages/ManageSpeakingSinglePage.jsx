@@ -21,6 +21,7 @@ const formatDate = (value) => {
 
 export default function ManageSpeakingSinglePage() {
   const { id: routeEditId } = useParams();
+  const isCreateRoute = routeEditId === 'new';
   const navigate = useNavigate();
   const { showNotification } = useNotification();
 
@@ -29,7 +30,7 @@ export default function ManageSpeakingSinglePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [activeTab, setActiveTab] = useState(routeEditId ? 'editor' : 'list');
-  const [editingId, setEditingId] = useState(routeEditId || null);
+  const [editingId, setEditingId] = useState(isCreateRoute ? null : (routeEditId || null));
 
   const loadSpeakings = async () => {
     setLoading(true);
@@ -49,8 +50,11 @@ export default function ManageSpeakingSinglePage() {
 
   useEffect(() => {
     if (routeEditId) {
-      setEditingId(routeEditId);
+      setEditingId(routeEditId === 'new' ? null : routeEditId);
       setActiveTab('editor');
+    } else {
+      setEditingId(null);
+      setActiveTab('list');
     }
   }, [routeEditId]);
 
@@ -84,7 +88,7 @@ export default function ManageSpeakingSinglePage() {
   const openCreateTab = () => {
     setEditingId(null);
     setActiveTab('editor');
-    navigate('/manage/speaking');
+    navigate('/manage/speaking/new');
   };
 
   const openEditTab = (id) => {
@@ -106,26 +110,35 @@ export default function ManageSpeakingSinglePage() {
 
   return (
     <div className="manage-main-content">
-      <div className="manage-main-tabs">
-        <button
-          type="button"
-          className={`manage-tab-btn ${activeTab === 'list' ? 'active' : ''}`}
-          onClick={() => {
-            setActiveTab('list');
-            setEditingId(null);
-            navigate('/manage/speaking');
-          }}
-        >
-          Manage Speaking Topics
-        </button>
-        <button
-          type="button"
-          className={`manage-tab-btn ${activeTab === 'editor' ? 'active' : ''}`}
-          onClick={() => setActiveTab('editor')}
-        >
-          {editingId ? 'Edit Speaking' : 'Add Speaking'}
-        </button>
-      </div>
+      {activeTab === 'list' && (
+        <div className="manage-main-tabs">
+          <button
+            type="button"
+            className={`manage-tab-btn ${activeTab === 'list' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveTab('list');
+              setEditingId(null);
+              navigate('/manage/speaking');
+            }}
+          >
+            Manage Speaking Topics
+          </button>
+          <button
+            type="button"
+            className={`manage-tab-btn ${activeTab === 'editor' ? 'active' : ''}`}
+            onClick={() => {
+              if (editingId) {
+                setActiveTab('editor');
+                navigate(`/manage/speaking/${editingId}`);
+                return;
+              }
+              openCreateTab();
+            }}
+          >
+            {editingId ? 'Edit Speaking' : 'Add Speaking'}
+          </button>
+        </div>
+      )}
 
       {activeTab === 'list' ? (
         <>
