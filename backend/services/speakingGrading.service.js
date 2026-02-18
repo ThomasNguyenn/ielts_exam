@@ -187,6 +187,149 @@ RETURN ONLY VALID JSON (no markdown, no extra text):
 }
 `;
 
+const MAX_MOCK_EXAMINER_TURNS = Number(process.env.SPEAKING_MOCK_MAX_TURNS || 6);
+
+const normalizeMockTurnsForPrompt = (turns = []) =>
+  (Array.isArray(turns) ? turns : [])
+    .filter((turn) => ["examiner", "candidate"].includes(String(turn?.role || "")))
+    .map((turn) => ({
+      role: String(turn.role).toLowerCase(),
+      message: String(turn.message || "").trim(),
+    }))
+    .filter((turn) => turn.message)
+    .slice(-12);
+
+const buildMockExaminerPrompt = ({
+  topicPrompt,
+  topicPart,
+  subQuestions,
+  transcript,
+  turns,
+  latestAnswer,
+}) => `
+You are simulating a real IELTS Speaking examiner in conversational mode.
+This is mainly for Part 3 pressure handling.
+
+TOPIC:
+"${topicPrompt}"
+
+PART:
+${topicPart}
+
+REFERENCE SUB-QUESTIONS:
+${(subQuestions || []).map((q) => `- ${q}`).join("\n") || "- None"}
+
+INITIAL CANDIDATE ANSWER TRANSCRIPT:
+"${transcript || "(none)"}"
+
+CHAT HISTORY:
+${turns.map((turn, index) => `${index + 1}. ${turn.role.toUpperCase()}: ${turn.message}`).join("\n") || "(empty)"}
+
+LATEST CANDIDATE ANSWER:
+"${latestAnswer || "(start interview)"}"
+
+RULES:
+- Ask ONE follow-up question at a time.
+- Question must connect to the candidate's previous answer.
+- Keep examiner tone direct and slightly challenging, like real Part 3.
+- Use abstract reasoning style (cause, comparison, long-term impact, policy, trade-off).
+- Follow-up question max 24 words.
+- Give one short pressure coaching line in Vietnamese.
+- End when the interview already reached enough depth or examiner turns >= ${MAX_MOCK_EXAMINER_TURNS}.
+
+Return ONLY valid JSON:
+{
+  "next_question": "string",
+  "pressure_feedback": "string (Vietnamese, 1 sentence)",
+  "should_end": boolean,
+  "final_assessment": "string (Vietnamese, 2-4 sentences, only meaningful when should_end=true)"
+}
+`;
+
+const buildMockExaminerFallback = ({ topicPrompt, turns }) => {
+  const examinerTurns = (turns || []).filter((turn) => turn.role === "examiner").length;
+  const shouldEnd = examinerTurns >= MAX_MOCK_EXAMINER_TURNS;
+
+  if (shouldEnd) {
+    return {
+      nextQuestion: "",
+      pressureFeedback: "Giữ bình tĩnh, trả lời theo cấu trúc: ý chính -> lý do -> ví dụ.",
+      shouldEnd: true,
+      finalAssessment:
+        "Bạn đã hoàn thành phần mô phỏng hội thoại. Hãy cải thiện chiều sâu lập luận bằng cách nêu nguyên nhân, hệ quả, và ví dụ cụ thể trong mỗi câu trả lời.",
+      aiSource: "fallback",
+    };
+  }
+
+  return {
+    nextQuestion: `How would you justify your view if someone strongly disagreed with you about ${topicPrompt}?`,
+    pressureFeedback: "Câu trả lời nên rõ quan điểm, có so sánh và ví dụ ngắn để tăng tính thuyết phục.",
+    shouldEnd: false,
+    finalAssessment: "",
+    aiSource: "fallback",
+  };
+};
+
+export const generateMockExaminerFollowUp = async ({
+  topicPrompt,
+  topicPart = 3,
+  subQuestions = [],
+  transcript = "",
+  turns = [],
+  latestAnswer = "",
+} = {}) => {
+  const normalizedTurns = normalizeMockTurnsForPrompt(turns);
+  const examinerTurnCount = normalizedTurns.filter((turn) => turn.role === "examiner").length;
+  if (examinerTurnCount >= MAX_MOCK_EXAMINER_TURNS) {
+    return buildMockExaminerFallback({ topicPrompt, turns: normalizedTurns });
+  }
+
+  const prompt = buildMockExaminerPrompt({
+    topicPrompt,
+    topicPart,
+    subQuestions,
+    transcript,
+    turns: normalizedTurns,
+    latestAnswer,
+  });
+
+  try {
+    if (!genAI) {
+      throw new Error("Gemini API key is not configured");
+    }
+
+    const aiResponse = await requestGeminiJsonWithFallback({
+      genAI,
+      models: GEMINI_MODELS,
+      contents: [prompt],
+      generationConfig: { responseMimeType: "application/json" },
+      timeoutMs: Number(process.env.GEMINI_TIMEOUT_MS || 30000),
+      maxAttempts: Number(process.env.GEMINI_MAX_ATTEMPTS || 3),
+    });
+
+    const payload = aiResponse.data || {};
+    const shouldEnd = Boolean(payload.should_end);
+    const nextQuestion = String(payload.next_question || "").trim();
+    const pressureFeedback = String(payload.pressure_feedback || "").trim();
+    const finalAssessment = String(payload.final_assessment || "").trim();
+
+    if (!shouldEnd && !nextQuestion) {
+      throw new Error("Mock examiner returned empty follow-up question");
+    }
+
+    return {
+      nextQuestion,
+      pressureFeedback,
+      shouldEnd,
+      finalAssessment,
+      aiSource: aiResponse.model,
+    };
+  } catch (error) {
+    console.warn("Mock examiner fallback triggered:", error.message);
+    return buildMockExaminerFallback({ topicPrompt, turns: normalizedTurns });
+  }
+};
+
 export const scoreSpeakingSessionById = async ({ sessionId, force = false } = {}) => {
   const session = await SpeakingSession.findById(sessionId);
   if (!session) {

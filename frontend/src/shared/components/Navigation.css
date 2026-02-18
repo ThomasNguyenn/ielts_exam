@@ -70,7 +70,11 @@
         font-size: 0.7rem !important;
     }
 }
-
+@media (max-width: 1600px) and (min-width: 1500px) {
+    .nav-item {
+        font-size: 0.8rem !important;
+    }
+}
 .nav-mobile-brand {
     color: #E2E8F0;
     font-size: 1rem;

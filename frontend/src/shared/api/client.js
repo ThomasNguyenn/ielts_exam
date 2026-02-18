@@ -306,6 +306,15 @@ export const api = {
   getRandomSpeaking: () => request('/api/speaking/random'),
   getSpeakingById: (id) => request(`/api/speaking/${id}`),
   getSpeakingSession: (sessionId) => request(`/api/speaking/sessions/${sessionId}`),
+  preGeneratePart3SpeakingAudio: () =>
+    request('/api/speaking/admin/pre-generate-part3-audio', {
+      method: 'POST',
+    }),
+  runMockExaminerTurn: (sessionId, body = {}) =>
+    request(`/api/speaking/sessions/${sessionId}/mock-examiner/turn`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   createSpeaking: (data) => request('/api/speaking', { method: 'POST', body: JSON.stringify(data) }),
   updateSpeaking: (id, data) => request(`/api/speaking/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteSpeaking: (id) => request(`/api/speaking/${id}`, { method: 'DELETE' }),

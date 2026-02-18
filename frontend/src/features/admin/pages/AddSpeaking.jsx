@@ -11,6 +11,7 @@ export default function AddSpeaking() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [submitLoading, setSubmitLoading] = useState(false);
+  const [bulkGenerateLoading, setBulkGenerateLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false); // Define success state
   const [existingSearch, setExistingSearch] = useState('');
@@ -131,6 +132,24 @@ export default function AddSpeaking() {
     } catch (err) {
       setError(err.message);
       showNotification('Error deleting topic: ' + err.message, 'error');
+    }
+  };
+
+  const handleBulkPreGeneratePart3Audio = async () => {
+    if (!window.confirm('Pre-generate read-aloud audio for all Part 3 topics now?')) return;
+
+    setBulkGenerateLoading(true);
+    try {
+      const res = await api.preGeneratePart3SpeakingAudio();
+      const data = res?.data || {};
+      showNotification(
+        `Done. Generated ${data.totalGeneratedAudios || 0} audio files across ${data.topicsGenerated || 0} topic(s).`,
+        'success'
+      );
+    } catch (err) {
+      showNotification(`Bulk generation failed: ${err.message}`, 'error');
+    } finally {
+      setBulkGenerateLoading(false);
     }
   };
 
@@ -285,7 +304,18 @@ export default function AddSpeaking() {
       </form>
 
       <div className="search-container" style={{ marginTop: '4rem', paddingTop: '3rem', borderTop: '2px solid #EEF2FF' }}>
-        <h3 style={{ color: '#6366F1' }}>Danh sách chủ đề Speaking hiện có</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+          <h3 style={{ color: '#6366F1', margin: 0 }}>Danh sách chủ đề Speaking hiện có</h3>
+          <button
+            type="button"
+            onClick={handleBulkPreGeneratePart3Audio}
+            disabled={bulkGenerateLoading}
+            className="btn-manage-add"
+            style={{ width: 'auto', padding: '0.65rem 1rem' }}
+          >
+            {bulkGenerateLoading ? 'Generating Part 3 audio...' : 'Pre-generate Part 3 Audio'}
+          </button>
+        </div>
         {!editId && (
           <>
             <div className="search-box" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>

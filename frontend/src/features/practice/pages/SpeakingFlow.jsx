@@ -39,11 +39,10 @@ export default function SpeakingFlow() {
     useEffect(() => {
         if (!id) return;
 
-        api.getSpeakings()
+        api.getSpeakingById(id)
             .then((res) => {
-                const found = (res.data || []).find((t) => t._id === id);
-                if (!found) throw new Error('Topic not found');
-                setTopic(found);
+                if (!res?._id) throw new Error('Topic not found');
+                setTopic(res);
             })
             .catch((err) => {
                 console.error(err);

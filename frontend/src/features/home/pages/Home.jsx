@@ -12,7 +12,7 @@ export default function Home() {
 
         <section className="hero bg-[#EEF2FF] font-inter">
           <h1 className="text-[48px] font-bold">Luyện thi IELTS Online Test miễn phí </h1>
-          <p className="text-[20px] leading-[28px] w-[700px]">Luyện thi IELTS Online Test miễn phí. Trải nghiệm thi thử IELTS sát đề thi thật, với giao diện trực tuyến kèm giải thích chi tiết. Bắt đầu luyện thi ngay hôm nay để sẵn sàng chinh phục kỳ thi IELTS!</p>
+          <p className="text-[20px] leading-[28px] max-w-[700px] mx-auto">Luyện thi IELTS Online Test miễn phí. Trải nghiệm thi thử IELTS sát đề thi thật, với giao diện trực tuyến kèm giải thích chi tiết. Bắt đầu luyện thi ngay hôm nay để sẵn sàng chinh phục kỳ thi IELTS!</p>
           <Link to="/tests" className="btn-hero-start">
             Luyện thi ngay
           </Link>

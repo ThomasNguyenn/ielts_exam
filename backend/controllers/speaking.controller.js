@@ -3,7 +3,8 @@ import SpeakingSession from "../models/SpeakingSession.js";
 import cloudinary from "../utils/cloudinary.js";
 import { isAiAsyncModeEnabled } from "../config/queue.config.js";
 import { enqueueSpeakingAiScoreJob, isAiQueueReady } from "../queues/ai.queue.js";
-import { scoreSpeakingSessionById } from "../services/speakingGrading.service.js";
+import { scoreSpeakingSessionById, generateMockExaminerFollowUp } from "../services/speakingGrading.service.js";
+import { ensurePart3ConversationScript } from "../services/speakingReadAloud.service.js";
 import { parsePagination, buildPaginationMeta } from "../utils/pagination.js";
 
 const escapeRegex = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -33,6 +34,19 @@ const canAccessSession = (session, user) => {
   if (String(session.userId) === String(user.userId)) return true;
   return user.role === "admin" || user.role === "teacher";
 };
+
+const normalizeMockExaminerTurns = (turns = []) =>
+  (Array.isArray(turns) ? turns : [])
+    .filter((turn) => ["examiner", "candidate"].includes(String(turn?.role || "")))
+    .map((turn) => ({
+      role: String(turn.role).toLowerCase(),
+      message: String(turn.message || "").trim(),
+      createdAt: turn.createdAt || new Date(),
+    }))
+    .filter((turn) => turn.message)
+    .slice(-20);
+
+const MAX_CANDIDATE_ANSWER_CHARS = Number(process.env.SPEAKING_MOCK_MAX_ANSWER_CHARS || 2000);
 
 const uploadSpeakingAudio = async (audioFile) => {
   if (!audioFile?.buffer) {
@@ -135,9 +149,71 @@ export const getSpeakingById = async (req, res) => {
     if (!topic) {
       return res.status(404).json({ message: "Speaking topic not found" });
     }
-    return res.json(topic);
+
+    const conversationScript = await ensurePart3ConversationScript(topic);
+    const payload = topic.toObject();
+    if (conversationScript) {
+      payload.conversation_script = conversationScript;
+    }
+
+    return res.json(payload);
   } catch (error) {
     return res.status(500).json({ message: error.message });
+  }
+};
+
+export const preGeneratePart3ReadAloud = async (req, res) => {
+  try {
+    const topics = await Speaking.find({ part: 3 }).sort({ created_at: -1 });
+
+    const summary = {
+      totalTopics: topics.length,
+      topicsWithQuestions: 0,
+      topicsGenerated: 0,
+      topicsAlreadyReady: 0,
+      topicsUnavailable: 0,
+      totalGeneratedAudios: 0,
+      totalReadyAudios: 0,
+      failedTopics: [],
+    };
+
+    for (const topic of topics) {
+      try {
+        const result = await ensurePart3ConversationScript(topic, { includeStats: true });
+        const script = result?.script;
+        const stats = result?.stats || {};
+        const questions = Array.isArray(script?.questions) ? script.questions : [];
+        const totalQuestions = questions.length;
+        const readyQuestions = questions.filter((item) => item.audio_status === "ready").length;
+
+        if (totalQuestions > 0) {
+          summary.topicsWithQuestions += 1;
+          summary.totalReadyAudios += readyQuestions;
+        }
+
+        if (Number(stats.generatedItemCount || 0) > 0) {
+          summary.topicsGenerated += 1;
+          summary.totalGeneratedAudios += Number(stats.generatedItemCount || 0);
+        } else if (totalQuestions > 0 && readyQuestions === totalQuestions) {
+          summary.topicsAlreadyReady += 1;
+        } else if (totalQuestions > 0) {
+          summary.topicsUnavailable += 1;
+        }
+      } catch (topicError) {
+        summary.failedTopics.push({
+          topicId: topic._id,
+          title: topic.title || "",
+          message: topicError.message,
+        });
+      }
+    }
+
+    return res.json({
+      success: true,
+      data: summary,
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -160,9 +236,125 @@ export const getSpeakingSession = async (req, res) => {
         transcript: session.transcript || "",
         analysis: session.analysis || null,
         ai_source: session.ai_source || null,
+        mock_examiner_turns: session.mockExaminerTurns || [],
+        mock_examiner_meta: session.mockExaminerMeta || {
+          ai_source: null,
+          lastFeedback: "",
+          finalAssessment: "",
+          isCompleted: false,
+          updatedAt: null,
+        },
       },
     });
   } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const runMockExaminerTurn = async (req, res) => {
+  try {
+    const session = await SpeakingSession.findById(req.params.id);
+    if (!session) {
+      return res.status(404).json({ success: false, message: "Speaking session not found" });
+    }
+
+    if (!canAccessSession(session, req.user)) {
+      return res.status(403).json({ success: false, message: "Forbidden" });
+    }
+
+    const topic = await Speaking.findById(session.questionId).lean();
+    if (!topic) {
+      return res.status(404).json({ success: false, message: "Speaking topic not found" });
+    }
+
+    const userAnswerRaw = String(req.body?.userAnswer || "").trim();
+    if (userAnswerRaw.length > MAX_CANDIDATE_ANSWER_CHARS) {
+      return res.status(400).json({
+        success: false,
+        message: `Answer is too long. Maximum ${MAX_CANDIDATE_ANSWER_CHARS} characters.`,
+      });
+    }
+
+    const turns = normalizeMockExaminerTurns(session.mockExaminerTurns || []);
+    const hasConversationStarted = turns.length > 0;
+    if (hasConversationStarted && !userAnswerRaw && !session.mockExaminerMeta?.isCompleted) {
+      const latestExaminerTurn = [...turns].reverse().find((turn) => turn.role === "examiner");
+      return res.json({
+        success: true,
+        data: {
+          completed: false,
+          turns,
+          next_question: latestExaminerTurn?.message || "",
+          pressure_feedback: session.mockExaminerMeta?.lastFeedback || "",
+          final_assessment: session.mockExaminerMeta?.finalAssessment || "",
+          ai_source: session.mockExaminerMeta?.ai_source || null,
+        },
+      });
+    }
+
+    if (session.mockExaminerMeta?.isCompleted) {
+      return res.json({
+        success: true,
+        data: {
+          completed: true,
+          turns,
+          next_question: "",
+          pressure_feedback: session.mockExaminerMeta?.lastFeedback || "",
+          final_assessment: session.mockExaminerMeta?.finalAssessment || "",
+          ai_source: session.mockExaminerMeta?.ai_source || null,
+        },
+      });
+    }
+
+    const updatedTurns = [...turns];
+    if (userAnswerRaw) {
+      updatedTurns.push({
+        role: "candidate",
+        message: userAnswerRaw,
+        createdAt: new Date(),
+      });
+    }
+
+    const followUp = await generateMockExaminerFollowUp({
+      topicPrompt: topic.prompt,
+      topicPart: topic.part || 3,
+      subQuestions: topic.sub_questions || [],
+      transcript: session.transcript || "",
+      turns: updatedTurns,
+      latestAnswer: userAnswerRaw,
+    });
+
+    if (!followUp.shouldEnd && followUp.nextQuestion) {
+      updatedTurns.push({
+        role: "examiner",
+        message: followUp.nextQuestion,
+        createdAt: new Date(),
+      });
+    }
+
+    session.mockExaminerTurns = updatedTurns;
+    session.mockExaminerMeta = {
+      ai_source: followUp.aiSource || null,
+      lastFeedback: followUp.pressureFeedback || "",
+      finalAssessment: followUp.finalAssessment || "",
+      isCompleted: Boolean(followUp.shouldEnd),
+      updatedAt: new Date(),
+    };
+    await session.save();
+
+    return res.json({
+      success: true,
+      data: {
+        completed: Boolean(followUp.shouldEnd),
+        turns: session.mockExaminerTurns,
+        next_question: followUp.nextQuestion || "",
+        pressure_feedback: followUp.pressureFeedback || "",
+        final_assessment: followUp.finalAssessment || "",
+        ai_source: followUp.aiSource || null,
+      },
+    });
+  } catch (error) {
+    console.error("Mock examiner turn failed:", error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };

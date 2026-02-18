@@ -327,8 +327,8 @@ export default function TestList() {
     <div className="page test-list">
       {/* Header + Search — full width above layout */}
       <div className="mb-8" style={{ maxWidth: 1200, margin: '0 auto', padding: '2rem 1.5rem 0' }}>
-        <div className="flex items-end justify-between">
-          <div>
+        <div className="test-list-hero flex items-end justify-between">
+          <div className="test-list-hero-copy">
             <div className="flex items-center gap-2 mb-2">
               <Sparkles className="w-4 h-4 text-[#F59E0B]" />
               <span
@@ -353,19 +353,19 @@ export default function TestList() {
               Ngân hàng đề thi được thiết kế để đạt band 7+.
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="relative group">
+          <div className="test-list-hero-controls flex items-center gap-3">
+            <div className="test-list-search-group relative group">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94A3B8] group-focus-within:text-[#6366F1] transition-colors" />
               <input
                 type="text"
                 placeholder="Filter tests..."
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                className="h-10 pl-10 pr-4 w-[220px] bg-white border border-[#E2E8F0] rounded-xl text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#6366F1]/40 focus:shadow-[0_0_0_3px_rgba(99,102,241,0.08)] transition-all"
+                className="test-list-search-input-mobile h-10 pl-10 pr-4 w-[220px] bg-white border border-[#E2E8F0] rounded-xl text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#6366F1]/40 focus:shadow-[0_0_0_3px_rgba(99,102,241,0.08)] transition-all"
                 style={{ fontSize: "0.8125rem" }}
               />
             </div>
-            <button className="flex items-center gap-2 h-10 px-4 bg-white border border-[#E2E8F0] rounded-xl text-[#64748B] hover:text-[#334155] hover:border-[#CBD5E1] transition-all cursor-pointer shadow-sm">
+            <button className="test-list-sort-btn flex items-center gap-2 h-10 px-4 bg-white border border-[#E2E8F0] rounded-xl text-[#64748B] hover:text-[#334155] hover:border-[#CBD5E1] transition-all cursor-pointer shadow-sm">
               <SlidersHorizontal className="w-4 h-4" />
               <span style={{ fontSize: "0.8125rem" }}>Sort</span>
             </button>

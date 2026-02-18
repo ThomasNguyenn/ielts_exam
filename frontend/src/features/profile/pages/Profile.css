@@ -305,3 +305,85 @@
     border-color: #FF6B35;
     box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.2);
 }
+
+/* === Responsive (Mobile 480px) === */
+@media (max-width: 480px) {
+    .profile-page {
+        padding: 1rem;
+    }
+
+    .profile-header-card {
+        padding: 1.5rem;
+        gap: 1.5rem;
+    }
+
+    .profile-avatar-section {
+        flex-direction: column;
+        text-align: center;
+        width: 100%;
+        gap: 1rem;
+    }
+
+    .profile-big-avatar {
+        transform: scale(1.4);
+        margin-right: 0;
+        margin-bottom: 0.5rem;
+    }
+
+    .profile-info-main {
+        padding-left: 0;
+        align-items: center;
+    }
+
+    .profile-info-main h1 {
+        font-size: 1.5rem;
+    }
+
+    .profile-gamification-stats {
+        margin-left: 0;
+        padding: 1rem;
+        width: 100%;
+    }
+
+    .targets-container {
+        gap: 0.75rem;
+    }
+
+    .score-card {
+        padding: 1rem;
+        min-width: 45%;
+        /* Fit 2 per row */
+    }
+
+    .score-card.overall {
+        flex: 100%;
+        /* Full width for overall */
+        min-width: 100%;
+        margin-bottom: 0.5rem;
+    }
+
+    .score-card.skill .card-value {
+        font-size: 2rem;
+    }
+
+    .score-card.overall .card-value {
+        font-size: 3rem;
+    }
+
+    .form-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    .edit-actions {
+        flex-direction: column-reverse;
+        /* Save on top usually better, or cancel bottom */
+        gap: 0.75rem;
+    }
+
+    .btn {
+        width: 100%;
+        justify-content: center;
+        display: flex;
+    }
+}

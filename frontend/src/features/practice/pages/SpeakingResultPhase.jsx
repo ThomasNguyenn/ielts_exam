@@ -1,4 +1,5 @@
 import React from 'react';
+import MockExaminerPanel from './MockExaminerPanel';
 
 const CircularProgress = ({ score, maxScore = 9, size = 120, strokeWidth = 8 }) => {
     const radius = (size - strokeWidth) / 2;
@@ -47,6 +48,7 @@ export default function SpeakingResultPhase({ result, topic, onRetry }) {
     if (!result) return null;
 
     const { transcript } = result;
+    const sessionId = result?.session_id || result?._id || result?.id || null;
     let { analysis } = result;
 
     if (typeof analysis === 'string') {
@@ -145,6 +147,13 @@ export default function SpeakingResultPhase({ result, topic, onRetry }) {
                     </p>
                 </div>
             </div>
+
+            {Number(topic?.part) === 3 && (
+                <MockExaminerPanel
+                    sessionId={sessionId}
+                    topicPrompt={topic?.prompt || ''}
+                />
+            )}
 
             {/* Action Buttons */}
             <div className="flex justify-center pt-4">

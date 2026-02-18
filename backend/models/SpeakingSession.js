@@ -47,6 +47,31 @@ const SpeakingSessionSchema = new mongoose.Schema({
     wpm: { type: Number, default: 0 },
     pauses: { type: mongoose.Schema.Types.Mixed, default: {} },
   },
+
+  mockExaminerTurns: [
+    {
+      role: {
+        type: String,
+        enum: ['examiner', 'candidate'],
+        required: true,
+      },
+      message: {
+        type: String,
+        required: true,
+      },
+      createdAt: {
+        type: Date,
+        default: Date.now,
+      },
+    },
+  ],
+  mockExaminerMeta: {
+    ai_source: { type: String, default: null },
+    lastFeedback: { type: String, default: '' },
+    finalAssessment: { type: String, default: '' },
+    isCompleted: { type: Boolean, default: false },
+    updatedAt: { type: Date, default: null },
+  },
   
   status: {
     type: String,
