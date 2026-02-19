@@ -585,11 +585,13 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
           type: canonicalizeQuestionType(group.type),
           instructions: group.instructions || '',
           text: group.text || '',
+          headings: group.headings || [],
           options: group.options || [],
           questions: (group.questions || []).map((question) => ({
             q_number: question.q_number,
             text: question.text || '',
             option: question.option || [],
+            correct_answers: question.correct_answers || [],
             explanation: question.explanation || '',
             passage_reference: question.passage_reference || '',
           })),

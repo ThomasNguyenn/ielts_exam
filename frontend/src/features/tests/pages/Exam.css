@@ -2387,6 +2387,11 @@
     font-size: 0.88rem;
 }
 
+.review-check-row.active {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
 .review-check-row.correct {
     border-left: 4px solid #16a34a;
 }
@@ -2422,6 +2427,44 @@
 .review-check-badge.wrong {
     background: #fee2e2;
     color: #991b1b;
+}
+
+.review-check-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.review-check-toggle {
+    margin-top: 0;
+    padding: 0.3rem 0.6rem;
+    font-size: 0.75rem;
+    border-radius: 999px;
+    border-color: #c7d2fe;
+    color: #4338ca;
+}
+
+.review-check-details {
+    margin-top: 0.45rem;
+}
+
+.review-reference-text {
+    margin: 0.5rem 0 0;
+    color: #334155;
+    line-height: 1.6;
+}
+
+.review-reference-hint {
+    margin: 0.45rem 0 0;
+    color: #6366f1;
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.review-reference-highlight {
+    background: #fde68a;
+    border-radius: 3px;
+    padding: 0 2px;
 }
 
 @media (max-width: 900px) {

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { PanelGroup, Panel, PanelResizeHandle } from 'react-resizable-panels';
 import parse from 'html-react-parser';
@@ -546,6 +546,72 @@ function formatReviewAnswerByOptions(value, options = []) {
   return String(text ?? '').trim() || '(Bo trong)';
 }
 
+function escapeRegexForReview(value = '') {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function normalizeReferenceToken(value = '') {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/^[^a-z0-9]+|[^a-z0-9]+$/gi, '')
+    .trim();
+}
+
+function highlightTokenizedHtmlWithReference(rawHtml = '', reference = '') {
+  if (!rawHtml || !reference || typeof document === 'undefined') return rawHtml;
+  const container = document.createElement('div');
+  container.innerHTML = String(rawHtml);
+
+  container.querySelectorAll('.review-reference-highlight').forEach((node) => {
+    node.classList.remove('review-reference-highlight');
+  });
+
+  const referenceTokens = String(reference || '')
+    .split(/\s+/)
+    .map(normalizeReferenceToken)
+    .filter(Boolean);
+  if (!referenceTokens.length) return container.innerHTML;
+
+  const tokenNodes = Array.from(container.querySelectorAll('.token-word'));
+  if (!tokenNodes.length) return container.innerHTML;
+
+  const normalizedTokens = tokenNodes.map((node) => normalizeReferenceToken(node.textContent || ''));
+  for (let startIndex = 0; startIndex <= normalizedTokens.length - referenceTokens.length; startIndex += 1) {
+    let matched = true;
+    for (let offset = 0; offset < referenceTokens.length; offset += 1) {
+      if (normalizedTokens[startIndex + offset] !== referenceTokens[offset]) {
+        matched = false;
+        break;
+      }
+    }
+    if (!matched) continue;
+
+    for (let offset = 0; offset < referenceTokens.length; offset += 1) {
+      tokenNodes[startIndex + offset].classList.add('review-reference-highlight');
+    }
+    return container.innerHTML;
+  }
+
+  return container.innerHTML;
+}
+
+function highlightPlainHtmlWithReference(rawHtml = '', reference = '') {
+  const source = String(rawHtml || '');
+  const needle = String(reference || '').trim();
+  if (!source || !needle) return source;
+  const regex = new RegExp(escapeRegexForReview(needle), 'i');
+  return source.replace(regex, (matched) => `<mark class="review-reference-highlight">${matched}</mark>`);
+}
+
+function applyReferenceHighlightToHtml(rawHtml = '', reference = '') {
+  if (!reference) return rawHtml;
+  const source = String(rawHtml || '');
+  if (source.includes('token-word')) {
+    return highlightTokenizedHtmlWithReference(source, reference);
+  }
+  return highlightPlainHtmlWithReference(source, reference);
+}
+
 function isReviewAnswerCorrect(reviewItem) {
   if (!reviewItem) return false;
   if (typeof reviewItem.is_correct === 'boolean') return reviewItem.is_correct;
@@ -582,11 +648,40 @@ function StepContent({
   const hasAudio = isListening && Boolean(audioUrl);
   let slotIndex = startSlotIndex;
   const getReviewForQuestion = (qNumber) => reviewLookup?.[String(qNumber)] || null;
+  const [expandedReviewQuestions, setExpandedReviewQuestions] = useState({});
+  const [activeReviewQuestionNumber, setActiveReviewQuestionNumber] = useState(null);
 
   // Use persisted HTML if available, otherwise original content
   const contentHtml = (passageStates && passageStates[item._id]) || (item.content || '').replace(/\n/g, '<br />');
+  const activeReviewReference = useMemo(() => {
+    if (!reviewMode || !isReading || !activeReviewQuestionNumber) return '';
+    const activeReviewItem = getReviewForQuestion(activeReviewQuestionNumber);
+    return String(activeReviewItem?.passage_reference || activeReviewItem?.passageReference || '').trim();
+  }, [reviewMode, isReading, activeReviewQuestionNumber, reviewLookup]);
+
+  const renderedContentHtml = useMemo(() => {
+    if (!reviewMode || !isReading) return contentHtml;
+    return applyReferenceHighlightToHtml(contentHtml, activeReviewReference);
+  }, [reviewMode, isReading, contentHtml, activeReviewReference]);
+
+  useEffect(() => {
+    if (!reviewMode) return;
+    const questionNumbers = [];
+    (item.question_groups || []).forEach((group) => {
+      (group.questions || []).forEach((question) => {
+        questionNumbers.push(question.q_number);
+      });
+    });
+    const firstWithReference = questionNumbers.find((qNumber) => {
+      const reviewItem = getReviewForQuestion(qNumber);
+      return String(reviewItem?.passage_reference || reviewItem?.passageReference || '').trim();
+    });
+    setActiveReviewQuestionNumber(firstWithReference || questionNumbers[0] || null);
+    setExpandedReviewQuestions({});
+  }, [reviewMode, item?._id, startSlotIndex, reviewLookup]);
 
   const handleHtmlUpdate = (id, newHtml) => {
+    if (reviewMode) return;
     if (setPassageState) {
       setPassageState(prev => ({ ...prev, [id]: newHtml }));
     }
@@ -1064,18 +1159,56 @@ function StepContent({
                     ? formatReviewAnswerByOptions(reviewItem.correct_answer, optionPool)
                     : formatReviewAnswer(reviewItem.correct_answer);
                   const correct = isReviewAnswerCorrect(reviewItem);
+                  const explanationText = String(reviewItem.explanation || '').trim() || '\u0043h\u01B0a c\u00F3 gi\u1EA3i th\u00EDch.';
+                  const referenceText = String(reviewItem.passage_reference || reviewItem.passageReference || '').trim();
+                  const isExpanded = Boolean(expandedReviewQuestions[q.q_number]);
+                  const isActiveReference = Number(activeReviewQuestionNumber) === Number(q.q_number);
 
                   return (
-                    <div
-                      key={`review-${groupIdx}-${q.q_number}`}
-                      className={`review-check-row ${correct ? 'correct' : 'wrong'}`}
-                    >
-                      <span className="review-check-number">Q{q.q_number}</span>
-                      <span className="review-check-user">Bạn làm: {yourAnswer}</span>
-                      <span className="review-check-correct">Đáp án: {correctAnswer}</span>
-                      <span className={`review-check-badge ${correct ? 'correct' : 'wrong'}`}>
-                        {correct ? 'Đúng' : 'Sai'}
-                      </span>
+                    <div key={`review-${groupIdx}-${q.q_number}`}>
+                      <div
+                        className={`review-check-row ${correct ? 'correct' : 'wrong'} ${isActiveReference ? 'active' : ''}`}
+                        onClick={() => setActiveReviewQuestionNumber(q.q_number)}
+                      >
+                        <span className="review-check-number">Q{q.q_number}</span>
+                        <span className="review-check-user">{'\u0042\u1EA1n l\u00E0m:'} {yourAnswer}</span>
+                        <span className="review-check-correct">{'\u0110\u00E1p \u00E1n:'} {correctAnswer}</span>
+                        <div className="review-check-actions">
+                          <span className={`review-check-badge ${correct ? 'correct' : 'wrong'}`}>
+                            {correct ? '\u0110\u00FAng' : 'Sai'}
+                          </span>
+                          <button
+                            type="button"
+                            className="review-explain-btn review-check-toggle"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setExpandedReviewQuestions((prev) => ({
+                                ...prev,
+                                [q.q_number]: !prev[q.q_number],
+                              }));
+                              setActiveReviewQuestionNumber(q.q_number);
+                            }}
+                          >
+                            {isExpanded ? '\u1EA8n gi\u1EA3i th\u00EDch' : 'Gi\u1EA3i th\u00EDch'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {isExpanded && (
+                        <div className="review-explanation-box review-check-details">
+                          <p className="review-explanation-title">{'Gi\u1EA3i th\u00EDch'}</p>
+                          <p className="review-explanation-content">{explanationText}</p>
+                          <p className="review-reference-text">
+                            <strong>Reference text:</strong>{' '}
+                            {referenceText || '\u0043h\u01B0a c\u00F3 \u0111o\u1EA1n tham chi\u1EBFu cho c\u00E2u h\u1ECFi n\u00E0y.'}
+                          </p>
+                          {referenceText && (
+                            <p className="review-reference-hint">
+                              {'\u0110o\u1EA1n tham chi\u1EBFu \u0111ang \u0111\u01B0\u1EE3c t\u00F4 v\u00E0ng \u1EDF passage b\u00EAn tr\u00E1i.'}
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -1124,7 +1257,7 @@ function StepContent({
     return (
       <ReadingStepLayout
         item={item}
-        contentHtml={contentHtml}
+        contentHtml={renderedContentHtml}
         startSlotIndex={startSlotIndex}
         answers={answers}
         setAnswer={setAnswer}
@@ -1145,3 +1278,4 @@ function StepContent({
 /** Writing step content with big textarea and real-time word count */
 
 export default StepContent;
+

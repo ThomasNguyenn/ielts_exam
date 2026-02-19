@@ -30,11 +30,32 @@ const flattenQuestions = (questionGroups = []) => {
     const groupText = normalizeWhitespace(group?.text || "");
     const sharedOptions = Array.isArray(group?.options)
       ? group.options
-          .map((option) => normalizeWhitespace(option?.text || option?.id || ""))
-          .filter(Boolean)
+          .map((option) => ({
+            label: normalizeWhitespace(option?.id || option?.label || ""),
+            text: normalizeWhitespace(option?.text || option?.id || ""),
+          }))
+          .filter((option) => option.text)
+      : [];
+    const sharedHeadings = Array.isArray(group?.headings)
+      ? group.headings
+          .map((heading) => ({
+            label: normalizeWhitespace(heading?.id || heading?.label || ""),
+            text: normalizeWhitespace(heading?.text || heading?.id || ""),
+          }))
+          .filter((heading) => heading.text)
       : [];
 
     (Array.isArray(group?.questions) ? group.questions : []).forEach((question, questionIndex) => {
+      const questionOptions = Array.isArray(question?.option) && question.option.length
+        ? question.option
+            .map((option) => ({
+              label: normalizeWhitespace(option?.label || ""),
+              text: normalizeWhitespace(option?.text || ""),
+            }))
+            .filter((option) => option.text)
+        : [];
+      const isMatchingType = groupType.startsWith("matching");
+
       rows.push({
         group_index: groupIndex,
         question_index: questionIndex,
@@ -43,14 +64,15 @@ const flattenQuestions = (questionGroups = []) => {
         instructions: groupInstructions,
         group_text: groupText,
         question_text: normalizeWhitespace(question?.text || ""),
-        options: Array.isArray(question?.option) && question.option.length
-          ? question.option
-              .map((option) => ({
-                label: normalizeWhitespace(option?.label || ""),
-                text: normalizeWhitespace(option?.text || ""),
-              }))
-              .filter((option) => option.text)
-          : sharedOptions.map((text) => ({ label: "", text })),
+        options: questionOptions.length
+          ? questionOptions
+          : isMatchingType
+            ? sharedHeadings
+            : sharedOptions,
+        headings: sharedHeadings,
+        correct_answers: Array.isArray(question?.correct_answers)
+          ? question.correct_answers.map((answer) => normalizeWhitespace(answer)).filter(Boolean)
+          : [],
         existing_explanation: normalizeWhitespace(question?.explanation || ""),
         existing_passage_reference: normalizeWhitespace(question?.passage_reference || ""),
       });
@@ -76,6 +98,7 @@ Output requirements:
 - Clear and concise.
 - MUST include at least one short English quote from the passage when citing evidence. Keep the quote in original English and wrap quote with double quotes.
 - Do not translate the quoted evidence.
+- Must be consistent with correct_answers when provided.
 
 2) passage_reference:
 - English only.
@@ -86,6 +109,7 @@ Output requirements:
 3) Keep exact group_index and question_index from input.
 4) If evidence is unclear, return empty strings for both fields.
 5) Return strict JSON only.
+6) For matching types, prioritize heading IDs/text and correct_answers as grading truth.
 
 Context:
 - Passage title: ${JSON.stringify(title || "")}
