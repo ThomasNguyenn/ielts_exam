@@ -80,8 +80,8 @@ const canonicalQuestionType = (rawType = "") => {
 
   if (COMPLETION_CANONICAL_TYPES.has(type)) return "note_completion";
   if (type === "matching_info") return "matching_information";
-  if (type === "true_false_notgiven") return "tfng";
-  if (type === "yes_no_notgiven") return "ynng";
+  if (type === "true_false_notgiven" || type === "true_false_not_given" || type === "tfng") return "tfng";
+  if (type === "yes_no_notgiven" || type === "yes_no_not_given" || type === "ynng") return "ynng";
   if (type === "mult_choice" || type === "multiple_choice_single" || type === "multiple_choice_multi" || type === "mult_choice_multi") {
     return "multiple_choice";
   }
@@ -92,8 +92,8 @@ const canonicalQuestionType = (rawType = "") => {
 const formatQuestionType = (type = "") => {
   const canonicalType = canonicalQuestionType(type);
   const labels = {
-    tfng: "True/False/Not Given (TFNG)",
-    ynng: "Yes/No/Not Given (YNNG)",
+    tfng: "TRUE / FALSE / NOT GIVEN",
+    ynng: "YES / NO / NOT GIVEN",
     multiple_choice: "Multiple Choice",
     note_completion: "Note Completion",
     matching_headings: "Matching Headings",
@@ -313,8 +313,7 @@ const buildAnalyticsPayload = async (targetUserId) => {
         rawType,
       };
     })
-    .sort((a, b) => a.score - b.score)
-    .slice(0, 8);
+    .sort((a, b) => a.score - b.score);
 
   return {
     summary: {
