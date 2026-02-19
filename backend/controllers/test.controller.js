@@ -641,6 +641,7 @@ export const submitExam = async (req, res) => {
                             headings: g.headings || [],
                             is_correct: isCorrect,
                             explanation: q.explanation || "",
+                            passage_reference: q.passage_reference || "",
                             item_type: itemType,
                         });
                         qIndex++;
@@ -702,6 +703,7 @@ export const submitExam = async (req, res) => {
                             headings: g.headings || [], // Include headings for matching questions
                             is_correct: isCorrect,
                             explanation: q.explanation || "",
+                            passage_reference: q.passage_reference || "",
                             item_type: itemType,
                         });
                         qIndex++;

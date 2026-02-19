@@ -1,4 +1,5 @@
 import Passage from "../models/Passage.model.js";
+import { generatePassageQuestionInsights } from "../services/passageInsight.service.js";
 
 export const getAllPassages = async(req, res) => {
     try{
@@ -65,5 +66,36 @@ export const deletePassage = async(req, res) => {
         return res.status(200).json({ success: true, message: "Delete Success"});
     } catch (error){
         return res.status(500).json({ success: false, message: "Server Error" });
+    }
+};
+
+export const generatePassageInsights = async (req, res) => {
+    try {
+        const {
+            title = "",
+            source = "",
+            content = "",
+            question_groups = [],
+            overwrite_existing = false,
+        } = req.body || {};
+
+        const result = await generatePassageQuestionInsights({
+            title,
+            source,
+            content,
+            question_groups,
+            overwrite_existing,
+        });
+
+        return res.status(200).json({
+            success: true,
+            data: result,
+        });
+    } catch (error) {
+        const statusCode = Number(error?.statusCode) || 500;
+        return res.status(statusCode).json({
+            success: false,
+            message: error.message || "Failed to generate passage insights",
+        });
     }
 };

@@ -18,7 +18,8 @@ const QuestionSchema = new mongoose.Schema({
     // VD: ["car", "automobile"] hoặc ["A"]
     correct_answers: [{ type: String, required: true }], // Dap an dung
 
-    explanation: { type: String, required: false } // Giai thich dap an
+    explanation: { type: String, required: false }, // Giai thich dap an
+    passage_reference: { type: String, required: false } // Cum/cau trich dan ngan de doi chieu passage
 });
 
 const QuestionHeadingSchema = new mongoose.Schema({
