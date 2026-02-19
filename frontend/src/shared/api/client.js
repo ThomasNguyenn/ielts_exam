@@ -185,6 +185,8 @@ export const api = {
   createPassage: (body) => request('/api/passages', { method: 'POST', body: JSON.stringify(body) }),
   updatePassage: (id, body) => request(`/api/passages/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deletePassage: (id) => request(`/api/passages/${id}`, { method: 'DELETE' }),
+  generatePassageQuestionInsights: (body) =>
+    request('/api/passages/ai/question-insights', { method: 'POST', body: JSON.stringify(body) }),
 
   // Sections (Listening)
   getSections: () => request('/api/sections'),

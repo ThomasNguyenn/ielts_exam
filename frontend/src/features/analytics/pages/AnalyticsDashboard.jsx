@@ -123,8 +123,8 @@ const canonicalWeaknessType = (rawType = '') => {
   const type = String(rawType || 'unknown').toLowerCase();
   if (COMPLETION_CANONICAL_TYPES.has(type)) return 'note_completion';
   if (type === 'matching_info') return 'matching_information';
-  if (type === 'true_false_notgiven') return 'tfng';
-  if (type === 'yes_no_notgiven') return 'ynng';
+  if (type === 'true_false_notgiven' || type === 'true_false_not_given' || type === 'tfng') return 'tfng';
+  if (type === 'yes_no_notgiven' || type === 'yes_no_not_given' || type === 'ynng') return 'ynng';
   if (type === 'mult_choice' || type === 'multiple_choice_single' || type === 'multiple_choice_multi' || type === 'mult_choice_multi') {
     return 'multiple_choice';
   }
@@ -134,8 +134,8 @@ const canonicalWeaknessType = (rawType = '') => {
 const getWeaknessLabel = (rawType = '') => {
   const type = canonicalWeaknessType(rawType);
   const labels = {
-    tfng: 'True/False/Not Given (TFNG)',
-    ynng: 'Yes/No/Not Given (YNNG)',
+    tfng: 'TRUE / FALSE / NOT GIVEN',
+    ynng: 'YES / NO / NOT GIVEN',
     multiple_choice: 'Multiple Choice',
     note_completion: 'Note Completion',
     matching_headings: 'Matching Headings',

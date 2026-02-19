@@ -107,6 +107,7 @@ export default function QuestionGroup({
   onRemoveQuestionOption,
   onSyncQuestionsFromText,
   onSyncMultiChoiceCount,
+  showPassageReferenceField = false,
   handleBoldShortcut,
 }) {
   const isMatchingType = MATCHING_GROUP_TYPES.has(group.type);
@@ -437,9 +438,13 @@ export default function QuestionGroup({
 
             {isAnswerListOnlyType ? (
               <div className="manage-gapfill-answer-list">
-                <div className="manage-gapfill-answer-head">
+                <div
+                  className="manage-gapfill-answer-head"
+                  style={showPassageReferenceField ? { gridTemplateColumns: '110px 1fr 1fr 1fr' } : undefined}
+                >
                   <span>ID</span>
                   <span>Correct Answer</span>
+                  {showPassageReferenceField && <span>Passage Reference</span>}
                   <span>Explain</span>
                 </div>
 
@@ -447,7 +452,11 @@ export default function QuestionGroup({
                   <div className="manage-gapfill-answer-empty">Press "Sync Questions from [n]" to generate answer rows.</div>
                 ) : (
                   group.questions.map((question, questionIndex) => (
-                    <div key={`gapfill-answer-${gi}-${questionIndex}`} className="manage-gapfill-answer-row">
+                    <div
+                      key={`gapfill-answer-${gi}-${questionIndex}`}
+                      className="manage-gapfill-answer-row"
+                      style={showPassageReferenceField ? { gridTemplateColumns: '110px 1fr 1fr 1fr' } : undefined}
+                    >
                       <div className="manage-gapfill-answer-id">[{question.q_number}]</div>
                       <input
                         value={typeof question.correct_answers_raw === 'string'
@@ -456,6 +465,17 @@ export default function QuestionGroup({
                         onChange={(event) => onSetCorrectAnswers(gi, questionIndex, event.target.value)}
                         placeholder="Correct answer (comma-separated if needed)"
                       />
+                      {showPassageReferenceField && (
+                        <textarea
+                          value={question.passage_reference || ''}
+                          onChange={(event) => onUpdateQuestion(gi, questionIndex, 'passage_reference', event.target.value)}
+                          onKeyDown={(event) =>
+                            handleBoldShortcut(event, question.passage_reference || '', (next) => onUpdateQuestion(gi, questionIndex, 'passage_reference', next))
+                          }
+                          rows={1}
+                          placeholder="Key quote/phrase from passage (English)"
+                        />
+                      )}
                       <textarea
                         value={question.explanation || ''}
                         onChange={(event) => onUpdateQuestion(gi, questionIndex, 'explanation', event.target.value)}
@@ -573,6 +593,21 @@ export default function QuestionGroup({
                           placeholder="Optional explanation"
                         />
                       </div>
+
+                      {showPassageReferenceField && (
+                        <div className="form-row">
+                          <label>Passage Reference</label>
+                          <textarea
+                            value={question.passage_reference || ''}
+                            onChange={(event) => onUpdateQuestion(gi, questionIndex, 'passage_reference', event.target.value)}
+                            onKeyDown={(event) =>
+                              handleBoldShortcut(event, question.passage_reference || '', (next) => onUpdateQuestion(gi, questionIndex, 'passage_reference', next))
+                            }
+                            rows={2}
+                            placeholder="Short quote/phrase from passage that proves the answer"
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

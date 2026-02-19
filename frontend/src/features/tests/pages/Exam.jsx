@@ -4,9 +4,9 @@ import { api } from '@/shared/api/client';
 import './Exam.css';
 import StepContent from '../components/exam/StepContent';
 import WritingStepContent from '../components/exam/WritingStepContent';
+import ReviewExamLayout from '../components/review-mode/ReviewExamLayout';
 
 const IELTSSettings = lazy(() => import('@/shared/components/IELTSSettings'));
-const ResultReview = lazy(() => import('./ExamResultReview'));
 
 /** IELTS Band Score Calculator */
 function calculateIELTSBand(correctCount, testType) {
@@ -72,9 +72,11 @@ function buildQuestionSlots(exam) {
             type: group.type,
             instructions: group.instructions,
             headings: group.headings || [],
+            options: group.options || [],
             q_number: q.q_number,
             text: q.text,
             option: q.option || [],
+            correct_answer: q.correct_answer,
           });
         }
       }
@@ -121,7 +123,7 @@ export default function Exam() {
   const [listeningAudioIndex, setListeningAudioIndex] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(null);
   const [timeWarning, setTimeWarning] = useState(false);
-  const [showReview, setShowReview] = useState(false);
+  const [mode, setMode] = useState('test');
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [showScoreChoice, setShowScoreChoice] = useState(false);
   const [fontSize, setFontSize] = useState(100); // 100% = default
@@ -194,6 +196,7 @@ export default function Exam() {
           }
         }
         setStartTime(Date.now());
+        setMode('test');
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -302,7 +305,10 @@ export default function Exam() {
         }
 
         if (!returnOnly) {
-          if (isMountedRef.current) setSubmitted(resultData);
+          if (isMountedRef.current) {
+            setSubmitted(resultData);
+            setMode('test');
+          }
         }
         return resultData;
       })
@@ -431,32 +437,30 @@ export default function Exam() {
   if (error) return <div className="page"><p className="error">{error}</p><Link to="/tests">Back to tests</Link></div>;
   if (!exam) return <div className="page"><p className="muted">Exam not found.</p></div>;
 
-  if (submitted) {
-    const { score, total, wrong, writingCount, isSingleMode } = submitted;
+    if (submitted) {
+    const { score, total, wrong, writingCount, isSingleMode: submittedSingleMode } = submitted;
     const wrongCount = wrong ?? (total - score);
-    const pct = total ? Math.round((score / total) * 100) : 0;
     const correctPct = total ? (score / total) * 100 : 0;
 
-    // Calculate IELTS Band Score (only for Reading and Listening)
     const examType = exam.type || 'reading';
-    const showBandScore = !isSingleMode && examType !== 'writing';
+    const showBandScore = !submittedSingleMode && examType !== 'writing';
     const bandScore = showBandScore ? calculateIELTSBand(score, examType) : null;
-
-    // Get time taken
     const timeTaken = getTimeTaken();
 
-    // Detailed Stats for Table
+    const typeToLabel = (type) => (
+      type === 'mult_choice' ? 'Multiple Choice (One Answer)' :
+        type === 'true_false_notgiven' ? 'True - False - Not Given' :
+          type === 'yes_no_notgiven' ? 'Yes - No - Not Given' :
+            type === 'gap_fill' || type === 'note_completion' ? 'Note/Gap Completion' :
+              type === 'matching_headings' ? 'Matching Headings' :
+                type === 'matching_features' ? 'Matching Features' :
+                  type === 'matching_information' ? 'Matching Information' :
+                    type === 'summary_completion' ? 'Summary Completion' : 'Other'
+    );
+
     const resultsByType = {};
-    const questionReview = (submitted.question_review || []).map(q => {
-      // Basic q.type mapping for labeling
-      const typeLabel = q.type === 'mult_choice' ? 'Multiple Choice (One Answer)' :
-        q.type === 'true_false_notgiven' ? 'True - False - Not Given' :
-          q.type === 'yes_no_notgiven' ? 'Yes - No - Not Given' :
-            q.type === 'gap_fill' || q.type === 'note_completion' ? 'Note/Gap Completion' :
-              q.type === 'matching_headings' ? 'Matching Headings' :
-                q.type === 'matching_features' ? 'Matching Features' :
-                  q.type === 'matching_information' ? 'Matching Information' :
-                    q.type === 'summary_completion' ? 'Summary Completion' : 'Other';
+    const questionReview = (submitted.question_review || []).map((q) => {
+      const typeLabel = typeToLabel(q.type);
 
       if (!resultsByType[typeLabel]) {
         resultsByType[typeLabel] = { total: 0, correct: 0, wrong: 0, skipped: 0 };
@@ -470,6 +474,25 @@ export default function Exam() {
     });
 
     const wrongPct = total ? (wrongCount / total) * 100 : 0;
+    if (mode === 'review') {
+      return (
+        <ReviewExamLayout
+          examTitle={exam.title}
+          step={step}
+          steps={steps}
+          slots={slots}
+          currentStep={currentStep}
+          setCurrentStep={setCurrentStep}
+          questionReview={questionReview}
+          passageStates={passageStates}
+          setPassageState={setPassageState}
+          listeningAudioUrl={listeningAudioUrl}
+          onListeningAudioEnded={handleListeningAudioEnded}
+          isSingleMode={isSingleMode}
+          onBackToResult={() => setMode('test')}
+        />
+      );
+    }
 
     return (
       <div className="page exam-result-new">
@@ -494,9 +517,9 @@ export default function Exam() {
 
           <div className="result-summary-card">
             <div className="result-card-header">
-              <h2>Kết quả làm bài</h2>
+              <h2>{'K\u1EBFt qu\u1EA3 l\u00E0m b\u00E0i'}</h2>
               <div className="time-taken-small">
-                <span>Thời gian làm bài</span>
+                <span>{'Th\u1EDDi gian l\u00E0m b\u00E0i'}</span>
                 <strong>{timeTaken}</strong>
               </div>
             </div>
@@ -512,7 +535,7 @@ export default function Exam() {
                 >
                   <div className="doughnut-inner">
                     <span className="doughnut-score">{score}/{total}</span>
-                    <span className="doughnut-subtext">câu đúng</span>
+                    <span className="doughnut-subtext">{'c\u00E2u \u0111\u00FAng'}</span>
                   </div>
                 </div>
               </div>
@@ -520,41 +543,40 @@ export default function Exam() {
               <div className="stats-legend">
                 <div className="legend-item">
                   <span className="dot dot-correct"></span>
-                  <span className="label">Đúng:</span>
-                  <span className="value">{score} câu</span>
+                  <span className="label">{'\u0110\u00FAng:'}</span>
+                  <span className="value">{score} {'\u0063\u00E2u'}</span>
                 </div>
                 <div className="legend-item">
                   <span className="dot dot-wrong"></span>
                   <span className="label">Sai:</span>
-                  <span className="value">{wrongCount} câu</span>
+                  <span className="value">{wrongCount} {'\u0063\u00E2u'}</span>
                 </div>
                 <div className="legend-item">
                   <span className="dot dot-skipped"></span>
-                  <span className="label">Bỏ qua:</span>
-                  <span className="value">{total - score - wrongCount} câu</span>
+                  <span className="label">{'B\u1ECF qua:'}</span>
+                  <span className="value">{total - score - wrongCount} {'\u0063\u00E2u'}</span>
                 </div>
               </div>
             </div>
 
             <div className="result-card-footer">
               {!exam.is_real_test ? (
-                <button className="btn-orange-round" onClick={() => setShowReview(!showReview)}>
-                  {showReview ? 'Ẩn giải thích chi tiết' : 'Xem giải thích chi tiết'}
+                <button className="btn-orange-round" onClick={() => { if (!isSingleMode) setCurrentStep(0); setMode('review'); }}>
+                  {'Xem gi\u1EA3i th\u00EDch chi ti\u1EBFt'}
                 </button>
               ) : (
                 <div className="real-test-notice" style={{ color: '#6366F1', fontWeight: 'bold', padding: '0.5rem 1rem', background: '#fff5f5', borderRadius: '8px', border: '1px solid #feb2b2' }}>
-                  Đây là bài thi thật - Bạn không thể xem chi tiết đáp án.
+                  {'\u0110\u00E2y l\u00E0 b\u00E0i thi th\u1EADt - B\u1EA1n kh\u00F4ng th\u1EC3 xem chi ti\u1EBFt \u0111\u00E1p \u00E1n.'}
                 </div>
               )}
               <Link to="/tests" className="btn-exit-result">
-                Thoát kết quả
+                {'Tho\u00E1t k\u1EBFt qu\u1EA3'}
               </Link>
             </div>
           </div>
         </div>
 
         <div className="feedback-dashed-container">
-          {/* Feedback placeholder or note */}
           {!showBandScore && writingCount > 0 && (
             <p style={{ padding: '1rem', margin: 0, textAlign: 'center', color: '#059669', fontWeight: 'bold' }}>
               Your writing tasks have been submitted successfully.
@@ -563,15 +585,15 @@ export default function Exam() {
         </div>
 
         <div className="detailed-stats-section">
-          <h3>Bảng dữ liệu chi tiết</h3>
+          <h3>{'B\u1EA3ng d\u1EEF li\u1EC7u chi ti\u1EBFt'}</h3>
           <table className="stats-table">
             <thead>
               <tr>
-                <th>Loại câu hỏi</th>
-                <th>Số câu hỏi</th>
-                <th className="th-correct">Đúng</th>
+                <th>{'Lo\u1EA1i c\u00E2u h\u1ECFi'}</th>
+                <th>{'S\u1ED1 c\u00E2u h\u1ECFi'}</th>
+                <th className="th-correct">{'\u0110\u00FAng'}</th>
                 <th>Sai</th>
-                <th>Bỏ qua</th>
+                <th>{'B\u1ECF qua'}</th>
               </tr>
             </thead>
             <tbody>
@@ -587,36 +609,6 @@ export default function Exam() {
             </tbody>
           </table>
         </div>
-
-        {showReview && (
-          <div className="review-container">
-            {/* <div className="result-actions" style={{ justifyContent: 'flex-end', marginBottom: '1rem', gap: '1rem', display: 'flex' }}>
-              <button className="btn btn-ghost" onClick={() => setShowReview(false)}>Ẩn giải thích</button>
-              <Link to="/tests" className="btn btn-ghost">Thoát kết quả</Link>
-            </div> */}
-            {submitted.question_review && submitted.question_review.length > 0 && (
-              <Suspense fallback={<p className="muted">Loading review...</p>}>
-                <ResultReview submitted={submitted} />
-              </Suspense>
-            )}
-
-            {submitted.writing_answers && submitted.writing_answers.length > 0 && (
-              <div className="result-review" style={{ marginTop: '2rem' }}>
-                <h3 className="result-review-title">Your Writing Answers</h3>
-                {submitted.writing_answers.map((answer, index) => (
-                  <div key={index} className="writing-review-item" style={{ marginBottom: '2rem', padding: '1.5rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                    <h4 style={{ marginTop: 0, marginBottom: '1rem', color: '#1e293b' }}>
-                      Task {index + 1}
-                    </h4>
-                    <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6', color: '#334155' }}>
-                      {answer}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
       </div>
     );
   }
@@ -867,3 +859,4 @@ export default function Exam() {
     </div >
   );
 }
+

@@ -6,7 +6,17 @@ import HighlightableContent, { HighlightableWrapper, tokenizeHtml } from '@/shar
 
 const IELTSAudioPlayer = lazy(() => import('@/shared/components/IELTSAudioPlayer'));
 
-function QuestionInput({ slot, value, onChange, index, onHighlightUpdate, showResult, passageStates, isListening = false }) {
+function QuestionInput({
+  slot,
+  value,
+  onChange,
+  index,
+  onHighlightUpdate,
+  showResult,
+  passageStates,
+  isListening = false,
+  reviewMode = false
+}) {
   const id = `q-${index}`;
   const [strikethroughOptions, setStrikethroughOptions] = useState(() => {
     // Load from localStorage if available
@@ -17,12 +27,16 @@ function QuestionInput({ slot, value, onChange, index, onHighlightUpdate, showRe
   // 1. Định nghĩa logic chung (Binding dữ liệu)
   const common = {
     value: value || '',
-    onChange: (e) => onChange(e.target.value),
-    disabled: false
+    onChange: (e) => {
+      if (!reviewMode) onChange(e.target.value);
+    },
+    disabled: reviewMode,
+    readOnly: reviewMode
   };
 
   // Handle right-click to toggle strikethrough
   const handleRightClick = (e, optionLabel) => {
+    if (reviewMode) return;
     e.preventDefault();
     setStrikethroughOptions(prev => {
       const next = new Set(prev);
@@ -76,8 +90,8 @@ function QuestionInput({ slot, value, onChange, index, onHighlightUpdate, showRe
                 type="radio"
                 name={id}
                 checked={(value || '').trim() === (opt.text || '').trim()}
-                onChange={() => onChange(opt.text)}
-                disabled={isStrikethrough}
+                onChange={() => !reviewMode && onChange(opt.text)}
+                disabled={reviewMode || isStrikethrough}
               />
               <span className="opt-id">{opt.label}.</span>
               <HighlightableContent
@@ -120,7 +134,33 @@ function QuestionInput({ slot, value, onChange, index, onHighlightUpdate, showRe
     slot.type === 'matching'
   ) {
     const options = slot.headings || [];
-    const selectedOption = options.find(h => h.id === value);
+    const normalizedValue = normalizeReviewText(value);
+    const selectedOption = normalizedValue
+      ? options.find((h) => {
+          const normalizedId = normalizeReviewText(h?.id);
+          const normalizedLabel = normalizeReviewText(h?.label);
+          const normalizedText = normalizeReviewText(h?.text);
+          return (
+            (normalizedId && normalizedId === normalizedValue) ||
+            (normalizedLabel && normalizedLabel === normalizedValue) ||
+            (normalizedText && normalizedText === normalizedValue)
+          );
+        })
+      : null;
+
+    if (reviewMode) {
+      return (
+        <div className="matching-dropzone result-mode correct">
+          {selectedOption ? (
+            <div className="matching-selected">
+              <span className="matching-chip-text">{selectedOption.text}</span>
+            </div>
+          ) : (
+            <div className="matching-placeholder">(No answer)</div>
+          )}
+        </div>
+      );
+    }
 
     const handleDrop = (e) => {
       e.preventDefault();
@@ -226,7 +266,7 @@ function QuestionInput({ slot, value, onChange, index, onHighlightUpdate, showRe
 }
 
 /** Inline Drop Zone for Summary Completion */
-function SummaryDropZone({ value, onChange, index, options, displayNumber }) {
+function SummaryDropZone({ value, onChange, index, options, displayNumber, reviewMode = false }) {
   const selectedOption = (options || []).find(o => o.id === value);
 
   const handleDrop = (e) => {
@@ -241,6 +281,20 @@ function SummaryDropZone({ value, onChange, index, options, displayNumber }) {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
   };
+
+  if (reviewMode) {
+    return (
+      <span className={`summary-dropzone ${selectedOption ? 'has-value' : ''}`}>
+        {selectedOption ? (
+          <span className="summary-selected-chip">
+            <span className="summary-chip-text">{selectedOption.text}</span>
+          </span>
+        ) : (
+          <span style={{ color: '#9ca3af', fontSize: '0.9rem', fontWeight: 'bold' }}>{displayNumber || index + 1}</span>
+        )}
+      </span>
+    );
+  }
 
   return (
     <span
@@ -263,7 +317,7 @@ function SummaryDropZone({ value, onChange, index, options, displayNumber }) {
 }
 
 /** Component for IELTS Listening Map questions with Image + Matching Grid */
-function ListeningMapGrid({ group, slots, answers, setAnswer, startSlotIndex }) {
+function ListeningMapGrid({ group, slots, answers, setAnswer, startSlotIndex, reviewMode = false }) {
   const options = group.options || []; // e.g. [{id: 'A', text: ''}, ...]
   const questions = group.questions || []; // e.g. [{q_number: 5, text: 'hotel'}, ...]
 
@@ -302,7 +356,8 @@ function ListeningMapGrid({ group, slots, answers, setAnswer, startSlotIndex }) 
                             type="checkbox"
                             id={id}
                             checked={answers[currentSlotIndex] === opt.id}
-                            onChange={() => setAnswer(currentSlotIndex, answers[currentSlotIndex] === opt.id ? '' : opt.id)}
+                            onChange={() => !reviewMode && setAnswer(currentSlotIndex, answers[currentSlotIndex] === opt.id ? '' : opt.id)}
+                            disabled={reviewMode}
                           />
                           <span className="radio-custom" />
                         </label>
@@ -343,6 +398,7 @@ function ReadingStepLayout({
   isListening,
   handleHtmlUpdate,
   questionsBlock,
+  reviewMode = false
 }) {
   // Identify valid matching question placeholders in passage text.
   const matchingQuestionNumbers = new Set();
@@ -420,6 +476,7 @@ function ReadingStepLayout({
                   showResult={showResult}
                   index={targetQuestion.q_number - 1}
                   isListening={isListening}
+                  reviewMode={reviewMode}
                 />
               </div>,
               node
@@ -443,13 +500,88 @@ function ReadingStepLayout({
 
 
 /** One step: passage/section content + its questions (with slot indices) */
-function StepContent({ step, slots, answers, setAnswer, passageStates, setPassageState, showResult, listeningAudioUrl, onListeningAudioEnded }) {
+function normalizeReviewText(value) {
+  return String(value ?? '').trim().replace(/\s+/g, ' ').toUpperCase();
+}
+
+function formatReviewAnswer(value) {
+  if (Array.isArray(value)) {
+    const cleaned = value.map((v) => String(v ?? '').trim()).filter(Boolean);
+    return cleaned.length ? cleaned.join(', ') : '(Bỏ trống)';
+  }
+  const text = String(value ?? '').trim();
+  return text || '(Bỏ trống)';
+}
+
+function getAnswerTextFromOptions(value, options = []) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+
+  const normalizedRaw = normalizeReviewText(raw);
+  const foundByIdOrLabel = options.find(
+    (opt) =>
+      normalizeReviewText(opt?.id) === normalizedRaw ||
+      normalizeReviewText(opt?.label) === normalizedRaw
+  );
+  if (foundByIdOrLabel?.text) return foundByIdOrLabel.text;
+
+  const foundByText = options.find(
+    (opt) => normalizeReviewText(opt?.text) === normalizedRaw
+  );
+  if (foundByText?.text) return foundByText.text;
+
+  return raw;
+}
+
+function formatReviewAnswerByOptions(value, options = []) {
+  if (Array.isArray(value)) {
+    const cleaned = value
+      .map((item) => getAnswerTextFromOptions(item, options))
+      .map((item) => String(item ?? '').trim())
+      .filter(Boolean);
+    return cleaned.length ? cleaned.join(', ') : '(Bo trong)';
+  }
+
+  const text = getAnswerTextFromOptions(value, options);
+  return String(text ?? '').trim() || '(Bo trong)';
+}
+
+function isReviewAnswerCorrect(reviewItem) {
+  if (!reviewItem) return false;
+  if (typeof reviewItem.is_correct === 'boolean') return reviewItem.is_correct;
+  const your = reviewItem.your_answer;
+  const correct = reviewItem.correct_answer;
+
+  if (Array.isArray(your) || Array.isArray(correct)) {
+    const left = (Array.isArray(your) ? your : [your]).map(normalizeReviewText).filter(Boolean).sort();
+    const right = (Array.isArray(correct) ? correct : [correct]).map(normalizeReviewText).filter(Boolean).sort();
+    if (left.length !== right.length) return false;
+    return left.every((item, index) => item === right[index]);
+  }
+
+  return normalizeReviewText(your) === normalizeReviewText(correct);
+}
+
+function StepContent({
+  step,
+  slots,
+  answers,
+  setAnswer,
+  passageStates,
+  setPassageState,
+  showResult,
+  listeningAudioUrl,
+  onListeningAudioEnded,
+  reviewMode = false,
+  reviewLookup = {}
+}) {
   const { item, startSlotIndex, type } = step;
   const isReading = type === 'reading';
   const isListening = type === 'listening';
   const audioUrl = isListening ? (listeningAudioUrl || item.audio_url || null) : item.audio_url;
   const hasAudio = isListening && Boolean(audioUrl);
   let slotIndex = startSlotIndex;
+  const getReviewForQuestion = (qNumber) => reviewLookup?.[String(qNumber)] || null;
 
   // Use persisted HTML if available, otherwise original content
   const contentHtml = (passageStates && passageStates[item._id]) || (item.content || '').replace(/\n/g, '<br />');
@@ -516,8 +648,9 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                           <div
                             key={h.id}
                             className="matching-chip"
-                            draggable
+                            draggable={!reviewMode}
                             onDragStart={(e) => {
+                              if (reviewMode) return;
                               // Cross-browser support: set text/plain as well
                               e.dataTransfer.setData('headingId', h.id);
                               e.dataTransfer.setData('text/plain', h.id);
@@ -528,7 +661,7 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                               e.currentTarget.classList.remove('dragging');
                             }}
                           >
-                            {(group.type === 'matching_headings' || group.type === 'matching_features') ? <span className="matching-chip-id">{h.id}</span> : null}
+                            {(group.type === 'matching_headings' || group.type === 'matching_features') && !reviewMode ? <span className="matching-chip-id">{h.id}</span> : null}
                             {/* {console.log(group.type)} */}
                             <span className="matching-chip-text">{h.text}</span>
                           </div>
@@ -556,6 +689,7 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                     answers={answers}
                     setAnswer={setAnswer}
                     startSlotIndex={currentGroupStartIndex}
+                    reviewMode={reviewMode}
                   />
                 );
               }
@@ -599,6 +733,7 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                                       value={answers[realSlotIndex]}
                                       onChange={(val) => setAnswer(realSlotIndex, val)}
                                       options={group.options || []}
+                                      reviewMode={reviewMode}
                                     />
                                   );
                                 } else {
@@ -609,7 +744,9 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                                       className={`gap-fill-input ${isListening ? 'gap-fill-input-listening' : ''}`}
                                       placeholder={`${qNum}`}
                                       value={answers[realSlotIndex] || ''}
-                                      onChange={(e) => setAnswer(realSlotIndex, e.target.value)}
+                                      onChange={(e) => !reviewMode && setAnswer(realSlotIndex, e.target.value)}
+                                      readOnly={reviewMode}
+                                      disabled={reviewMode}
                                       autoComplete="off"
                                     />
                                   );
@@ -645,9 +782,9 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                               <div
                                 key={opt.id}
                                 className={`matching-chip ${isUsed ? 'used' : ''}`}
-                                draggable={!isUsed}
+                                draggable={!isUsed && !reviewMode}
                                 onDragStart={(e) => {
-                                  if (!isUsed) {
+                                  if (!isUsed && !reviewMode) {
                                     // Cross-browser support: set text/plain as well
                                     e.dataTransfer.setData('optionId', opt.id);
                                     e.dataTransfer.setData('text/plain', opt.id);
@@ -718,6 +855,7 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                 }
 
                 const handleMultiChange = (optText, isChecked) => {
+                  if (reviewMode) return;
                   let newSelection = [...currentAnswers];
                   if (isChecked) {
                     if (newSelection.length < maxSelect) {
@@ -758,7 +896,8 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                             <input
                               type="checkbox"
                               checked={isChecked}
-                              onChange={(e) => handleMultiChange(opt.text, e.target.checked)}
+                              onChange={(e) => !reviewMode && handleMultiChange(opt.text, e.target.checked)}
+                              disabled={reviewMode}
                               style={{ width: '1.25rem', height: '1.25rem', marginRight: '1rem' }}
                             />
                             <span className="opt-id font-bold min-w-[1.5rem]">{opt.label}.</span>
@@ -818,6 +957,7 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                                       showResult={showResult}
                                       passageStates={passageStates}
                                       isListening={isListening}
+                                      reviewMode={reviewMode}
                                     />
                                   </span>
                                 )}
@@ -871,6 +1011,7 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                         showResult={showResult}
                         passageStates={passageStates}
                         isListening={isListening}
+                        reviewMode={reviewMode}
                       />
                     </div>
                   );
@@ -900,12 +1041,46 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
                         showResult={showResult}
                         passageStates={passageStates}
                         isListening={isListening}
+                        reviewMode={reviewMode}
                       />
                     </div>
                   );
                 }
               });
             })()}
+
+            {reviewMode && (
+              <div className="review-group-status-list">
+                {(group.questions || []).map((q) => {
+                  const reviewItem = getReviewForQuestion(q.q_number);
+                  if (!reviewItem) return null;
+                  const optionPool = (isMatching || isSummary)
+                    ? (group.headings || group.options || [])
+                    : [];
+                  const yourAnswer = optionPool.length
+                    ? formatReviewAnswerByOptions(reviewItem.your_answer, optionPool)
+                    : formatReviewAnswer(reviewItem.your_answer);
+                  const correctAnswer = optionPool.length
+                    ? formatReviewAnswerByOptions(reviewItem.correct_answer, optionPool)
+                    : formatReviewAnswer(reviewItem.correct_answer);
+                  const correct = isReviewAnswerCorrect(reviewItem);
+
+                  return (
+                    <div
+                      key={`review-${groupIdx}-${q.q_number}`}
+                      className={`review-check-row ${correct ? 'correct' : 'wrong'}`}
+                    >
+                      <span className="review-check-number">Q{q.q_number}</span>
+                      <span className="review-check-user">Bạn làm: {yourAnswer}</span>
+                      <span className="review-check-correct">Đáp án: {correctAnswer}</span>
+                      <span className={`review-check-badge ${correct ? 'correct' : 'wrong'}`}>
+                        {correct ? 'Đúng' : 'Sai'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         );
       })}
@@ -958,6 +1133,7 @@ function StepContent({ step, slots, answers, setAnswer, passageStates, setPassag
         isListening={isListening}
         handleHtmlUpdate={handleHtmlUpdate}
         questionsBlock={questionsBlock}
+        reviewMode={reviewMode}
       />
     );
   }

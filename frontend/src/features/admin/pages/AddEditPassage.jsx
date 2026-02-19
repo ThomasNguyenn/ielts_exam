@@ -27,6 +27,7 @@ function emptyQuestion(qNumber = 1) {
     correct_answers_raw: '',
     correct_answers: [''],
     explanation: '',
+    passage_reference: '',
   };
 }
 
@@ -110,6 +111,7 @@ function passageToForm(p) {
         correct_answers_raw: (q.correct_answers && q.correct_answers.length) ? q.correct_answers.join(', ') : '',
         correct_answers: (q.correct_answers && q.correct_answers.length) ? [...q.correct_answers] : [''],
         explanation: q.explanation || '',
+        passage_reference: q.passage_reference || '',
       })),
     }))
     : [emptyQuestionGroup()];
@@ -137,6 +139,7 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
   const [error, setError] = useState(null);
   const [existingSearch, setExistingSearch] = useState('');
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
+  const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
 
   // Form State
   const [form, setForm] = useState({
@@ -559,6 +562,78 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
     showNotification('Draft saved.', 'success');
   };
 
+  const handleGenerateQuestionInsights = async () => {
+    const trimmedContent = String(form.content || '').trim();
+    if (!trimmedContent) {
+      showNotification('Passage content is required before generating AI explanation.', 'warning');
+      return;
+    }
+
+    const questionCount = form.question_groups.reduce((sum, group) => sum + (group.questions?.length || 0), 0);
+    if (!questionCount) {
+      showNotification('Please create at least one question before generating AI explanation.', 'warning');
+      return;
+    }
+
+    setIsGeneratingInsights(true);
+    try {
+      const response = await api.generatePassageQuestionInsights({
+        title: form.title || '',
+        source: form.source || '',
+        content: trimmedContent,
+        overwrite_existing: true,
+        question_groups: form.question_groups.map((group) => ({
+          type: canonicalizeQuestionType(group.type),
+          instructions: group.instructions || '',
+          text: group.text || '',
+          options: group.options || [],
+          questions: (group.questions || []).map((question) => ({
+            q_number: question.q_number,
+            text: question.text || '',
+            option: question.option || [],
+            explanation: question.explanation || '',
+            passage_reference: question.passage_reference || '',
+          })),
+        })),
+      });
+
+      const generatedRows = Array.isArray(response?.data?.questions) ? response.data.questions : [];
+      if (!generatedRows.length) {
+        showNotification('AI did not return any explanation updates for this passage.', 'warning');
+        return;
+      }
+
+      const insightMap = new Map(
+        generatedRows
+          .filter((row) => Number.isInteger(row.group_index) && Number.isInteger(row.question_index))
+          .map((row) => [`${row.group_index}:${row.question_index}`, row])
+      );
+
+      setForm((prev) => ({
+        ...prev,
+        question_groups: prev.question_groups.map((group, groupIndex) => ({
+          ...group,
+          questions: (group.questions || []).map((question, questionIndex) => {
+            const insight = insightMap.get(`${groupIndex}:${questionIndex}`);
+            if (!insight) return question;
+            return {
+              ...question,
+              explanation: insight.explanation || question.explanation || '',
+              passage_reference: insight.passage_reference || question.passage_reference || '',
+            };
+          }),
+        })),
+      }));
+
+      const modelName = response?.data?.model || 'gemini-2.0-flash';
+      showNotification(`Generated ${generatedRows.length} explanation(s) with ${modelName}.`, 'success');
+    } catch (err) {
+      showNotification(`Failed to generate AI explanation: ${err.message}`, 'error');
+    } finally {
+      setIsGeneratingInsights(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form._id.trim() || !form.title.trim() || !form.content.trim()) {
@@ -593,6 +668,7 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
             option: q.option?.filter((o) => o.text) || [],
             correct_answers: q.correct_answers?.filter(Boolean) || [],
             explanation: q.explanation || undefined,
+            passage_reference: q.passage_reference || undefined,
           })),
         })),
       };
@@ -744,9 +820,20 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
               <h3 style={{ margin: 0, color: '#1e293b' }}>Question Groups</h3>
-              <button type="button" className="btn-manage-add" onClick={addQuestionGroup} style={{ padding: '0.6rem 1.25rem', fontSize: '0.9rem' }}>
-                + Add Group
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={handleGenerateQuestionInsights}
+                  disabled={isGeneratingInsights}
+                  style={{ fontSize: '0.85rem', borderColor: '#c7d2fe', color: '#4f46e5' }}
+                >
+                  {isGeneratingInsights ? 'Generating...' : 'Generate Explain + Reference (AI)'}
+                </button>
+                <button type="button" className="btn-manage-add" onClick={addQuestionGroup} style={{ padding: '0.6rem 1.25rem', fontSize: '0.9rem' }}>
+                  + Add Group
+                </button>
+              </div>
             </div>
 
             {form.question_groups.length === 0 ? (
@@ -785,6 +872,7 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
                   onRemoveQuestionOption={removeQuestionOption}
                   onSyncQuestionsFromText={syncQuestionsFromGroupText}
                   onSyncMultiChoiceCount={syncMultiChoiceCount}
+                  showPassageReferenceField={true}
                   handleBoldShortcut={(e, val, cb) => handleBoldShortcut(e, val, cb)}
                 />
               ))

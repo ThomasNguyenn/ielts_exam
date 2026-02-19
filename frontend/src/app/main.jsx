@@ -22,6 +22,39 @@ if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js')
         .then((registration) => {
           console.log('[PWA] Service Worker registered:', registration);
+
+          const promptUpdate = (worker) => {
+            if (!worker) return;
+            worker.postMessage({ type: 'SKIP_WAITING' });
+          };
+
+          if (registration.waiting) {
+            promptUpdate(registration.waiting);
+          }
+
+          registration.addEventListener('updatefound', () => {
+            const newWorker = registration.installing;
+            if (!newWorker) return;
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                promptUpdate(newWorker);
+              }
+            });
+          });
+
+          let hasRefreshed = false;
+          navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (hasRefreshed) return;
+            hasRefreshed = true;
+            window.location.reload();
+          });
+
+          // Force a check for new SW on load and periodically while tab is open.
+          registration.update().catch(() => undefined);
+          const updateIntervalMs = 5 * 60 * 1000;
+          setInterval(() => {
+            registration.update().catch(() => undefined);
+          }, updateIntervalMs);
         })
         .catch((error) => {
           console.log('[PWA] Service Worker registration failed:', error);
