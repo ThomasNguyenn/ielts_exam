@@ -507,31 +507,30 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
   };
 
   const syncQuestionsFromGroupText = (groupIndex) => {
-    setForm((prev) => {
-      const targetGroup = prev.question_groups[groupIndex];
-      if (!targetGroup) return prev;
-      const sourceText = PLACEHOLDER_FROM_PASSAGE_CONTENT_TYPES.has(targetGroup.type)
-        ? (prev.content || '')
-        : (targetGroup.text || '');
+    const targetGroup = form.question_groups[groupIndex];
+    if (!targetGroup) return;
 
-      const nextQuestions = buildQuestionsFromPlaceholders({
-        rawText: sourceText,
-        existingQuestions: targetGroup.questions || [],
-        createQuestion: (qNumber) => emptyQuestion(qNumber),
-      });
+    const sourceText = PLACEHOLDER_FROM_PASSAGE_CONTENT_TYPES.has(targetGroup.type)
+      ? (form.content || '')
+      : (targetGroup.text || '');
 
-      if (!nextQuestions.length) {
-        showNotification('No placeholders found. Use [1], [2], ... in reference text.', 'warning');
-        return prev;
-      }
-
-      return {
-        ...prev,
-        question_groups: prev.question_groups.map((group, index) => (
-          index === groupIndex ? { ...group, questions: nextQuestions } : group
-        )),
-      };
+    const nextQuestions = buildQuestionsFromPlaceholders({
+      rawText: sourceText,
+      existingQuestions: targetGroup.questions || [],
+      createQuestion: (qNumber) => emptyQuestion(qNumber),
     });
+
+    if (!nextQuestions.length) {
+      showNotification('No placeholders found. Use [1], [2], ... in reference text.', 'warning');
+      return;
+    }
+
+    setForm((prev) => ({
+      ...prev,
+      question_groups: prev.question_groups.map((group, index) => (
+        index === groupIndex ? { ...group, questions: nextQuestions } : group
+      )),
+    }));
   };
 
   const syncMultiChoiceCount = (groupIndex, count) => {

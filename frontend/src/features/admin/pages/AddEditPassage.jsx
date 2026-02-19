@@ -510,31 +510,30 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
   };
 
   const syncQuestionsFromGroupText = (groupIndex) => {
-    setForm((prev) => {
-      const targetGroup = prev.question_groups[groupIndex];
-      if (!targetGroup) return prev;
-      const sourceText = PLACEHOLDER_FROM_PASSAGE_CONTENT_TYPES.has(targetGroup.type)
-        ? (prev.content || '')
-        : (targetGroup.text || '');
+    const targetGroup = form.question_groups[groupIndex];
+    if (!targetGroup) return;
 
-      const nextQuestions = buildQuestionsFromPlaceholders({
-        rawText: sourceText,
-        existingQuestions: targetGroup.questions || [],
-        createQuestion: (qNumber) => emptyQuestion(qNumber),
-      });
+    const sourceText = PLACEHOLDER_FROM_PASSAGE_CONTENT_TYPES.has(targetGroup.type)
+      ? (form.content || '')
+      : (targetGroup.text || '');
 
-      if (!nextQuestions.length) {
-        showNotification('No placeholders found. Use [1], [2], ... in reference text.', 'warning');
-        return prev;
-      }
-
-      return {
-        ...prev,
-        question_groups: prev.question_groups.map((group, index) => (
-          index === groupIndex ? { ...group, questions: nextQuestions } : group
-        )),
-      };
+    const nextQuestions = buildQuestionsFromPlaceholders({
+      rawText: sourceText,
+      existingQuestions: targetGroup.questions || [],
+      createQuestion: (qNumber) => emptyQuestion(qNumber),
     });
+
+    if (!nextQuestions.length) {
+      showNotification('No placeholders found. Use [1], [2], ... in reference text.', 'warning');
+      return;
+    }
+
+    setForm((prev) => ({
+      ...prev,
+      question_groups: prev.question_groups.map((group, index) => (
+        index === groupIndex ? { ...group, questions: nextQuestions } : group
+      )),
+    }));
   };
 
   const syncMultiChoiceCount = (groupIndex, count) => {
@@ -628,6 +627,10 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
       const modelName = response?.data?.model || 'gemini-2.0-flash';
       showNotification(`Generated ${generatedRows.length} explanation(s) with ${modelName}.`, 'success');
     } catch (err) {
+      if (String(err?.message || '').includes('404')) {
+        showNotification('AI route not found (404). Please restart/update backend to include /api/passages/ai/question-insights.', 'error');
+        return;
+      }
       showNotification(`Failed to generate AI explanation: ${err.message}`, 'error');
     } finally {
       setIsGeneratingInsights(false);
