@@ -805,13 +805,21 @@ export const submitExam = async (req, res) => {
                 }
             }
 
-            // Award XP
-            const { addXP, XP_TEST_COMPLETION } = await import("../services/gamification.service.js");
-            xpResult = await addXP(userId, XP_TEST_COMPLETION, 'test');
+            // Award XP & check achievements in background (non-blocking)
+            // We still attach to response if fast enough, but don't delay the result
+            const gamificationPromise = (async () => {
+                try {
+                    const { addXP, XP_TEST_COMPLETION } = await import("../services/gamification.service.js");
+                    const { checkAchievements } = await import("../services/achievement.service.js");
+                    xpResult = await addXP(userId, XP_TEST_COMPLETION, 'test');
+                    newlyUnlocked = await checkAchievements(userId);
+                } catch (err) {
+                    console.error("Background gamification error:", err);
+                }
+            })();
 
-            // Check for newly unlocked achievements
-            const { checkAchievements } = await import("../services/achievement.service.js");
-            newlyUnlocked = await checkAchievements(userId);
+            // Give gamification 50ms to complete, otherwise send response without it
+            await Promise.race([gamificationPromise, new Promise(r => setTimeout(r, 50))]);
         }
 
         res.status(200).json({
