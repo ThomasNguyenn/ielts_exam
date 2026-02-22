@@ -24,6 +24,5 @@ const achievementSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 achievementSchema.index({ category: 1, order: 1 });
-achievementSchema.index({ key: 1 });
 
 export default mongoose.model('Achievement', achievementSchema);
