@@ -55,6 +55,7 @@ export default function Layout() {
   // Profile page custom width
   const isProfilePage = location.pathname.includes('/profile');
   const isAnalyticsPage = location.pathname.startsWith('/analytics');
+  const isAchievementsPage = location.pathname.startsWith('/achievements');
 
   const closeMobileMenu = () => setIsMobileMenuOpen(false);
 
@@ -89,10 +90,6 @@ export default function Layout() {
                 }
               }}
             >
-              {/* <NavLink to="/" className="nav-brand">
-              IELTS MASTER
-            </NavLink> */}
-
               <NavLink to="/" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
                 Trang chủ
               </NavLink>
@@ -126,6 +123,9 @@ export default function Layout() {
                   <NavLink to="/analytics" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
                     Phân Tích Sâu 📊
                   </NavLink>
+                  <NavLink to="/achievements" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                    Thành tựu 🏆
+                  </NavLink>
                 </>
               )}
 
@@ -158,7 +158,6 @@ export default function Layout() {
                     window.location.href = '/login';
                   }}>
                     <Icons.Logout />
-                    {/* Logout <span className="user-badge">{user.name}</span> */}
                   </button>
                 </div>
               ) : (
@@ -176,7 +175,7 @@ export default function Layout() {
           </div>
         </header>
       )}
-      <main className={`layout-main ${isExamPage ? 'layout-main--fullscreen' : ''} ${isPracticePage || isTestDetailPage ? 'layout-main--wide' : ''} ${isResultAiPage ? 'layout-main--result-ai' : ''} ${isManagePage ? 'layout-main--manage' : ''} ${location.pathname === '/' ? 'layout-main--home' : ''} ${isProfilePage ? 'layout-main--profile' : ''} ${isAnalyticsPage ? 'layout-main--analytics' : ''}`}>
+      <main className={`layout-main ${isExamPage ? 'layout-main--fullscreen' : ''} ${isPracticePage || isTestDetailPage ? 'layout-main--wide' : ''} ${isResultAiPage ? 'layout-main--result-ai' : ''} ${isManagePage ? 'layout-main--manage' : ''} ${location.pathname === '/' ? 'layout-main--home' : ''} ${isProfilePage ? 'layout-main--profile' : ''} ${isAnalyticsPage ? 'layout-main--analytics' : ''} ${isAchievementsPage ? 'layout-main--achievements' : ''}`}>
         <Outlet />
       </main>
     </div>

@@ -2,6 +2,8 @@ import User from '../models/User.model.js';
 
 export const XP_TEST_COMPLETION = 500;
 export const XP_VOCAB_REVIEW = 10;
+export const XP_WRITING_SUBMIT = 200;
+export const XP_SPEAKING_SESSION = 150;
 
 // Simple level formula: Level N requires 500 * (N-1) XP to reach? 
 // Or cumulative? Let's use a simple table or formula.

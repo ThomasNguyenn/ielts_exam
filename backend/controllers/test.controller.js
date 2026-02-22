@@ -625,6 +625,9 @@ export const submitExam = async (req, res) => {
 
         // Build detailed question review data
         const questionReview = [];
+        let xpResult = null;
+        let newlyUnlocked = [];
+
         const processItemForReview = (item, itemType) => {
             if (!item || !item.question_groups) return;
             let qIndex = questionReview.length;
@@ -765,7 +768,6 @@ export const submitExam = async (req, res) => {
         const writingCount = examType === 'writing' ? (test.writing_tasks || []).length : 0;
 
         // Store attempt for logged-in users (if not practice mode)
-        let xpResult = null;
         if (shouldSave) {
             const isWriting = examType === 'writing';
             await TestAttempt.create({
@@ -806,6 +808,10 @@ export const submitExam = async (req, res) => {
             // Award XP
             const { addXP, XP_TEST_COMPLETION } = await import("../services/gamification.service.js");
             xpResult = await addXP(userId, XP_TEST_COMPLETION);
+
+            // Check for newly unlocked achievements
+            const { checkAchievements } = await import("../services/achievement.service.js");
+            newlyUnlocked = await checkAchievements(userId);
         }
 
         res.status(200).json({
@@ -823,6 +829,7 @@ export const submitExam = async (req, res) => {
                 timeTaken: typeof timeTaken === 'number' ? timeTaken : 0,
                 writing_answers: examType === 'writing' ? safeWriting : [],
                 xpResult, // Return XP gain info
+                achievements: newlyUnlocked, // Newly unlocked achievements
                 writingSubmissionId: res.locals.writingSubmissionId || null, // Return submission ID for AI redirect
             },
         });

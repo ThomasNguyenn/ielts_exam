@@ -475,6 +475,15 @@ export const submitSpeaking = async (req, res) => {
     });
     await session.save();
 
+    let xpResult = null;
+    let newlyUnlocked = [];
+    if (userId) {
+      const { addXP, XP_SPEAKING_SESSION } = await import("../services/gamification.service.js");
+      const { checkAchievements } = await import("../services/achievement.service.js");
+      xpResult = await addXP(userId, XP_SPEAKING_SESSION);
+      newlyUnlocked = await checkAchievements(userId);
+    }
+
     const shouldQueue = isAiAsyncModeEnabled() && isAiQueueReady();
     const canUseAsyncQueue = shouldQueue && Boolean(userId);
 
@@ -492,6 +501,8 @@ export const submitSpeaking = async (req, res) => {
             status: "processing",
             queued: true,
             job_id: queueResult.jobId,
+            xpResult,
+            achievements: newlyUnlocked
           });
         }
       } catch (queueError) {
@@ -508,10 +519,12 @@ export const submitSpeaking = async (req, res) => {
       analysis: grading.analysis || null,
       ai_source: grading.aiSource,
       queued: false,
+      xpResult,
+      achievements: newlyUnlocked
     });
   } catch (error) {
     if (session?._id) {
-      await SpeakingSession.findByIdAndUpdate(session._id, { status: "failed" }).catch(() => {});
+      await SpeakingSession.findByIdAndUpdate(session._id, { status: "failed" }).catch(() => { });
     }
     console.error("Speaking submission failed:", error);
     return res.status(500).json({ success: false, message: "Server Error" });

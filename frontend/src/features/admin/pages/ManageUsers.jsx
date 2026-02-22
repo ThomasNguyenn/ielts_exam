@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom';
 import React, { useState, useEffect } from 'react';
 import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
@@ -18,7 +17,7 @@ export default function ManageUsers() {
     isOpen: false,
     title: '',
     message: '',
-    onConfirm: () => {},
+    onConfirm: () => { },
     isDanger: false,
   });
   const { showNotification } = useNotification();
@@ -135,20 +134,6 @@ export default function ManageUsers() {
                     <span className="item-meta">{user.email}</span>
                   </div>
                   <div className="item-actions" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                    <Link
-                      to={`/analytics/student/${user._id}`}
-                      style={{
-                        textDecoration: 'none',
-                        color: '#6366F1',
-                        border: '1px solid #6366F1',
-                        padding: '0.4rem 0.8rem',
-                        borderRadius: '6px',
-                        fontSize: '0.85rem',
-                        fontWeight: 600
-                      }}
-                    >
-                      Analytics
-                    </Link>
                     {user.role !== 'admin' && (
                       <button
                         onClick={() => handleDelete(user._id, user.name)}

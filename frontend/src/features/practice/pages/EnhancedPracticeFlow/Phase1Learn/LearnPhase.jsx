@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
-import { ArrowLeft, BookOpen, CheckCircle2, Award, ChevronRight } from 'lucide-react';
+import { ArrowLeft, BookOpen, CheckCircle2, Award, ChevronRight, Layers } from 'lucide-react';
 import SkillModuleCard from './SkillModuleCard';
 import LessonViewer from './LessonViewer';
 import CheckpointQuiz from './CheckpointQuiz';
@@ -111,7 +111,7 @@ const LearnPhase = ({ onComplete, onBack }) => {
             <div className="learn-phase">
                 <div className="loading-container">
                     <div className="spinner"></div>
-                    <p>Loading skill modules...</p>
+                    <p>Đang tải nội dung học tập...</p>
                 </div>
             </div>
         );
@@ -144,67 +144,82 @@ const LearnPhase = ({ onComplete, onBack }) => {
 
     return (
         <div className="learn-phase">
-            <div className="phase-header">
-                <button onClick={onBack} className="back-button">
-                    <ArrowLeft size={20} />
-                    <span>Back</span>
-                </button>
-                <div className="header-content">
-                    <h1 className="phase-title">
-                        <BookOpen className="phase-icon" size={48} />
-                        Lí Thuyết IELTS WRITING
-                    </h1>
-                    <p className="phase-subtitle">Master the essential skills and strategies for a high band score</p>
+            {/* Hero Header */}
+            <div className="learn-hero">
+                <div className="hero-inner">
+                    <button onClick={onBack} className="back-button">
+                        <ArrowLeft size={18} />
+                        <span>Quay lại</span>
+                    </button>
+                    <div className="header-content">
+                        <h1 className="phase-title">
+                            <BookOpen className="phase-icon" size={40} />
+                            Lí Thuyết IELTS Writing
+                        </h1>
+                        <p className="phase-subtitle">
+                            Nắm vững kiến thức nền tảng và chiến lược giải đề để đạt band điểm cao trong IELTS Writing.
+                        </p>
+                    </div>
                 </div>
             </div>
 
-            <div className="progress-overview">
-                <div className="progress-stats">
+            {/* Body Content */}
+            <div className="learn-body">
+                {/* Floating Progress Card */}
+                <div className="progress-overview">
                     <div className="stat">
                         <span className="stat-value">{completedCount}/{totalModules}</span>
-                        <span className="stat-label">Modules Completed</span>
+                        <span className="stat-label">Modules</span>
                     </div>
                     <div className="stat">
                         <span className="stat-value">{progressPercentage}%</span>
-                        <span className="stat-label">Overall Progress</span>
+                        <span className="stat-label">Tiến trình</span>
+                    </div>
+                    <div className="progress-bar-container">
+                        <div
+                            className="progress-bar-fill"
+                            style={{ width: `${progressPercentage}%` }}
+                        ></div>
                     </div>
                 </div>
-                <div className="progress-bar-container">
-                    <div
-                        className="progress-bar-fill"
-                        style={{ width: `${progressPercentage}%` }}
-                    ></div>
+
+                {/* Section Heading */}
+                <h2 className="section-heading">
+                    <Layers size={22} className="section-heading-icon" />
+                    Các module học tập
+                </h2>
+
+                {/* Modules Grid */}
+                <div className="modules-grid">
+                    {modules.map((module, index) => (
+                        <SkillModuleCard
+                            key={module._id}
+                            module={module}
+                            index={index}
+                            isUnlocked={isModuleUnlocked(module)}
+                            isCompleted={isModuleCompleted(module._id)}
+                            onClick={() => handleModuleClick(module)}
+                        />
+                    ))}
                 </div>
-            </div>
 
-            <div className="modules-grid">
-                {modules.map((module, index) => (
-                    <SkillModuleCard
-                        key={module._id}
-                        module={module}
-                        index={index}
-                        isUnlocked={isModuleUnlocked(module)}
-                        isCompleted={isModuleCompleted(module._id)}
-                        onClick={() => handleModuleClick(module)}
-                    />
-                ))}
-            </div>
-
-            {completedCount === totalModules && totalModules > 0 && (
-                <div className="completion-banner">
-                    <div className="completion-content">
-                        <Award className="completion-icon" size={64} />
-                        <div>
-                            <h3>All Modules Completed!</h3>
-                            <p>You're ready to start writing practice</p>
+                {/* Completion Banner */}
+                {completedCount === totalModules && totalModules > 0 && (
+                    <div className="completion-banner">
+                        <div className="completion-content">
+                            <Award className="completion-icon" size={56} />
+                            <div>
+                                <h3>Hoàn thành xuất sắc!</h3>
+                                <p>Bạn đã sẵn sàng bước vào phần luyện tập viết thực tế</p>
+                            </div>
                         </div>
+                        <button onClick={handleContinueToNext} className="btn-continue">
+                            Bắt đầu luyện tập
+                            <ChevronRight size={20} style={{ marginLeft: '6px' }} />
+                        </button>
                     </div>
-                    <button onClick={handleContinueToNext} className="btn-continue">
-                        Continue to Practice
-                        <ChevronRight size={20} style={{ marginLeft: '8px', verticalAlign: 'middle' }} />
-                    </button>
-                </div>
-            )}
+                )}
+            </div>
         </div>
     );
 };

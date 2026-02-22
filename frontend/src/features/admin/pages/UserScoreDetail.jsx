@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { api } from '@/shared/api/client';
 import PaginationControls from '@/shared/components/PaginationControls';
 import './ScoreDashboard.css';
@@ -8,6 +8,8 @@ export default function UserScoreDetail() {
     const PAGE_SIZE = 20;
     const { userId } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
+    const userName = location.state?.userName || null;
     const [attempts, setAttempts] = useState([]);
     const [pagination, setPagination] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
@@ -70,8 +72,10 @@ export default function UserScoreDetail() {
 
     if (loading) {
         return (
-            <div className="loading-container">
-                <div className="loader"></div>
+            <div className="score-dashboard">
+                <div className="loading-container">
+                    <div className="loader"></div>
+                </div>
             </div>
         );
     }
@@ -89,10 +93,16 @@ export default function UserScoreDetail() {
                     </button>
                 </div>
                 <div>
-                    <h1>User Attempts</h1>
-                    <p style={{ color: '#64748b', fontSize: '1.1rem', marginBottom: '2rem' }}>
-                        User ID: {userId}
-                    </p>
+                    <h1>{userName ? `${userName}` : 'Chi tiết bài làm'}</h1>
+                    {userName ? (
+                        <p style={{ color: '#64748b', fontSize: '0.95rem', marginBottom: '2rem' }}>
+                            Lịch sử bài làm và điểm số
+                        </p>
+                    ) : (
+                        <p style={{ color: '#64748b', fontSize: '0.95rem', marginBottom: '2rem' }}>
+                            User ID: {userId}
+                        </p>
+                    )}
                 </div>
             </div>
 

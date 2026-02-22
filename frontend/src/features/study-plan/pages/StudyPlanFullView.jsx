@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { api } from '@/shared/api/client';
 import { Link, useNavigate } from 'react-router-dom';
 import PaginationControls from '@/shared/components/PaginationControls';
+import { ArrowLeft, History, CalendarDays, CheckCircle2, Circle, ChevronRight, Calendar } from 'lucide-react';
+import './StudyPlanFullView.css';
 
 const PAGE_SIZE = 30;
 
@@ -34,7 +36,6 @@ export default function StudyPlanFullView() {
             setHistory(historyRes.tasks || []);
             setUpcomingPagination(planRes.pagination || null);
             setHistoryPagination(historyRes.pagination || null);
-            console.log("Tasks loaded in FullView:", planRes.tasks);
         } catch (error) {
             console.error("Error fetching data", error);
         } finally {
@@ -42,16 +43,56 @@ export default function StudyPlanFullView() {
         }
     };
 
-    if (loading) return <div className="p-8 text-center">Loading...</div>;
+    if (loading) {
+        return (
+            <div className="study-plan-container" style={{ textAlign: 'center', paddingTop: '4rem' }}>
+                <div className="loading-spinner" style={{ margin: '0 auto 1rem', width: 40, height: 40, border: '4px solid #eef2ff', borderTopColor: '#6366F1', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+                <p style={{ color: '#64748b', fontWeight: 600 }}>Tải lộ trình học tập...</p>
+                <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+            </div>
+        );
+    }
 
-    if (!plan && view === 'upcoming') return <div>Chưa có lộ trình. <Link to="/study-plan/setup">Tạo ngay</Link></div>;
+    if (!plan && view === 'upcoming') {
+        return (
+            <div className="study-plan-container">
+                <div className="plan-empty-state">
+                    <div className="plan-empty-icon">
+                        <Calendar size={40} />
+                    </div>
+                    <h2 style={{ marginBottom: '0.5rem', color: '#1e293b' }}>Chưa có lộ trình học tập</h2>
+                    <p style={{ color: '#64748b', maxWidth: 400, margin: '0 auto' }}>
+                        Tạo lộ trình học tập cá nhân hóa dựa trên mục tiêu thực tế của bạn để đạt điểm số mong ước.
+                    </p>
+                    <Link to="/study-plan/setup" className="empty-state-btn">
+                        Thiết lập lộ trình ngay
+                    </Link>
+                </div>
+            </div>
+        );
+    }
 
     // Grouping Logic
     const groupTasksByDate = (taskList) => {
         return taskList.reduce((acc, task) => {
-            const dateStr = new Date(task.date || task.completedAt).toLocaleDateString();
-            if (!acc[dateStr]) acc[dateStr] = [];
-            acc[dateStr].push(task);
+            const dateObj = new Date(task.date || task.completedAt);
+            const dateStr = dateObj.toLocaleDateString('vi-VN', {
+                weekday: 'short',
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            });
+            const key = `${dateObj.getFullYear()}-${dateObj.getMonth()}-${dateObj.getDate()}`;
+
+            if (!acc[key]) {
+                acc[key] = {
+                    dayText: dateObj.toLocaleDateString('vi-VN', { weekday: 'short' }),
+                    numText: dateObj.getDate(),
+                    fullLabel: dateStr,
+                    tasks: []
+                };
+            }
+            acc[key].tasks.push(task);
             return acc;
         }, {});
     };
@@ -59,95 +100,115 @@ export default function StudyPlanFullView() {
     const displayTasks = view === 'upcoming' ? tasks : history;
     const tasksByDate = groupTasksByDate(displayTasks);
 
+    const getTaskTypeInfo = (task) => {
+        if (task.link?.includes('/practice') || task.title?.toLowerCase().includes('luyện tập')) return { label: 'Thực hành', class: 'badge-practice' };
+        if (task.link?.includes('/learn') || task.title?.toLowerCase().includes('bài học')) return { label: 'Bài học', class: 'badge-lesson' };
+        if (task.link?.includes('/test') || task.title?.toLowerCase().includes('thi')) return { label: 'Kiểm tra', class: 'badge-exam' };
+        return { label: 'Nhiệm vụ', class: 'badge-practice' };
+    };
+
     return (
-        <div style={{ padding: '2rem', maxWidth: '1000px', margin: '0 auto' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <button
-                        onClick={() => navigate(-1)}
-                        style={{
-                            padding: '0.5rem 1rem',
-                            borderRadius: '8px',
-                            border: '1px solid #e2e8f0',
-                            background: 'white',
-                            cursor: 'pointer',
-                            fontSize: '0.9rem',
-                            fontWeight: 500,
-                            color: '#64748b'
-                        }}
-                    >
-                        ← Quay lại
+        <div className="study-plan-container">
+            {/* Header Area */}
+            <div className="plan-header">
+                <div className="plan-title-wrapper">
+                    <button onClick={() => navigate(-1)} className="btn-back">
+                        <ArrowLeft size={18} /> Quay lại
                     </button>
-                    <h2 style={{ margin: 0 }}>Lộ trình học tập chi tiết</h2>
+                    <h2 className="plan-title">Lộ trình chi tiết</h2>
                 </div>
-                <div style={{ display: 'flex', gap: '0.5rem', background: '#f1f5f9', padding: '0.5rem', borderRadius: '8px' }}>
+
+                <div className="view-switcher">
                     <button
                         onClick={() => setView('upcoming')}
-                        style={{
-                            padding: '0.5rem 1rem',
-                            borderRadius: '6px',
-                            border: 'none',
-                            background: view === 'upcoming' ? '#fff' : 'transparent',
-                            boxShadow: view === 'upcoming' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                            fontWeight: view === 'upcoming' ? 600 : 400,
-                            cursor: 'pointer'
-                        }}
+                        className={`view-btn ${view === 'upcoming' ? 'active' : ''}`}
                     >
-                        Upcoming
+                        <CalendarDays size={18} /> Kế hoạch
                     </button>
                     <button
                         onClick={() => setView('history')}
-                        style={{
-                            padding: '0.5rem 1rem',
-                            borderRadius: '6px',
-                            border: 'none',
-                            background: view === 'history' ? '#fff' : 'transparent',
-                            boxShadow: view === 'history' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                            fontWeight: view === 'history' ? 600 : 400,
-                            cursor: 'pointer'
-                        }}
+                        className={`view-btn ${view === 'history' ? 'active' : ''}`}
                     >
-                        History ({historyPagination?.totalItems ?? history.length})
+                        <History size={18} /> Lịch sử ({historyPagination?.totalItems ?? history.length})
                     </button>
                 </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
+            {/* Timeline UI */}
+            <div className="plan-timeline">
                 {Object.keys(tasksByDate).length === 0 ? (
-                    <p style={{ color: '#64748b', fontStyle: 'italic' }}>No tasks found.</p>
+                    <div style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8', fontStyle: 'italic', background: '#f8fafc', borderRadius: '1rem', border: '1px dashed #cbd5e1' }}>
+                        Không có nhiệm vụ nào trong danh sách.
+                    </div>
                 ) : (
-                    Object.entries(tasksByDate).map(([date, dayTasks]) => (
-                        <div key={date} style={{ background: 'white', padding: '1.5rem', borderRadius: '12px', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
-                            <h4 style={{ borderBottom: '1px solid #eee', paddingBottom: '0.5rem', marginBottom: '1rem' }}>{date}</h4>
-                            {dayTasks.map(task => (
-                                <div key={task._id || task.referenceId} style={{ marginBottom: '0.5rem', fontSize: '0.9rem', color: task.status === 'completed' ? '#aaa' : '#333' }}>
-                                    <span style={{ marginRight: '0.5rem' }}>{task.status === 'completed' ? '✅ ' : '⬜ '}</span>
-                                    {task.link ? (
-                                        <Link to={task.link} style={{ color: 'inherit', textDecoration: 'none', borderBottom: '1px dotted #ccc' }}>
-                                            {task.title}
-                                        </Link>
-                                    ) : (
-                                        <span>{task.title}</span>
-                                    )}
+                    Object.values(tasksByDate).map((dayGroup, index) => (
+                        <div key={index} className="day-block">
+                            <div className="date-marker">
+                                <div className="date-dot"></div>
+                                <div className="date-label">
+                                    <span className="date-day">{dayGroup.dayText}</span>
+                                    <span className="date-num">{dayGroup.numText}</span>
                                 </div>
-                            ))}
+                            </div>
+
+                            <div className="day-tasks">
+                                <h4 style={{ margin: '0 0 1.25rem 0', color: '#475569', fontSize: '1rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                    <CalendarDays size={16} /> {dayGroup.fullLabel}
+                                </h4>
+
+                                <div className="task-list">
+                                    {dayGroup.tasks.map((task) => {
+                                        const isCompleted = task.status === 'completed';
+                                        const typeInfo = getTaskTypeInfo(task);
+                                        const Wrapper = task.link ? Link : 'div';
+                                        const wrapperProps = task.link ? { to: task.link, className: `task-item ${isCompleted ? 'completed' : ''}` } : { className: `task-item ${isCompleted ? 'completed' : ''}` };
+
+                                        return (
+                                            <Wrapper key={task._id || task.referenceId} {...wrapperProps}>
+                                                <div className="task-icon-wrap">
+                                                    {isCompleted ? (
+                                                        <CheckCircle2 size={22} className="icon-completed" />
+                                                    ) : (
+                                                        <Circle size={22} className="icon-pending" />
+                                                    )}
+                                                </div>
+
+                                                <div className="task-content">
+                                                    <h5 className="task-title">{task.title}</h5>
+                                                    <span className={`task-type-badge ${typeInfo.class}`}>
+                                                        {typeInfo.label}
+                                                    </span>
+                                                </div>
+
+                                                {task.link && (
+                                                    <div className="task-action">
+                                                        <ChevronRight size={20} />
+                                                    </div>
+                                                )}
+                                            </Wrapper>
+                                        );
+                                    })}
+                                </div>
+                            </div>
                         </div>
                     ))
                 )}
             </div>
 
-            <PaginationControls
-                pagination={view === 'upcoming' ? upcomingPagination : historyPagination}
-                loading={loading}
-                itemLabel="tasks"
-                onPageChange={(nextPage) => {
-                    if (view === 'upcoming') {
-                        setUpcomingPage(nextPage);
-                    } else {
-                        setHistoryPage(nextPage);
-                    }
-                }}
-            />
+            <div className="pagination-wrapper">
+                <PaginationControls
+                    pagination={view === 'upcoming' ? upcomingPagination : historyPagination}
+                    loading={loading}
+                    itemLabel={view === 'upcoming' ? "nhiệm vụ sắp tới" : "nhiệm vụ lịch sử"}
+                    onPageChange={(nextPage) => {
+                        if (view === 'upcoming') {
+                            setUpcomingPage(nextPage);
+                        } else {
+                            setHistoryPage(nextPage);
+                        }
+                    }}
+                />
+            </div>
         </div>
     );
 }

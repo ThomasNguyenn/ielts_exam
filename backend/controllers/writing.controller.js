@@ -186,12 +186,24 @@ export const submitWriting = async (req, res) => {
             status: gradingMode === "ai" ? "processing" : "pending"
         });
 
+        let xpResult = null;
+        let newlyUnlocked = [];
+
+        if (userId) {
+            const { addXP, XP_WRITING_SUBMIT } = await import("../services/gamification.service.js");
+            const { checkAchievements } = await import("../services/achievement.service.js");
+            xpResult = await addXP(userId, XP_WRITING_SUBMIT);
+            newlyUnlocked = await checkAchievements(userId);
+        }
+
         if (gradingMode !== "ai") {
             return res.status(200).json({
                 success: true,
                 data: {
                     submissionId: newSubmission._id,
                     status: newSubmission.status,
+                    xpResult,
+                    achievements: newlyUnlocked
                 },
             });
         }
@@ -212,6 +224,8 @@ export const submitWriting = async (req, res) => {
                             status: "processing",
                             queued: true,
                             jobId: queueResult.jobId,
+                            xpResult,
+                            achievements: newlyUnlocked
                         },
                     });
                 }
@@ -231,6 +245,8 @@ export const submitWriting = async (req, res) => {
                 submissionId: newSubmission._id,
                 ...(scored.aiResult || {}),
                 queued: false,
+                xpResult,
+                achievements: newlyUnlocked
             },
         });
 

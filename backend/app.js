@@ -24,6 +24,8 @@ import analyticsRoutes from "./routes/analytics.routes.js";
 import skillsRoutes from "./routes/skills.routes.js";
 import progressRoutes from "./routes/progress.routes.js";
 import modelEssayRoutes from "./routes/modelEssay.routes.js";
+import leaderboardRoutes from "./routes/leaderboard.route.js";
+import { initAchievements } from "./controllers/leaderboard.controller.js";
 
 const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
 
@@ -219,6 +221,10 @@ export const createApp = ({ startBackgroundJobs = true } = {}) => {
   app.use("/api/skills", skillsRoutes);
   app.use("/api/progress", progressRoutes);
   app.use("/api/model-essays", modelEssayRoutes);
+  app.use("/api", leaderboardRoutes);
+
+  // Seed achievements on startup
+  initAchievements().catch(err => console.error('Achievement seed error:', err));
 
   const uploadDir = ensureUploadDirectory();
   app.use("/uploads", express.static(uploadDir, {

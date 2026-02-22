@@ -105,7 +105,7 @@ export default function Register() {
               <div className="auth-brand-logo-icon">
                 <BookOpen />
               </div>
-              <span className="auth-brand-logo-text">IELTS Master</span>
+              <span className="auth-brand-logo-text">IELTS Pro</span>
             </div>
 
             <h2 className="auth-brand-tagline">

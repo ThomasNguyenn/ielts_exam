@@ -89,30 +89,30 @@
     color: #94a3b8;
 }
 
-.band-score {
+.score-dashboard .band-score {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
 }
 
-.score-value {
+.score-dashboard .score-value {
     font-weight: 800;
     font-size: 1.125rem;
     color: #6366F1;
 }
 
-.score-meta {
+.score-dashboard .score-meta {
     font-size: 0.75rem;
     color: #94a3b8;
 }
 
-.no-score {
+.score-dashboard .no-score {
     color: #cbd5e1;
     font-style: italic;
     font-size: 0.875rem;
 }
 
-.btn-see-more {
+.score-dashboard .btn-see-more {
     background: #EEF2FF;
     color: #6366F1;
     border: 1px solid #E0E7FF;
@@ -124,7 +124,7 @@
     transition: all 0.2s;
 }
 
-.btn-see-more:hover {
+.score-dashboard .btn-see-more:hover {
     background: #6366F1;
     color: white;
     border-color: #6366F1;
@@ -139,7 +139,7 @@
     border: 1px solid #e2e8f0;
 }
 
-.attempts-header {
+.score-dashboard .attempts-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -149,13 +149,13 @@
     margin-bottom: 2rem;
 }
 
-.attempts-header h2 {
+.score-dashboard .attempts-header h2 {
     font-size: 1.5rem;
     font-weight: 800;
     color: #1e293b;
 }
 
-.btn-close-details {
+.score-dashboard .btn-close-details {
     background: none;
     border: none;
     color: #94a3b8;
@@ -164,18 +164,18 @@
     border-radius: 0.5rem;
 }
 
-.btn-close-details:hover {
+.score-dashboard .btn-close-details:hover {
     background: #e2e8f0;
     color: #64748b;
 }
 
-.attempts-grid {
+.score-dashboard .attempts-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 1.5rem;
 }
 
-.attempt-card {
+.score-dashboard .attempt-card {
     background: white;
     border: 1px solid #e2e8f0;
     border-radius: 1.25rem;
@@ -183,13 +183,13 @@
     transition: all 0.2s;
 }
 
-.attempt-card:hover {
+.score-dashboard .attempt-card:hover {
     transform: translateY(-4px);
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
     border-color: #6366F1;
 }
 
-.attempt-type {
+.score-dashboard .attempt-type {
     display: inline-block;
     padding: 0.25rem 0.75rem;
     border-radius: 2rem;
@@ -199,28 +199,28 @@
     margin-bottom: 1rem;
 }
 
-.type-reading {
+.score-dashboard .type-reading {
     background: #e0f2fe;
     color: #0369a1;
 }
 
-.type-listening {
+.score-dashboard .type-listening {
     background: #f0fdf4;
     color: #15803d;
 }
 
-.type-writing {
+.score-dashboard .type-writing {
     background: #fef2f2;
     color: #b91c1c;
 }
 
-.attempt-test-title {
+.score-dashboard .attempt-test-title {
     font-weight: 700;
     color: #1e293b;
     margin-bottom: 0.5rem;
 }
 
-.attempt-stats {
+.score-dashboard .attempt-stats {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 1rem;
@@ -229,31 +229,31 @@
     border-top: 1px solid #f1f5f9;
 }
 
-.stat-item {
+.score-dashboard .stat-item {
     display: flex;
     flex-direction: column;
 }
 
-.stat-label {
+.score-dashboard .stat-label {
     font-size: 0.75rem;
     color: #94a3b8;
     text-transform: uppercase;
     font-weight: 700;
 }
 
-.stat-value {
+.score-dashboard .stat-value {
     font-weight: 800;
     color: #334155;
 }
 
-.loading-container {
+.score-dashboard .loading-container {
     display: flex;
     justify-content: center;
     align-items: center;
     min-height: 400px;
 }
 
-.loader {
+.score-dashboard .loader {
     width: 48px;
     height: 48px;
     border: 5px solid #f3f3f3;
@@ -263,14 +263,14 @@
 }
 
 /* Filter Tabs */
-.filter-tabs {
+.score-dashboard .filter-tabs {
     background: #f1f5f9;
     padding: 0.4rem;
     border-radius: 1rem;
     display: inline-flex !important;
 }
 
-.filter-tab {
+.score-dashboard .filter-tab {
     padding: 0.6rem 1.25rem;
     border: none;
     background: transparent;
@@ -282,17 +282,17 @@
     transition: all 0.2s;
 }
 
-.filter-tab:hover {
+.score-dashboard .filter-tab:hover {
     color: #334155;
 }
 
-.filter-tab.active {
+.score-dashboard .filter-tab.active {
     background: white;
     color: #6366F1;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
-.band-badge {
+.score-dashboard .band-badge {
     background: #6366F1;
     color: white;
     padding: 0.25rem 0.75rem;

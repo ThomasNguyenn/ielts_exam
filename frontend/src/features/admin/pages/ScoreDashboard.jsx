@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { api } from '@/shared/api/client';
 import PaginationControls from '@/shared/components/PaginationControls';
+import { BarChart3 } from 'lucide-react';
 import './ScoreDashboard.css';
 
 export default function ScoreDashboard() {
@@ -32,8 +33,8 @@ export default function ScoreDashboard() {
         }
     };
 
-    const handleSeeMore = (userId) => {
-        navigate(`/scores/${userId}`);
+    const handleSeeMore = (userId, userName) => {
+        navigate(`/scores/${userId}`, { state: { userName } });
     };
 
     const filteredUsers = users.filter(user =>
@@ -62,8 +63,10 @@ export default function ScoreDashboard() {
 
     if (loading) {
         return (
-            <div className="loading-container">
-                <div className="loader"></div>
+            <div className="score-dashboard">
+                <div className="loading-container">
+                    <div className="loader"></div>
+                </div>
             </div>
         );
     }
@@ -98,7 +101,7 @@ export default function ScoreDashboard() {
                             <th>Reading</th>
                             <th>Listening</th>
                             <th>Writing</th>
-                            <th>Action</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -119,12 +122,21 @@ export default function ScoreDashboard() {
                                 <td>{formatScore(user.latestScores?.listening)}</td>
                                 <td>{formatScore(user.latestScores?.writing)}</td>
                                 <td>
-                                    <button
-                                        className="btn-see-more"
-                                        onClick={() => handleSeeMore(user._id)}
-                                    >
-                                        See more
-                                    </button>
+                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                        <button
+                                            className="btn-see-more"
+                                            onClick={() => handleSeeMore(user._id, user.name)}
+                                        >
+                                            See more
+                                        </button>
+                                        <Link
+                                            to={`/analytics/student/${user._id}`}
+                                            className="btn-see-more"
+                                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', textDecoration: 'none' }}
+                                        >
+                                            <BarChart3 size={14} /> Analytics
+                                        </Link>
+                                    </div>
                                 </td>
                             </tr>
                         ))}

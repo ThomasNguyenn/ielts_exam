@@ -122,6 +122,18 @@ async function request(path, options = {}) {
     throw new Error(message);
   }
 
+  // Intercept achievements and XP events globally
+  if (data?.data && (data.data.achievements?.length > 0 || data.data.xpResult)) {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('achievements-unlocked', {
+        detail: {
+          achievements: data.data.achievements,
+          xpResult: data.data.xpResult
+        }
+      }));
+    }
+  }
+
   return data;
 }
 
@@ -286,6 +298,16 @@ export const api = {
   getAnalyticsWeaknesses: () => request('/api/analytics/weaknesses'),
   getAnalyticsHistory: () => request('/api/analytics/history'),
   getAdminStudentAnalytics: (studentId) => request(`/api/analytics/admin/${studentId}`),
+
+  // Leaderboard & Achievements
+  getLeaderboard: (params = {}) => {
+    const query = toQueryString(params);
+    return request(`/api/leaderboard${query ? `?${query}` : ''}`);
+  },
+  getMyRank: () => request('/api/leaderboard/me'),
+  getAchievementDefinitions: () => request('/api/achievements'),
+  getMyAchievements: () => request('/api/achievements/me'),
+  checkAchievements: () => request('/api/achievements/check', { method: 'POST' }),
 
   // Admin - Students
   getPendingStudents: (params = {}) => {

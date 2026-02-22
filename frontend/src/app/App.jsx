@@ -36,6 +36,8 @@ const SkillWorkshopPage = lazy(() => import('@/features/practice/pages/SkillWork
 const StudyPlanSetup = lazy(() => import('@/features/study-plan/pages/StudyPlanSetup'));
 const StudyPlanFullView = lazy(() => import('@/features/study-plan/pages/StudyPlanFullView'));
 const AnalyticsDashboard = lazy(() => import('@/features/analytics/pages/AnalyticsDashboard'));
+const AchievementsPage = lazy(() => import('@/features/achievements/pages/AchievementsPage'));
+const AchievementToast = lazy(() => import('@/features/achievements/components/AchievementToast'));
 const WaitForConfirmation = lazy(() => import('@/features/system/pages/WaitForConfirmation'));
 const StudentRequests = lazy(() => import('@/features/admin/pages/StudentRequests'));
 const ManageUsers = lazy(() => import('@/features/admin/pages/ManageUsers'));
@@ -89,6 +91,7 @@ function PublicRoute({ children }) {
 export default function App() {
   return (
     <NotificationProvider>
+      {withSuspense(<AchievementToast />)}
       <Routes>
         <Route path="/" element={withSuspense(<Layout />)}>
           <Route index element={withSuspense(<Home />)} />
@@ -119,6 +122,7 @@ export default function App() {
 
           <Route path="profile" element={<ProtectedRoute>{withSuspense(<Profile />)}</ProtectedRoute>} />
           <Route path="analytics" element={<ProtectedRoute>{withSuspense(<AnalyticsDashboard />)}</ProtectedRoute>} />
+          <Route path="achievements" element={<ProtectedRoute>{withSuspense(<AchievementsPage />)}</ProtectedRoute>} />
 
           {/* Auth Routes */}
           <Route path="login" element={

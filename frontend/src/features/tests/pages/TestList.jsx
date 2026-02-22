@@ -411,7 +411,15 @@ export default function TestList() {
             ))}
           </div>
 
-          {Object.keys(groupedTests).length === 0 ? (
+          {isFetching ? (
+            <ul className="test-cards" aria-busy="true" aria-live="polite">
+              {[1, 2, 3, 4, 5, 6].map((n) => (
+                <li key={`fetch-skeleton-${n}`}>
+                  <TestCardSkeleton />
+                </li>
+              ))}
+            </ul>
+          ) : Object.keys(groupedTests).length === 0 ? (
             <p className="muted" style={{ textAlign: 'center', padding: '3rem', color: '#94A3B8' }}>
               {selectedCategory === 'all'
                 ? `No ${viewMode === 'full' ? 'tests' : 'parts'} found.`
