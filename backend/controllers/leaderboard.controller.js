@@ -33,7 +33,7 @@ export const getLeaderboard = async (req, res) => {
 // GET /api/leaderboard/me — Current user rank + surrounding
 export const getMyRank = async (req, res) => {
     try {
-        const userId = req.user.id;
+        const userId = req.user.userId;
         const user = await User.findById(userId).select('name xp level totalAchievements').lean();
         if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
@@ -76,7 +76,7 @@ export const getAchievementDefinitions = async (req, res) => {
 // GET /api/achievements/me — Current user's unlocked achievements
 export const getMyAchievements = async (req, res) => {
     try {
-        const userId = req.user.id;
+        const userId = req.user.userId;
         const userAchievements = await getUserAchievements(userId);
         res.json({ success: true, data: userAchievements });
     } catch (error) {
@@ -88,7 +88,7 @@ export const getMyAchievements = async (req, res) => {
 // POST /api/achievements/check — Manually trigger achievement check (returns newly unlocked)
 export const triggerAchievementCheck = async (req, res) => {
     try {
-        const userId = req.user.id;
+        const userId = req.user.userId;
         const newlyUnlocked = await checkAchievements(userId);
         res.json({
             success: true,
