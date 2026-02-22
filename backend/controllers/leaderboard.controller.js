@@ -1,6 +1,6 @@
 import User from '../models/User.model.js';
 import { checkAchievements, getAllAchievements, getUserAchievements, seedAchievements } from '../services/achievement.service.js';
-import { calculateLevel, getLevelTitle } from '../services/gamification.service.js';
+import { getLevelTitle } from '../services/gamification.service.js';
 
 // GET /api/leaderboard — Top 20 students by XP
 export const getLeaderboard = async (req, res) => {

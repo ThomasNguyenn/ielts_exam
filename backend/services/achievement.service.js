@@ -237,11 +237,22 @@ async function gatherMetrics(userId) {
     let speakingSessions = 0, speakingPart1 = 0, speakingPart2 = 0, speakingPart3 = 0;
     try {
         const SpeakingSession = (await import('../models/SpeakingSession.js')).default;
-        const sessions = await SpeakingSession.find({ userId, status: 'completed' }).lean();
+        const Speaking = (await import('../models/Speaking.model.js')).default;
+        const sessions = await SpeakingSession.find({ userId, status: 'completed' }).select('questionId').lean();
         speakingSessions = sessions.length;
-        speakingPart1 = sessions.filter(s => s.partNumber === 1).length;
-        speakingPart2 = sessions.filter(s => s.partNumber === 2).length;
-        speakingPart3 = sessions.filter(s => s.partNumber === 3).length;
+        // Look up part numbers from Speaking topics
+        const qIds = [...new Set(sessions.map(s => s.questionId).filter(Boolean))];
+        if (qIds.length > 0) {
+            const topics = await Speaking.find({ _id: { $in: qIds } }).select('part').lean();
+            const partMap = {};
+            topics.forEach(t => { partMap[String(t._id)] = t.part; });
+            sessions.forEach(s => {
+                const part = partMap[String(s.questionId)];
+                if (part === 1) speakingPart1++;
+                else if (part === 2) speakingPart2++;
+                else if (part === 3) speakingPart3++;
+            });
+        }
     } catch { /* SpeakingSession model may not exist */ }
 
     // Study plan / tasks
@@ -265,13 +276,20 @@ async function gatherMetrics(userId) {
     let writingTask1 = 0, writingTask2 = 0;
     try {
         const Writing = (await import('../models/Writing.model.js')).default;
-        // Count submissions by task type
-        const subs = await WritingSubmission.find({ user_id: userId }).populate('writing_id', 'taskNumber').lean();
-        subs.forEach(s => {
-            const taskNum = s.writing_id?.taskNumber;
-            if (taskNum === 1) writingTask1++;
-            else if (taskNum === 2) writingTask2++;
-        });
+        // WritingSubmission stores task_id inside writing_answers[] sub-array
+        const subs = await WritingSubmission.find({ user_id: userId }).select('writing_answers').lean();
+        const taskIds = new Set();
+        subs.forEach(s => (s.writing_answers || []).forEach(wa => { if (wa.task_id) taskIds.add(wa.task_id); }));
+        if (taskIds.size > 0) {
+            const writings = await Writing.find({ _id: { $in: [...taskIds] } }).select('taskNumber').lean();
+            const taskMap = {};
+            writings.forEach(w => { taskMap[String(w._id)] = w.taskNumber; });
+            subs.forEach(s => (s.writing_answers || []).forEach(wa => {
+                const num = taskMap[wa.task_id];
+                if (num === 1) writingTask1++;
+                else if (num === 2) writingTask2++;
+            }));
+        }
     } catch { /* ignore */ }
 
     return {
