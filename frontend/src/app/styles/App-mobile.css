@@ -1,0 +1,50 @@
+/* Mobile Responsive Styles */
+@media (max-width: 768px) {
+    .layout-main {
+        padding: 1.5rem 1rem 3rem 1rem;
+    }
+
+    .layout-main--wide {
+        max-width: 100vw !important;
+        padding: 1rem !important;
+    }
+
+    .layout-main--result-ai {
+        max-width: 100vw !important;
+        padding: 1rem !important;
+    }
+
+    .modal-content.premium-modal {
+        width: 95%;
+        max-width: 95vw;
+        border-radius: 1rem;
+    }
+
+    .modal-header,
+    .modal-body,
+    .modal-actions {
+        padding: 1.25rem 1.5rem;
+    }
+
+    .modal-title {
+        font-size: 1.1rem;
+    }
+
+    .toast-notification {
+        bottom: 10px;
+        left: 10px;
+        right: 10px;
+        width: auto;
+    }
+}
+
+@media (max-width: 480px) {
+    .layout-main {
+        padding: 1rem 0.75rem 2rem 0.75rem;
+    }
+
+    .btn {
+        padding: 0.5rem 1rem;
+        font-size: 0.9rem;
+    }
+}

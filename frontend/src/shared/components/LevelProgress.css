@@ -1,0 +1,80 @@
+.level-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.35rem 1rem;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 2rem;
+    cursor: help;
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
+}
+
+.level-badge:hover {
+    border-color: #6366F1;
+    box-shadow: 0 4px 12px rgba(208, 57, 57, 0.1);
+    transform: translateY(-1px);
+}
+
+/* Admin Special Style */
+.level-badge-admin {
+    background: linear-gradient(135deg, #EEF2FF, #fff);
+    border-color: #fbbf24;
+    /* Amber/Gold */
+}
+
+.level-badge-admin .level-icon-wrapper {
+    color: #d97706;
+    /* Gold text */
+    background: #fef3c7;
+}
+
+.level-badge-admin:hover {
+    border-color: #f59e0b;
+    box-shadow: 0 4px 12px rgba(251, 191, 36, 0.2);
+}
+
+.level-icon-wrapper {
+    width: 32px;
+    height: 32px;
+    background: #fee2e2;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6366F1;
+    flex-shrink: 0;
+}
+
+.level-svg {
+    width: 20px;
+    height: 20px;
+}
+
+.level-info {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-width: 60px;
+    line-height: 1.2;
+}
+
+.level-title {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    color: #64748b;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.level-number-text {
+    font-size: 0.85rem;
+    color: #1e293b;
+    font-weight: 800;
+}
+
+.level-xp {
+    display: none;
+    /* Hidden for cleaner look, shown on hover via title */
+}

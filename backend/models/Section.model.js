@@ -1,15 +1,17 @@
 import mongoose from "mongoose";
+import { QUESTION_GROUP_LAYOUTS, SECTION_QUESTION_TYPES } from "../constants/questionTypes.js";
 
 
 // Schema cho tung cau hoi nho
 const QuestionSchema = new mongoose.Schema({
-    q_number: { type : Number, required: true }, // So thu tu cac cau hoi
-    text: { type: String, required: true },  // Noi dung cau hoi
+    q_number: { type: Number, required: true }, // So thu tu cac cau hoi
+    text: { type: String, required: false },  // Noi dung cau hoi
 
     option: [
-        {label: { type: String, required: true }, // A, B, C, D
-        text: { type: String, required: true }  // Noi dung lua chon
-    }
+        {
+            label: { type: String, required: true }, // A, B, C, D
+            text: { type: String }  // Noi dung lua chon
+        }
     ],
 
     // Đáp án đúng (Lưu mảng để chấp nhận nhiều biến thể đáp án)
@@ -21,35 +23,36 @@ const QuestionSchema = new mongoose.Schema({
 
 const QuestionHeadingSchema = new mongoose.Schema({
     id: { type: String, required: true },
-    text: { type: String, required: true },
+    text: { type: String },
 });
 
 // Schema cho nhom cau hoi ( Question Group )
 
 const QuestionGroupSchema = new mongoose.Schema({
 
-    type:{
+    type: {
         type: String,
         required: true,
-        enum : ['true_false_notgiven', 'gap_fill','matching_headings','mult_choice','matching_features', 'summary_completion', 'listening_map']
+        enum: SECTION_QUESTION_TYPES
     },
 
     instructions: { type: String, required: false }, // Huong dan cho nhom cau hoi
-    text: { type: String, required: false }, // Noi dung summary
+    text: { type: String, required: false }, // Noi dung summary (cho summary_completion)
+    group_layout: { type: String, enum: QUESTION_GROUP_LAYOUTS, default: 'default' }, // Controls rendering mode
     headings: [QuestionHeadingSchema], // For matching_headings / matching_features
-    options: [QuestionHeadingSchema], // For summary_completion options
+    options: [QuestionHeadingSchema], // Danh sach lua chon sharing (cho summary_completion)
     questions: [QuestionSchema] // Mang cac cau hoi thuoc nhom cau hoi nay
 });
 
 const SectionSchema = new mongoose.Schema({
-    _id : { type: String, required: true },
+    _id: { type: String, required: true },
     title: { type: String, required: true }, // Tieu de doan van
     content: { type: String, required: true }, // Noi dung doan van
     audio_url: { type: String }, // URL to MP3 audio file for listening section
     question_groups: [QuestionGroupSchema],
-    source : {type : String} // Mang cac nhom cau hoi thuoc doan van nay
+    source: { type: String } // Mang cac nhom cau hoi thuoc doan van nay
 }, { timestamps: true });
 
 
-const Section = mongoose.model('Section',SectionSchema);
+const Section = mongoose.model('Section', SectionSchema);
 export default Section;

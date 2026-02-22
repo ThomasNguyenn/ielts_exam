@@ -1,0 +1,232 @@
+/* ============================================================
+   TestSidebar Component — Indigo & Amber Brand System
+   Extracted from TestList for easy management
+   ============================================================ */
+
+/* === Sidebar Container === */
+.ts {
+    width: 260px;
+    flex-shrink: 0;
+}
+
+.ts-sticky {
+    position: sticky;
+    top: 92px;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+/* === Filter Header === */
+.ts-filter-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0 0.25rem;
+}
+
+.ts-filter-header svg {
+    width: 16px;
+    height: 16px;
+    color: #6366F1;
+}
+
+.ts-filter-header span {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #475569;
+}
+
+/* === Card Sections (Skills, Mode, Parts) === */
+.ts-card {
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 16px;
+    padding: 1.25rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.ts-card h3 {
+    margin: 0 0 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #0F172A;
+}
+
+/* === Filter Buttons === */
+.ts-btn-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.ts-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 0.75rem;
+    border-radius: 12px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: #64748B;
+    font-family: inherit;
+    font-size: 0.875rem;
+    font-weight: 400;
+    text-align: left;
+}
+
+.ts-btn svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    transition: color 0.2s;
+}
+
+.ts-btn:hover {
+    background: #F8FAFC;
+    color: #334155;
+}
+
+.ts-btn.active {
+    background: rgba(99, 102, 241, 0.08);
+    color: #6366F1;
+    font-weight: 500;
+}
+
+.ts-btn.active svg {
+    color: #6366F1;
+}
+
+/* Active dot indicator */
+.ts-active-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #6366F1;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+/* Skill icon colors — default (not active) */
+.ts-btn[data-skill="reading"] svg {
+    color: #6366F1;
+}
+
+.ts-btn[data-skill="writing"] svg {
+    color: #8B5CF6;
+}
+
+.ts-btn[data-skill="listening"] svg {
+    color: #10B981;
+}
+
+.ts-btn[data-skill="speaking"] svg {
+    color: #F97316;
+}
+
+/* === Part Filter Options === */
+.ts-part-option {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 10px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: #64748B;
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 400;
+    text-align: left;
+}
+
+.ts-part-option:hover {
+    background: #F8FAFC;
+    color: #334155;
+}
+
+.ts-part-option.active {
+    background: rgba(99, 102, 241, 0.08);
+    color: #6366F1;
+    font-weight: 500;
+}
+
+/* === Stats Card === */
+.ts-stats {
+    background: linear-gradient(135deg, #6366F1, #4F46E5);
+    border-radius: 16px;
+    padding: 1.25rem;
+    color: #ffffff;
+    box-shadow: 0 8px 24px rgba(99, 102, 241, 0.2);
+}
+
+.ts-stats-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+}
+
+.ts-stats-header p {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: #C7D2FE;
+    margin: 0;
+}
+
+.ts-stats-header svg {
+    width: 16px;
+    height: 16px;
+    color: #C7D2FE;
+}
+
+.ts-stats-number {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+    margin: 0 0 0.25rem;
+}
+
+.ts-stats-number span {
+    font-size: 1rem;
+    color: #A5B4FC;
+}
+
+.ts-stats-label {
+    font-size: 0.8125rem;
+    color: #C7D2FE;
+    margin: 0 0 1rem;
+}
+
+.ts-progress-track {
+    height: 6px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 50px;
+    overflow: hidden;
+}
+
+.ts-progress-fill {
+    height: 100%;
+    background: #F59E0B;
+    border-radius: 50px;
+    transition: width 0.5s ease;
+}
+
+/* === Responsive === */
+@media (max-width: 900px) {
+    .ts {
+        width: 100%;
+    }
+
+    .ts-sticky {
+        position: static;
+    }
+}

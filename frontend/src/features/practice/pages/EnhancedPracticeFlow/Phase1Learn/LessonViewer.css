@@ -1,0 +1,373 @@
+.lesson-viewer {
+    min-height: 100vh;
+    background: white;
+    display: flex;
+    flex-direction: column;
+}
+
+.lesson-header {
+    background: white;
+    padding: 1.5rem 2rem;
+    border-bottom: 1px solid #e2e8f0;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+/* Adjust title section order since close button is now separate */
+.lesson-title-section {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    flex: 1;
+}
+
+.close-button {
+    background: #f1f5f9;
+    color: #64748b;
+    border: none;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    flex-shrink: 0;
+}
+
+.close-button:hover {
+    background: #fee2e2;
+    color: #ef4444;
+    transform: rotate(90deg);
+}
+
+.lesson-title {
+    font-size: 1.5rem;
+    margin: 0;
+    font-weight: 800;
+    color: #1e293b;
+    line-height: 1.2;
+}
+
+.lesson-icon {
+    font-size: 2.5rem;
+    background: #EEF2FF;
+    width: 64px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 16px;
+}
+
+.lesson-meta {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 0.25rem;
+    align-items: center;
+    font-size: 0.875rem;
+    color: #64748b;
+}
+
+.completed-tag {
+    background: #d1fae5;
+    color: #059669;
+    padding: 0.125rem 0.625rem;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 0.75rem;
+}
+
+.lesson-tabs {
+    background: white;
+    display: flex;
+    gap: 2rem;
+    padding: 0 2rem;
+    border-bottom: 1px solid #e2e8f0;
+    position: sticky;
+    top: 89px;
+    /* Height of header */
+    z-index: 90;
+}
+
+.tab {
+    background: transparent;
+    border: none;
+    padding: 1rem 0;
+    font-weight: 600;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    font-size: 0.9375rem;
+}
+
+.tab:hover {
+    color: #1e293b;
+}
+
+.tab.active {
+    background: transparent;
+    color: #6366F1;
+    box-shadow: none;
+}
+
+.tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: #6366F1;
+    border-radius: 2px 2px 0 0;
+}
+
+.lesson-content {
+    flex: 1;
+    padding: 3rem 2rem;
+    max-width: 800px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.lesson-text {
+    font-size: 1.125rem;
+    line-height: 1.8;
+    color: #334155;
+}
+
+.lesson-text h1 {
+    color: #1e293b;
+    font-size: 2.25rem;
+    margin-top: 2rem;
+    margin-bottom: 1.5rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+
+.lesson-text h2 {
+    color: #1e293b;
+    font-size: 1.5rem;
+    margin-top: 3rem;
+    margin-bottom: 1.25rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.lesson-text h3 {
+    color: #1e293b;
+    font-size: 1.25rem;
+    margin-top: 2rem;
+    margin-bottom: 0.75rem;
+    font-weight: 600;
+}
+
+.lesson-text p {
+    margin-bottom: 1.25rem;
+}
+
+.lesson-text strong {
+    color: #6366F1;
+    font-weight: 700;
+}
+
+.lesson-text ul,
+.lesson-text ol {
+    margin-left: 1.5rem;
+    margin-bottom: 1.25rem;
+}
+
+.lesson-text li {
+    margin-bottom: 0.5rem;
+}
+
+.lesson-text code {
+    background: #fef2f2;
+    color: #6366F1;
+    padding: 0.125rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.9em;
+    font-family: 'Courier New', monospace;
+}
+
+.lesson-text pre {
+    background: #1e293b;
+    color: #f1f5f9;
+    padding: 1rem;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin-bottom: 1.25rem;
+}
+
+.lesson-text blockquote {
+    border-left: 4px solid #6366F1;
+    background: #fef2f2;
+    padding: 1rem 1.5rem;
+    margin: 1.5rem 0;
+    border-radius: 0 8px 8px 0;
+}
+
+.examples-section,
+.keypoints-section {
+    max-width: 900px;
+}
+
+.examples-section h2,
+.keypoints-section h2 {
+    font-size: 1.5rem;
+    color: #1e293b;
+    margin-bottom: 1.5rem;
+    font-weight: 700;
+}
+
+.example-card {
+    background: #f8fafc;
+    border-left: 4px solid #6366F1;
+    padding: 1.5rem;
+    border-radius: 0 12px 12px 0;
+    margin-bottom: 1.5rem;
+}
+
+.example-number {
+    font-weight: 700;
+    color: #6366F1;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.75rem;
+}
+
+.example-card p {
+    margin: 0;
+    line-height: 1.7;
+    color: #334155;
+}
+
+.keypoints-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.keypoint-item {
+    display: flex;
+    gap: 1rem;
+    background: #f8fafc;
+    padding: 1.25rem;
+    border-radius: 12px;
+    margin-bottom: 1rem;
+    align-items: flex-start;
+}
+
+.keypoint-icon {
+    background: #6366F1;
+    color: white;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.875rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.lesson-footer {
+    background: #f8fafc;
+    padding: 2rem;
+    border-top: 2px solid #e2e8f0;
+    position: sticky;
+    bottom: 0;
+}
+
+.quiz-prompt {
+    max-width: 900px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2rem;
+}
+
+.quiz-info {
+    flex: 1;
+}
+
+.quiz-text {
+    font-size: 1.125rem;
+    color: #1e293b;
+    font-weight: 600;
+    margin: 0 0 0.25rem 0;
+}
+
+.quiz-note {
+    font-size: 0.875rem;
+    color: #64748b;
+    margin: 0;
+}
+
+.btn-start-quiz {
+    background: linear-gradient(135deg, #6366F1 0%, #f87171 100%);
+    color: white;
+    border: none;
+    padding: 1rem 2rem;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 1.125rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.btn-start-quiz:hover {
+    transform: scale(1.05);
+    box-shadow: 0 10px 20px -5px rgb(208 57 57 / 0.3);
+}
+
+@media (max-width: 768px) {
+    .lesson-header {
+        padding: 1.5rem 1rem;
+    }
+
+    .lesson-title-section {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .lesson-icon {
+        font-size: 2.5rem;
+    }
+
+    .lesson-title {
+        font-size: 1.5rem;
+    }
+
+    .lesson-tabs {
+        padding: 1rem;
+        overflow-x: auto;
+    }
+
+    .lesson-content {
+        padding: 2rem 1rem;
+    }
+
+    .quiz-prompt {
+        flex-direction: column;
+    }
+
+    .btn-start-quiz {
+        width: 100%;
+    }
+}

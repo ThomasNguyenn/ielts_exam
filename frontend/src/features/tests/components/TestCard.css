@@ -1,0 +1,284 @@
+/* ============================================================
+   TestCard Component — Indigo & Amber Brand System
+   Extracted from TestList for easy management
+   ============================================================ */
+
+/* === Card Container === */
+.tc {
+    padding: 1.5rem;
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 16px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Indigo border + elevated shadow on hover */
+.tc:hover {
+    border-color: rgba(99, 102, 241, 0.3);
+    box-shadow: 0 12px 32px rgba(99, 102, 241, 0.06);
+}
+
+/* Title */
+.tc-title {
+    margin: 0 0 0.75rem;
+    font-size: 1.0625rem;
+    font-weight: 600;
+    color: #0F172A;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    transition: color 0.3s;
+}
+
+.tc:hover .tc-title {
+    color: #6366F1;
+}
+
+/* Skill Tags */
+.tc-skills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+    margin-bottom: 1.25rem;
+}
+
+.tc-skill-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.625rem;
+    border-radius: 8px;
+    font-size: 0.6875rem;
+    font-weight: 500;
+}
+
+.tc-skill-tag[data-skill="reading"] {
+    background: #EFF6FF;
+    color: #4F46E5;
+}
+
+.tc-skill-tag[data-skill="writing"] {
+    background: #F5F3FF;
+    color: #7C3AED;
+}
+
+.tc-skill-tag[data-skill="listening"] {
+    background: #ECFDF5;
+    color: #059669;
+}
+
+.tc-skill-tag[data-skill="speaking"] {
+    background: #FFF7ED;
+    color: #EA580C;
+}
+
+/* Meta info row (duration · questions · badges) */
+.tc-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    color: #94A3B8;
+    font-size: 0.8125rem;
+    flex-wrap: wrap;
+}
+
+.tc-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+}
+
+.tc-meta-item svg {
+    width: 14px;
+    height: 14px;
+}
+
+.tc-meta-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: #CBD5E1;
+    flex-shrink: 0;
+}
+
+/* Type Badge */
+.tc-type-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0.2rem 0.5rem;
+    border-radius: 50px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: #ffffff;
+}
+
+.tc-type-badge[data-skill="reading"] {
+    background: #6366F1;
+}
+
+.tc-type-badge[data-skill="listening"] {
+    background: #0EA5E9;
+}
+
+.tc-type-badge[data-skill="writing"] {
+    background: #10B981;
+}
+
+.tc-type-badge[data-skill="speaking"] {
+    background: #F59E0B;
+}
+
+/* Category Badge */
+.tc-category-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0.2rem 0.5rem;
+    background: #FEF3C7;
+    color: #D97706;
+    border-radius: 50px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+}
+
+/* Best Band Badge */
+.tc-best-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.5rem;
+    background: linear-gradient(135deg, #F59E0B, #FBBF24);
+    color: #78350F;
+    border-radius: 50px;
+    font-size: 0.6875rem;
+    font-weight: 700;
+}
+
+/* Attempts Section */
+.tc-attempts {
+    background: #F8FAFC;
+    padding: 0.75rem;
+    border-radius: 10px;
+    margin-bottom: 1rem;
+    border: 1px solid #F1F5F9;
+}
+
+.tc-attempts p {
+    font-size: 0.78rem;
+    margin: 0 0 0.3rem;
+    font-weight: 600;
+    color: #64748B;
+}
+
+.tc-attempts p:last-child {
+    margin-bottom: 0;
+}
+
+.tc-attempt-date {
+    color: #94A3B8;
+    font-size: 0.72rem;
+    margin-left: 0.3rem;
+}
+
+/* Description */
+.tc-description {
+    font-size: 0.85rem;
+    color: #64748B;
+    line-height: 1.5;
+    margin: 0 0 1rem;
+}
+
+/* === Action Buttons === */
+.tc-actions {
+    display: flex;
+    gap: 0.625rem;
+    margin-top: auto;
+}
+
+.tc-btn-primary {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    height: 40px;
+    background: #6366F1;
+    color: #ffffff;
+    border: none;
+    border-radius: 12px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.tc-btn-primary svg {
+    width: 14px;
+    height: 14px;
+    transition: transform 0.2s;
+}
+
+.tc-btn-primary:hover {
+    background: #4F46E5;
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.25);
+    color: #ffffff;
+}
+
+.tc-btn-primary:hover svg {
+    transform: translateX(2px);
+}
+
+.tc-btn-secondary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    height: 40px;
+    padding: 0 0.875rem;
+    border: 1px solid #E2E8F0;
+    background: #FFFFFF;
+    color: #64748B;
+    border-radius: 12px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.tc-btn-secondary svg {
+    width: 14px;
+    height: 14px;
+}
+
+.tc-btn-secondary:hover {
+    border-color: rgba(99, 102, 241, 0.3);
+    color: #6366F1;
+    background: rgba(99, 102, 241, 0.03);
+}
+
+/* Part card subtitle */
+.tc-subtitle {
+    font-size: 0.8rem;
+    color: #94A3B8;
+    margin: 0 0 0.75rem;
+}
+
+.tc-subtitle strong {
+    color: #475569;
+}

@@ -23,20 +23,45 @@ const userSchema = new mongoose.Schema({
     enum: ['student', 'teacher', 'admin'],
     default: 'student',
   },
-  giftcode: {
-    type: String,
-    default: null,
-  },
   targets: {
     listening: { type: Number, default: 0 },
     reading: { type: Number, default: 0 },
     writing: { type: Number, default: 0 },
     speaking: { type: Number, default: 0 },
   },
+  xp: { type: Number, default: 0 },
+  level: { type: Number, default: 1 },
   createdAt: {
     type: Date,
     default: Date.now,
   },
+  isConfirmed: {
+    type: Boolean,
+    default: false,
+  },
+  activeSessionId: {
+    type: String,
+    default: null,
+  },
+  activeSessionIssuedAt: {
+    type: Date,
+    default: null,
+  },
+  verificationToken: { type: String, default: null },
+  verificationTokenExpires: { type: Date, default: null },
+  resetPasswordToken: { type: String, default: null },
+  resetPasswordExpires: { type: Date, default: null },
+
+  // Achievement tracking
+  achievements: [{
+    achievementKey: { type: String, required: true },
+    unlockedAt: { type: Date, default: Date.now }
+  }],
+  totalAchievements: { type: Number, default: 0 },
 });
+
+userSchema.index({ role: 1, createdAt: -1 });
+userSchema.index({ role: 1, isConfirmed: 1, createdAt: -1 });
+userSchema.index({ role: 1, xp: -1 }); // Leaderboard
 
 export default mongoose.model('User', userSchema);

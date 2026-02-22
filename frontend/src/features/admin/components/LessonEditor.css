@@ -1,0 +1,88 @@
+.lesson-editor {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #fff;
+  overflow: visible;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.lesson-editor:focus-within {
+  border-color: #2271b1;
+  box-shadow: 0 0 0 2px rgba(34, 113, 177, 0.2);
+}
+
+.lesson-editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 16px;
+  background: #f6f7f7;
+  border-bottom: 1px solid #ddd;
+  position: sticky;
+  top: 80px;
+  z-index: 20;
+}
+
+.lesson-editor-btn {
+  border: 1px solid #c3c4c7;
+  background: #fff;
+  color: #1d2327;
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  min-width: 44px;
+}
+
+.lesson-editor-btn:hover {
+  background: #f0f0f1;
+  border-color: #8c8f94;
+}
+
+.lesson-editor-btn:focus-visible {
+  outline: 2px solid #2271b1;
+  outline-offset: 1px;
+}
+
+.lesson-editor-content {
+  padding: 16px;
+  min-height: 280px;
+  outline: none;
+  color: #1d2327;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.lesson-editor-content:empty::before {
+  content: attr(data-placeholder);
+  color: #8c8f94;
+}
+
+.lesson-editor-content a {
+  color: #2271b1;
+  text-decoration: underline;
+}
+
+@media (max-width: 768px) {
+  .lesson-editor-toolbar {
+    top: 64px;
+  }
+}
+
+.lesson-editor-content ul {
+  list-style: disc;
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+.lesson-editor-content ol {
+  list-style: decimal;
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+.lesson-editor-content li {
+  margin: 0.25rem 0;
+}

@@ -1,0 +1,95 @@
+import { useState, useEffect, useRef } from 'react';
+
+/** Enhanced audio player for IELTS listening with volume control */
+export default function IELTSAudioPlayer({ audioUrl, onEnded }) {
+  const audioRef = useRef(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(1);
+
+  useEffect(() => {
+    const audio = new Audio(audioUrl);
+    audio.preload = 'auto';
+    audio.currentTime = 0;
+    audioRef.current = audio;
+
+    audio.addEventListener('loadedmetadata', () => {
+      audio.currentTime = 0;
+      setDuration(audio.duration);
+    });
+
+    audio.addEventListener('timeupdate', () => {
+      setCurrentTime(audio.currentTime);
+    });
+
+    audio.addEventListener('ended', () => {
+      setIsPlaying(false);
+      if (onEnded) onEnded();
+    });
+
+    // Auto-play as per IELTS test
+    audio.play().then(() => {
+      setIsPlaying(true);
+    }).catch(err => {
+      console.error('Audio autoplay failed:', err);
+    });
+
+    return () => {
+      audio.pause();
+      audio.src = '';
+    };
+  }, [audioUrl, onEnded]);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = volume;
+    }
+  }, [volume]);
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+  const getVolumeIcon = () => {
+    if (volume === 0) return '🔇';
+    if (volume < 0.5) return '🔉';
+    return '🔊';
+  };
+
+  return (
+    <div className="flex justify-center w-[100%]">
+      <div className="ielts-audio-player w-[80%]">
+        {/* <div className="audio-progress-container flex justify-center flex-col">
+          <div className="audio-progress-bar">
+            <div className="audio-progress-fill" style={{ width: `${progress}%` }} />
+          </div>
+          <div className="audio-time-display flex justify-center">
+            <span>{formatTime(currentTime)} </span>
+            <span style={{ color: isPlaying ? '#22c55e' : '#6b7280', padding: '0 10px' }}>
+              {isPlaying ? '▶ Playing...' : '⏸ Paused'}
+            </span>
+            <span> {formatTime(duration)}</span>
+          </div>
+        </div> */}
+
+        <div className="audio-volume-control flex justify-center">
+          <span className="volume-icon">{getVolumeIcon()}</span>
+          <input
+            type="range"
+            className="volume-slider"
+            min="0"
+            max="1"
+            step="0.01"
+            value={volume}
+            onChange={(e) => setVolume(parseFloat(e.target.value))}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}

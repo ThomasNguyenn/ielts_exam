@@ -1,31 +1,45 @@
-import express from 'express';
-import cors from 'cors';
-import { connectDB } from './config/db.js';
+import dotenv from "dotenv";
+import mongoose from "mongoose";
+import { connectDB } from "./config/db.js";
+import { validateEnvironment } from "./config/env.validation.js";
 
-import passageRoutes from './routes/passage.route.js';
-import sectionRoutes from './routes/section.route.js';
-import testRoutes from './routes/test.route.js';
-import writingRoutes from './routes/writing.route.js';
-import practiceRoutes from './routes/practiceRoutes.js';
-import authRoutes from './routes/auth.route.js';
-import vocabularyRoutes from './routes/vocabularyRoutes.js';
+dotenv.config();
+validateEnvironment();
+const PORT = Number(process.env.PORT || 5000);
 
-const app = express();
-const PORT = process.env.PORT || 5000;
+const startServer = async () => {
+  const { createApp } = await import("./app.js");
+  const app = createApp({ startBackgroundJobs: true });
+  await connectDB();
 
-app.use(cors());
-app.use(express.json());
-
-app.use("/api/auth", authRoutes);
-app.use("/api/passages", passageRoutes);
-app.use("/api/sections", sectionRoutes);
-app.use("/api/tests", testRoutes);
-app.use("/api/writings", writingRoutes);
-app.use("/api/practice", practiceRoutes);
-app.use("/api/vocabulary", vocabularyRoutes);
-
-app.listen(PORT, () => {
-    connectDB();
+  const server = app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
-});
+  });
 
+  const shutdown = async (signal) => {
+    console.log(`\n[shutdown] ${signal} received — closing server...`);
+    server.close(async () => {
+      try {
+        await mongoose.connection.close();
+        console.log("[shutdown] MongoDB connection closed.");
+      } catch (err) {
+        console.error("[shutdown] Error closing MongoDB:", err.message);
+      }
+      process.exit(0);
+    });
+
+    // Force exit if graceful shutdown takes too long
+    setTimeout(() => {
+      console.error("[shutdown] Forced exit after timeout.");
+      process.exit(1);
+    }, 10_000).unref();
+  };
+
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
+};
+
+startServer().catch((error) => {
+  console.error("Server startup failed", error);
+  process.exit(1);
+});

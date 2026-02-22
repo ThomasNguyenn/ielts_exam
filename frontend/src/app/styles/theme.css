@@ -1,0 +1,164 @@
+/* ============================================================
+   Global Theme — Indigo & Amber Design System
+   Converted from Tailwind v4 @theme to vanilla CSS variables
+   ============================================================ */
+
+:root {
+    /* ── Base ── */
+    --font-size: 16px;
+    --background: #F1F5F9;
+    --foreground: #0F172A;
+
+    /* ── Card / Popover ── */
+    --card: #FFFFFF;
+    --card-foreground: #1E293B;
+    --popover: #FFFFFF;
+    --popover-foreground: #1E293B;
+
+    /* ── Primary (Indigo) ── */
+    --primary: #6366F1;
+    --primary-foreground: #FFFFFF;
+
+    /* ── Secondary ── */
+    --secondary: #F1F5F9;
+    --secondary-foreground: #334155;
+
+    /* ── Muted ── */
+    --muted: #F1F5F9;
+    --muted-foreground: #94A3B8;
+
+    /* ── Accent (Amber) ── */
+    --accent: #F59E0B;
+    --accent-foreground: #0F172A;
+
+    /* ── Destructive ── */
+    --destructive: #EF4444;
+    --destructive-foreground: #FFFFFF;
+
+    /* ── Borders & Inputs ── */
+    --border: #E2E8F0;
+    --input: transparent;
+    --input-background: #F8FAFC;
+    --switch-background: #CBD5E1;
+
+    /* ── Font Weights ── */
+    --font-weight-normal: 400;
+    --font-weight-medium: 500;
+
+    /* ── Focus Ring ── */
+    --ring: #6366F1;
+
+    /* ── Chart Colors ── */
+    --chart-1: #6366F1;
+    --chart-2: #F59E0B;
+    --chart-3: #10B981;
+    --chart-4: #F97316;
+    --chart-5: #8B5CF6;
+
+    /* ── Border Radius ── */
+    --radius: 0.75rem;
+    --radius-sm: calc(var(--radius) - 4px);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) + 4px);
+
+    /* ── Sidebar ── */
+    --sidebar: #FFFFFF;
+    --sidebar-foreground: #1E293B;
+    --sidebar-primary: #6366F1;
+    --sidebar-primary-foreground: #FFFFFF;
+    --sidebar-accent: #F1F5F9;
+    --sidebar-accent-foreground: #334155;
+    --sidebar-border: #E2E8F0;
+    --sidebar-ring: #6366F1;
+}
+
+/* ── Reset & Base ── */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    border-color: var(--border);
+}
+
+*:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+}
+
+html {
+    font-size: var(--font-size);
+}
+
+body {
+    margin: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--background);
+    color: var(--foreground);
+    line-height: 1.6;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+    min-height: 100vh;
+}
+
+/* ── Typography ── */
+h1 {
+    font-size: 1.5rem;
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+}
+
+h2 {
+    font-size: 1.25rem;
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+}
+
+h3 {
+    font-size: 1.125rem;
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+}
+
+h4 {
+    font-size: 1rem;
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+}
+
+label {
+    font-size: 1rem;
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+}
+
+button {
+    font-family: inherit;
+    font-size: 1rem;
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+    cursor: pointer;
+}
+
+input,
+select,
+textarea {
+    font-family: inherit;
+    font-size: 1rem;
+    font-weight: var(--font-weight-normal);
+    line-height: 1.5;
+}
+
+a {
+    color: var(--primary);
+    text-decoration: none;
+}
+
+a:hover {
+    color: #4F46E5;
+}

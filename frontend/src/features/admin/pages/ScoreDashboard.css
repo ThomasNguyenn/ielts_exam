@@ -1,0 +1,313 @@
+.score-dashboard {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+}
+
+.score-dashboard h1 {
+    font-size: 2.25rem;
+    font-weight: 800;
+    color: #1e293b;
+    margin-bottom: 2rem;
+    letter-spacing: -0.025em;
+}
+
+.search-section {
+    margin-bottom: 2rem;
+    max-width: 500px;
+}
+
+.search-input {
+    width: 100%;
+    padding: 0.875rem 1.25rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 1rem;
+    font-size: 1rem;
+    transition: all 0.2s;
+    background: #ffffff;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: #6366F1;
+    box-shadow: 0 0 0 4px rgba(208, 57, 57, 0.1);
+}
+
+.scores-table-container {
+    background: white;
+    border-radius: 1.5rem;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+}
+
+.scores-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+}
+
+.scores-table th {
+    background: #f8fafc;
+    padding: 1.25rem 1.5rem;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.scores-table td {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid #f1f5f9;
+    color: #334155;
+    vertical-align: middle;
+}
+
+.scores-table tr:last-child td {
+    border-bottom: none;
+}
+
+.scores-table tr:hover {
+    background: #E0E7FF;
+}
+
+.student-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.student-name {
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.student-email {
+    font-size: 0.875rem;
+    color: #94a3b8;
+}
+
+.score-dashboard .band-score {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.score-dashboard .score-value {
+    font-weight: 800;
+    font-size: 1.125rem;
+    color: #6366F1;
+}
+
+.score-dashboard .score-meta {
+    font-size: 0.75rem;
+    color: #94a3b8;
+}
+
+.score-dashboard .no-score {
+    color: #cbd5e1;
+    font-style: italic;
+    font-size: 0.875rem;
+}
+
+.score-dashboard .btn-see-more {
+    background: #EEF2FF;
+    color: #6366F1;
+    border: 1px solid #E0E7FF;
+    padding: 0.5rem 1rem;
+    border-radius: 0.75rem;
+    font-weight: 700;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.score-dashboard .btn-see-more:hover {
+    background: #6366F1;
+    color: white;
+    border-color: #6366F1;
+}
+
+/* Attempt Details Section */
+.attempts-details {
+    margin-top: 3rem;
+    background: #f8fafc;
+    border-radius: 1.5rem;
+    padding: 2.5rem;
+    border: 1px solid #e2e8f0;
+}
+
+.score-dashboard .attempts-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    margin-bottom: 2rem;
+}
+
+.score-dashboard .attempts-header h2 {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #1e293b;
+}
+
+.score-dashboard .btn-close-details {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+}
+
+.score-dashboard .btn-close-details:hover {
+    background: #e2e8f0;
+    color: #64748b;
+}
+
+.score-dashboard .attempts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+}
+
+.score-dashboard .attempt-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 1.25rem;
+    padding: 1.5rem;
+    transition: all 0.2s;
+}
+
+.score-dashboard .attempt-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    border-color: #6366F1;
+}
+
+.score-dashboard .attempt-type {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 2rem;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+}
+
+.score-dashboard .type-reading {
+    background: #e0f2fe;
+    color: #0369a1;
+}
+
+.score-dashboard .type-listening {
+    background: #f0fdf4;
+    color: #15803d;
+}
+
+.score-dashboard .type-writing {
+    background: #fef2f2;
+    color: #b91c1c;
+}
+
+.score-dashboard .attempt-test-title {
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 0.5rem;
+}
+
+.score-dashboard .attempt-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #f1f5f9;
+}
+
+.score-dashboard .stat-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.score-dashboard .stat-label {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    font-weight: 700;
+}
+
+.score-dashboard .stat-value {
+    font-weight: 800;
+    color: #334155;
+}
+
+.score-dashboard .loading-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 400px;
+}
+
+.score-dashboard .loader {
+    width: 48px;
+    height: 48px;
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid #6366F1;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+/* Filter Tabs */
+.score-dashboard .filter-tabs {
+    background: #f1f5f9;
+    padding: 0.4rem;
+    border-radius: 1rem;
+    display: inline-flex !important;
+}
+
+.score-dashboard .filter-tab {
+    padding: 0.6rem 1.25rem;
+    border: none;
+    background: transparent;
+    color: #64748b;
+    font-weight: 700;
+    font-size: 0.875rem;
+    border-radius: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.score-dashboard .filter-tab:hover {
+    color: #334155;
+}
+
+.score-dashboard .filter-tab.active {
+    background: white;
+    color: #6366F1;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.score-dashboard .band-badge {
+    background: #6366F1;
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 800;
+    box-shadow: 0 4px 6px -1px rgba(208, 57, 57, 0.2);
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}

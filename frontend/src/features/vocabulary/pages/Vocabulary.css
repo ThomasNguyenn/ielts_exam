@@ -1,0 +1,778 @@
+/* ============================================================
+   Vocabulary Page — Premium IELTS Vocabulary UI
+   ============================================================ */
+
+/* === Page Layout === */
+.vocab-page {
+    max-width: 1000px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+    animation: voc-fadeIn 0.4s ease-out;
+}
+
+@keyframes voc-fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(16px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* === Hero === */
+.voc-hero {
+    background: linear-gradient(135deg, #4F46E5 0%, #6366F1 40%, #818CF8 100%);
+    border-radius: 20px;
+    padding: 2rem 2.5rem;
+    margin-bottom: 2rem;
+    color: white;
+    position: relative;
+    overflow: hidden;
+}
+
+.voc-hero::before {
+    content: '';
+    position: absolute;
+    top: -40px;
+    right: -30px;
+    width: 160px;
+    height: 160px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 50%;
+}
+
+.voc-hero-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 2rem;
+}
+
+.voc-hero-text h1 {
+    font-size: 1.75rem;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    margin: 0 0 0.375rem;
+}
+
+.voc-hero-text p {
+    font-size: 0.875rem;
+    opacity: 0.85;
+    margin: 0;
+}
+
+.voc-hero-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-shrink: 0;
+}
+
+/* === Stats Row === */
+.voc-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.voc-stat-card {
+    background: white;
+    border: 1.5px solid #E2E8F0;
+    border-radius: 16px;
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition: all 0.2s;
+}
+
+.voc-stat-card:hover {
+    border-color: #C7D2FE;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.08);
+}
+
+.voc-stat-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.voc-stat-icon--total {
+    background: #EEF2FF;
+    color: #6366F1;
+}
+
+.voc-stat-icon--due {
+    background: #FEF3C7;
+    color: #D97706;
+}
+
+.voc-stat-icon svg {
+    width: 22px;
+    height: 22px;
+}
+
+.voc-stat-info {}
+
+.voc-stat-value {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #0F172A;
+    line-height: 1;
+    margin-bottom: 0.125rem;
+}
+
+.voc-stat-label {
+    font-size: 0.75rem;
+    color: #64748B;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.voc-review-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0 2rem;
+    background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+    color: white;
+    border: none;
+    border-radius: 16px;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.25s;
+    white-space: nowrap;
+}
+
+.voc-review-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(99, 102, 241, 0.35);
+}
+
+.voc-review-btn:disabled {
+    background: #E2E8F0;
+    color: #94A3B8;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.voc-review-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* === Add Form === */
+.voc-add-form {
+    background: white;
+    border: 1.5px solid #E2E8F0;
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    transition: all 0.2s;
+}
+
+.voc-add-form:focus-within {
+    border-color: #C7D2FE;
+    box-shadow: 0 4px 16px rgba(99, 102, 241, 0.08);
+}
+
+.voc-add-form-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.voc-add-form-header h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #0F172A;
+    margin: 0;
+}
+
+.voc-add-form-header svg {
+    width: 18px;
+    height: 18px;
+    color: #6366F1;
+}
+
+.voc-add-form form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.voc-form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+}
+
+.voc-input,
+.voc-textarea {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1.5px solid #E2E8F0;
+    border-radius: 10px;
+    font-size: 0.875rem;
+    font-family: inherit;
+    color: #0F172A;
+    background: #F8FAFC;
+    transition: all 0.2s;
+    box-sizing: border-box;
+}
+
+.voc-input::placeholder,
+.voc-textarea::placeholder {
+    color: #94A3B8;
+}
+
+.voc-input:focus,
+.voc-textarea:focus {
+    outline: none;
+    border-color: #6366F1;
+    background: white;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.voc-textarea {
+    resize: vertical;
+    min-height: 56px;
+    line-height: 1.5;
+}
+
+.voc-add-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.25rem;
+    background: #6366F1;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s;
+    width: fit-content;
+}
+
+.voc-add-btn:hover {
+    background: #4F46E5;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+.voc-add-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* === Filters === */
+.voc-filters {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.voc-search-wrapper {
+    flex: 1;
+    min-width: 200px;
+    position: relative;
+}
+
+.voc-search-icon {
+    position: absolute;
+    left: 0.875rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 16px;
+    color: #94A3B8;
+    pointer-events: none;
+    transition: color 0.2s;
+}
+
+.voc-search-wrapper:focus-within .voc-search-icon {
+    color: #6366F1;
+}
+
+.voc-search {
+    width: 100%;
+    padding: 0.625rem 0.875rem 0.625rem 2.5rem;
+    border: 1.5px solid #E2E8F0;
+    border-radius: 10px;
+    font-size: 0.8125rem;
+    font-family: inherit;
+    color: #0F172A;
+    background: #F8FAFC;
+    transition: all 0.2s;
+    box-sizing: border-box;
+}
+
+.voc-search:focus {
+    outline: none;
+    border-color: #6366F1;
+    background: white;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.voc-filter-select {
+    padding: 0.625rem 2.25rem 0.625rem 0.875rem;
+    border: 1.5px solid #E2E8F0;
+    border-radius: 10px;
+    font-size: 0.8125rem;
+    font-family: inherit;
+    color: #0F172A;
+    background: #F8FAFC;
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%2394A3B8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    transition: all 0.2s;
+}
+
+.voc-filter-select:focus {
+    outline: none;
+    border-color: #6366F1;
+    background-color: white;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.voc-due-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 50px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1.5px solid #E2E8F0;
+    background: white;
+    color: #64748B;
+    transition: all 0.2s;
+    user-select: none;
+}
+
+.voc-due-toggle:hover {
+    border-color: #C7D2FE;
+}
+
+.voc-due-toggle--active {
+    background: #FEF3C7;
+    border-color: #F59E0B;
+    color: #92400E;
+}
+
+.voc-due-toggle input {
+    display: none;
+}
+
+.voc-due-toggle svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* === Word Cards === */
+.voc-word-list {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.voc-word-card {
+    background: white;
+    border: 1.5px solid #E2E8F0;
+    border-radius: 14px;
+    padding: 1.25rem 1.5rem;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+}
+
+.voc-word-card:hover {
+    border-color: #C7D2FE;
+    box-shadow: 0 4px 16px rgba(99, 102, 241, 0.08);
+    transform: translateY(-2px);
+}
+
+.voc-word-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.voc-word-name {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: #0F172A;
+    margin: 0;
+    text-transform: capitalize;
+}
+
+.voc-mastery-badge {
+    padding: 0.2rem 0.625rem;
+    border-radius: 50px;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    color: white;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.voc-word-context {
+    font-style: italic;
+    color: #64748B;
+    font-size: 0.875rem;
+    margin: 0 0 0.5rem;
+    line-height: 1.6;
+}
+
+.voc-word-definition,
+.voc-word-notes {
+    font-size: 0.8125rem;
+    color: #334155;
+    margin: 0 0 0.375rem;
+    line-height: 1.5;
+}
+
+.voc-word-meta {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #F1F5F9;
+    font-size: 0.75rem;
+    color: #94A3B8;
+}
+
+.voc-word-meta span {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.voc-delete-btn {
+    margin-left: auto;
+    background: none;
+    border: 1px solid transparent;
+    color: #94A3B8;
+    cursor: pointer;
+    font-size: 0.75rem;
+    padding: 0.25rem 0.625rem;
+    border-radius: 6px;
+    font-family: inherit;
+    font-weight: 600;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.voc-delete-btn:hover {
+    color: #DC2626;
+    border-color: #FCA5A5;
+    background: #FEF2F2;
+}
+
+.voc-delete-btn svg {
+    width: 12px;
+    height: 12px;
+}
+
+/* === Empty State === */
+.voc-empty {
+    text-align: center;
+    padding: 3rem 2rem;
+    color: #64748B;
+}
+
+.voc-empty-icon {
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 1rem;
+    background: #F1F5F9;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.voc-empty-icon svg {
+    width: 24px;
+    height: 24px;
+    color: #94A3B8;
+}
+
+.voc-empty h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #334155;
+    margin: 0 0 0.375rem;
+}
+
+.voc-empty p {
+    margin: 0;
+    font-size: 0.8125rem;
+}
+
+/* === Flashcard Mode === */
+.voc-flashcard-page {
+    background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.voc-flashcard-container {
+    width: 100%;
+    max-width: 600px;
+    padding: 2rem;
+}
+
+.voc-fc-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.voc-fc-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.25rem;
+    background: white;
+    color: #6366F1;
+    border: 1.5px solid #E2E8F0;
+    border-radius: 10px;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.voc-fc-back:hover {
+    border-color: #6366F1;
+    background: #EEF2FF;
+}
+
+.voc-fc-back svg {
+    width: 16px;
+    height: 16px;
+}
+
+.voc-fc-progress {
+    color: #6366F1;
+    font-weight: 800;
+    font-size: 1.125rem;
+    background: white;
+    padding: 0.5rem 1rem;
+    border-radius: 50px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+/* Card */
+.voc-fc-card {
+    background: white;
+    border-radius: 20px;
+    padding: 3rem 2.5rem;
+    min-height: 380px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 12px 40px rgba(99, 102, 241, 0.12);
+    transition: all 0.3s ease;
+    position: relative;
+    border: 2px solid transparent;
+}
+
+.voc-fc-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 16px 48px rgba(99, 102, 241, 0.18);
+    border-color: #C7D2FE;
+}
+
+.voc-fc-front,
+.voc-fc-back-content {
+    text-align: center;
+}
+
+.voc-fc-front {
+    display: block;
+}
+
+.voc-fc-back-content {
+    display: none;
+}
+
+.voc-fc-card.flipped .voc-fc-front {
+    display: none;
+}
+
+.voc-fc-card.flipped .voc-fc-back-content {
+    display: block;
+}
+
+.voc-fc-word {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: #0F172A;
+    margin: 0 0 0.75rem;
+    text-transform: capitalize;
+}
+
+.voc-fc-hint {
+    color: #94A3B8;
+    font-size: 0.875rem;
+    margin: 1.5rem 0 0;
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    justify-content: center;
+}
+
+.voc-fc-hint svg {
+    width: 16px;
+    height: 16px;
+}
+
+.voc-fc-context {
+    font-style: italic;
+    color: #475569;
+    font-size: 1.0625rem;
+    line-height: 1.7;
+    margin: 0 0 1.25rem;
+}
+
+.voc-fc-definition,
+.voc-fc-notes {
+    text-align: left;
+    color: #334155;
+    line-height: 1.6;
+    font-size: 0.9375rem;
+    margin: 0 0 0.75rem;
+}
+
+/* Difficulty buttons */
+.voc-fc-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+    justify-content: center;
+}
+
+.voc-fc-diff-btn {
+    padding: 0.75rem 2rem;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    font-family: inherit;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: white;
+}
+
+.voc-fc-diff-btn:hover {
+    transform: translateY(-2px);
+}
+
+.voc-fc-diff-btn--hard {
+    background: #EF4444;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.voc-fc-diff-btn--hard:hover {
+    background: #DC2626;
+}
+
+.voc-fc-diff-btn--medium {
+    background: #F59E0B;
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+}
+
+.voc-fc-diff-btn--medium:hover {
+    background: #D97706;
+}
+
+.voc-fc-diff-btn--easy {
+    background: #22C55E;
+    box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+}
+
+.voc-fc-diff-btn--easy:hover {
+    background: #16A34A;
+}
+
+/* === Responsive === */
+@media (max-width: 768px) {
+    .voc-hero {
+        padding: 1.5rem;
+    }
+
+    .voc-hero-content {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .voc-hero-text h1 {
+        font-size: 1.375rem;
+    }
+
+    .voc-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .voc-form-row {
+        grid-template-columns: 1fr;
+    }
+
+    .voc-filters {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .voc-search-wrapper {
+        width: 100%;
+    }
+
+    .voc-fc-word {
+        font-size: 2rem;
+    }
+
+    .voc-fc-card {
+        min-height: 300px;
+        padding: 2rem 1.5rem;
+    }
+
+    .voc-fc-actions {
+        flex-direction: column;
+    }
+
+    .voc-fc-diff-btn {
+        width: 100%;
+    }
+}

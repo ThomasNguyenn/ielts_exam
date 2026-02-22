@@ -1,0 +1,371 @@
+.enhanced-writing-phase {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%);
+    display: flex;
+    flex-direction: column;
+}
+
+.writing-header {
+    background: white;
+    padding: 1.5rem 2rem;
+    box-shadow: 0 2px 4px rgb(0 0 0 / 0.05);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2rem;
+}
+
+.header-stats {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    flex: 1;
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.stat-item.warning {
+    color: #ef4444;
+}
+
+.stat-label {
+    font-weight: 600;
+    color: #64748b;
+    font-size: 0.875rem;
+}
+
+.stat-value {
+    font-weight: 800;
+    color: #1e293b;
+    font-size: 1.125rem;
+}
+
+.auto-save-indicator {
+    font-size: 0.875rem;
+    color: #10b981;
+}
+
+.btn-toggle-assistant {
+    background: #fef2f2;
+    border: 1px solid #6366F1;
+    color: #6366F1;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-toggle-assistant:hover {
+    background: #6366F1;
+    color: white;
+}
+
+.writing-container {
+    display: grid;
+    grid-template-columns: 1fr 350px;
+    gap: 2rem;
+    padding: 2rem;
+    max-width: 1800px;
+    margin: 0 auto;
+    flex: 1;
+    width: 100%;
+}
+
+.writing-container.full-width {
+    grid-template-columns: 1fr;
+    max-width: 1200px;
+}
+
+.editor-panel {
+    background: white;
+    border-radius: 16px;
+    padding: 2rem;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+    display: flex;
+    flex-direction: column;
+    min-height: 600px;
+}
+
+.editor-toolbar {
+    margin-bottom: 1rem;
+}
+
+.editor-toolbar h2 {
+    margin: 0 0 1rem 0;
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #1e293b;
+}
+
+.word-progress-bar {
+    height: 8px;
+    background: #e2e8f0;
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.word-progress-fill {
+    height: 100%;
+    transition: all 0.3s;
+    border-radius: 999px;
+}
+
+.essay-editor {
+    flex: 1;
+    width: 100%;
+    padding: 1.5rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    font-size: 1.125rem;
+    font-family: 'Georgia', serif;
+    line-height: 1.8;
+    resize: none;
+    transition: all 0.2s;
+}
+
+.essay-editor:focus {
+    outline: none;
+    border-color: #6366F1;
+    box-shadow: 0 0 0 3px rgb(208 57 57 / 0.1);
+}
+
+.editor-footer {
+    margin-top: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+}
+
+.writing-tips {
+    flex: 1;
+    background: #f0f9ff;
+    padding: 1rem;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    color: #1e40af;
+    border-left: 3px solid #6366F1;
+}
+
+.btn-submit-essay {
+    background: linear-gradient(135deg, #6366F1 0%, #f87171 100%);
+    color: white;
+    border: none;
+    padding: 1rem 2rem;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 1.125rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-submit-essay:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px -5px rgb(208 57 57 / 0.3);
+}
+
+.assistant-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
+}
+
+.assistant-card {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+}
+
+.assistant-card.collapsible .card-header-toggle {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+}
+
+.assistant-card.collapsible .card-header-toggle:hover h3 {
+    color: #6366F1;
+}
+
+.assistant-card h3 {
+    margin: 0 0 1rem 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.question-thumb {
+    width: 100%;
+    border-radius: 8px;
+    margin-bottom: 0.75rem;
+}
+
+.question-text-small {
+    font-size: 0.875rem;
+    color: #334155;
+    line-height: 1.5;
+}
+
+.outline-ref {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.outline-point {
+    padding: 0.75rem;
+    background: #f8fafc;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    color: #334155;
+    line-height: 1.5;
+}
+
+.outline-point strong {
+    color: #6366F1;
+    display: block;
+    margin-bottom: 0.25rem;
+    text-transform: capitalize;
+}
+
+.helper-instruction {
+    font-size: 0.875rem;
+    color: #64748b;
+    margin: 0;
+    font-style: italic;
+}
+
+.synonym-suggestions {
+    margin-top: 1rem;
+}
+
+.selected-word {
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 0.75rem;
+    font-size: 1.125rem;
+}
+
+.synonym-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.synonym-chip {
+    background: #fef2f2;
+    border: 1px solid #6366F1;
+    color: #6366F1;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.synonym-chip:hover {
+    background: #6366F1;
+    color: white;
+}
+
+.no-synonyms {
+    color: #94a3b8;
+    font-size: 0.875rem;
+    font-style: italic;
+}
+
+.coherence-meter {
+    height: 12px;
+    background: #e2e8f0;
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 0.75rem;
+}
+
+.coherence-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #ef4444 0%, #f59e0b 50%, #10b981 100%);
+    transition: width 0.3s;
+    border-radius: 999px;
+}
+
+.coherence-feedback {
+    font-size: 0.875rem;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.phrase-categories {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.phrase-group h4 {
+    margin: 0 0 0.25rem 0;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #6366F1;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.phrase-group span {
+    font-size: 0.875rem;
+    color: #334155;
+    line-height: 1.5;
+}
+
+@media (max-width: 1200px) {
+    .writing-container {
+        grid-template-columns: 1fr;
+    }
+
+    .assistant-sidebar {
+        max-height: none;
+        order: -1;
+    }
+
+    .assistant-card {
+        display: inline-block;
+        width: calc(50% - 0.75rem);
+        vertical-align: top;
+        margin-right: 1.5rem;
+    }
+
+    .assistant-card:nth-child(2n) {
+        margin-right: 0;
+    }
+}
+
+@media (max-width: 768px) {
+    .writing-header {
+        padding: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .header-stats {
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .assistant-card {
+        display: block;
+        width: 100%;
+        margin-right: 0;
+    }
+
+    .essay-editor {
+        font-size: 1rem;
+    }
+}

@@ -1,0 +1,546 @@
+/* ============================================================
+   ACHIEVEMENTS PAGE — Modern EdTech Design
+   ============================================================ */
+
+.ach-page {
+    min-height: 100vh;
+    background: #f8fafc;
+    padding-bottom: 4rem;
+}
+
+/* ─── Hero ─── */
+.ach-hero {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #312e81 100%);
+    padding: 3rem 2rem 5rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.ach-hero::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -10%;
+    width: 400px;
+    height: 400px;
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, transparent 70%);
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+.ach-hero-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+}
+
+.ach-hero h1 {
+    color: #fff;
+    font-size: 2.25rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.ach-hero h1 span {
+    background: linear-gradient(135deg, #A5B4FC, #C084FC);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.ach-hero p {
+    color: #94a3b8;
+    margin: 0.5rem 0 0;
+    font-size: 1rem;
+}
+
+.ach-stats-row {
+    display: flex;
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.ach-stat-chip {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 0.6rem 1rem;
+    color: #cbd5e1;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.ach-stat-chip strong {
+    color: #fff;
+    font-size: 1.1rem;
+}
+
+/* ─── Tab bar ─── */
+.ach-body {
+    max-width: 1100px;
+    margin: -2rem auto 0;
+    padding: 0 1.5rem;
+    position: relative;
+    z-index: 2;
+}
+
+.ach-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 2rem;
+}
+
+.ach-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.65rem 1.25rem;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    color: #64748b;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.ach-tab:hover {
+    border-color: #c7d2fe;
+    color: #6366f1;
+}
+
+.ach-tab.active {
+    background: linear-gradient(135deg, #6366F1, #8B5CF6);
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+}
+
+/* ─── Category filters ─── */
+.ach-filters {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+}
+
+.ach-filter-btn {
+    padding: 0.4rem 0.85rem;
+    border-radius: 50px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    color: #64748b;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.ach-filter-btn:hover {
+    border-color: #c7d2fe;
+    color: #6366f1;
+}
+
+.ach-filter-btn.active {
+    background: #6366F1;
+    color: #fff;
+    border-color: transparent;
+}
+
+/* ─── Achievement Grid ─── */
+.ach-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+}
+
+/* ─── Achievement Card ─── */
+.ach-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 1rem;
+    padding: 1.25rem;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.25s ease;
+}
+
+.ach-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+}
+
+.ach-card.tier-bronze::before {
+    background: linear-gradient(90deg, #CD7F32, #D4A574);
+}
+
+.ach-card.tier-silver::before {
+    background: linear-gradient(90deg, #94a3b8, #cbd5e1);
+}
+
+.ach-card.tier-gold::before {
+    background: linear-gradient(90deg, #F59E0B, #FBBF24);
+}
+
+.ach-card.tier-diamond::before {
+    background: linear-gradient(90deg, #06B6D4, #67E8F9);
+}
+
+.ach-card.unlocked {
+    border-color: #c7d2fe;
+}
+
+.ach-card.unlocked:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(99, 102, 241, 0.1);
+}
+
+.ach-card.locked {
+    opacity: 0.55;
+}
+
+.ach-card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.ach-card-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    flex-shrink: 0;
+}
+
+.ach-card.tier-bronze .ach-card-icon {
+    background: rgba(205, 127, 50, 0.1);
+}
+
+.ach-card.tier-silver .ach-card-icon {
+    background: rgba(148, 163, 184, 0.12);
+}
+
+.ach-card.tier-gold .ach-card-icon {
+    background: rgba(245, 158, 11, 0.1);
+}
+
+.ach-card.tier-diamond .ach-card-icon {
+    background: rgba(6, 182, 212, 0.1);
+}
+
+.ach-card-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0;
+    line-height: 1.3;
+}
+
+.ach-card-tier {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-top: 2px;
+}
+
+.tier-bronze .ach-card-tier {
+    color: #CD7F32;
+}
+
+.tier-silver .ach-card-tier {
+    color: #94a3b8;
+}
+
+.tier-gold .ach-card-tier {
+    color: #F59E0B;
+}
+
+.tier-diamond .ach-card-tier {
+    color: #06B6D4;
+}
+
+.ach-card-desc {
+    font-size: 0.82rem;
+    color: #64748b;
+    line-height: 1.5;
+    margin: 0;
+}
+
+.ach-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 0.75rem;
+    padding-top: 0.6rem;
+    border-top: 1px solid #f1f5f9;
+}
+
+.ach-xp-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #6366F1;
+    background: rgba(99, 102, 241, 0.08);
+    padding: 0.25rem 0.65rem;
+    border-radius: 50px;
+}
+
+.ach-card-date {
+    font-size: 0.72rem;
+    color: #94a3b8;
+    font-weight: 600;
+}
+
+.ach-lock-badge {
+    font-size: 0.72rem;
+    color: #94a3b8;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+/* ─── Leaderboard ─── */
+.ach-podium {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    align-items: end;
+}
+
+.ach-podium-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 1.25rem;
+    padding: 1.5rem 1rem;
+    text-align: center;
+    position: relative;
+    transition: all 0.25s ease;
+}
+
+.ach-podium-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
+}
+
+.ach-podium-card.gold {
+    border-color: #FBBF24;
+    background: linear-gradient(180deg, #FFFBEB 0%, #fff 40%);
+    order: 2;
+    padding-top: 2rem;
+}
+
+.ach-podium-card.silver {
+    border-color: #cbd5e1;
+    background: linear-gradient(180deg, #F8FAFC 0%, #fff 40%);
+    order: 1;
+}
+
+.ach-podium-card.bronze {
+    border-color: #D4A574;
+    background: linear-gradient(180deg, #FDF6EE 0%, #fff 40%);
+    order: 3;
+}
+
+.ach-podium-rank {
+    font-size: 2rem;
+    line-height: 1;
+    margin-bottom: 0.5rem;
+}
+
+.ach-podium-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0.5rem 0 0.25rem;
+}
+
+.ach-podium-xp {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #6366F1;
+}
+
+.ach-podium-level {
+    font-size: 0.72rem;
+    color: #94a3b8;
+    font-weight: 600;
+    margin-top: 0.25rem;
+}
+
+/* ─── Leaderboard Table ─── */
+.ach-lb-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border-radius: 1rem;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+}
+
+.ach-lb-table th {
+    background: #f8fafc;
+    padding: 0.75rem 1rem;
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.ach-lb-table td {
+    padding: 0.75rem 1rem;
+    font-size: 0.88rem;
+    color: #334155;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.ach-lb-table tr:last-child td {
+    border-bottom: none;
+}
+
+.ach-lb-table tr:hover td {
+    background: #fafafe;
+}
+
+.ach-lb-rank {
+    font-weight: 800;
+    color: #6366F1;
+    font-size: 1rem;
+}
+
+.ach-lb-name {
+    font-weight: 700;
+}
+
+.ach-lb-level-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 50px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    background: rgba(99, 102, 241, 0.08);
+    color: #6366F1;
+}
+
+.ach-lb-xp {
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.ach-my-rank {
+    background: #fff;
+    border: 2px solid #6366F1;
+    border-radius: 1rem;
+    padding: 1rem 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 1.5rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.ach-my-rank-label {
+    font-size: 0.82rem;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.ach-my-rank-value {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #6366F1;
+}
+
+/* ─── Empty / Loading states ─── */
+.ach-loading {
+    text-align: center;
+    padding: 4rem;
+    color: #94a3b8;
+    font-size: 1rem;
+}
+
+.ach-empty {
+    text-align: center;
+    padding: 3rem;
+    color: #94a3b8;
+    background: #fff;
+    border: 2px dashed #e2e8f0;
+    border-radius: 1rem;
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 768px) {
+    .ach-hero {
+        padding: 2rem 1rem 4rem;
+    }
+
+    .ach-hero h1 {
+        font-size: 1.5rem;
+    }
+
+    .ach-body {
+        padding: 0 1rem;
+    }
+
+    .ach-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .ach-podium {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+
+    .ach-podium-card {
+        order: unset !important;
+    }
+
+    .ach-tabs {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .ach-filters {
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 0.25rem;
+    }
+
+    .ach-filter-btn {
+        white-space: nowrap;
+    }
+
+    .ach-my-rank {
+        flex-direction: column;
+        text-align: center;
+    }
+}

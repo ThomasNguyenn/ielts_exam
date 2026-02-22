@@ -2,13 +2,128 @@ import mongoose from "mongoose";
 import Test from "../models/Test.model.js";
 import TestAttempt from "../models/TestAttempt.model.js";
 import WritingSubmission from "../models/WritingSubmission.model.js";
+import { parsePagination, buildPaginationMeta } from "../utils/pagination.js";
+
+const escapeRegex = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const ALLOWED_TEST_TYPES = ['reading', 'listening', 'writing'];
+const pickTestPayload = (body = {}, { allowId = false } = {}) => {
+    const allowed = [
+        "title",
+        "category",
+        "type",
+        "duration",
+        "full_audio",
+        "is_active",
+        "is_real_test",
+        "reading_passages",
+        "listening_sections",
+        "writing_tasks",
+    ];
+    if (allowId) {
+        allowed.push("_id");
+    }
+
+    return allowed.reduce((acc, field) => {
+        if (Object.prototype.hasOwnProperty.call(body, field)) {
+            acc[field] = body[field];
+        }
+        return acc;
+    }, {});
+};
+
+const buildTestFilter = (query = {}, { includeCategory = true } = {}) => {
+    const filter = {};
+
+    if (query.type && ALLOWED_TEST_TYPES.includes(query.type)) {
+        filter.type = query.type;
+    }
+
+    if (includeCategory && query.category && query.category !== 'all') {
+        filter.category = query.category;
+    }
+
+    if (query.q && String(query.q).trim()) {
+        const safeRegex = new RegExp(escapeRegex(String(query.q).trim()), 'i');
+        filter.$or = [
+            { title: safeRegex },
+            { _id: safeRegex },
+            { category: safeRegex },
+            { type: safeRegex }
+        ];
+    }
+
+    return filter;
+};
 
 export const getAllTests = async (req, res) => {
     try {
-        const tests = await Test.find({})
+        const shouldPaginate = req.query.page !== undefined || req.query.limit !== undefined;
+        const filter = buildTestFilter(req.query);
+
+        const baseQuery = Test.find(filter)
             .populate('reading_passages', 'title')
-            .populate('listening_sections', 'title');
-        res.status(200).json({ success: true, data: tests });
+            .populate('listening_sections', 'title')
+            .populate('writing_tasks', 'title')
+            .sort({ created_at: -1 });
+
+        if (!shouldPaginate) {
+            const tests = await baseQuery.lean();
+            return res.status(200).json({ success: true, data: tests });
+        }
+
+        const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 12, maxLimit: 100 });
+        const [tests, totalItems] = await Promise.all([
+            baseQuery.skip(skip).limit(limit).lean(),
+            Test.countDocuments(filter)
+        ]);
+
+        res.status(200).json({
+            success: true,
+            data: tests,
+            pagination: buildPaginationMeta({ page, limit, totalItems })
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Server Error" });
+    }
+};
+
+export const getTestCategories = async (req, res) => {
+    try {
+        const filter = buildTestFilter(req.query, { includeCategory: false });
+
+        const rows = await Test.aggregate([
+            { $match: filter },
+            {
+                $project: {
+                    category: {
+                        $trim: {
+                            input: { $ifNull: ['$category', ''] }
+                        }
+                    }
+                }
+            },
+            {
+                $addFields: {
+                    category: {
+                        $cond: [{ $eq: ['$category', ''] }, 'Uncategorized', '$category']
+                    }
+                }
+            },
+            {
+                $group: {
+                    _id: '$category',
+                    count: { $sum: 1 }
+                }
+            },
+            { $sort: { _id: 1 } }
+        ]);
+
+        const data = rows.map((row) => ({
+            category: row._id,
+            count: row.count
+        }));
+
+        res.status(200).json({ success: true, data });
     } catch (error) {
         res.status(500).json({ success: false, message: "Server Error" });
     }
@@ -146,7 +261,7 @@ export const getMyTestAttempts = async (req, res) => {
 };
 
 export const createTest = async (req, res) => {
-    const test = req.body; // user will send this data by api
+    const test = pickTestPayload(req.body, { allowId: true }); // user will send this data by api
 
     if (!test.title) {
         return res.status(400).json({ success: false, message: "Please provide all info" });
@@ -159,20 +274,27 @@ export const createTest = async (req, res) => {
         res.status(201).json({ success: true, data: newTest });
     }
     catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        console.error("Create test error:", error);
+        res.status(500).json({ success: false, message: "Server Error" });
     }
 };
 
 export const updateTest = async (req, res) => {
     const { id } = req.params;
 
-    const test = req.body;
+    const test = pickTestPayload(req.body);
+    if (Object.keys(test).length === 0) {
+        return res.status(400).json({ success: false, message: "No valid update fields provided" });
+    }
 
     try {
         const updatedTest = await Test.findByIdAndUpdate(id, test, { new: true });
-        res.status(200).json({ success: true, data: updatedTest });
+        if (!updatedTest) {
+            return res.status(404).json({ success: false, message: "Test not found" });
+        }
+        return res.status(200).json({ success: true, data: updatedTest });
     } catch (error) {
-        res.status(500).json({ success: false, message: "Server Error" });
+        return res.status(500).json({ success: false, message: "Server Error" });
     }
 
 };
@@ -180,10 +302,13 @@ export const updateTest = async (req, res) => {
 export const deleteTest = async (req, res) => {
     const { id } = req.params;
     try {
-        await Test.findByIdAndDelete(id);
-        res.status(201).json({ success: true, message: "Delete Success" });
+        const deletedTest = await Test.findByIdAndDelete(id);
+        if (!deletedTest) {
+            return res.status(404).json({ success: false, message: "Test not found" });
+        }
+        return res.status(200).json({ success: true, message: "Delete Success" });
     } catch (error) {
-        res.status(404).json({ success: false, message: "Can not find and delete" });
+        return res.status(500).json({ success: false, message: "Server Error" });
     }
 };
 
@@ -238,7 +363,7 @@ export const renumberTestQuestions = async (req, res) => {
 
     } catch (error) {
         console.error(error);
-        res.status(500).json({ success: false, message: "Server Error: " + error.message });
+        res.status(500).json({ success: false, message: "Server Error" });
     }
 };
 
@@ -248,7 +373,8 @@ export const getTheTestById = async (req, res) => {
         const test = await Test.findById(id)
             .populate('reading_passages')
             .populate('listening_sections')
-            .populate('writing_tasks');
+            .populate('writing_tasks')
+            .lean();
         if (!test) {
             return res.status(404).json({ success: false, message: "Test not found" });
         }
@@ -268,6 +394,7 @@ function stripForExam(item) {
         audio_url: item.audio_url || null,
         question_groups: (item.question_groups || []).map((g) => ({
             type: g.type,
+            group_layout: g.group_layout, // Include group_layout
             instructions: g.instructions,
             text: g.text, // Include summary text
             headings: g.headings,
@@ -295,22 +422,48 @@ function stripForWritingExam(item) {
 export const getExamData = async (req, res) => {
     const { id } = req.params;
     try {
-        const test = await Test.findById(id)
+        let test = await Test.findById(id)
             .populate('reading_passages')
             .populate('listening_sections')
-            .populate('writing_tasks');
+            .populate('writing_tasks')
+            .lean();
+
         if (!test) {
-            return res.status(404).json({ success: false, message: "Test not found" });
+            // Fallback: Maybe it's a standalone Writing task ID?
+            const Writing = (await import("../models/Writing.model.js")).default;
+            const writingTask = await Writing.findById(id).lean();
+            if (writingTask) {
+                return res.status(200).json({
+                    success: true,
+                    data: {
+                        testId: writingTask._id,
+                        title: writingTask.title,
+                        type: 'writing',
+                        is_real_test: writingTask.is_real_test || false,
+                        duration: writingTask.time_limit || 60,
+                        reading: [],
+                        listening: [],
+                        writing: [{
+                            _id: writingTask._id,
+                            title: writingTask.title,
+                            prompt: writingTask.prompt,
+                            image_url: writingTask.image_url,
+                            task_type: writingTask.task_type
+                        }],
+                    },
+                });
+            }
+            return res.status(404).json({ success: false, message: "Test or Writing task not found" });
         }
         const examType = test.type || 'reading';
         const reading = examType === 'reading'
-            ? (test.reading_passages || []).map((p) => stripForExam(p.toObject ? p.toObject() : p))
+            ? (test.reading_passages || []).map((p) => stripForExam(p))
             : [];
         const listening = examType === 'listening'
-            ? (test.listening_sections || []).map((s) => stripForExam(s.toObject ? s.toObject() : s))
+            ? (test.listening_sections || []).map((s) => stripForExam(s))
             : [];
         const writing = examType === 'writing'
-            ? (test.writing_tasks || []).map((w) => stripForWritingExam(w.toObject ? w.toObject() : w))
+            ? (test.writing_tasks || []).map((w) => stripForWritingExam(w))
             : [];
         res.status(200).json({
             success: true,
@@ -318,7 +471,9 @@ export const getExamData = async (req, res) => {
                 testId: test._id,
                 title: test.title,
                 type: examType,
+                is_real_test: test.is_real_test || false,
                 duration: test.duration || (examType === 'reading' ? 60 : examType === 'listening' ? 35 : 45),
+                full_audio: test.full_audio || null,
                 reading,
                 listening,
                 writing,
@@ -376,19 +531,37 @@ function getCorrectAnswersList(test, examType) {
 export const submitExam = async (req, res) => {
     const { id } = req.params;
     const { answers, writing, timeTaken } = req.body || {};
-    if (!Array.isArray(answers)) {
-        return res.status(400).json({ success: false, message: "answers must be an array" });
-    }
     try {
-        const test = await Test.findById(id)
+        let test = await Test.findById(id)
             .populate('reading_passages')
             .populate('listening_sections')
-            .populate('writing_tasks');
-        if (!test) {
-            return res.status(404).json({ success: false, message: "Test not found" });
-        }
-        const examType = test.type || 'reading';
+            .populate('writing_tasks')
+            .lean();
 
+        if (!test) {
+            // Fallback for standalone writing tasks loaded via /api/tests/:id/exam
+            const Writing = (await import("../models/Writing.model.js")).default;
+            const standaloneWritingTask = await Writing.findById(id).lean();
+            if (!standaloneWritingTask) {
+                return res.status(404).json({ success: false, message: "Test or Writing task not found" });
+            }
+
+            test = {
+                _id: standaloneWritingTask._id,
+                type: 'writing',
+                reading_passages: [],
+                listening_sections: [],
+                writing_tasks: [standaloneWritingTask],
+            };
+        }
+
+        const examType = test.type || 'reading';
+        const safeAnswers = Array.isArray(answers) ? answers : [];
+        const safeWriting = Array.isArray(writing) ? writing : [];
+
+        if (examType !== 'writing' && !Array.isArray(answers)) {
+            return res.status(400).json({ success: false, message: "answers must be an array" });
+        }
 
 
         const userId = req.user?.userId;
@@ -411,69 +584,161 @@ export const submitExam = async (req, res) => {
         }
 
         // Save writing submissions if this is a writing test
-        if (examType === 'writing' && writing && Array.isArray(writing) && writing.length > 0) {
-            const writingAnswers = writing.map((answer, index) => {
-                const task = test.writing_tasks[index];
-                const wordCount = answer.trim() ? answer.trim().split(/\s+/).length : 0;
+        if (examType === 'writing' && safeWriting.length > 0) {
+            const writingAnswers = safeWriting.map((answer, index) => {
+                const task = test.writing_tasks?.[index];
+                const answerText = typeof answer === "string" ? answer : String(answer ?? "");
+                const trimmed = answerText.trim();
+                if (!task || !trimmed) return null;
+                const wordCount = trimmed.split(/\s+/).length;
                 return {
-                    task_id: task._id,
-                    task_title: task.title,
-                    answer_text: answer,
+                    task_id: task._id || task.id || String(task),
+                    task_title: task.title || `Task ${index + 1}`,
+                    answer_text: answerText,
                     word_count: wordCount,
                 };
-            }).filter(w => w.answer_text.trim()); // Only save non-empty answers
+            }).filter(Boolean); // Only save valid non-empty answers
 
-            if (writingAnswers.length > 0 && shouldSave) {
-                await WritingSubmission.create({
+            // We must save writing submission if it's a writing test, even if it's practice mode, 
+            // because AI scoring needs a submission ID.
+            if (writingAnswers.length > 0) {
+                // If it's practice, we might not have attemptId, but we still need a submission.
+                // WE MUST CREATE IT.
+                const submission = await WritingSubmission.create({
                     test_id: id,
                     writing_answers: writingAnswers,
                     status: 'pending',
                     user_id: userId,
-                    attempt_id: attemptId,
+                    attempt_id: shouldSave ? attemptId : null, // Only link if attempt is saved
                     student_name: studentName,
                     student_email: studentEmail
                 });
+                // Expose the submission ID for frontend redirect
+                res.locals.writingSubmissionId = submission._id;
             }
         }
 
         const correctList = getCorrectAnswersList(test, examType);
         const total = correctList.length;
         let score = 0;
-        const userNormalized = answers.map((a) => normalizeAnswer(a));
+        const userNormalized = safeAnswers.map((a) => normalizeAnswer(a));
 
         // Build detailed question review data
         const questionReview = [];
+        let xpResult = null;
+        let newlyUnlocked = [];
+
         const processItemForReview = (item, itemType) => {
             if (!item || !item.question_groups) return;
             let qIndex = questionReview.length;
             for (const g of item.question_groups) {
-                for (const q of g.questions || []) {
-                    const correctOptions = correctList[qIndex] || [];
-                    const userAnswer = qIndex < userNormalized.length ? userNormalized[qIndex] : "";
-                    const isCorrect = correctOptions.length && correctOptions.includes(userAnswer);
-                    if (isCorrect) score++;
+                const groupQuestions = Array.isArray(g.questions) ? g.questions : [];
 
-                    const finalCorrectAnswer = (q.correct_answers && q.correct_answers.length > 0) ? q.correct_answers[0] : (correctOptions[0] || "");
-
-                    // Persistent file logging
-                    import('fs').then(fs => {
-                        const logData = `[${new Date().toISOString()}] Q${q.q_number}: type=${g.type}, userAnswer="${userAnswer}", correctAlternatives=${JSON.stringify(correctOptions)}, finalCorrectAnswer="${finalCorrectAnswer}", matches=${isCorrect}\n`;
-                        fs.appendFileSync('exam_debug.log', logData);
+                // SPECIAL LOGIC: Multi-select (Choose N) - Order Independent Grading
+                if (g.type === 'mult_choice' && groupQuestions.length > 1) {
+                    // 1. Build Pool of needed answers (array of arrays of valid synonyms)
+                    // e.g. [ ['a'], ['c'] ]
+                    let groupCorrectPool = [];
+                    groupQuestions.forEach(q => {
+                        groupCorrectPool.push((q.correct_answers || []).map(normalizeAnswer));
                     });
 
-                    questionReview.push({
-                        question_number: q.q_number,
-                        type: g.type,
-                        question_text: q.text,
-                        your_answer: answers[qIndex] || "",
-                        correct_answer: finalCorrectAnswer,
-                        options: (q.option && q.option.length > 0) ? q.option : (g.options || []),
-                        headings: g.headings || [], // Include headings for matching questions
-                        is_correct: isCorrect,
-                        explanation: q.explanation || "",
-                        item_type: itemType,
-                    });
-                    qIndex++;
+                    for (const q of groupQuestions) {
+                        const userAnswer = qIndex < userNormalized.length ? userNormalized[qIndex] : "";
+                        let isCorrect = false;
+
+                        // Find if userAnswer matches ANY set in the pool
+                        // We iterate the pool to find a match that hasn't been used yet
+                        const matchIndex = groupCorrectPool.findIndex(variants => variants && variants.includes(userAnswer));
+
+                        if (matchIndex !== -1) {
+                            isCorrect = true;
+                            // Mark this option set as used so it cannot be matched again
+                            // (Prevents getting double points for entering "A" twice if "A" is only valid once)
+                            groupCorrectPool[matchIndex] = null;
+                        }
+
+                        if (isCorrect) score++;
+
+                        const finalCorrectAnswer = (q.correct_answers && q.correct_answers.length > 0) ? q.correct_answers[0] : "";
+
+                        questionReview.push({
+                            question_number: q.q_number,
+                            type: g.type,
+                            question_text: q.text,
+                            your_answer: safeAnswers[qIndex] || "",
+                            correct_answer: finalCorrectAnswer,
+                            options: (q.option && q.option.length > 0) ? q.option : (g.options || []),
+                            headings: g.headings || [],
+                            is_correct: isCorrect,
+                            explanation: q.explanation || "",
+                            passage_reference: q.passage_reference || "",
+                            item_type: itemType,
+                        });
+                        qIndex++;
+                    }
+
+                } else {
+                    // STANDARD LOGIC
+                    for (const q of groupQuestions) {
+                        const correctOptions = correctList[qIndex] || [];
+                        const userAnswer = qIndex < userNormalized.length ? userNormalized[qIndex] : "";
+                        let isCorrect = correctOptions.length && correctOptions.includes(userAnswer);
+
+                        // Special logic for Matching Headings / Features / Information
+                        if (!isCorrect && ['matching_headings', 'matching_features', 'matching_information', 'matching_info', 'matching'].includes(g.type)) {
+                            const headings = g.headings || [];
+                            // Find the heading object selected by the user (userAnswer is the ID)
+                            // Note: userAnswer is normalized (lowercase). Heading IDs are usually "i", "ii", or "A", "B". 
+                            // We try to match normalized ID.
+                            const selectedHeading = headings.find(h => normalizeAnswer(h.id) === userAnswer);
+
+                            if (selectedHeading) {
+                                // Helper to clean roman numerals (i., ii., etc) for text comparison
+                                const clean = (str) => (str || '').toLowerCase().replace(/^[ivx]+\.?\s*/i, '').trim();
+                                const cleanedHeadingText = clean(selectedHeading.text);
+                                const normalizedHeadingText = normalizeAnswer(selectedHeading.text);
+
+                                // Check against all valid correct options
+                                if (correctOptions.some(opt => {
+                                    // 1. Check if option matches Heading Text exactly (normalized)
+                                    if (opt === normalizedHeadingText) return true;
+                                    // 2. Check if option matches Heading Text without Roman numerals
+                                    if (clean(opt) === cleanedHeadingText) return true;
+                                    // 3. Check if option is an ID that matches the selected heading ID (already covered by initial check, but for completeness)
+                                    if (normalizeAnswer(opt) === normalizeAnswer(selectedHeading.id)) return true;
+                                    return false;
+                                })) {
+                                    isCorrect = true;
+                                }
+                            }
+                        }
+
+                        if (isCorrect) score++;
+
+                        const finalCorrectAnswer = (q.correct_answers && q.correct_answers.length > 0) ? q.correct_answers[0] : (correctOptions[0] || "");
+
+                        // Persistent file logging REMOVED for performance
+                        // import('fs').then(fs => {
+                        //     const logData = `[${new Date().toISOString()}] Q${q.q_number}: type=${g.type}, userAnswer="${userAnswer}", correctAlternatives=${JSON.stringify(correctOptions)}, finalCorrectAnswer="${finalCorrectAnswer}", matches=${isCorrect}\n`;
+                        //     fs.appendFileSync('exam_debug.log', logData);
+                        // });
+
+                        questionReview.push({
+                            question_number: q.q_number,
+                            type: g.type,
+                            question_text: q.text,
+                            your_answer: safeAnswers[qIndex] || "",
+                            correct_answer: finalCorrectAnswer,
+                            options: (q.option && q.option.length > 0) ? q.option : (g.options || []),
+                            headings: g.headings || [], // Include headings for matching questions
+                            is_correct: isCorrect,
+                            explanation: q.explanation || "",
+                            passage_reference: q.passage_reference || "",
+                            item_type: itemType,
+                        });
+                        qIndex++;
+                    }
                 }
             }
         };
@@ -517,6 +782,13 @@ export const submitExam = async (req, res) => {
                 percentage: isWriting ? null : percentage,
                 time_taken_ms: typeof timeTaken === 'number' ? timeTaken : null,
                 submitted_at: new Date(),
+                detailed_answers: questionReview.map(q => ({
+                    question_number: q.question_number,
+                    question_type: q.type,
+                    is_correct: q.is_correct,
+                    user_answer: q.your_answer,
+                    correct_answer: q.correct_answer
+                }))
             });
 
             // Optimisation: Keep only latest 10 attempts
@@ -532,6 +804,14 @@ export const submitExam = async (req, res) => {
                     await WritingSubmission.deleteMany({ attempt_id: { $in: toDelete } });
                 }
             }
+
+            // Award XP
+            const { addXP, XP_TEST_COMPLETION } = await import("../services/gamification.service.js");
+            xpResult = await addXP(userId, XP_TEST_COMPLETION);
+
+            // Check for newly unlocked achievements
+            const { checkAchievements } = await import("../services/achievement.service.js");
+            newlyUnlocked = await checkAchievements(userId);
         }
 
         res.status(200).json({
@@ -547,10 +827,14 @@ export const submitExam = async (req, res) => {
                 writingCount,
                 question_review: questionReview,
                 timeTaken: typeof timeTaken === 'number' ? timeTaken : 0,
-                writing_answers: examType === 'writing' ? writing : [],
+                writing_answers: examType === 'writing' ? safeWriting : [],
+                xpResult, // Return XP gain info
+                achievements: newlyUnlocked, // Newly unlocked achievements
+                writingSubmissionId: res.locals.writingSubmissionId || null, // Return submission ID for AI redirect
             },
         });
     } catch (error) {
+        console.error("submitExam error:", error);
         res.status(500).json({ success: false, message: "Server Error" });
     }
 };

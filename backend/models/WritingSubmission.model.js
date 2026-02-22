@@ -25,14 +25,24 @@ const WritingSubmissionSchema = new mongoose.Schema({
   }],
   score: { type: Number }, // Overall band score
 
+  // AI Grading results (stored as the full JSON from OpenAI)
+  ai_result: { type: mongoose.Schema.Types.Mixed },
+  is_ai_graded: { type: Boolean, default: false },
+
   // Metadata
   submitted_at: { type: Date, default: Date.now },
   status: {
     type: String,
-    enum: ['pending', 'scored', 'reviewed'],
+    enum: ['pending', 'processing', 'scored', 'reviewed', 'failed'],
     default: 'pending'
   },
 }, { timestamps: true });
+
+WritingSubmissionSchema.index({ status: 1, submitted_at: -1 });
+WritingSubmissionSchema.index({ user_id: 1, submitted_at: -1 });
+WritingSubmissionSchema.index({ user_id: 1, status: 1, submitted_at: -1 });
+WritingSubmissionSchema.index({ attempt_id: 1 });
+WritingSubmissionSchema.index({ submitted_at: -1 });
 
 const WritingSubmission = mongoose.model('WritingSubmission', WritingSubmissionSchema);
 export default WritingSubmission;
