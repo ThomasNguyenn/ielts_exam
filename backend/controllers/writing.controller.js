@@ -1,6 +1,8 @@
 import mongoose from "mongoose";
 import Writing from "../models/Writing.model.js";
 import WritingSubmission from "../models/WritingSubmission.model.js";
+import TestAttempt from "../models/TestAttempt.model.js";
+import User from "../models/User.model.js";
 import { isAiAsyncModeEnabled } from "../config/queue.config.js";
 import { enqueueWritingAiScoreJob, isAiQueueReady } from "../queues/ai.queue.js";
 import { scoreWritingSubmissionById } from "../services/writingSubmissionScoring.service.js";
@@ -13,6 +15,34 @@ const canAccessSubmission = (submission, user) => {
     return user.role === "admin" || user.role === "teacher";
 };
 
+const pickWritingPayload = (body = {}, { allowId = false } = {}) => {
+    const allowedFields = [
+        "title",
+        "type",
+        "prompt",
+        "task_type",
+        "image_url",
+        "word_limit",
+        "essay_word_limit",
+        "time_limit",
+        "sample_answer",
+        "band_score",
+        "is_active",
+        "is_real_test",
+    ];
+
+    if (allowId) {
+        allowedFields.push("_id");
+    }
+
+    return allowedFields.reduce((acc, field) => {
+        if (Object.prototype.hasOwnProperty.call(body, field)) {
+            acc[field] = body[field];
+        }
+        return acc;
+    }, {});
+};
+
 export const getAllWritings = async (req, res) => {
     try {
         const writings = await Writing.find({});
@@ -23,7 +53,7 @@ export const getAllWritings = async (req, res) => {
 };
 
 export const createWriting = async (req, res) => {
-    const writing = req.body;
+    const writing = pickWritingPayload(req.body, { allowId: true });
 
     if (!writing._id || !writing.title || !writing.prompt) {
         return res.status(400).json({ success: false, message: "Please provide _id, title, and prompt" });
@@ -36,14 +66,18 @@ export const createWriting = async (req, res) => {
         res.status(201).json({ success: true, data: newWriting });
     }
     catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        console.error("Create writing error:", error);
+        res.status(500).json({ success: false, message: "Server Error" });
     }
 };
 
 export const updateWriting = async (req, res) => {
     const { id } = req.params;
 
-    const writing = req.body;
+    const writing = pickWritingPayload(req.body);
+    if (Object.keys(writing).length === 0) {
+        return res.status(400).json({ success: false, message: "No valid update fields provided" });
+    }
 
     try {
         const updatedWriting = await Writing.findByIdAndUpdate(id, writing, { new: true });
@@ -321,90 +355,97 @@ export const scoreSubmission = async (req, res) => {
     const { scores, feedback } = req.body; // Array of scores or single score object
 
     try {
-        const WritingSubmission = (await import("../models/WritingSubmission.model.js")).default;
-        const TestAttempt = (await import("../models/TestAttempt.model.js")).default;
-
         const submission = await WritingSubmission.findById(id);
 
         if (!submission) {
             return res.status(404).json({ success: false, message: "Submission not found" });
         }
 
-        const User = (await import("../models/User.model.js")).default;
         const user = await User.findById(req.user?.userId);
         const graderName = user ? user.name : 'Teacher';
 
-        // Update writing submission scores
-        if (scores && Array.isArray(scores)) {
-            submission.scores = scores.map(s => ({
-                ...s,
-                scored_at: new Date(),
-                scored_by: graderName
-            }));
-        } else if (feedback) { // Fallback if simple feedback
-            // handle logic if structure differs
+        const incomingScores = Array.isArray(scores)
+            ? scores
+            : (scores && typeof scores === "object" ? [scores] : []);
+
+        if (incomingScores.length === 0 && !feedback) {
+            return res.status(400).json({ success: false, message: "scores or feedback is required" });
         }
 
-        // Update global status
+        if (incomingScores.length > 0) {
+            const defaultTaskId = submission.writing_answers?.[0]?.task_id;
+            submission.scores = incomingScores.map((entry) => {
+                const parsedScore = Number(entry?.score);
+                return {
+                    task_id: entry?.task_id || defaultTaskId || null,
+                    score: Number.isFinite(parsedScore) ? parsedScore : null,
+                    feedback: String(entry?.feedback || "").trim(),
+                    scored_at: new Date(),
+                    scored_by: graderName
+                };
+            });
+        } else {
+            submission.scores = [{
+                task_id: submission.writing_answers?.[0]?.task_id || null,
+                score: null,
+                feedback: String(feedback || "").trim(),
+                scored_at: new Date(),
+                scored_by: graderName
+            }];
+        }
+
         submission.status = 'scored';
+
+        const scoreTaskIds = submission.scores.map((item) => item?.task_id).filter(Boolean);
+        const writingTasks = scoreTaskIds.length > 0
+            ? await Writing.find({ _id: { $in: scoreTaskIds } }).select("_id task_type").lean()
+            : [];
+        const taskTypeById = new Map(writingTasks.map((task) => [String(task._id), task.task_type]));
+
+        const normalizedScores = submission.scores.map((item) => ({
+            ...item,
+            task_type: taskTypeById.get(String(item.task_id || "")) || null,
+        }));
+        const validScores = normalizedScores.filter((item) => Number.isFinite(item.score));
+
+        let finalScore = null;
+        if (validScores.length > 0) {
+            const task1 = validScores.find((item) => item.task_type === "task1");
+            const task2 = validScores.find((item) => item.task_type === "task2");
+
+            if (task1 && task2) {
+                finalScore = Math.round((((task2.score * 2) + task1.score) / 3) * 2) / 2;
+            } else {
+                const avg = validScores.reduce((sum, item) => sum + item.score, 0) / validScores.length;
+                finalScore = Math.round(avg * 2) / 2;
+            }
+        }
+
+        if (finalScore !== null) {
+            submission.score = finalScore;
+        }
+
         await submission.save();
 
-        // If linked to a TestAttempt, update it
-        if (submission.attempt_id) {
-            // Calculate overall band score
-            // Formula: (Task 2 * 2 + Task 1) / 3
-            // Note: We need to know which score corresponds to which task type.
-            // Writing Task 1 (task_type 1) vs Task 2 (task_type 2).
-            // But 'scores' array doesn't explicitly store 'task_type' unless we populate or infer it.
-            // Assuming task 1 is index 0 and task 2 is index 1 for standard 2-task tests.
-            // However, better to rely on task_type if available. 
-            // Since we don't have task_type easily here without population, we will rely on strict order OR title?
-            // Safer approach: Just average if unsure, but user requested specific formula.
-            // Let's assume standard IELTS order: Task 1 then Task 2.
+        if (submission.attempt_id && finalScore !== null) {
+            const attemptTask1 = validScores.find((item) => item.task_type === "task1") || validScores[0] || null;
+            const attemptTask2 = validScores.find((item) => item.task_type === "task2") || validScores[1] || null;
+            const combinedFeedback = validScores
+                .map((item) => String(item.feedback || "").trim())
+                .filter(Boolean)
+                .join("\n\n");
 
-            const validScores = submission.scores.filter(s => typeof s.score === 'number');
-
-            if (validScores.length > 0) {
-                let finalScore = 0;
-
-                // If we have exactly 2 scores, apply the formula assuming [Task 1, Task 2] order
-                if (validScores.length === 2) {
-                    const task1Score = validScores[0].score;
-                    const task2Score = validScores[1].score;
-                    // (Task 2 * 2 + Task 1) / 3
-                    const rawWeighted = (task2Score * 2 + task1Score) / 3;
-                    // Round to nearest 0.5
-                    finalScore = Math.round(rawWeighted * 2) / 2;
-                } else {
-                    // Fallback to simple average
-                    const sum = validScores.reduce((a, b) => a + b.score, 0);
-                    const avg = sum / validScores.length;
-                    finalScore = Math.round(avg * 2) / 2;
+            await TestAttempt.findByIdAndUpdate(submission.attempt_id, {
+                score: finalScore,
+                total: 9,
+                percentage: Math.round((finalScore / 9) * 100),
+                status: "scored",
+                writing_details: {
+                    task1_score: attemptTask1?.score ?? null,
+                    task2_score: attemptTask2?.score ?? null,
+                    feedback: combinedFeedback
                 }
-
-                // Assume Task 1 is first, Task 2 is second in validScores if matched by title/order
-                // We will try to map by task_title or order if possible, but for now rely on index
-                const task1 = validScores[0];
-                const task2 = validScores[1];
-
-                // Update the submission object itself with the overall score
-                submission.score = finalScore;
-                await submission.save();
-
-                await TestAttempt.findByIdAndUpdate(submission.attempt_id, {
-                    score: finalScore,
-                    total: 9,
-                    percentage: Math.round((finalScore / 9) * 100),
-                    status: 'scored',
-                    writing_details: {
-                        task1_score: task1 ? task1.score : null,
-                        task2_score: task2 ? task2.score : null,
-                        feedback: (task1?.feedback || '') + (task2?.feedback ? '\n\n' + task2.feedback : '')
-                    }
-                });
-            } else {
-                await submission.save();
-            }
+            });
         }
 
         res.status(200).json({ success: true, data: submission });
@@ -468,7 +509,7 @@ export const regenerateWritingId = async (req, res) => {
 
     } catch (error) {
         console.error("Regenerate ID error:", error);
-        res.status(500).json({ success: false, message: "Server Error: " + error.message });
+        res.status(500).json({ success: false, message: "Server Error" });
     }
 };
 
@@ -524,7 +565,7 @@ export const scoreSubmissionAI = async (req, res) => {
 
     } catch (error) {
         console.error("AI Score submission error:", error);
-        res.status(500).json({ success: false, message: "Server Error: " + error.message });
+        res.status(500).json({ success: false, message: "Server Error" });
     }
 };
 
@@ -554,6 +595,6 @@ export const uploadImage = async (req, res) => {
         });
     } catch (error) {
         console.error("Upload image error:", error);
-        res.status(500).json({ success: false, message: "Upload failed: " + error.message });
+        res.status(500).json({ success: false, message: "Upload failed" });
     }
 };

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Plus, Search, Filter, Pencil, Trash2 } from 'lucide-react';
 import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
+import ConfirmationModal from '@/shared/components/ConfirmationModal';
 import { useNavigate, useParams } from 'react-router-dom';
 import AddSection from './AddSection';
 import './Manage.css';
@@ -34,6 +35,13 @@ export default function ManageSectionsSinglePage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [activeTab, setActiveTab] = useState(routeEditId ? 'editor' : 'list');
   const [editingId, setEditingId] = useState(isCreateRoute ? null : (routeEditId || null));
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    isDanger: false,
+  });
 
   const loadSections = async () => {
     setLoading(true);
@@ -76,15 +84,22 @@ export default function ManageSectionsSinglePage() {
     currentPage * ITEMS_PER_PAGE
   );
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this section? This cannot be undone.')) return;
-    try {
-      await api.deleteSection(id);
-      showNotification('Section deleted.', 'success');
-      await loadSections();
-    } catch (err) {
-      showNotification(err.message || 'Failed to delete section', 'error');
-    }
+  const handleDelete = (id) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Section',
+      message: 'Delete this section? This cannot be undone.',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          await api.deleteSection(id);
+          showNotification('Section deleted.', 'success');
+          await loadSections();
+        } catch (err) {
+          showNotification(err.message || 'Failed to delete section', 'error');
+        }
+      },
+    });
   };
 
   const openCreateTab = () => {
@@ -257,6 +272,14 @@ export default function ManageSectionsSinglePage() {
           }}
         />
       )}
+      <ConfirmationModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        isDanger={confirmModal.isDanger}
+      />
     </div>
   );
 }

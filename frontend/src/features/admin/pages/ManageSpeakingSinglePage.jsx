@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Plus, Search, Filter, Pencil, Trash2 } from 'lucide-react';
 import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
+import ConfirmationModal from '@/shared/components/ConfirmationModal';
 import { useNavigate, useParams } from 'react-router-dom';
 import AddSpeaking from './AddSpeaking';
 import './Manage.css';
@@ -31,6 +32,13 @@ export default function ManageSpeakingSinglePage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [activeTab, setActiveTab] = useState(routeEditId ? 'editor' : 'list');
   const [editingId, setEditingId] = useState(isCreateRoute ? null : (routeEditId || null));
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    isDanger: false,
+  });
 
   const loadSpeakings = async () => {
     setLoading(true);
@@ -74,15 +82,22 @@ export default function ManageSpeakingSinglePage() {
     currentPage * ITEMS_PER_PAGE
   );
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this speaking topic? This cannot be undone.')) return;
-    try {
-      await api.deleteSpeaking(id);
-      showNotification('Speaking topic deleted.', 'success');
-      await loadSpeakings();
-    } catch (err) {
-      showNotification(err.message || 'Failed to delete speaking topic', 'error');
-    }
+  const handleDelete = (id) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Speaking Topic',
+      message: 'Delete this speaking topic? This cannot be undone.',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          await api.deleteSpeaking(id);
+          showNotification('Speaking topic deleted.', 'success');
+          await loadSpeakings();
+        } catch (err) {
+          showNotification(err.message || 'Failed to delete speaking topic', 'error');
+        }
+      },
+    });
   };
 
   const openCreateTab = () => {
@@ -243,6 +258,14 @@ export default function ManageSpeakingSinglePage() {
           }}
         />
       )}
+      <ConfirmationModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        isDanger={confirmModal.isDanger}
+      />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import React, { useState, useEffect } from 'react';
 import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
+import ConfirmationModal from '@/shared/components/ConfirmationModal';
 import PaginationControls from '@/shared/components/PaginationControls';
 import './Manage.css';
 
@@ -13,6 +14,13 @@ export default function ManageUsers() {
   const [loading, setLoading] = useState(true);
   const [roleFilter, setRoleFilter] = useState(''); // '' = all, 'student', 'teacher'
   const [searchTerm, setSearchTerm] = useState('');
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    isDanger: false,
+  });
   const { showNotification } = useNotification();
 
   useEffect(() => {
@@ -39,23 +47,27 @@ export default function ManageUsers() {
     }
   };
 
-  const handleDelete = async (userId, userName) => {
-    if (!window.confirm(`Are you sure you want to delete user "${userName}"? This action cannot be undone.`)) {
-      return;
-    }
-
-    try {
-      const res = await api.deleteUser(userId);
-      if (res.success) {
-        showNotification("User deleted successfully", "success");
-        const nextPage = users.length === 1 && currentPage > 1 ? currentPage - 1 : currentPage;
-        setCurrentPage(nextPage);
-        fetchUsers(nextPage);
+  const handleDelete = (userId, userName) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete User',
+      message: `Are you sure you want to delete user "${userName}"? This action cannot be undone.`,
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          const res = await api.deleteUser(userId);
+          if (res.success) {
+            showNotification("User deleted successfully", "success");
+            const nextPage = users.length === 1 && currentPage > 1 ? currentPage - 1 : currentPage;
+            setCurrentPage(nextPage);
+            fetchUsers(nextPage);
+          }
+        } catch (error) {
+          console.error("Failed to delete user:", error);
+          showNotification("Failed to delete user", "error");
+        }
       }
-    } catch (error) {
-      console.error("Failed to delete user:", error);
-      showNotification("Failed to delete user", "error");
-    }
+    });
   };
 
   const filteredUsers = users.filter(user =>
@@ -160,6 +172,14 @@ export default function ManageUsers() {
           itemLabel="users"
         />
       </div>
+      <ConfirmationModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        isDanger={confirmModal.isDanger}
+      />
     </div>
   );
 }

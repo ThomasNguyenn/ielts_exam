@@ -1,4 +1,5 @@
 import dotenv from "dotenv";
+import mongoose from "mongoose";
 import { connectDB } from "./config/db.js";
 import { validateEnvironment } from "./config/env.validation.js";
 
@@ -11,9 +12,31 @@ const startServer = async () => {
   const app = createApp({ startBackgroundJobs: true });
   await connectDB();
 
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
   });
+
+  const shutdown = async (signal) => {
+    console.log(`\n[shutdown] ${signal} received — closing server...`);
+    server.close(async () => {
+      try {
+        await mongoose.connection.close();
+        console.log("[shutdown] MongoDB connection closed.");
+      } catch (err) {
+        console.error("[shutdown] Error closing MongoDB:", err.message);
+      }
+      process.exit(0);
+    });
+
+    // Force exit if graceful shutdown takes too long
+    setTimeout(() => {
+      console.error("[shutdown] Forced exit after timeout.");
+      process.exit(1);
+    }, 10_000).unref();
+  };
+
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 };
 
 startServer().catch((error) => {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Plus, Search, Filter, Pencil, Trash2 } from 'lucide-react';
 import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
+import ConfirmationModal from '@/shared/components/ConfirmationModal';
 import { useNavigate, useParams } from 'react-router-dom';
 import AddWriting from './AddWriting';
 import './Manage.css';
@@ -31,6 +32,13 @@ export default function ManageWritingsSinglePage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [activeTab, setActiveTab] = useState(routeEditId ? 'editor' : 'list');
   const [editingId, setEditingId] = useState(isCreateRoute ? null : (routeEditId || null));
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    isDanger: false,
+  });
 
   const loadWritings = async () => {
     setLoading(true);
@@ -73,15 +81,22 @@ export default function ManageWritingsSinglePage() {
     currentPage * ITEMS_PER_PAGE
   );
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this writing? This cannot be undone.')) return;
-    try {
-      await api.deleteWriting(id);
-      showNotification('Writing deleted.', 'success');
-      await loadWritings();
-    } catch (err) {
-      showNotification(err.message || 'Failed to delete writing', 'error');
-    }
+  const handleDelete = (id) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Writing',
+      message: 'Delete this writing? This cannot be undone.',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          await api.deleteWriting(id);
+          showNotification('Writing deleted.', 'success');
+          await loadWritings();
+        } catch (err) {
+          showNotification(err.message || 'Failed to delete writing', 'error');
+        }
+      },
+    });
   };
 
   const openCreateTab = () => {
@@ -242,6 +257,14 @@ export default function ManageWritingsSinglePage() {
           }}
         />
       )}
+      <ConfirmationModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        isDanger={confirmModal.isDanger}
+      />
     </div>
   );
 }

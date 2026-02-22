@@ -1,5 +1,19 @@
 import Section from "../models/Section.model.js";
 
+const pickSectionPayload = (body = {}, { allowId = false } = {}) => {
+    const allowed = ["title", "content", "audio_url", "question_groups", "source"];
+    if (allowId) {
+        allowed.push("_id");
+    }
+
+    return allowed.reduce((acc, key) => {
+        if (Object.prototype.hasOwnProperty.call(body, key)) {
+            acc[key] = body[key];
+        }
+        return acc;
+    }, {});
+};
+
 export const getAllSections = async(req, res) => {
     try{
         const sections = await Section.find({});
@@ -10,7 +24,7 @@ export const getAllSections = async(req, res) => {
 };
 
 export const createSection = async(req, res) => {
-    const section = req.body; // user will send this data by api
+    const section = pickSectionPayload(req.body, { allowId: true }); // user will send this data by api
 
     if(!section.title || !section.content || !section.question_groups){
         return res.status(400).json({ success: false, message: "Please provide all info"});
@@ -23,7 +37,8 @@ export const createSection = async(req, res) => {
         res.status(201).json({ success: true, data : newSection });
     }
     catch(error){
-        res.status(500).json({ success: false, message: error.message });
+        console.error("Create section error:", error);
+        res.status(500).json({ success: false, message: "Server Error" });
     }
 };
 
@@ -42,7 +57,11 @@ export const getSectionById = async(req, res) => {
 
 export const updateSection = async(req, res) => {
     const { id } = req.params;
-    const section = req.body;
+    const section = pickSectionPayload(req.body);
+
+    if (Object.keys(section).length === 0) {
+        return res.status(400).json({ success: false, message: "No valid update fields provided" });
+    }
 
     try {
         const updatedSection = await Section.findByIdAndUpdate(id, section, { new: true });
@@ -51,6 +70,7 @@ export const updateSection = async(req, res) => {
         }
         res.status(200).json({ success: true, data: updatedSection });
     } catch (error) {
+        console.error("Update section error:", error);
         res.status(500).json({ success: false, message: "Server Error" });
     }
 };

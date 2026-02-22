@@ -1,4 +1,5 @@
 import SkillModule from '../models/SkillModule.model.js';
+import StudentProgress from '../models/StudentProgress.model.js';
 
 const toNumber = (value, fallback) => {
     const parsed = Number(value);
@@ -160,7 +161,7 @@ export const getAllModules = async (req, res) => {
         res.json({ success: true, data: modules });
     } catch (error) {
         console.error('Error fetching modules:', error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Server Error' });
     }
 };
 
@@ -179,7 +180,7 @@ export const getModuleById = async (req, res) => {
         res.json({ success: true, data: module });
     } catch (error) {
         console.error('Error fetching module:', error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Server Error' });
     }
 };
 
@@ -196,7 +197,7 @@ export const getAllModulesForManage = async (req, res) => {
         res.json({ success: true, data: modules });
     } catch (error) {
         console.error('Error fetching modules for management:', error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Server Error' });
     }
 };
 
@@ -213,7 +214,7 @@ export const getModuleByIdForManage = async (req, res) => {
         res.json({ success: true, data: module });
     } catch (error) {
         console.error('Error fetching module for management:', error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Server Error' });
     }
 };
 
@@ -241,7 +242,7 @@ export const createModule = async (req, res) => {
         res.status(201).json({ success: true, data: saved });
     } catch (error) {
         console.error('Error creating module:', error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Server Error' });
     }
 };
 
@@ -274,7 +275,7 @@ export const updateModule = async (req, res) => {
         res.json({ success: true, data: refreshed });
     } catch (error) {
         console.error('Error updating module:', error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Server Error' });
     }
 };
 
@@ -296,7 +297,7 @@ export const deleteModule = async (req, res) => {
         res.json({ success: true, message: 'Module disabled successfully' });
     } catch (error) {
         console.error('Error deleting module:', error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Server Error' });
     }
 };
 
@@ -363,7 +364,7 @@ export const reorderModules = async (req, res) => {
         });
     } catch (error) {
         console.error('Error reordering modules:', error);
-        return res.status(500).json({ success: false, message: error.message });
+        return res.status(500).json({ success: false, message: 'Server Error' });
     }
 };
 
@@ -371,9 +372,29 @@ export const reorderModules = async (req, res) => {
 export const completeModule = async (req, res) => {
     try {
         const { id } = req.params;
+        const userId = req.user?.userId;
+        const quizScore = Number(req.body?.quizScore);
         const module = await SkillModule.findById(id);
         if (!module) {
             return res.status(404).json({ success: false, message: 'Module not found' });
+        }
+
+        const progress = await StudentProgress.findOneAndUpdate(
+            { userId },
+            { $setOnInsert: { userId } },
+            { new: true, upsert: true, setDefaultsOnInsert: true },
+        );
+
+        const alreadyCompleted = progress.completedModules.some(
+            (item) => String(item.moduleId) === String(id),
+        );
+        if (!alreadyCompleted) {
+            progress.completedModules.push({
+                moduleId: id,
+                completedAt: new Date(),
+                quizScore: Number.isFinite(quizScore) ? quizScore : undefined,
+            });
+            await progress.save();
         }
 
         res.json({
@@ -383,7 +404,7 @@ export const completeModule = async (req, res) => {
         });
     } catch (error) {
         console.error('Error completing module:', error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Server Error' });
     }
 };
 
@@ -434,6 +455,6 @@ export const submitQuiz = async (req, res) => {
         });
     } catch (error) {
         console.error('Error submitting quiz:', error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Server Error' });
     }
 };

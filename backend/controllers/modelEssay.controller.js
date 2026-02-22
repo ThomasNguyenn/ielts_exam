@@ -21,7 +21,7 @@ export const getModelEssays = async (req, res) => {
         res.json({ success: true, data: essays });
     } catch (error) {
         console.error('Error fetching model essays:', error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Server Error' });
     }
 };
 
@@ -39,7 +39,7 @@ export const getModelEssayById = async (req, res) => {
         res.json({ success: true, data: essay });
     } catch (error) {
         console.error('Error fetching model essay:', error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Server Error' });
     }
 };
 
@@ -102,6 +102,6 @@ export const submitAnalysisTask = async (req, res) => {
         });
     } catch (error) {
         console.error('Error submitting analysis task:', error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Server Error' });
     }
 };

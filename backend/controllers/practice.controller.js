@@ -31,7 +31,8 @@ export const getRandomQuestion = async (req, res) => {
 
         res.json(question);
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error("getRandomQuestion error:", error);
+        res.status(500).json({ message: "Server Error" });
     }
 };
 
@@ -145,7 +146,7 @@ export const checkOutline = async (req, res) => {
         res.json({ session_id: session._id, feedback: aiResponse });
     } catch (error) {
         console.error("AI Error:", error);
-        res.status(500).json({ message: error.message });
+        res.status(500).json({ message: "Server Error" });
     }
 };
 
@@ -203,7 +204,8 @@ export const generateMaterials = async (req, res) => {
 
         res.json(materials);
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error("generateMaterials error:", error);
+        res.status(500).json({ message: "Server Error" });
     }
 };
 
@@ -343,6 +345,7 @@ export const submitWriting = async (req, res) => {
 
         res.json({ ...result, fullEssay, gradingMode: 'ai' });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error("submitWriting error:", error);
+        res.status(500).json({ message: "Server Error" });
     }
 };

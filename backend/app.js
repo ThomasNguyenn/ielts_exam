@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
 import path from "path";
 import fs from "fs";
 import { createRateLimiter } from "./middleware/rateLimit.middleware.js";
@@ -74,6 +75,7 @@ export const createApp = ({ startBackgroundJobs = true } = {}) => {
   const app = express();
 
   app.disable("x-powered-by");
+  app.use(helmet());
   app.set("trust proxy", 1);
 
   const configuredOrigins = (process.env.FRONTEND_ORIGINS || "")
@@ -219,7 +221,11 @@ export const createApp = ({ startBackgroundJobs = true } = {}) => {
   app.use("/api/model-essays", modelEssayRoutes);
 
   const uploadDir = ensureUploadDirectory();
-  app.use("/uploads", express.static(uploadDir));
+  app.use("/uploads", express.static(uploadDir, {
+    maxAge: "1d",
+    etag: true,
+    lastModified: true,
+  }));
 
   if (startBackgroundJobs) {
     const cleanupOldRecordings = createRecordingCleanupJob(uploadDir);

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
 import AIContentGeneratorModal from '@/shared/components/AIContentGeneratorModal';
+import ConfirmationModal from '@/shared/components/ConfirmationModal';
 import QuestionGroup from './QuestionGroup';
 import { PLACEHOLDER_FROM_PASSAGE_CONTENT_TYPES, SECTION_QUESTION_TYPE_OPTIONS } from './questionGroupConfig';
 import { buildQuestionsFromPlaceholders, parseCorrectAnswersRaw } from './manageQuestionInputUtils';
@@ -165,6 +166,13 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState(new Set());
   const [collapsedQuestions, setCollapsedQuestions] = useState(new Set());
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    isDanger: false,
+  });
 
   useEffect(() => {
     const load = async () => {
@@ -254,11 +262,18 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
   };
 
   const removeQuestionGroup = (groupIndex) => {
-    if (!window.confirm('Delete this question group?')) return;
-    setForm((prev) => ({
-      ...prev,
-      question_groups: prev.question_groups.filter((_, index) => index !== groupIndex),
-    }));
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Question Group',
+      message: 'Delete this question group?',
+      isDanger: true,
+      onConfirm: () => {
+        setForm((prev) => ({
+          ...prev,
+          question_groups: prev.question_groups.filter((_, index) => index !== groupIndex),
+        }));
+      },
+    });
   };
 
   const moveGroup = (index, step) => {
@@ -665,6 +680,14 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
         onClose={() => setIsAIModalOpen(false)}
         onGenerated={handleAIGenerated}
         type="section"
+      />
+      <ConfirmationModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        isDanger={confirmModal.isDanger}
       />
 
       {error && <div className="form-error" style={{ marginBottom: '1rem' }}>{error}</div>}

@@ -1,139 +1,89 @@
-import { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '@/shared/api/client';
 import {
-  Sparkles, User, Mail, Lock, Shield, Gift,
+  Sparkles, User, Mail, Lock,
   BookOpen, Check, AlertCircle
 } from 'lucide-react';
 import './Auth.css';
 
 export default function Register() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const inviteToken = searchParams.get('invite') || '';
+
   const [form, setForm] = useState({
     name: '',
     email: '',
     password: '',
     confirmPassword: '',
-    role: 'student',
-    giftcode: ''
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [giftcodeError, setGiftcodeError] = useState(null);
-  const [verifyingGiftcode, setVerifyingGiftcode] = useState(false);
-  const latestGiftcodeCheckRef = useRef('');
 
-  // Giftcode is only required for teacher/admin
-  const requiresGiftcode = form.role === 'teacher' || form.role === 'admin';
+  // Invite state
+  const [inviteData, setInviteData] = useState(null); // { email, role }
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteError, setInviteError] = useState(null);
 
-  // Validate giftcode when role changes
+  // Validate invite token on mount
   useEffect(() => {
-    if (!requiresGiftcode) {
-      setGiftcodeError(null);
-      setVerifyingGiftcode(false);
-      return;
-    }
+    if (!inviteToken) return;
 
-    const normalizedCode = form.giftcode.trim().toUpperCase();
-    if (!normalizedCode) {
-      setGiftcodeError(null);
-      setVerifyingGiftcode(false);
-      return;
-    }
+    setInviteLoading(true);
+    setInviteError(null);
 
-    const requestKey = `${form.role}:${normalizedCode}`;
-    latestGiftcodeCheckRef.current = requestKey;
+    api.validateInvitation(inviteToken)
+      .then((res) => {
+        const data = res?.data || res;
+        if (data?.valid) {
+          setInviteData({ email: data.data?.email || data.email, role: data.data?.role || data.role });
+          setForm((prev) => ({ ...prev, email: data.data?.email || data.email || '' }));
+        } else {
+          setInviteError('Lời mời không hợp lệ hoặc đã hết hạn');
+        }
+      })
+      .catch(() => {
+        setInviteError('Lời mời không hợp lệ hoặc đã hết hạn');
+      })
+      .finally(() => setInviteLoading(false));
+  }, [inviteToken]);
 
-    const timeoutId = setTimeout(() => {
-      validateGiftcode(normalizedCode, form.role, requestKey);
-    }, 300);
-
-    return () => clearTimeout(timeoutId);
-  }, [form.role, form.giftcode]);
-
-  const validateGiftcode = async (code, role, requestKey) => {
-    if (!code) {
-      setGiftcodeError('Giftcode is required for ' + role);
-      return;
-    }
-
-    setVerifyingGiftcode(true);
-    setGiftcodeError(null);
-
-    try {
-      const res = await api.verifyGiftcode({ giftcode: code, role });
-      if (latestGiftcodeCheckRef.current !== requestKey) return;
-      const isValid = res?.data?.valid ?? res?.valid ?? false;
-      if (!isValid) {
-        setGiftcodeError('Invalid giftcode for ' + role + ' role');
-      } else {
-        setGiftcodeError(null);
-      }
-    } catch (err) {
-      if (latestGiftcodeCheckRef.current !== requestKey) return;
-      setGiftcodeError('Invalid giftcode');
-    } finally {
-      if (latestGiftcodeCheckRef.current === requestKey) {
-        setVerifyingGiftcode(false);
-      }
-    }
-  };
+  const roleLabel = inviteData?.role === 'admin' ? 'Quản trị viên' : inviteData?.role === 'teacher' ? 'Giáo viên' : 'Học sinh';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
 
     if (form.password !== form.confirmPassword) {
-      setError('Passwords do not match');
+      setError('Mật khẩu không khớp');
       return;
     }
 
-    if (form.password.length < 6) {
-      setError('Password must be at least 6 characters');
+    if (form.password.length < 8) {
+      setError('Mật khẩu phải có ít nhất 8 ký tự');
       return;
-    }
-
-    if (requiresGiftcode) {
-      if (!form.giftcode.trim()) {
-        setError('Giftcode is required for ' + form.role + ' registration');
-        return;
-      }
-      if (giftcodeError || verifyingGiftcode) {
-        setError('Please enter a valid giftcode');
-        return;
-      }
     }
 
     setLoading(true);
 
     try {
-      const { confirmPassword, ...registerData } = form;
+      const registerData = {
+        name: form.name,
+        email: form.email,
+        password: form.password,
+      };
+
+      if (inviteToken) {
+        registerData.inviteToken = inviteToken;
+      }
+
       const res = await api.register(registerData);
-
-      // If we got a token, it means auto-login (or we could change backend to not return token if verification required)
-      // But based on our new backend, we DO return token but also a message.
-      // However, if strict verification is on, maybe we shouldn't login?
-      // For now, let's show the success message and NOT auto-login if we want them to verify.
-      // But the backend DOES return a token.
-      // Let's check the backend logic again.
-      // Backend: 
-      // if (!user.isConfirmed) sendVerificationEmail
-      // token = issueTokenForUser...
-      // res.json({ ..., token, message: "Registration successful..." })
-
-      // So the user IS logged in. They can use the app.
-      // But we want to tell them to check email.
-      // If `isConfirmed` is enforced in `ProtectedRoute`, they will be redirected to `/wait-for-confirmation`.
-      // Let's use that flow.
 
       api.setToken(res.data.token);
       api.setUser(res.data.user);
 
-      // If user is not confirmed (which they won't be), ProtectedRoute will handle it?
-      // Or we can explicitly verify:
       if (!res.data.user.isConfirmed && res.data.user.role === 'student') {
-        // We can redirect to /wait-for-confirmation or show a modal here.
-        // Let's redirect to a new "check email" page or use /wait-for-confirmation which seems to exist.
         navigate('/wait-for-confirmation');
       } else {
         navigate('/');
@@ -196,6 +146,25 @@ export default function Register() {
             <p>Điền thông tin bên dưới để bắt đầu</p>
           </div>
 
+          {inviteLoading && (
+            <div className="auth-info" style={{ padding: '12px', background: 'var(--surface-2, #f0f4ff)', borderRadius: 8, marginBottom: 16 }}>
+              Đang xác minh lời mời...
+            </div>
+          )}
+
+          {inviteError && (
+            <div className="auth-error">
+              <AlertCircle />
+              {inviteError}
+            </div>
+          )}
+
+          {inviteData && (
+            <div style={{ padding: '12px 16px', background: 'var(--surface-2, #f0f4ff)', borderRadius: 8, marginBottom: 16, fontSize: 14 }}>
+              <strong>🎉 Bạn được mời với vai trò: {roleLabel}</strong>
+            </div>
+          )}
+
           {error && (
             <div className="auth-error">
               <AlertCircle />
@@ -226,9 +195,11 @@ export default function Register() {
                   <input
                     type="email"
                     value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    onChange={(e) => !inviteData && setForm({ ...form, email: e.target.value })}
                     placeholder="your@email.com"
                     required
+                    readOnly={!!inviteData}
+                    style={inviteData ? { opacity: 0.7, cursor: 'not-allowed' } : undefined}
                   />
                 </div>
               </div>
@@ -243,7 +214,7 @@ export default function Register() {
                     type="password"
                     value={form.password}
                     onChange={(e) => setForm({ ...form, password: e.target.value })}
-                    placeholder="Ít nhất 6 ký tự"
+                    placeholder="Ít nhất 8 ký tự"
                     required
                   />
                 </div>
@@ -264,51 +235,7 @@ export default function Register() {
               </div>
             </div>
 
-            <div className="auth-field">
-              <label>Vai trò</label>
-              <div className="auth-input-wrapper">
-                <Shield className="auth-input-icon" />
-                <select
-                  value={form.role}
-                  onChange={(e) => setForm({ ...form, role: e.target.value, giftcode: '' })}
-                >
-                  <option value="student">Học sinh</option>
-                  <option value="teacher">Giáo viên</option>
-                  <option value="admin">Quản trị viên</option>
-                </select>
-              </div>
-            </div>
-
-            {requiresGiftcode && (
-              <div className="auth-field">
-                <label>
-                  Mã quà tặng *
-                  <span className="form-hint" style={{ marginLeft: 8, fontWeight: 400 }}>
-                    (Bắt buộc cho {form.role === 'teacher' ? 'giáo viên' : 'quản trị viên'})
-                  </span>
-                </label>
-                <div className="auth-input-wrapper">
-                  <Gift className="auth-input-icon" />
-                  <input
-                    type="text"
-                    value={form.giftcode}
-                    onChange={(e) => setForm({ ...form, giftcode: e.target.value.toUpperCase() })}
-                    placeholder="Nhập mã quà tặng"
-                    required
-                  />
-                </div>
-                {verifyingGiftcode && <span className="form-hint">Đang xác minh...</span>}
-                {giftcodeError && <span className="form-error">{giftcodeError}</span>}
-                {!giftcodeError && form.giftcode && !verifyingGiftcode && (
-                  <span className="form-success">✓ Mã hợp lệ</span>
-                )}
-                <small className="form-hint">
-                  Liên hệ quản trị viên để lấy mã
-                </small>
-              </div>
-            )}
-
-            <button type="submit" className="auth-submit-btn" disabled={loading}>
+            <button type="submit" className="auth-submit-btn" disabled={loading || inviteLoading || !!inviteError}>
               {loading ? 'Đang đăng ký...' : 'Tạo tài khoản'}
             </button>
           </form>

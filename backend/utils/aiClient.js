@@ -97,6 +97,10 @@ export const requestOpenAIJsonWithFallback = async ({
   timeoutMs = DEFAULT_TIMEOUT_MS,
   maxAttempts = DEFAULT_MAX_ATTEMPTS,
 }) => {
+  if (!openai?.chat?.completions?.create) {
+    throw new Error("OpenAI client is not initialized");
+  }
+
   const normalizedModels = (models || []).filter(Boolean);
   if (normalizedModels.length === 0) {
     throw new Error("No OpenAI model provided for AI request");

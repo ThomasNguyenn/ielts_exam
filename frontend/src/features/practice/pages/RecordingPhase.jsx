@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useNotification } from '@/shared/context/NotificationContext';
 
 const AUTO_RESUME_FALLBACK_MS = 20000;
 
@@ -58,6 +59,7 @@ export default function RecordingPhase({ topic, onComplete }) {
     const isPart3Conversational = Number(topic?.part || 0) === 3 && conversationQuestions.length > 1;
     const currentQuestion = isPart3Conversational ? conversationQuestions[questionIndex] : null;
     const atLastConversationQuestion = !isPart3Conversational || questionIndex >= conversationQuestions.length - 1;
+    const { showNotification } = useNotification();
 
     const clearTimer = () => {
         if (timerRef.current) {
@@ -138,7 +140,7 @@ export default function RecordingPhase({ topic, onComplete }) {
             startTimer();
         } catch (error) {
             console.error('Mic access denied:', error);
-            alert('Please allow microphone access to record your answer.');
+            showNotification('Please allow microphone access to record your answer.', 'warning');
         }
     };
 

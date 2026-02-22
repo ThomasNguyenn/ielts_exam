@@ -1,12 +1,30 @@
 import User from "../models/User.model.js";
+import Invitation from "../models/Invitation.model.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { randomUUID, randomBytes } from "crypto";
-import { JWT_SECRET, VALID_GIFTCODES } from "../config/security.config.js";
+import { JWT_SECRET } from "../config/security.config.js";
 import { sendVerificationEmail, sendPasswordResetEmail } from "../services/email.service.js";
 
 const ALLOWED_ROLES = new Set(["student", "teacher", "admin"]);
 const JWT_EXPIRES_IN = "7d";
+
+const PASSWORD_MIN = 8;
+const PASSWORD_MAX = 72; // bcrypt limit
+const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/;
+
+const validatePassword = (password) => {
+  if (!password || password.length < PASSWORD_MIN) {
+    return `Password must be at least ${PASSWORD_MIN} characters`;
+  }
+  if (password.length > PASSWORD_MAX) {
+    return `Password must not exceed ${PASSWORD_MAX} characters`;
+  }
+  if (!PASSWORD_REGEX.test(password)) {
+    return "Password must contain at least one uppercase letter, one lowercase letter, and one digit";
+  }
+  return null;
+};
 
 const createStudentSessionId = () => randomUUID();
 
@@ -26,16 +44,15 @@ const issueTokenForUser = (user, sessionId = null) => {
 
 export const register = async (req, res) => {
   try {
-    const { email, password, name, role, giftcode } = req.body;
-    const requestedRole = (typeof role === "string" ? role.toLowerCase().trim() : "student") || "student";
-    const normalizedGiftcode = giftcode?.trim().toUpperCase();
+    const { email, password, name, inviteToken } = req.body;
 
     if (!email || !password || !name) {
       return res.status(400).json({ success: false, message: "Email, password, and name are required" });
     }
 
-    if (!ALLOWED_ROLES.has(requestedRole)) {
-      return res.status(400).json({ success: false, message: "Role must be one of: student, teacher, admin" });
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      return res.status(400).json({ success: false, message: passwordError });
     }
 
     // Check if user already exists
@@ -44,41 +61,44 @@ export const register = async (req, res) => {
       return res.status(400).json({ success: false, message: "Email already registered" });
     }
 
-    // If registering as teacher or admin, validate giftcode
-    if (requestedRole === 'teacher' || requestedRole === 'admin') {
-      if (!normalizedGiftcode) {
-        return res.status(400).json({ success: false, message: `Giftcode is required for ${requestedRole} registration` });
+    // Resolve invitation if invite token is provided
+    let assignedRole = "student";
+    let autoConfirm = false;
+    let invitation = null;
+
+    if (inviteToken) {
+      invitation = await Invitation.findOne({
+        token: inviteToken,
+        status: "pending",
+        expiresAt: { $gt: new Date() },
+      });
+
+      if (!invitation) {
+        return res.status(400).json({ success: false, message: "Invalid or expired invitation token" });
       }
 
-      const validRole = VALID_GIFTCODES[normalizedGiftcode];
-      if (!validRole || validRole !== requestedRole) {
-        return res.status(400).json({ success: false, message: "Invalid giftcode for this role" });
+      if (invitation.email !== email.toLowerCase()) {
+        return res.status(400).json({ success: false, message: "Email does not match invitation" });
       }
+
+      assignedRole = invitation.role;
+      autoConfirm = true;
     }
 
     // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    if (requestedRole === "student" && normalizedGiftcode) {
-      return res.status(400).json({ success: false, message: "Giftcode is not used for student registration" });
-    }
+    // Generate verification token (only for non-invited students)
+    const verificationToken = autoConfirm ? null : randomBytes(32).toString("hex");
+    const verificationTokenExpires = autoConfirm ? null : Date.now() + 24 * 60 * 60 * 1000;
 
-    const finalRole = requestedRole;
-
-    // Generate verification token
-    const verificationToken = randomBytes(32).toString('hex');
-    const verificationTokenExpires = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
-
-    // Create user
     const user = new User({
       email: email.toLowerCase(),
       password: hashedPassword,
       name,
-      role: finalRole,
-      giftcode: normalizedGiftcode || null,
-      isConfirmed: finalRole === 'teacher' || finalRole === 'admin' ? true : false, // Auto-confirm teachers/admins? Or require email too? 
-      // For now, let's stick to existing logic for isConfirmed but add token
+      role: assignedRole,
+      isConfirmed: autoConfirm,
       verificationToken,
       verificationTokenExpires,
     });
@@ -92,9 +112,15 @@ export const register = async (req, res) => {
 
     await user.save();
 
-    // Send verification email
-    // We only send if not auto-confirmed (or maybe always send welcome?)
-    if (!user.isConfirmed) {
+    // Mark invitation as accepted
+    if (invitation) {
+      invitation.status = "accepted";
+      invitation.acceptedAt = new Date();
+      await invitation.save();
+    }
+
+    // Send verification email only for non-invited users
+    if (!user.isConfirmed && verificationToken) {
       await sendVerificationEmail(user.email, verificationToken);
     }
 
@@ -111,7 +137,9 @@ export const register = async (req, res) => {
           isConfirmed: user.isConfirmed,
         },
         token,
-        message: "Registration successful. Please check your email to verify your account.",
+        message: autoConfirm
+          ? "Registration successful. Welcome!"
+          : "Registration successful. Please check your email to verify your account.",
       },
     });
   } catch (error) {
@@ -182,6 +210,11 @@ export const resetPassword = async (req, res) => {
 
     if (!token || !newPassword) {
       return res.status(400).json({ success: false, message: "Token and new password are required" });
+    }
+
+    const passwordError = validatePassword(newPassword);
+    if (passwordError) {
+      return res.status(400).json({ success: false, message: passwordError });
     }
 
     const user = await User.findOne({
@@ -271,13 +304,9 @@ export const updateProfile = async (req, res) => {
     const userId = req.user.userId;
     const { targets, name } = req.body;
 
-    // Build update object
     const updateFields = {};
     if (name) updateFields.name = name;
     if (targets) {
-      // Ensure targets are preserved if partial update, but we can just set the object for now or merge deep if needed
-      // Assuming frontend sends full targets object or we use dot notation for partials if using mongoose directly
-      // Here we replace the targets object or specific fields if provided
       updateFields.targets = targets;
     }
 
@@ -302,20 +331,35 @@ export const updateProfile = async (req, res) => {
   }
 };
 
-// Admin endpoint to verify giftcode (returns 200 with valid status)
-export const verifyGiftcode = async (req, res) => {
-  const { giftcode, role } = req.body;
-  const normalizedRole = typeof role === "string" ? role.toLowerCase().trim() : "";
-  const normalizedGiftcode = giftcode?.trim().toUpperCase();
+export const validateInviteToken = async (req, res) => {
+  try {
+    const { token } = req.params;
 
-  if (!normalizedGiftcode || !normalizedRole || !ALLOWED_ROLES.has(normalizedRole) || normalizedRole === "student") {
-    return res.status(200).json({ success: true, valid: false, message: "Valid giftcode and teacher/admin role are required" });
-  }
+    if (!token) {
+      return res.status(400).json({ success: false, message: "Token is required" });
+    }
 
-  const validRole = VALID_GIFTCODES[normalizedGiftcode];
-  if (validRole && validRole === normalizedRole) {
-    res.status(200).json({ success: true, valid: true, message: "Valid giftcode" });
-  } else {
-    res.status(200).json({ success: true, valid: false, message: "Invalid giftcode" });
+    const invitation = await Invitation.findOne({
+      token,
+      status: "pending",
+      expiresAt: { $gt: new Date() },
+    }).select("email role expiresAt").lean();
+
+    if (!invitation) {
+      return res.status(404).json({ success: false, valid: false, message: "Invalid or expired invitation" });
+    }
+
+    res.json({
+      success: true,
+      valid: true,
+      data: {
+        email: invitation.email,
+        role: invitation.role,
+        expiresAt: invitation.expiresAt,
+      },
+    });
+  } catch (error) {
+    console.error("Error in validateInviteToken:", error);
+    res.status(500).json({ success: false, message: "Server Error" });
   }
 };

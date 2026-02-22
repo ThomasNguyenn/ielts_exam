@@ -1149,9 +1149,11 @@ function StepContent({
                 {(group.questions || []).map((q) => {
                   const reviewItem = getReviewForQuestion(q.q_number);
                   if (!reviewItem) return null;
-                  const optionPool = (isMatching || isSummary)
-                    ? (group.headings || group.options || [])
-                    : [];
+                  const optionPool = isSummary
+                    ? ((group.options && group.options.length) ? group.options : (group.headings || []))
+                    : isMatching
+                      ? ((group.headings && group.headings.length) ? group.headings : (group.options || []))
+                      : [];
                   const yourAnswer = optionPool.length
                     ? formatReviewAnswerByOptions(reviewItem.your_answer, optionPool)
                     : formatReviewAnswer(reviewItem.your_answer);

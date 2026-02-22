@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '@/shared/api/client';
+import { useNotification } from '@/shared/context/NotificationContext';
 import RecordingPhase from './RecordingPhase';
 import SpeakingResultPhase from './SpeakingResultPhase';
 import './Practice.css';
@@ -35,6 +36,7 @@ export default function SpeakingFlow() {
     const [loading, setLoading] = useState(true);
     const [phase, setPhase] = useState('recording'); // 'recording' | 'processing' | 'result'
     const [result, setResult] = useState(null);
+    const { showNotification } = useNotification();
 
     useEffect(() => {
         if (!id) return;
@@ -126,7 +128,7 @@ export default function SpeakingFlow() {
             setPhase('result');
         } catch (error) {
             console.error('Submission failed:', error);
-            alert('Error while processing audio. Please try again.');
+            showNotification('Error while processing audio. Please try again.', 'error');
             setPhase('recording');
         }
     };

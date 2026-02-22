@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { api } from '@/shared/api/client';
+import { useNotification } from '@/shared/context/NotificationContext';
 import './CheckpointQuiz.css';
 
 const CheckpointQuiz = ({ module, onComplete, onBack }) => {
@@ -7,6 +8,7 @@ const CheckpointQuiz = ({ module, onComplete, onBack }) => {
     const [answers, setAnswers] = useState([]);
     const [result, setResult] = useState(null);
     const [loading, setLoading] = useState(false);
+    const { showNotification } = useNotification();
 
     const quiz = module.content.checkpointQuiz;
 
@@ -31,7 +33,7 @@ const CheckpointQuiz = ({ module, onComplete, onBack }) => {
     const handleSubmit = async () => {
         // Check if all questions answered
         if (answers.length < quiz.length || answers.some(a => a === undefined)) {
-            alert('Please answer all questions before submitting');
+            showNotification('Please answer all questions before submitting', 'warning');
             return;
         }
 
@@ -41,7 +43,7 @@ const CheckpointQuiz = ({ module, onComplete, onBack }) => {
             setResult(response);
         } catch (error) {
             console.error('Error submitting quiz:', error);
-            alert('Failed to submit quiz. Please try again.');
+            showNotification('Failed to submit quiz. Please try again.', 'error');
         } finally {
             setLoading(false);
         }

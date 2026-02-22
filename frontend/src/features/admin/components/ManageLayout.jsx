@@ -9,6 +9,7 @@ import {
   Layers,
   UserCheck,
   Users,
+  MailPlus,
 } from 'lucide-react';
 import '../pages/Manage.css';
 
@@ -21,6 +22,7 @@ const manageNavItems = [
   { to: '/manage/skill-modules', label: 'Manage Skill Modules', Icon: Layers },
   { to: '/manage/requests', label: 'Approve Students', Icon: UserCheck },
   { to: '/manage/users', label: 'Manage Users', Icon: Users },
+  { to: '/manage/invitations', label: 'Send Invitations', Icon: MailPlus },
 ];
 
 export default function ManageLayout() {

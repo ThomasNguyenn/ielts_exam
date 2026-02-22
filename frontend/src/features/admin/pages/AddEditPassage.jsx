@@ -4,6 +4,7 @@ import { api } from '@/shared/api/client';
 import './Manage.css';
 import { useNotification } from '@/shared/context/NotificationContext';
 import AIContentGeneratorModal from '@/shared/components/AIContentGeneratorModal';
+import ConfirmationModal from '@/shared/components/ConfirmationModal';
 import QuestionGroup from './QuestionGroup';
 import { PASSAGE_QUESTION_TYPE_OPTIONS, PLACEHOLDER_FROM_PASSAGE_CONTENT_TYPES } from './questionGroupConfig';
 import { buildQuestionsFromPlaceholders, parseCorrectAnswersRaw } from './manageQuestionInputUtils';
@@ -140,6 +141,13 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
   const [existingSearch, setExistingSearch] = useState('');
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    isDanger: false,
+  });
 
   // Form State
   const [form, setForm] = useState({
@@ -247,12 +255,18 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
   };
 
   const removeQuestionGroup = (groupIndex) => {
-    if (window.confirm('Are you sure you want to remove this group?')) {
-      setForm((prev) => ({
-        ...prev,
-        question_groups: prev.question_groups.filter((_, i) => i !== groupIndex),
-      }));
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Remove Question Group',
+      message: 'Are you sure you want to remove this group?',
+      isDanger: true,
+      onConfirm: () => {
+        setForm((prev) => ({
+          ...prev,
+          question_groups: prev.question_groups.filter((_, i) => i !== groupIndex),
+        }));
+      },
+    });
   };
 
   const moveGroup = (idx, step) => {
@@ -545,16 +559,23 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
   };
 
   const handleDeletePassage = async (passageId) => {
-    if (!window.confirm('Delete this passage? This cannot be undone.')) return;
-    try {
-      await api.deletePassage(passageId);
-      showNotification('Passage deleted.', 'success');
-      const res = await api.getPassages();
-      setPassages(res.data || []);
-    } catch (err) {
-      setError(err.message);
-      showNotification('Error deleting passage: ' + err.message, 'error');
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Passage',
+      message: 'Delete this passage? This cannot be undone.',
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          await api.deletePassage(passageId);
+          showNotification('Passage deleted.', 'success');
+          const res = await api.getPassages();
+          setPassages(res.data || []);
+        } catch (err) {
+          setError(err.message);
+          showNotification('Error deleting passage: ' + err.message, 'error');
+        }
+      },
+    });
   };
 
   const handleSaveDraft = () => {
@@ -752,6 +773,14 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
         onClose={() => setIsAIModalOpen(false)}
         onGenerated={handleAIGenerated}
         type="passage"
+      />
+      <ConfirmationModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        isDanger={confirmModal.isDanger}
       />
 
       {error && <div className="form-error" style={{ marginBottom: '1rem' }}>{error}</div>}

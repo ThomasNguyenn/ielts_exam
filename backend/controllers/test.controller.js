@@ -6,6 +6,30 @@ import { parsePagination, buildPaginationMeta } from "../utils/pagination.js";
 
 const escapeRegex = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const ALLOWED_TEST_TYPES = ['reading', 'listening', 'writing'];
+const pickTestPayload = (body = {}, { allowId = false } = {}) => {
+    const allowed = [
+        "title",
+        "category",
+        "type",
+        "duration",
+        "full_audio",
+        "is_active",
+        "is_real_test",
+        "reading_passages",
+        "listening_sections",
+        "writing_tasks",
+    ];
+    if (allowId) {
+        allowed.push("_id");
+    }
+
+    return allowed.reduce((acc, field) => {
+        if (Object.prototype.hasOwnProperty.call(body, field)) {
+            acc[field] = body[field];
+        }
+        return acc;
+    }, {});
+};
 
 const buildTestFilter = (query = {}, { includeCategory = true } = {}) => {
     const filter = {};
@@ -237,7 +261,7 @@ export const getMyTestAttempts = async (req, res) => {
 };
 
 export const createTest = async (req, res) => {
-    const test = req.body; // user will send this data by api
+    const test = pickTestPayload(req.body, { allowId: true }); // user will send this data by api
 
     if (!test.title) {
         return res.status(400).json({ success: false, message: "Please provide all info" });
@@ -250,14 +274,18 @@ export const createTest = async (req, res) => {
         res.status(201).json({ success: true, data: newTest });
     }
     catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        console.error("Create test error:", error);
+        res.status(500).json({ success: false, message: "Server Error" });
     }
 };
 
 export const updateTest = async (req, res) => {
     const { id } = req.params;
 
-    const test = req.body;
+    const test = pickTestPayload(req.body);
+    if (Object.keys(test).length === 0) {
+        return res.status(400).json({ success: false, message: "No valid update fields provided" });
+    }
 
     try {
         const updatedTest = await Test.findByIdAndUpdate(id, test, { new: true });
@@ -335,7 +363,7 @@ export const renumberTestQuestions = async (req, res) => {
 
     } catch (error) {
         console.error(error);
-        res.status(500).json({ success: false, message: "Server Error: " + error.message });
+        res.status(500).json({ success: false, message: "Server Error" });
     }
 };
 

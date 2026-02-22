@@ -39,10 +39,6 @@ router.post("/submissions/:id/score", verifyToken, isTeacherOrAdmin, scoreSubmis
 router.post("/submissions/:id/ai-score", verifyToken, scoreSubmissionAI);
 router.post("/:id/regenerate-id", verifyToken, isTeacherOrAdmin, regenerateWritingId);
 router.put("/:id", verifyToken, isTeacherOrAdmin, updateWriting);
-// router.post("/:id/regenerate-id", import('../controllers/writing.controller.js').then(m => m.regenerateWritingId).catch(e => console.error(e))); // Dynamic import wrapper or just import it at top?
-// Better to just export it in controller and import at top. 
-// But since I used dynamic imports inside controller for Models, I should just import it standardly.
-// Wait, I am editing the route file. I should add `regenerateWritingId` to imports.
 router.delete("/:id", verifyToken, isTeacherOrAdmin, deleteWriting);
 
 export default router;

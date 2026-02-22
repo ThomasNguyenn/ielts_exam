@@ -134,7 +134,7 @@ export const api = {
   resetPassword: (token, newPassword) => request('/api/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, newPassword }) }),
   getProfile: () => request('/api/auth/profile'),
   updateProfile: (body) => request('/api/auth/profile', { method: 'PUT', body: JSON.stringify(body) }),
-  verifyGiftcode: (data) => request('/api/auth/verify-giftcode', { method: 'POST', body: JSON.stringify(data) }),
+  validateInvitation: (token) => request(`/api/auth/invite/${token}`),
 
   // Auth helpers
   getToken,
@@ -301,14 +301,28 @@ export const api = {
     return request(`/api/admin/users${query ? `?${query}` : ''}`);
   },
   deleteUser: (userId) => request(`/api/admin/users/${userId}`, { method: 'DELETE' }),
+  changeUserRole: (userId, role) => request(`/api/admin/users/${userId}/role`, { method: 'PUT', body: JSON.stringify({ role }) }),
+
+  // Admin - Invitations
+  sendInvitation: (data) => request('/api/admin/invitations', { method: 'POST', body: JSON.stringify(data) }),
+  getInvitations: (params = {}) => {
+    const query = toQueryString(params);
+    return request(`/api/admin/invitations${query ? `?${query}` : ''}`);
+  },
 
   // Speaking
   getSpeakings: (params = {}) => {
     const query = toQueryString(params);
     return request(`/api/speaking${query ? `?${query}` : ''}`);
   },
-  getRandomSpeaking: () => request('/api/speaking/random'),
-  getSpeakingById: (id) => request(`/api/speaking/${id}`),
+  getRandomSpeaking: async () => {
+    const res = await request('/api/speaking/random');
+    return res?.data || res;
+  },
+  getSpeakingById: async (id) => {
+    const res = await request(`/api/speaking/${id}`);
+    return res?.data || res;
+  },
   getSpeakingSession: (sessionId) => request(`/api/speaking/sessions/${sessionId}`),
   preGeneratePart3SpeakingAudio: () =>
     request('/api/speaking/admin/pre-generate-part3-audio', {
@@ -319,8 +333,14 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
-  createSpeaking: (data) => request('/api/speaking', { method: 'POST', body: JSON.stringify(data) }),
-  updateSpeaking: (id, data) => request(`/api/speaking/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  createSpeaking: async (data) => {
+    const res = await request('/api/speaking', { method: 'POST', body: JSON.stringify(data) });
+    return res?.data || res;
+  },
+  updateSpeaking: async (id, data) => {
+    const res = await request(`/api/speaking/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+    return res?.data || res;
+  },
   deleteSpeaking: (id) => request(`/api/speaking/${id}`, { method: 'DELETE' }),
   submitSpeaking: (body) => {
     // body should be FormData

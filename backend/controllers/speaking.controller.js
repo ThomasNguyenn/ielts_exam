@@ -48,6 +48,30 @@ const normalizeMockExaminerTurns = (turns = []) =>
 
 const MAX_CANDIDATE_ANSWER_CHARS = Number(process.env.SPEAKING_MOCK_MAX_ANSWER_CHARS || 2000);
 
+const pickSpeakingPayload = (body = {}, { allowId = false } = {}) => {
+  const allowed = [
+    "title",
+    "part",
+    "prompt",
+    "sub_questions",
+    "read_aloud",
+    "keywords",
+    "sample_highlights",
+    "is_active",
+  ];
+
+  if (allowId) {
+    allowed.push("_id");
+  }
+
+  return allowed.reduce((acc, field) => {
+    if (Object.prototype.hasOwnProperty.call(body, field)) {
+      acc[field] = body[field];
+    }
+    return acc;
+  }, {});
+};
+
 const uploadSpeakingAudio = async (audioFile) => {
   if (!audioFile?.buffer) {
     throw new Error("Audio buffer is missing");
@@ -72,16 +96,20 @@ const uploadSpeakingAudio = async (audioFile) => {
 export const getRandomSpeaking = async (req, res) => {
   try {
     const count = await Speaking.countDocuments({ is_active: true });
-    const random = Math.floor(Math.random() * Math.max(count, 1));
+    if (count === 0) {
+      return res.status(404).json({ success: false, message: "No speaking topics found" });
+    }
+    const random = Math.floor(Math.random() * count);
     const topic = await Speaking.findOne({ is_active: true }).skip(random);
 
     if (!topic) {
-      return res.status(404).json({ message: "No speaking topics found" });
+      return res.status(404).json({ success: false, message: "No speaking topics found" });
     }
 
-    return res.json(topic);
+    return res.json({ success: true, data: topic });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    console.error("Get random speaking failed:", error);
+    return res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
@@ -139,7 +167,8 @@ export const getSpeakings = async (req, res) => {
       pagination: buildPaginationMeta({ page, limit, totalItems })
     });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    console.error("Get speakings failed:", error);
+    return res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
@@ -147,7 +176,7 @@ export const getSpeakingById = async (req, res) => {
   try {
     const topic = await Speaking.findById(req.params.id);
     if (!topic) {
-      return res.status(404).json({ message: "Speaking topic not found" });
+      return res.status(404).json({ success: false, message: "Speaking topic not found" });
     }
 
     const conversationScript = await ensurePart3ConversationScript(topic);
@@ -156,9 +185,10 @@ export const getSpeakingById = async (req, res) => {
       payload.conversation_script = conversationScript;
     }
 
-    return res.json(payload);
+    return res.json({ success: true, data: payload });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    console.error("Get speaking by id failed:", error);
+    return res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
@@ -213,7 +243,7 @@ export const preGeneratePart3ReadAloud = async (req, res) => {
       data: summary,
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
@@ -247,7 +277,7 @@ export const getSpeakingSession = async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
@@ -355,33 +385,39 @@ export const runMockExaminerTurn = async (req, res) => {
     });
   } catch (error) {
     console.error("Mock examiner turn failed:", error);
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
 export const createSpeaking = async (req, res) => {
   try {
-    const newTopic = new Speaking(req.body);
+    const payload = pickSpeakingPayload(req.body, { allowId: true });
+    const newTopic = new Speaking(payload);
     const savedTopic = await newTopic.save();
-    return res.status(201).json(savedTopic);
+    return res.status(201).json({ success: true, data: savedTopic });
   } catch (error) {
-    return res.status(400).json({ message: error.message });
+    return res.status(400).json({ success: false, message: error.message });
   }
 };
 
 export const updateSpeaking = async (req, res) => {
   try {
+    const payload = pickSpeakingPayload(req.body);
+    if (Object.keys(payload).length === 0) {
+      return res.status(400).json({ success: false, message: "No valid update fields provided" });
+    }
+
     const updatedTopic = await Speaking.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      payload,
       { new: true },
     );
     if (!updatedTopic) {
-      return res.status(404).json({ message: "Speaking topic not found" });
+      return res.status(404).json({ success: false, message: "Speaking topic not found" });
     }
-    return res.json(updatedTopic);
+    return res.json({ success: true, data: updatedTopic });
   } catch (error) {
-    return res.status(400).json({ message: error.message });
+    return res.status(400).json({ success: false, message: error.message });
   }
 };
 
@@ -389,11 +425,12 @@ export const deleteSpeaking = async (req, res) => {
   try {
     const topic = await Speaking.findByIdAndDelete(req.params.id);
     if (!topic) {
-      return res.status(404).json({ message: "Speaking topic not found" });
+      return res.status(404).json({ success: false, message: "Speaking topic not found" });
     }
-    return res.json({ message: "Speaking topic deleted successfully" });
+    return res.json({ success: true, message: "Speaking topic deleted successfully" });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    console.error("Delete speaking failed:", error);
+    return res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 
@@ -477,6 +514,6 @@ export const submitSpeaking = async (req, res) => {
       await SpeakingSession.findByIdAndUpdate(session._id, { status: "failed" }).catch(() => {});
     }
     console.error("Speaking submission failed:", error);
-    return res.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: "Server Error" });
   }
 };

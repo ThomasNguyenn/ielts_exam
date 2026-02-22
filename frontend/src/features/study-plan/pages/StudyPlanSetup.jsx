@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '@/shared/api/client';
 import { useNavigate } from 'react-router-dom';
+import { useNotification } from '@/shared/context/NotificationContext';
 
 export default function StudyPlanSetup({ onCreated, mode = 'create', initialData = null }) {
     const [targetDate, setTargetDate] = useState('');
     const [targetBand, setTargetBand] = useState(6.5);
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
+    const { showNotification } = useNotification();
     const isEditMode = mode === 'edit';
 
     useEffect(() => {
@@ -35,7 +37,7 @@ export default function StudyPlanSetup({ onCreated, mode = 'create', initialData
             else navigate('/dashboard');
         } catch (error) {
             console.error(`Failed to ${isEditMode ? 'update' : 'create'} plan`, error);
-            alert(`Lỗi khi ${isEditMode ? 'cập nhật' : 'tạo'} lộ trình: ${error.message}`);
+            showNotification(`Failed to ${isEditMode ? 'update' : 'create'} study plan: ${error.message}`, 'error');
         } finally {
             setLoading(false);
         }

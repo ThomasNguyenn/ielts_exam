@@ -23,11 +23,7 @@ const userSchema = new mongoose.Schema({
     enum: ['student', 'teacher', 'admin'],
     default: 'student',
   },
-  giftcode: {
-    type: String,
-    default: null,
-  },
-  targets: {
+targets: {
     listening: { type: Number, default: 0 },
     reading: { type: Number, default: 0 },
     writing: { type: Number, default: 0 },
@@ -55,7 +51,6 @@ const userSchema = new mongoose.Schema({
   verificationTokenExpires: { type: Date, default: null },
   resetPasswordToken: { type: String, default: null },
   resetPasswordExpires: { type: Date, default: null },
-  isVerified: { type: Boolean, default: false },
 });
 
 userSchema.index({ role: 1, createdAt: -1 });

@@ -17,7 +17,7 @@ export const getMyProgress = async (req, res) => {
         res.json({ success: true, data: progress });
     } catch (error) {
         console.error('Error fetching progress:', error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Server Error' });
     }
 };
 
@@ -47,7 +47,7 @@ export const getSkillBreakdown = async (req, res) => {
         });
     } catch (error) {
         console.error('Error fetching skill breakdown:', error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Server Error' });
     }
 };
 
@@ -83,7 +83,7 @@ export const updateSkillScores = async (req, res) => {
         res.json({ success: true, data: progress });
     } catch (error) {
         console.error('Error updating skill scores:', error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Server Error' });
     }
 };
 
@@ -132,7 +132,7 @@ export const markModuleComplete = async (req, res) => {
         res.json({ success: true, data: progress });
     } catch (error) {
         console.error('Error marking module complete:', error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Server Error' });
     }
 };
 
@@ -149,7 +149,7 @@ export const getBadges = async (req, res) => {
         res.json({ success: true, data: progress.badges });
     } catch (error) {
         console.error('Error fetching badges:', error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Server Error' });
     }
 };
 
@@ -172,7 +172,7 @@ export const getStreak = async (req, res) => {
         });
     } catch (error) {
         console.error('Error fetching streak:', error);
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Server Error' });
     }
 };
 

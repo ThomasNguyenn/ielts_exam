@@ -1,7 +1,5 @@
 import OpenAI from 'openai';
-import dotenv from 'dotenv';
 import { requestOpenAIJsonWithFallback } from '../utils/aiClient.js';
-dotenv.config();
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.OPEN_API_KEY;
 const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
@@ -287,7 +285,7 @@ OUTPUT: CHỈ TRẢ JSON HỢP LỆ
   "sample_essay": "string (Viết một bài mẫu Band 8.0 hoàn chỉnh theo đề bài ${promptText})"
 }
 `;
-    userMessageContent.push({ type: "text", content: systemPrompt });
+    userMessageContent.push({ type: "text", text: systemPrompt });
   }
 
   try {
@@ -298,11 +296,11 @@ OUTPUT: CHỈ TRẢ JSON HỢP LỆ
       openai,
       models: OPENAI_MODELS,
       createPayload: (model) => ({
-        model,
-        messages: [{ role: "user", content: userMessageContent.length > 0 && taskType === 'task1' ? userMessageContent : systemPrompt }],
-        max_tokens: 10000,
-        response_format: { type: "json_object" },
-      }),
+                model,
+                messages: [{ role: "user", content: userMessageContent.length > 0 ? userMessageContent : systemPrompt }],
+                max_tokens: 10000,
+                response_format: { type: "json_object" },
+            }),
       timeoutMs: Number(process.env.OPENAI_TIMEOUT_MS || 60000),
       maxAttempts: Number(process.env.OPENAI_MAX_ATTEMPTS || 3),
     });

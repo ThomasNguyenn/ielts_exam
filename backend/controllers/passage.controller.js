@@ -1,6 +1,20 @@
 import Passage from "../models/Passage.model.js";
 import { generatePassageQuestionInsights } from "../services/passageInsight.service.js";
 
+const pickPassagePayload = (body = {}, { allowId = false } = {}) => {
+    const allowed = ["title", "content", "question_groups", "source"];
+    if (allowId) {
+        allowed.push("_id");
+    }
+
+    return allowed.reduce((acc, key) => {
+        if (Object.prototype.hasOwnProperty.call(body, key)) {
+            acc[key] = body[key];
+        }
+        return acc;
+    }, {});
+};
+
 export const getAllPassages = async(req, res) => {
     try{
         const passages = await Passage.find({});
@@ -11,7 +25,7 @@ export const getAllPassages = async(req, res) => {
 };
 
 export const createPassage = async(req, res) => {
-    const passage = req.body; // user will send this data by api
+    const passage = pickPassagePayload(req.body, { allowId: true }); // user will send this data by api
 
     if(!passage.title || !passage.content || !passage.question_groups){
         return res.status(400).json({ success: false, message: "Please provide all info"});
@@ -24,7 +38,8 @@ export const createPassage = async(req, res) => {
         res.status(201).json({ success: true, data : newPassage });
     }
     catch(error){
-        res.status(500).json({ success: false, message: error.message });
+        console.error("Create passage error:", error);
+        res.status(500).json({ success: false, message: "Server Error" });
     }
 };
 
@@ -43,7 +58,11 @@ export const getPassageById = async(req, res) => {
 
 export const updatePassage = async(req, res) => {
     const { id } = req.params;
-    const passage = req.body;
+    const passage = pickPassagePayload(req.body);
+
+    if (Object.keys(passage).length === 0) {
+        return res.status(400).json({ success: false, message: "No valid update fields provided" });
+    }
 
     try {
         const updatedPassage = await Passage.findByIdAndUpdate(id, passage, { new: true });
@@ -52,6 +71,7 @@ export const updatePassage = async(req, res) => {
         }
         res.status(200).json({ success: true, data: updatedPassage });
     } catch (error) {
+        console.error("Update passage error:", error);
         res.status(500).json({ success: false, message: "Server Error" });
     }
 };
@@ -93,9 +113,10 @@ export const generatePassageInsights = async (req, res) => {
         });
     } catch (error) {
         const statusCode = Number(error?.statusCode) || 500;
+        console.error("Generate passage insights error:", error);
         return res.status(statusCode).json({
             success: false,
-            message: error.message || "Failed to generate passage insights",
+            message: statusCode >= 500 ? "Failed to generate passage insights" : (error.message || "Failed to generate passage insights"),
         });
     }
 };

@@ -151,71 +151,96 @@ const generateTasksForPlan = async ({ plan, userId }) => {
     let wIdx = 0;
     let spIdx = 0;
 
+    const pushReadingTask = ({ date }) => {
+        if (passages.length === 0) return false;
+        const item = passages[pIdx % passages.length];
+        const referenceId = item._id.toString();
+        const link = linkMap.get(referenceId) || `/practice/${referenceId}`;
+        tasks.push(createGeneratedTask({
+            planId: plan._id,
+            userId,
+            date,
+            type: 'reading_passage',
+            referenceId,
+            title: `Reading: ${item.title}`,
+            link
+        }));
+        pIdx++;
+        return true;
+    };
+
+    const pushListeningTask = ({ date }) => {
+        if (sections.length === 0) return false;
+        const item = sections[sIdx % sections.length];
+        const referenceId = item._id.toString();
+        const link = linkMap.get(referenceId) || `/practice/${referenceId}`;
+        tasks.push(createGeneratedTask({
+            planId: plan._id,
+            userId,
+            date,
+            type: 'listening_section',
+            referenceId,
+            title: `Listening: ${item.title}`,
+            link
+        }));
+        sIdx++;
+        return true;
+    };
+
+    const pushWritingTask = ({ date }) => {
+        if (writings.length === 0) return false;
+        const item = writings[wIdx % writings.length];
+        tasks.push(createGeneratedTask({
+            planId: plan._id,
+            userId,
+            date,
+            type: 'writing_task',
+            referenceId: item._id.toString(),
+            title: `Writing: ${item.title}`
+        }));
+        wIdx++;
+        return true;
+    };
+
+    const pushSpeakingTask = ({ date }) => {
+        if (speakings.length === 0) return false;
+        const item = speakings[spIdx % speakings.length];
+        tasks.push(createGeneratedTask({
+            planId: plan._id,
+            userId,
+            date,
+            type: 'speaking_topic',
+            referenceId: item._id.toString(),
+            title: `Speaking: ${item.title}`
+        }));
+        spIdx++;
+        return true;
+    };
+
     for (let i = 0; i < totalDays; i++) {
         const date = new Date(start);
         date.setDate(start.getDate() + i);
         const docType = i % 3;
 
-        if (docType === 0 && passages.length > 0) {
-            const item = passages[pIdx % passages.length];
-            const referenceId = item._id.toString();
-            const link = linkMap.get(referenceId) || `/practice/${referenceId}`;
-
-            tasks.push(createGeneratedTask({
-                planId: plan._id,
-                userId,
-                date,
-                type: 'reading_passage',
-                referenceId,
-                title: `Reading: ${item.title}`,
-                link
-            }));
-            pIdx++;
-            continue;
-        }
-
-        if (docType === 1 && sections.length > 0) {
-            const itemL = sections[sIdx % sections.length];
-            const referenceId = itemL._id.toString();
-            const link = linkMap.get(referenceId) || `/practice/${referenceId}`;
-
-            tasks.push(createGeneratedTask({
-                planId: plan._id,
-                userId,
-                date,
-                type: 'listening_section',
-                referenceId,
-                title: `Listening: ${itemL.title}`,
-                link
-            }));
-            sIdx++;
-
-            if (speakings.length > 0) {
-                const itemS = speakings[spIdx % speakings.length];
-                tasks.push(createGeneratedTask({
-                    planId: plan._id,
-                    userId,
-                    date,
-                    type: 'speaking_topic',
-                    referenceId: itemS._id.toString(),
-                    title: `Speaking: ${itemS.title}`
-                }));
-                spIdx++;
+        if (docType === 0) {
+            if (!pushReadingTask({ date })) {
+                pushListeningTask({ date }) || pushWritingTask({ date }) || pushSpeakingTask({ date });
             }
             continue;
         }
 
-        if (docType === 2 && writings.length > 0) {
-            const itemW = writings[wIdx % writings.length];
-            tasks.push(createGeneratedTask({
-                planId: plan._id,
-                userId,
-                date,
-                type: 'writing_task',
-                referenceId: itemW._id.toString(),
-                title: `Writing: ${itemW.title}`
-            }));
-            wIdx++;
+        if (docType === 1) {
+            const addedListening = pushListeningTask({ date });
+            if (!addedListening) {
+                pushReadingTask({ date }) || pushWritingTask({ date }) || pushSpeakingTask({ date });
+            } else if (speakings.length > 0) {
+                pushSpeakingTask({ date });
+            }
+            continue;
+        }
+
+        if (docType === 2 && !pushWritingTask({ date })) {
+            pushReadingTask({ date }) || pushListeningTask({ date }) || pushSpeakingTask({ date });
         }
     }
 
@@ -398,17 +423,17 @@ export const createStudyPlan = async (req, res) => {
         const userId = req.user.userId;
 
         if (!targetDate || targetBand === undefined || targetBand === null) {
-            return res.status(400).json({ message: 'Missing targetDate or targetBand' });
+            return res.status(400).json({ success: false, message: 'Missing targetDate or targetBand' });
         }
 
         const parsedTargetDate = parseTargetDate(targetDate);
         if (!parsedTargetDate) {
-            return res.status(400).json({ message: 'Invalid targetDate' });
+            return res.status(400).json({ success: false, message: 'Invalid targetDate' });
         }
 
         const today = startOfDay(new Date());
         if (parsedTargetDate < today) {
-            return res.status(400).json({ message: 'targetDate must be today or in the future' });
+            return res.status(400).json({ success: false, message: 'targetDate must be today or in the future' });
         }
 
         const existingPlans = await StudyPlan.find({ userId }, '_id').lean();
@@ -437,12 +462,14 @@ export const createStudyPlan = async (req, res) => {
 
         const generatedTasks = await generateTasksForPlan({ plan: newPlan, userId });
         res.status(201).json({
+            success: true,
             message: 'Study Plan Created',
             plan: newPlan,
             tasksCount: generatedTasks.length
         });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error('Create study plan error:', error);
+        res.status(500).json({ success: false, message: 'Server Error' });
     }
 };
 
@@ -455,15 +482,15 @@ export const getMyPlan = async (req, res) => {
         const to = req.query.to ? parseDate(req.query.to) : null;
 
         if (req.query.from && !from) {
-            return res.status(400).json({ message: 'Invalid from date' });
+            return res.status(400).json({ success: false, message: 'Invalid from date' });
         }
         if (req.query.to && !to) {
-            return res.status(400).json({ message: 'Invalid to date' });
+            return res.status(400).json({ success: false, message: 'Invalid to date' });
         }
 
         const plan = await StudyPlan.findOne({ userId, isActive: true });
         if (!plan) {
-            return res.json({ plan: null, tasks: [] });
+            return res.json({ success: true, plan: null, tasks: [] });
         }
 
         const generatedTasks = await generateTasksForPlan({ plan, userId });
@@ -487,15 +514,17 @@ export const getMyPlan = async (req, res) => {
             const totalItems = tasks.length;
             const paginatedTasks = tasks.slice(skip, skip + limit);
             return res.json({
+                success: true,
                 plan,
                 tasks: paginatedTasks,
                 pagination: buildPaginationMeta({ page, limit, totalItems })
             });
         }
 
-        res.json({ plan, tasks });
+        res.json({ success: true, plan, tasks });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error('Get study plan error:', error);
+        res.status(500).json({ success: false, message: 'Server Error' });
     }
 };
 
@@ -507,12 +536,12 @@ export const updateTaskStatus = async (req, res) => {
         const userId = req.user.userId;
 
         if (!TASK_STATUS.has(status)) {
-            return res.status(400).json({ message: 'Invalid status value' });
+            return res.status(400).json({ success: false, message: 'Invalid status value' });
         }
 
         const plan = await StudyPlan.findOne({ userId, isActive: true });
         if (!plan) {
-            return res.status(404).json({ message: 'Active plan not found' });
+            return res.status(404).json({ success: false, message: 'Active plan not found' });
         }
 
         const taskSnapshot = await resolveTaskSnapshot({
@@ -523,7 +552,7 @@ export const updateTaskStatus = async (req, res) => {
         });
 
         if (!taskSnapshot) {
-            return res.status(404).json({ message: 'Task not found in current roadmap' });
+            return res.status(404).json({ success: false, message: 'Task not found in current roadmap' });
         }
 
         if (status === 'pending') {
@@ -534,6 +563,7 @@ export const updateTaskStatus = async (req, res) => {
             });
 
             return res.json({
+                success: true,
                 message: 'Task updated',
                 task: mapTaskToResponse({
                     ...taskSnapshot,
@@ -563,11 +593,13 @@ export const updateTaskStatus = async (req, res) => {
         ).lean();
 
         res.json({
+            success: true,
             message: 'Task updated',
             task: mapTaskToResponse(progress)
         });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error('Update task status error:', error);
+        res.status(500).json({ success: false, message: 'Server Error' });
     }
 };
 
@@ -577,22 +609,22 @@ export const updateStudyPlan = async (req, res) => {
         const userId = req.user.userId;
 
         if (!targetDate || targetBand === undefined || targetBand === null) {
-            return res.status(400).json({ message: 'Missing targetDate or targetBand' });
+            return res.status(400).json({ success: false, message: 'Missing targetDate or targetBand' });
         }
 
         const parsedTargetDate = parseTargetDate(targetDate);
         if (!parsedTargetDate) {
-            return res.status(400).json({ message: 'Invalid targetDate' });
+            return res.status(400).json({ success: false, message: 'Invalid targetDate' });
         }
 
         const today = startOfDay(new Date());
         if (parsedTargetDate < today) {
-            return res.status(400).json({ message: 'targetDate must be today or in the future' });
+            return res.status(400).json({ success: false, message: 'targetDate must be today or in the future' });
         }
 
         const plan = await StudyPlan.findOne({ userId, isActive: true });
         if (!plan) {
-            return res.status(404).json({ message: 'Active plan not found' });
+            return res.status(404).json({ success: false, message: 'Active plan not found' });
         }
 
         // Archive completed tasks from active plan before resetting roadmap.
@@ -630,12 +662,14 @@ export const updateStudyPlan = async (req, res) => {
 
         const generatedTasks = await generateTasksForPlan({ plan, userId });
         res.json({
+            success: true,
             plan,
             message: 'Plan updated',
             tasksCount: generatedTasks.length
         });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error('Update study plan error:', error);
+        res.status(500).json({ success: false, message: 'Server Error' });
     }
 };
 
@@ -707,13 +741,15 @@ export const getStudyHistory = async (req, res) => {
             const totalItems = tasks.length;
             const paginatedTasks = tasks.slice(skip, skip + limit);
             return res.json({
+                success: true,
                 tasks: paginatedTasks,
                 pagination: buildPaginationMeta({ page, limit, totalItems })
             });
         }
 
-        res.json({ tasks });
+        res.json({ success: true, tasks });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error('Get study history error:', error);
+        res.status(500).json({ success: false, message: 'Server Error' });
     }
 };

@@ -16,6 +16,6 @@ export const parseRawContent = async (req, res) => {
         });
     } catch (error) {
         console.error("Parse Content Error:", error);
-        res.status(500).json({ success: false, message: "Server Error: " + error.message });
+        res.status(500).json({ success: false, message: "Server Error" });
     }
 };

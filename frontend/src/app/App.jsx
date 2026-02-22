@@ -39,6 +39,7 @@ const AnalyticsDashboard = lazy(() => import('@/features/analytics/pages/Analyti
 const WaitForConfirmation = lazy(() => import('@/features/system/pages/WaitForConfirmation'));
 const StudentRequests = lazy(() => import('@/features/admin/pages/StudentRequests'));
 const ManageUsers = lazy(() => import('@/features/admin/pages/ManageUsers'));
+const ManageInvitations = lazy(() => import('@/features/admin/pages/ManageInvitations'));
 
 const RouteFallback = () => (
   <div className="page">
@@ -150,6 +151,7 @@ export default function App() {
             <Route path="speaking/:id" element={withSuspense(<ManageSpeakingSinglePage />)} />
             <Route path="skill-modules" element={withSuspense(<AddSkillModules />)} />
             <Route path="skill-modules/:id" element={withSuspense(<AddSkillModules />)} />
+            <Route path="invitations" element={withSuspense(<ManageInvitations />)} />
           </Route>
 
           {/* Grading Routes (Top Level for Teachers) */}
