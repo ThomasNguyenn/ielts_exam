@@ -7,7 +7,7 @@ const achievementSchema = new mongoose.Schema({
     icon: { type: String, required: true },
     category: {
         type: String,
-        enum: ['streak', 'test', 'writing', 'speaking', 'module', 'score', 'vocabulary', 'xp', 'speed', 'mastery'],
+        enum: ['streak', 'test', 'writing', 'speaking', 'module', 'score', 'vocabulary', 'xp', 'speed', 'mastery', 'hidden'],
         required: true
     },
     tier: {
@@ -20,10 +20,10 @@ const achievementSchema = new mongoose.Schema({
         metric: { type: String, required: true },
         threshold: { type: Number, required: true }
     },
-    order: { type: Number, default: 0 } // sort order within category
+    order: { type: Number, default: 0 }, // sort order within category
+    hidden: { type: Boolean, default: false } // hidden achievements shown as ??? until unlocked
 }, { timestamps: true });
 
 achievementSchema.index({ category: 1, order: 1 });
-achievementSchema.index({ key: 1 });
 
 export default mongoose.model('Achievement', achievementSchema);

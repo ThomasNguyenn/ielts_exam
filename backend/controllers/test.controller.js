@@ -807,7 +807,7 @@ export const submitExam = async (req, res) => {
 
             // Award XP
             const { addXP, XP_TEST_COMPLETION } = await import("../services/gamification.service.js");
-            xpResult = await addXP(userId, XP_TEST_COMPLETION);
+            xpResult = await addXP(userId, XP_TEST_COMPLETION, 'test');
 
             // Check for newly unlocked achievements
             const { checkAchievements } = await import("../services/achievement.service.js");
