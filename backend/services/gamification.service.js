@@ -1,4 +1,5 @@
 import User from '../models/User.model.js';
+import XpTransaction from '../models/XpTransaction.model.js';
 
 export const XP_TEST_COMPLETION = 500;
 export const XP_VOCAB_REVIEW = 10;
@@ -35,7 +36,7 @@ export const calculateLevel = (totalXP) => {
 };
 
 // Returns { newXP, newLevel, levelUp, xpGained }
-export const addXP = async (userId, amount) => {
+export const addXP = async (userId, amount, source = 'general') => {
     try {
         const user = await User.findById(userId);
         if (!user) return null;
@@ -51,6 +52,11 @@ export const addXP = async (userId, amount) => {
         }
 
         await user.save();
+
+        // Log XP transaction for daily tracking
+        try {
+            await XpTransaction.create({ userId, amount, source });
+        } catch { /* fail silently */ }
 
         return {
             currentXP: user.xp,

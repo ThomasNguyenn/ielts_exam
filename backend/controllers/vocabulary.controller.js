@@ -164,7 +164,7 @@ export const reviewVocabulary = async (req, res) => {
 
         // Award XP
         const { addXP, XP_VOCAB_REVIEW } = await import("../services/gamification.service.js");
-        const xpResult = await addXP(userId, XP_VOCAB_REVIEW);
+        const xpResult = await addXP(userId, XP_VOCAB_REVIEW, 'vocab');
 
         res.status(200).json({ success: true, data: vocabulary, xpResult });
     } catch (error) {

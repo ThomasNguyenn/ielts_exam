@@ -480,7 +480,7 @@ export const submitSpeaking = async (req, res) => {
     if (userId) {
       const { addXP, XP_SPEAKING_SESSION } = await import("../services/gamification.service.js");
       const { checkAchievements } = await import("../services/achievement.service.js");
-      xpResult = await addXP(userId, XP_SPEAKING_SESSION);
+      xpResult = await addXP(userId, XP_SPEAKING_SESSION, 'speaking');
       newlyUnlocked = await checkAchievements(userId);
     }
 

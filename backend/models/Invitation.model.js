@@ -42,7 +42,6 @@ const invitationSchema = new mongoose.Schema({
     timestamps: true,
 });
 
-invitationSchema.index({ token: 1 }, { unique: true });
 invitationSchema.index({ email: 1, status: 1 });
 invitationSchema.index({ expiresAt: 1 });
 

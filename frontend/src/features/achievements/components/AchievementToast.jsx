@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Trophy, Zap, X } from 'lucide-react';
 import './AchievementToast.css';
 
@@ -6,6 +6,7 @@ export default function AchievementToast() {
     const [queue, setQueue] = useState([]);
     const [current, setCurrent] = useState(null);
     const [isVisible, setIsVisible] = useState(false);
+    const timerRef = useRef(null);
 
     useEffect(() => {
         const handleUnlock = (e) => {
@@ -14,7 +15,6 @@ export default function AchievementToast() {
             if (achievements && achievements.length > 0) {
                 setQueue(prev => [...prev, ...achievements]);
             } else if (xpResult && xpResult.xpGained > 0) {
-                // Just show XP gain if no achievements but XP gained
                 setQueue(prev => [...prev, { type: 'xpOnly', title: `+${xpResult.xpGained} XP`, description: 'Hoàn thành bài tập' }]);
             }
         };
@@ -23,27 +23,32 @@ export default function AchievementToast() {
         return () => window.removeEventListener('achievements-unlocked', handleUnlock);
     }, []);
 
+    const dismiss = useCallback(() => {
+        clearTimeout(timerRef.current);
+        setIsVisible(false);
+        setTimeout(() => setCurrent(null), 300); // wait for CSS fade-out
+    }, []);
+
+    // Show next item from queue
     useEffect(() => {
-        if (queue.length > 0 && !current && !isVisible) {
-            setCurrent(queue[0]);
-            setIsVisible(true);
+        if (queue.length > 0 && !current) {
+            const next = queue[0];
             setQueue(prev => prev.slice(1));
+            setCurrent(next);
+            setIsVisible(true);
 
-            const timer = setTimeout(() => {
-                setIsVisible(false);
-                setTimeout(() => setCurrent(null), 300); // Wait for transition
-            }, 5000);
-
-            return () => clearTimeout(timer);
+            timerRef.current = setTimeout(dismiss, 5000);
         }
-    }, [queue, current, isVisible]);
+
+        return () => clearTimeout(timerRef.current);
+    }, [queue, current, dismiss]);
 
     if (!current) return null;
 
     return (
         <div className={`ach-toast-container ${isVisible ? 'visible' : ''}`}>
             <div className={`ach-toast tier-${current.tier || 'bronze'}`}>
-                <button className="ach-toast-close" onClick={() => setIsVisible(false)}>
+                <button className="ach-toast-close" onClick={dismiss}>
                     <X size={16} />
                 </button>
                 <div className="ach-toast-icon">

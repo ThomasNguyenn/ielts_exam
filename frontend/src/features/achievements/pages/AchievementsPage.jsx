@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '@/shared/api/client';
-import { Trophy, Medal, Award, Lock, Star, Zap, Crown, ChevronRight } from 'lucide-react';
+import { Trophy, Medal, Award, Lock, Star, Zap, Crown, ChevronLeft, ChevronRight } from 'lucide-react';
 import './AchievementsPage.css';
 
 const CATEGORY_LABELS = {
@@ -13,13 +13,16 @@ const CATEGORY_LABELS = {
     score: 'Điểm số',
     vocabulary: 'Từ vựng',
     xp: 'XP & Cấp độ',
+    mastery: 'Ẩn 🔮',
 };
 
 const TIER_LABELS = { bronze: 'Đồng', silver: 'Bạc', gold: 'Vàng', diamond: 'Kim Cương' };
+const PAGE_SIZE = 12;
 
 export default function AchievementsPage() {
     const [activeTab, setActiveTab] = useState('achievements');
     const [activeCategory, setActiveCategory] = useState('all');
+    const [currentPage, setCurrentPage] = useState(1);
     const [definitions, setDefinitions] = useState([]);
     const [userAchievements, setUserAchievements] = useState([]);
     const [leaderboard, setLeaderboard] = useState([]);
@@ -66,6 +69,16 @@ export default function AchievementsPage() {
         if (aUnlocked !== bUnlocked) return aUnlocked - bUnlocked;
         return (a.order || 0) - (b.order || 0);
     });
+
+    // Pagination
+    const totalPages = Math.max(1, Math.ceil(sortedAchievements.length / PAGE_SIZE));
+    const safePage = Math.min(currentPage, totalPages);
+    const paginatedAchievements = sortedAchievements.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+    const handleCategoryChange = (key) => {
+        setActiveCategory(key);
+        setCurrentPage(1);
+    };
 
     const getUnlockDate = (key) => {
         const a = userAchievements.find(u => u.achievementKey === key);
@@ -145,7 +158,7 @@ export default function AchievementsPage() {
                                 <button
                                     key={key}
                                     className={`ach-filter-btn ${activeCategory === key ? 'active' : ''}`}
-                                    onClick={() => setActiveCategory(key)}
+                                    onClick={() => handleCategoryChange(key)}
                                 >
                                     {label}
                                 </button>
@@ -155,40 +168,70 @@ export default function AchievementsPage() {
                         {sortedAchievements.length === 0 ? (
                             <div className="ach-empty">Chưa có thành tựu nào trong danh mục này.</div>
                         ) : (
-                            <div className="ach-grid">
-                                {sortedAchievements.map(ach => {
-                                    const isUnlocked = unlockedKeys.has(ach.key);
-                                    const date = getUnlockDate(ach.key);
+                            <>
+                                <div className="ach-grid">
+                                    {paginatedAchievements.map(ach => {
+                                        const isUnlocked = unlockedKeys.has(ach.key);
+                                        const date = getUnlockDate(ach.key);
+                                        const isHiddenLocked = ach.hidden && !isUnlocked;
 
-                                    return (
-                                        <div
-                                            key={ach.key}
-                                            className={`ach-card tier-${ach.tier} ${isUnlocked ? 'unlocked' : 'locked'}`}
-                                        >
-                                            <div className="ach-card-header">
-                                                <div className="ach-card-icon">{ach.icon}</div>
-                                                <div>
-                                                    <h3 className="ach-card-title">{ach.title}</h3>
-                                                    <div className="ach-card-tier">{TIER_LABELS[ach.tier]}</div>
+                                        return (
+                                            <div
+                                                key={ach.key}
+                                                className={`ach-card tier-${isHiddenLocked ? 'hidden' : ach.tier} ${isUnlocked ? 'unlocked' : 'locked'}`}
+                                            >
+                                                <div className="ach-card-header">
+                                                    <div className="ach-card-icon">{isHiddenLocked ? '❓' : ach.icon}</div>
+                                                    <div>
+                                                        <h3 className="ach-card-title">{isHiddenLocked ? '???' : ach.title}</h3>
+                                                        <div className="ach-card-tier">
+                                                            {isHiddenLocked ? 'Ẩn' : TIER_LABELS[ach.tier]}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <p className="ach-card-desc">
+                                                    {isHiddenLocked ? 'Thành tựu bí ẩn — hãy khám phá!' : ach.description}
+                                                </p>
+                                                <div className="ach-card-footer">
+                                                    <span className="ach-xp-badge">
+                                                        <Zap size={12} /> {isHiddenLocked ? '???' : `+${ach.xpReward} XP`}
+                                                    </span>
+                                                    {isUnlocked ? (
+                                                        <span className="ach-card-date">✅ {date}</span>
+                                                    ) : (
+                                                        <span className="ach-lock-badge">
+                                                            <Lock size={12} /> {isHiddenLocked ? 'Bí ẩn' : 'Chưa mở khóa'}
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </div>
-                                            <p className="ach-card-desc">{ach.description}</p>
-                                            <div className="ach-card-footer">
-                                                <span className="ach-xp-badge">
-                                                    <Zap size={12} /> +{ach.xpReward} XP
-                                                </span>
-                                                {isUnlocked ? (
-                                                    <span className="ach-card-date">✅ {date}</span>
-                                                ) : (
-                                                    <span className="ach-lock-badge">
-                                                        <Lock size={12} /> Chưa mở khóa
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {totalPages > 1 && (
+                                    <div className="ach-pagination">
+                                        <button
+                                            className="ach-page-btn"
+                                            disabled={safePage <= 1}
+                                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                        >
+                                            <ChevronLeft size={16} /> Trước
+                                        </button>
+                                        <span className="ach-page-info">
+                                            Trang {safePage} / {totalPages}
+                                            <span className="ach-page-count">({sortedAchievements.length} thành tựu)</span>
+                                        </span>
+                                        <button
+                                            className="ach-page-btn"
+                                            disabled={safePage >= totalPages}
+                                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                        >
+                                            Sau <ChevronRight size={16} />
+                                        </button>
+                                    </div>
+                                )}
+                            </>
                         )}
                     </>
                 )}
@@ -201,11 +244,11 @@ export default function AchievementsPage() {
                             <div className="ach-podium">
                                 {[1, 0, 2].map(i => {
                                     const student = leaderboard[i];
-                                    const classes = ['silver', 'gold', 'bronze'][i] || '';
-                                    const medals = ['🥈', '🥇', '🥉'];
+                                    const podiumClass = ['gold', 'silver', 'bronze'][i];
+                                    const medal = ['🥇', '🥈', '🥉'][i];
                                     return (
-                                        <div key={student._id} className={`ach-podium-card ${classes}`}>
-                                            <div className="ach-podium-rank">{medals[i]}</div>
+                                        <div key={student._id} className={`ach-podium-card ${podiumClass}`}>
+                                            <div className="ach-podium-rank">{medal}</div>
                                             <div className="ach-podium-name">{student.name}</div>
                                             <div className="ach-podium-xp">{(student.xp || 0).toLocaleString()} XP</div>
                                             <div className="ach-podium-level">

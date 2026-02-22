@@ -199,6 +199,16 @@
     background: linear-gradient(90deg, #06B6D4, #67E8F9);
 }
 
+.ach-card.tier-hidden::before {
+    background: linear-gradient(90deg, #7C3AED, #A78BFA);
+}
+
+.ach-card.tier-hidden {
+    background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+    border-color: #c4b5fd;
+    border-style: dashed;
+}
+
 .ach-card.unlocked {
     border-color: #c7d2fe;
 }
@@ -244,6 +254,10 @@
 
 .ach-card.tier-diamond .ach-card-icon {
     background: rgba(6, 182, 212, 0.1);
+}
+
+.ach-card.tier-hidden .ach-card-icon {
+    background: rgba(124, 58, 237, 0.1);
 }
 
 .ach-card-title {
@@ -543,4 +557,53 @@
         flex-direction: column;
         text-align: center;
     }
+}
+
+/* ── Pagination ── */
+.ach-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 1.5rem;
+    padding: 1rem 0;
+}
+
+.ach-page-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0.5rem 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: white;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #475569;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.ach-page-btn:hover:not(:disabled) {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    color: #1e293b;
+}
+
+.ach-page-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.ach-page-info {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #334155;
+}
+
+.ach-page-count {
+    font-weight: 400;
+    color: #94a3b8;
+    margin-left: 0.5rem;
+    font-size: 0.8rem;
 }
