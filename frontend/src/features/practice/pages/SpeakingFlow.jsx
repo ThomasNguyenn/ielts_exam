@@ -7,6 +7,18 @@ import SpeakingResultPhase from './SpeakingResultPhase';
 import './Practice.css';
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const formatElapsed = (totalSeconds) => {
+    const safe = Number.isFinite(totalSeconds) ? Math.max(0, Math.floor(totalSeconds)) : 0;
+    const hours = Math.floor(safe / 3600);
+    const minutes = Math.floor((safe % 3600) / 60);
+    const seconds = safe % 60;
+
+    if (hours > 0) {
+        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+};
 
 const normalizeSpeakingSessionPayload = (response) => {
     if (!response) return {};
@@ -45,6 +57,8 @@ export default function SpeakingFlow() {
     const [loading, setLoading] = useState(true);
     const [phase, setPhase] = useState('recording'); // 'recording' | 'processing' | 'result'
     const [result, setResult] = useState(null);
+    const [processingStartedAt, setProcessingStartedAt] = useState(null);
+    const [elapsedSeconds, setElapsedSeconds] = useState(0);
     const { showNotification } = useNotification();
 
     useEffect(() => {
@@ -61,6 +75,18 @@ export default function SpeakingFlow() {
             })
             .finally(() => setLoading(false));
     }, [id, navigate]);
+
+    useEffect(() => {
+        if (phase !== 'processing' || !processingStartedAt) return undefined;
+
+        const tick = () => {
+            setElapsedSeconds(Math.max(0, Math.floor((Date.now() - processingStartedAt) / 1000)));
+        };
+
+        tick();
+        const interval = setInterval(tick, 1000);
+        return () => clearInterval(interval);
+    }, [phase, processingStartedAt]);
 
     const pollSpeakingResult = async (sessionId) => {
         const maxAttempts = 45; // ~3-5 minutes with backoff polling
@@ -84,6 +110,7 @@ export default function SpeakingFlow() {
                     },
                     ai_source: session.ai_source || null,
                 });
+                setProcessingStartedAt(null);
                 setPhase('result');
                 return;
             }
@@ -99,6 +126,9 @@ export default function SpeakingFlow() {
     };
 
     const handleRecordingComplete = async (audioBlob, extraData = {}) => {
+        const startedAt = Date.now();
+        setProcessingStartedAt(startedAt);
+        setElapsedSeconds(0);
         setPhase('processing');
         try {
             const formData = new FormData();
@@ -134,10 +164,12 @@ export default function SpeakingFlow() {
             }
 
             setResult(submitPayload);
+            setProcessingStartedAt(null);
             setPhase('result');
         } catch (error) {
             console.error('Submission failed:', error);
             showNotification('Error while processing audio. Please try again.', 'error');
+            setProcessingStartedAt(null);
             setPhase('recording');
         }
     };
@@ -171,6 +203,9 @@ export default function SpeakingFlow() {
                         <div className="spinner" style={{ marginBottom: '2rem' }}></div>
                         <h2>AI is grading your speaking answer...</h2>
                         <p className="muted">Your submission is queued and being processed in background.</p>
+                        <p className="muted" style={{ marginTop: '0.75rem', fontWeight: 600 }}>
+                            Waiting time: {formatElapsed(elapsedSeconds)}
+                        </p>
                     </div>
                 )}
 
@@ -180,6 +215,8 @@ export default function SpeakingFlow() {
                         topic={topic}
                         onRetry={() => {
                             setResult(null);
+                            setProcessingStartedAt(null);
+                            setElapsedSeconds(0);
                             setPhase('recording');
                         }}
                     />

@@ -4,6 +4,7 @@ import cloudinary from "../utils/cloudinary.js";
 import { isAiAsyncModeEnabled } from "../config/queue.config.js";
 import { enqueueSpeakingAiScoreJob, isAiQueueReady } from "../queues/ai.queue.js";
 import { scoreSpeakingSessionById, generateMockExaminerFollowUp } from "../services/speakingGrading.service.js";
+import { evaluateSpeakingProvisionalScore } from "../services/speakingFastScore.service.js";
 import { ensurePart3ConversationScript } from "../services/speakingReadAloud.service.js";
 import { parsePagination, buildPaginationMeta } from "../utils/pagination.js";
 
@@ -47,6 +48,29 @@ const normalizeMockExaminerTurns = (turns = []) =>
     .slice(-20);
 
 const MAX_CANDIDATE_ANSWER_CHARS = Number(process.env.SPEAKING_MOCK_MAX_ANSWER_CHARS || 2000);
+const SPEAKING_FAST_SCORE_TIMEOUT_MS = Number(process.env.SPEAKING_FAST_SCORE_TIMEOUT_MS || 3500);
+
+const deriveScoringState = (session) => {
+  const explicitState = String(session?.scoring_state || "").trim();
+  if (explicitState) return explicitState;
+
+  const status = String(session?.status || "").trim();
+  if (status === "completed") return "completed";
+  if (status === "failed") return "failed";
+  return "processing";
+};
+
+const withTimeout = async (promise, timeoutMs, timeoutMessage) => {
+  let timerHandle;
+  const timeoutPromise = new Promise((_, reject) => {
+    timerHandle = setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+  });
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    clearTimeout(timerHandle);
+  }
+};
 
 const pickSpeakingPayload = (body = {}, { allowId = false } = {}) => {
   const allowed = [
@@ -271,9 +295,13 @@ export const getSpeakingSession = async (req, res) => {
       data: {
         session_id: session._id,
         status: session.status,
+        scoring_state: deriveScoringState(session),
         transcript: session.transcript || "",
         analysis: session.analysis || null,
         ai_source: session.ai_source || null,
+        provisional_analysis: session.provisional_analysis || null,
+        provisional_source: session.provisional_source || null,
+        provisional_ready_at: session.provisional_ready_at || null,
         mock_examiner_turns: session.mockExaminerTurns || [],
         mock_examiner_meta: session.mockExaminerMeta || {
           ai_source: null,
@@ -483,6 +511,49 @@ export const submitSpeaking = async (req, res) => {
     });
     await session.save();
 
+    const provisionalStartAt = Date.now();
+    try {
+      const fastScoreResult = await withTimeout(
+        evaluateSpeakingProvisionalScore({
+          audioBuffer: audioFile.buffer,
+          mimeType: audioFile.mimetype || "audio/webm",
+          metrics: parsedMetrics,
+          wpm: Number(wpm || 0),
+          fallbackTranscript: clientTranscript || "",
+        }),
+        SPEAKING_FAST_SCORE_TIMEOUT_MS,
+        `Fast score timed out after ${SPEAKING_FAST_SCORE_TIMEOUT_MS}ms`,
+      );
+
+      if (fastScoreResult?.provisionalAnalysis) {
+        session.provisional_analysis = fastScoreResult.provisionalAnalysis;
+        session.provisional_source = fastScoreResult.provisionalSource || "formula_v1";
+        session.provisional_ready_at = new Date();
+        session.scoring_state = "provisional_ready";
+        if (!session.transcript && fastScoreResult.transcript) {
+          session.transcript = fastScoreResult.transcript;
+        }
+        await session.save();
+
+        console.log(JSON.stringify({
+          event: "speaking_fast_score_ready",
+          session_id: String(session._id),
+          submit_to_provisional_ms: Date.now() - provisionalStartAt,
+          stt_source: fastScoreResult.sttSource || null,
+          stt_error_rate: 0,
+        }));
+      }
+    } catch (fastScoreError) {
+      console.warn("Speaking fast score skipped:", fastScoreError.message);
+      console.log(JSON.stringify({
+        event: "speaking_fast_score_error",
+        session_id: String(session._id),
+        submit_to_provisional_ms: Date.now() - provisionalStartAt,
+        stt_error_rate: 1,
+        error: fastScoreError.message,
+      }));
+    }
+
     let xpResult = null;
     let newlyUnlocked = [];
     if (userId) {
@@ -508,8 +579,12 @@ export const submitSpeaking = async (req, res) => {
             success: true,
             session_id: session._id,
             status: "processing",
+            scoring_state: deriveScoringState(session),
             queued: true,
             job_id: queueResult.jobId,
+            provisional_analysis: session.provisional_analysis || null,
+            provisional_source: session.provisional_source || null,
+            provisional_ready_at: session.provisional_ready_at || null,
             xpResult,
             achievements: newlyUnlocked
           });
@@ -524,16 +599,20 @@ export const submitSpeaking = async (req, res) => {
       success: true,
       session_id: grading.session._id,
       status: grading.session.status,
+      scoring_state: deriveScoringState(grading.session),
       transcript: grading.analysis?.transcript || "",
       analysis: grading.analysis || null,
       ai_source: grading.aiSource,
+      provisional_analysis: grading.session?.provisional_analysis || null,
+      provisional_source: grading.session?.provisional_source || null,
+      provisional_ready_at: grading.session?.provisional_ready_at || null,
       queued: false,
       xpResult,
       achievements: newlyUnlocked
     });
   } catch (error) {
     if (session?._id) {
-      await SpeakingSession.findByIdAndUpdate(session._id, { status: "failed" }).catch(() => { });
+      await SpeakingSession.findByIdAndUpdate(session._id, { status: "failed", scoring_state: "failed" }).catch(() => { });
     }
     console.error("Speaking submission failed:", error);
     return res.status(500).json({ success: false, message: "Server Error" });

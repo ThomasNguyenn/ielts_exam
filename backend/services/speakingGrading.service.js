@@ -420,8 +420,24 @@ export const scoreSpeakingSessionById = async ({ sessionId, force = false } = {}
   session.transcript = analysis.transcript || clientTranscript || "";
   session.analysis = analysis;
   session.status = "completed";
+  session.scoring_state = "completed";
   session.ai_source = aiSource;
   await session.save();
+
+  const submitTs = new Date(session.timestamp || session.createdAt || Date.now()).getTime();
+  const submitToFinalMs = Number.isFinite(submitTs) ? Math.max(0, Date.now() - submitTs) : null;
+  const provisionalBand = Number(session?.provisional_analysis?.band_score);
+  const finalBand = Number(analysis?.band_score);
+  const bandDiff = Number.isFinite(provisionalBand) && Number.isFinite(finalBand)
+    ? Math.abs(finalBand - provisionalBand)
+    : null;
+  console.log(JSON.stringify({
+    event: "speaking_final_score_ready",
+    session_id: String(session._id),
+    submit_to_final_ms: submitToFinalMs,
+    provisional_final_band_diff: bandDiff,
+  }));
+
   await cleanupSessionAudioFromCloudinary(session);
 
   return {

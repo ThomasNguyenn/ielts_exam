@@ -1,15 +1,15 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 
 const ANALYSIS_STEPS = [
-    "Đang phân tích mở bài...",
-    "Đang phân tích thân bài...",
-    "Đang phân tích kết luận...",
-    "Đang phân tích từ vựng...",
-    "Đang kiểm tra ngữ pháp...",
-    "Đang phân tích phong cách viết..."
+    "Äang phÃ¢n tÃ­ch má»Ÿ bÃ i...",
+    "Äang phÃ¢n tÃ­ch thÃ¢n bÃ i...",
+    "Äang phÃ¢n tÃ­ch káº¿t luáº­n...",
+    "Äang phÃ¢n tÃ­ch tá»« vá»±ng...",
+    "Äang kiá»ƒm tra ngá»¯ phÃ¡p...",
+    "Äang phÃ¢n tÃ­ch phong cÃ¡ch viáº¿t..."
 ];
 
-const WritingAnalysisLoading = ({ isFinished, onAnimationComplete }) => {
+const WritingAnalysisLoading = ({ isFinished, onAnimationComplete, elapsedLabel = '00:00' }) => {
     const [progress, setProgress] = useState(0);
     const [activeStepIndex, setActiveStepIndex] = useState(0);
 
@@ -77,8 +77,9 @@ const WritingAnalysisLoading = ({ isFinished, onAnimationComplete }) => {
                 </div>
 
                 {/* Text Content */}
-                <h2 className="text-2xl font-black text-slate-800 mb-2">Đang phân tích bài viết</h2>
-                <p className="text-slate-500 font-medium mb-8">Vui lòng chờ trong giây lát...</p>
+                <h2 className="text-2xl font-black text-slate-800 mb-2">Äang phÃ¢n tÃ­ch bÃ i viáº¿t</h2>
+                <p className="text-slate-500 font-medium mb-3">Vui lòng chờ trong giây lát...</p>
+                <p className="text-slate-600 font-semibold mb-8">Thời gian chờ: {elapsedLabel}</p>
 
                 {/* Steps List */}
                 <div className="w-full space-y-3 mb-8 pl-4">
@@ -122,9 +123,9 @@ const WritingAnalysisLoading = ({ isFinished, onAnimationComplete }) => {
 
                 {/* Random Tip Box (Optional) */}
                 <div className="mt-6 bg-slate-50 p-4 rounded-xl border border-slate-200 w-full text-center">
-                    <div className="flex justify-center mb-2 text-2xl">🎯</div>
+                    <div className="flex justify-center mb-2 text-2xl">ðŸŽ¯</div>
                     <p className="text-xs text-slate-500 italic">
-                        "Khi đưa ví dụ, hãy thật cụ thể. Đừng nói chung chung."
+                        "Khi Ä‘Æ°a vÃ­ dá»¥, hÃ£y tháº­t cá»¥ thá»ƒ. Äá»«ng nÃ³i chung chung."
                     </p>
                 </div>
             </div>
@@ -133,3 +134,4 @@ const WritingAnalysisLoading = ({ isFinished, onAnimationComplete }) => {
 };
 
 export default WritingAnalysisLoading;
+

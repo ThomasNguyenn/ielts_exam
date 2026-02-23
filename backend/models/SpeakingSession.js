@@ -19,6 +19,13 @@ const SpeakingSessionSchema = new mongoose.Schema({
   audioMimeType: { type: String },
   transcript: { type: String }, // Transcription from Groq Whisper
   ai_source: { type: String, default: null },
+  scoring_state: {
+    type: String,
+    enum: ["processing", "provisional_ready", "completed", "failed"],
+    default: "processing",
+  },
+  provisional_source: { type: String, default: null },
+  provisional_ready_at: { type: Date, default: null },
   
   // AI Analysis (Groq Llama 3)
   analysis: {
@@ -38,6 +45,27 @@ const SpeakingSessionSchema = new mongoose.Schema({
     pronunciation: {
         score: Number,
         feedback: String
+    },
+    general_feedback: { type: String },
+    sample_answer: { type: String }
+  },
+  provisional_analysis: {
+    band_score: { type: Number },
+    fluency_coherence: {
+      score: Number,
+      feedback: String
+    },
+    lexical_resource: {
+      score: Number,
+      feedback: String
+    },
+    grammatical_range: {
+      score: Number,
+      feedback: String
+    },
+    pronunciation: {
+      score: Number,
+      feedback: String
     },
     general_feedback: { type: String },
     sample_answer: { type: String }
@@ -82,6 +110,7 @@ const SpeakingSessionSchema = new mongoose.Schema({
 });
 
 SpeakingSessionSchema.index({ userId: 1, status: 1, timestamp: -1 });
+SpeakingSessionSchema.index({ userId: 1, scoring_state: 1, timestamp: -1 });
 SpeakingSessionSchema.index({ userId: 1, timestamp: -1 });
 SpeakingSessionSchema.index({ questionId: 1, timestamp: -1 });
 SpeakingSessionSchema.index({ status: 1, timestamp: -1 });

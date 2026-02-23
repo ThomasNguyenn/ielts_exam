@@ -6,6 +6,20 @@ import WritingAnalysisLoading from './WritingAnalysisLoading';
 import './Practice.css';
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const WRITING_AI_TIMER_KEY_PREFIX = 'writing-ai-start:';
+
+const formatElapsed = (totalSeconds) => {
+    const safe = Number.isFinite(totalSeconds) ? Math.max(0, Math.floor(totalSeconds)) : 0;
+    const hours = Math.floor(safe / 3600);
+    const minutes = Math.floor((safe % 3600) / 60);
+    const seconds = safe % 60;
+
+    if (hours > 0) {
+        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+};
 
 export default function WritingAIResult() {
     const { id } = useParams(); // Submission ID
@@ -15,6 +29,41 @@ export default function WritingAIResult() {
     const [scoring, setScoring] = useState(false);
     const [error, setError] = useState(null);
     const [analysisFinished, setAnalysisFinished] = useState(false);
+    const [waitStartedAt, setWaitStartedAt] = useState(null);
+    const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+    useEffect(() => {
+        if (!id) return;
+        const key = `${WRITING_AI_TIMER_KEY_PREFIX}${id}`;
+        const now = Date.now();
+        let startedAt = now;
+
+        try {
+            const stored = Number(sessionStorage.getItem(key));
+            if (Number.isFinite(stored) && stored > 0) {
+                startedAt = stored;
+            } else {
+                sessionStorage.setItem(key, String(now));
+            }
+        } catch {
+            startedAt = now;
+        }
+
+        setWaitStartedAt(startedAt);
+        setElapsedSeconds(Math.max(0, Math.floor((now - startedAt) / 1000)));
+    }, [id]);
+
+    useEffect(() => {
+        if (!waitStartedAt || (!loading && !scoring)) return undefined;
+
+        const tick = () => {
+            setElapsedSeconds(Math.max(0, Math.floor((Date.now() - waitStartedAt) / 1000)));
+        };
+
+        tick();
+        const interval = setInterval(tick, 1000);
+        return () => clearInterval(interval);
+    }, [waitStartedAt, loading, scoring]);
 
     const mapToDashboard = (submission) => {
         if (!submission?.writing_answers || submission.writing_answers.length === 0) {
@@ -110,6 +159,13 @@ export default function WritingAIResult() {
     const handleAnimationComplete = () => {
         setLoading(false);
         setScoring(false);
+        if (id) {
+            try {
+                sessionStorage.removeItem(`${WRITING_AI_TIMER_KEY_PREFIX}${id}`);
+            } catch {
+                // Ignore storage errors.
+            }
+        }
     };
 
     if (loading || scoring) {
@@ -117,6 +173,7 @@ export default function WritingAIResult() {
             <WritingAnalysisLoading
                 isFinished={analysisFinished}
                 onAnimationComplete={handleAnimationComplete}
+                elapsedLabel={formatElapsed(elapsedSeconds)}
             />
         );
     }

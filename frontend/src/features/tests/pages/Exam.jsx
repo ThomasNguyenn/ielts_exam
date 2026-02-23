@@ -333,6 +333,11 @@ export default function Exam() {
       // AI Scoring
       performSubmit(true).then((data) => {
         if (data && data.writingSubmissionId) {
+          try {
+            sessionStorage.setItem(`writing-ai-start:${data.writingSubmissionId}`, String(Date.now()));
+          } catch {
+            // Ignore storage errors and continue navigation.
+          }
           navigate(`/tests/writing/result-ai/${data.writingSubmissionId}`);
         } else {
           // Fallback if ID is missing
