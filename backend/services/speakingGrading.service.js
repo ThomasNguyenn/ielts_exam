@@ -179,6 +179,14 @@ PRONUNCIATION MUST FOLLOW ELSA-STYLE ANALYSIS:
 - Intonation and rhythm (flat/unnatural patterns).
 - Connected speech (linking/reduction) issues.
 
+ERROR TAXONOMY BẮT BUỘC (error_logs array):
+Trích xuất lỗi rõ ràng từ transcript và gán đúng mã "code":
+[Fluency] S-F1 Excessive Pause, S-F2 Filler Overuse, S-F3 Self-correction Overuse, S-F4 Disorganized Idea
+[Lexical] S-L1 Repetition, S-L2 Incorrect Word Form, S-L3 Limited Vocabulary, S-L4 Misused Collocation
+[Grammar] S-G1 Tense Error, S-G2 Agreement Error, S-G3 Simple Sentence Overuse, S-G4 Structure Breakdown
+[Pronunciation] S-P1 Word Stress Error, S-P2 Sentence Stress Error, S-P3 Sound Substitution, S-P4 Intonation Flat
+Cần chỉ ra ít nhất 3-5 lỗi cụ thể nhất lưu vào "error_logs".
+
 OUTPUT LANGUAGE:
 - Feedback in Vietnamese.
 - Keep examples concrete from the student's production.
@@ -194,6 +202,13 @@ RETURN ONLY VALID JSON (no markdown, no extra text):
     "score": number,
     "feedback": "string with these sections: Am nguyen am, Am cuoi, Trong am, Ngu dieu, Nhip dieu, Ke hoach hanh dong"
   },
+  "error_logs": [
+    {
+      "code": "string (e.g. S-F1, S-L2, S-G3, S-P4)",
+      "snippet": "string (extract from transcript)",
+      "explanation": "string (Vietnamese explanation)"
+    }
+  ],
   "general_feedback": "string (strict overall summary with top priority fixes)",
   "sample_answer": "string (Band 7.0+ model answer for this topic)"
 }
@@ -419,6 +434,31 @@ export const scoreSpeakingSessionById = async ({ sessionId, force = false } = {}
 
   session.transcript = analysis.transcript || clientTranscript || "";
   session.analysis = analysis;
+
+  // Extract Error Taxonomy Logs
+  if (Array.isArray(analysis.error_logs) && analysis.error_logs.length > 0) {
+    session.error_logs = analysis.error_logs.map(log => {
+      // Basic categorization based on standard prefix (e.g., S-F1 -> Fluency)
+      let category = 'Speaking AI Detected';
+      let cogSkill = 'S-Speaking Skill';
+      const codeStr = String(log.code || 'S-UNCLASSIFIED');
+
+      if (codeStr.startsWith('S-F')) { category = 'Fluency & Coherence'; cogSkill = 'Speech Flow & Self-Correction'; }
+      else if (codeStr.startsWith('S-L')) { category = 'Lexical Resource'; cogSkill = 'Vocabulary & Collocation'; }
+      else if (codeStr.startsWith('S-G')) { category = 'Grammatical Range'; cogSkill = 'Sentence Structure & Accuracy'; }
+      else if (codeStr.startsWith('S-P')) { category = 'Pronunciation'; cogSkill = 'Phonemes & Suprasegmentals'; }
+
+      return {
+        task_type: topic.part ? `part${topic.part}` : 'speaking', // e.g., 'part2'
+        cognitive_skill: cogSkill,
+        error_category: category,
+        error_code: codeStr,
+        text_snippet: String(log.snippet || ''),
+        explanation: String(log.explanation || '')
+      };
+    });
+  }
+
   session.status = "completed";
   session.scoring_state = "completed";
   session.ai_source = aiSource;

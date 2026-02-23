@@ -36,6 +36,21 @@ const WritingSubmissionSchema = new mongoose.Schema({
     enum: ['pending', 'processing', 'scored', 'reviewed', 'failed'],
     default: 'pending'
   },
+
+  // Error Taxonomy Tracking
+  error_logs: [{
+    task_type: { type: String }, // 'matching_headings', 'task1', 'part2', etc.
+    cognitive_skill: { type: String }, // e.g., 'R1. Literal Comprehension'
+    error_category: { type: String },  // e.g., 'A. Answer-Level Errors'
+    error_code: { type: String, required: true }, // e.g., 'R-A1', 'W2-G1', 'S-F1'
+    question_number: { type: Number }, // For R/L
+    user_answer: { type: String },     // Raw answer for R/L
+    correct_answer: { type: String },  // Target answer for R/L
+    student_highlights: [{ type: String }], // What text they highlighted before answering
+    text_snippet: { type: String },    // Exact phrase containing the error (for W/S)
+    explanation: { type: String },     // AI explanation of why it's an error
+    meta_error: { type: String }       // e.g., 'X1 Careless Error', 'X2 Time Pressure'
+  }]
 }, { timestamps: true });
 
 WritingSubmissionSchema.index({ status: 1, submitted_at: -1 });

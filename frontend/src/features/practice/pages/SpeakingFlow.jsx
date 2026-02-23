@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
@@ -50,6 +50,65 @@ const getPollDelayMs = (attempt) => {
     return Math.max(2500, baseMs + backoffMs + jitterMs);
 };
 
+const parseAnalysisObject = (value) => {
+    if (!value) return null;
+    if (typeof value === 'object') return value;
+    if (typeof value === 'string') {
+        try {
+            const parsed = JSON.parse(value);
+            return parsed && typeof parsed === 'object' ? parsed : null;
+        } catch {
+            return null;
+        }
+    }
+    return null;
+};
+
+const hasMeaningfulAnalysis = (analysis) => (
+    Boolean(analysis) && typeof analysis === 'object' && Object.keys(analysis).length > 0
+);
+
+const normalizeScoringState = (payload = {}) => {
+    const explicit = String(payload?.scoring_state || '').trim().toLowerCase();
+    if (explicit) return explicit;
+
+    const status = String(payload?.status || '').trim().toLowerCase();
+    if (status === 'completed') return 'completed';
+    if (status === 'failed') return 'failed';
+    if (status === 'provisional_ready') return 'provisional_ready';
+    return 'processing';
+};
+
+const buildFallbackAnalysis = () => ({
+    band_score: 0,
+    general_feedback: 'AI result is unavailable for this attempt.',
+    sample_answer: 'N/A',
+    fluency_coherence: { score: 0, feedback: 'N/A' },
+    lexical_resource: { score: 0, feedback: 'N/A' },
+    grammatical_range: { score: 0, feedback: 'N/A' },
+    pronunciation: { score: 0, feedback: 'N/A' },
+});
+
+const buildSpeakingResultPayload = (payload = {}, fallbackSessionId = null) => {
+    const parsedAnalysis = parseAnalysisObject(payload?.analysis);
+    const parsedProvisional = parseAnalysisObject(payload?.provisional_analysis);
+    const activeAnalysis = hasMeaningfulAnalysis(parsedAnalysis)
+        ? parsedAnalysis
+        : (hasMeaningfulAnalysis(parsedProvisional) ? parsedProvisional : null);
+
+    return {
+        ...payload,
+        session_id: getSpeakingSessionId(payload) || fallbackSessionId || null,
+        scoring_state: normalizeScoringState(payload),
+        transcript: payload?.transcript || '',
+        analysis: activeAnalysis || buildFallbackAnalysis(),
+        ai_source: payload?.ai_source || null,
+        provisional_analysis: parsedProvisional || null,
+        provisional_source: payload?.provisional_source || null,
+        provisional_ready_at: payload?.provisional_ready_at || null,
+    };
+};
+
 export default function SpeakingFlow() {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -57,9 +116,11 @@ export default function SpeakingFlow() {
     const [loading, setLoading] = useState(true);
     const [phase, setPhase] = useState('recording'); // 'recording' | 'processing' | 'result'
     const [result, setResult] = useState(null);
+    const [provisionalSnapshot, setProvisionalSnapshot] = useState(null);
     const [processingStartedAt, setProcessingStartedAt] = useState(null);
     const [elapsedSeconds, setElapsedSeconds] = useState(0);
     const { showNotification } = useNotification();
+    const provisionalNoticeShownRef = useRef(false);
 
     useEffect(() => {
         if (!id) return;
@@ -88,34 +149,43 @@ export default function SpeakingFlow() {
         return () => clearInterval(interval);
     }, [phase, processingStartedAt]);
 
+    const syncProvisionalState = (payload = {}, { notify = false } = {}) => {
+        const parsedProvisional = parseAnalysisObject(payload?.provisional_analysis);
+        if (!hasMeaningfulAnalysis(parsedProvisional)) return;
+
+        setProvisionalSnapshot({
+            session_id: getSpeakingSessionId(payload),
+            analysis: parsedProvisional,
+            source: payload?.provisional_source || null,
+            ready_at: payload?.provisional_ready_at || null,
+            scoring_state: normalizeScoringState(payload),
+        });
+
+        if (notify && !provisionalNoticeShownRef.current) {
+            provisionalNoticeShownRef.current = true;
+            showNotification('Provisional band is ready. Final AI score is still processing.', 'info');
+        }
+    };
+
     const pollSpeakingResult = async (sessionId) => {
         const maxAttempts = 45; // ~3-5 minutes with backoff polling
 
         for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
             const statusRes = await api.getSpeakingSession(sessionId);
             const session = normalizeSpeakingSessionPayload(statusRes);
+            const scoringState = normalizeScoringState(session);
+            const legacyStatus = String(session?.status || '').trim().toLowerCase();
 
-            if (session.status === 'completed') {
-                setResult({
-                    session_id: session.session_id || sessionId,
-                    transcript: session.transcript || '',
-                    analysis: session.analysis || {
-                        band_score: 0,
-                        general_feedback: 'AI result is unavailable for this attempt.',
-                        sample_answer: 'N/A',
-                        fluency_coherence: { score: 0, feedback: 'N/A' },
-                        lexical_resource: { score: 0, feedback: 'N/A' },
-                        grammatical_range: { score: 0, feedback: 'N/A' },
-                        pronunciation: { score: 0, feedback: 'N/A' },
-                    },
-                    ai_source: session.ai_source || null,
-                });
+            syncProvisionalState(session, { notify: true });
+
+            if (scoringState === 'completed' || legacyStatus === 'completed') {
+                setResult(buildSpeakingResultPayload(session, sessionId));
                 setProcessingStartedAt(null);
                 setPhase('result');
                 return;
             }
 
-            if (session.status === 'failed') {
+            if (scoringState === 'failed' || legacyStatus === 'failed') {
                 throw new Error('AI grading failed. Please retry.');
             }
 
@@ -127,6 +197,8 @@ export default function SpeakingFlow() {
 
     const handleRecordingComplete = async (audioBlob, extraData = {}) => {
         const startedAt = Date.now();
+        setProvisionalSnapshot(null);
+        provisionalNoticeShownRef.current = false;
         setProcessingStartedAt(startedAt);
         setElapsedSeconds(0);
         setPhase('processing');
@@ -145,13 +217,24 @@ export default function SpeakingFlow() {
             const res = await api.submitSpeaking(formData);
             const submitPayload = normalizeSpeakingSessionPayload(res);
             const sessionId = getSpeakingSessionId(submitPayload);
+            const scoringState = normalizeScoringState(submitPayload);
             const statusValue = String(submitPayload?.status || '').toLowerCase().trim();
-            const hasAnalysis = Boolean(submitPayload?.analysis);
+            const parsedAnalysis = parseAnalysisObject(submitPayload?.analysis);
+            const hasAnalysis = hasMeaningfulAnalysis(parsedAnalysis);
+
+            syncProvisionalState(submitPayload, { notify: true });
+
+            if (scoringState === 'failed' || statusValue === 'failed') {
+                throw new Error('AI grading failed. Please retry.');
+            }
+
             const shouldPoll =
                 Boolean(sessionId) &&
                 !hasAnalysis &&
                 (
                     submitPayload?.queued === true ||
+                    scoringState === 'processing' ||
+                    scoringState === 'provisional_ready' ||
                     statusValue === 'processing' ||
                     statusValue === 'queued' ||
                     statusValue === 'pending' ||
@@ -163,7 +246,7 @@ export default function SpeakingFlow() {
                 return;
             }
 
-            setResult(submitPayload);
+            setResult(buildSpeakingResultPayload(submitPayload, sessionId));
             setProcessingStartedAt(null);
             setPhase('result');
         } catch (error) {
@@ -206,6 +289,35 @@ export default function SpeakingFlow() {
                         <p className="muted" style={{ marginTop: '0.75rem', fontWeight: 600 }}>
                             Waiting time: {formatElapsed(elapsedSeconds)}
                         </p>
+                        {provisionalSnapshot?.analysis && (
+                            <div style={{
+                                marginTop: '1.5rem',
+                                background: '#f8fafc',
+                                border: '1px solid #e2e8f0',
+                                borderRadius: '14px',
+                                padding: '1rem 1.25rem',
+                                textAlign: 'left',
+                                maxWidth: '640px',
+                                marginInline: 'auto',
+                            }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                    <strong style={{ color: '#0f172a' }}>Provisional Band Ready</strong>
+                                    <span style={{
+                                        background: '#1d4ed8',
+                                        color: '#fff',
+                                        fontWeight: 700,
+                                        borderRadius: '999px',
+                                        padding: '0.15rem 0.6rem',
+                                        fontSize: '0.8rem',
+                                    }}>
+                                        {provisionalSnapshot.analysis?.band_score ?? '-'}
+                                    </span>
+                                </div>
+                                <p className="muted" style={{ marginTop: '0.5rem', marginBottom: 0 }}>
+                                    This is a fast estimate ({provisionalSnapshot?.source || 'formula_v1'}). Final score will replace it once AI completes.
+                                </p>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -215,6 +327,8 @@ export default function SpeakingFlow() {
                         topic={topic}
                         onRetry={() => {
                             setResult(null);
+                            setProvisionalSnapshot(null);
+                            provisionalNoticeShownRef.current = false;
                             setProcessingStartedAt(null);
                             setElapsedSeconds(0);
                             setPhase('recording');

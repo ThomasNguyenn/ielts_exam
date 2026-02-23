@@ -6,6 +6,8 @@ import {
   getStudentAnalytics,
   getAnalyticsDashboard,
   getAdminStudentAnalyticsDashboard,
+  getErrorAnalytics,
+  getAIInsights,
 } from "../controllers/analytics.controller.js";
 import { verifyToken, isTeacherOrAdmin } from "../middleware/auth.middleware.js";
 
@@ -15,6 +17,8 @@ router.use(verifyToken);
 
 // User Analytics
 router.get("/dashboard", getAnalyticsDashboard);
+router.get("/errors", getErrorAnalytics);
+router.get("/ai-insights", getAIInsights);
 router.get("/skills", getSkillsBreakdown);
 router.get("/weaknesses", getWeaknessAnalysis);
 router.get("/history", getProgressHistory);

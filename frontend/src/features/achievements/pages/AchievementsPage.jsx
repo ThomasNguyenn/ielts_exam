@@ -135,13 +135,54 @@ export default function AchievementsPage() {
     if (loading) {
         return (
             <div className="ach-page">
-                <div className="ach-loading">
-                    <Trophy size={32} style={{ opacity: 0.4, marginBottom: '1rem' }} />
-                    <p>Đang tải thành tựu...</p>
+                <div className="ach-hero">
+                    <div className="ach-hero-inner ach-skeleton-wrap" aria-hidden="true">
+                        <div className="ach-sk ach-sk-title" />
+                        <div className="ach-sk ach-sk-subtitle" />
+                        <div className="ach-sk-row">
+                            {Array.from({ length: 4 }).map((_, index) => (
+                                <div key={`chip-sk-${index}`} className="ach-sk ach-sk-chip" />
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="ach-body">
+                    <div className="ach-tabs" aria-hidden="true">
+                        <div className="ach-sk ach-sk-tab" />
+                        <div className="ach-sk ach-sk-tab" />
+                    </div>
+
+                    <div className="ach-filters" aria-hidden="true">
+                        {Array.from({ length: 8 }).map((_, index) => (
+                            <div key={`filter-sk-${index}`} className="ach-sk ach-sk-filter" />
+                        ))}
+                    </div>
+
+                    <div className="ach-grid" aria-hidden="true">
+                        {Array.from({ length: PAGE_SIZE }).map((_, index) => (
+                            <div key={`card-sk-${index}`} className="ach-card ach-card-skeleton">
+                                <div className="ach-card-header">
+                                    <div className="ach-sk ach-sk-icon" />
+                                    <div style={{ flex: 1 }}>
+                                        <div className="ach-sk ach-sk-card-title" />
+                                        <div className="ach-sk ach-sk-card-tier" />
+                                    </div>
+                                </div>
+                                <div className="ach-sk ach-sk-card-line" />
+                                <div className="ach-sk ach-sk-card-line short" />
+                                <div className="ach-card-footer">
+                                    <div className="ach-sk ach-sk-pill" />
+                                    <div className="ach-sk ach-sk-pill short" />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
         );
     }
+
 
     return (
         <div className="ach-page">

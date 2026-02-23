@@ -50,6 +50,12 @@ F) Mỗi mục phải:
    - explanation: giải thích tiếng Việt
    - improved: sửa lại
    - band_impact: ảnh hưởng điểm số
+G) BẮT BUỘC: Mỗi lỗi phải gán một "error_code" chính xác từ danh sách Error Taxonomy sau:
+   - [Task Achievement] W1-T1 Missing Overview, W1-T2 No Key Feature, W1-T3 Wrong Data Comparison, W1-T4 Over-Detail
+   - [Grammar] W1-G1 Tense Error, W1-G2 Comparison Structure Error, W1-G3 Preposition Error, W1-G4 Agreement Error
+   - [Lexical] W1-L1 Repetition, W1-L2 Informal Vocabulary, W1-L3 Collocation Error
+   - [Coherence] W1-C1 Thiếu liên kết câu, W1-C2 Dùng sai từ nối, W1-C3 Lặp lại cấu trúc liên kết, W1-C4 Chia đoạn sai
+   - Nếu là mục "good" hoặc "suggestion" không có lỗi sai cụ thể, hãy dùng mã: "NONE"
 
 ━━━━━━━━━━━━━━━━━━━━━━
 OUTPUT: CHỈ TRẢ JSON HỢP LỆ
@@ -64,10 +70,46 @@ Lưu ý: Vẫn dùng key "task_response" trong JSON để chứa nội dung "Tas
     "lexical_resource": number,
     "grammatical_range_accuracy": number
   },
-  "task_response": [ ... ], // Nội dung Task Achievement
-  "coherence_cohesion": [ ... ],
-  "lexical_resource": [ ... ],
-  "grammatical_range_accuracy": [ ... ],
+  "task_response": [
+    {
+      "text_snippet": "string",
+      "type": "error|good|suggestion",
+      "error_code": "string",
+      "explanation": "string",
+      "improved": "string",
+      "band_impact": "string"
+    }
+  ],
+  "coherence_cohesion": [
+    {
+      "text_snippet": "string",
+      "type": "error|good|suggestion",
+      "error_code": "string",
+      "explanation": "string",
+      "improved": "string",
+      "band_impact": "string"
+    }
+  ],
+  "lexical_resource": [
+    {
+      "text_snippet": "string",
+      "type": "error|good|suggestion",
+      "error_code": "string",
+      "explanation": "string",
+      "improved": "string",
+      "band_impact": "string"
+    }
+  ],
+  "grammatical_range_accuracy": [
+    {
+      "text_snippet": "string",
+      "type": "error|good|suggestion",
+      "error_code": "string",
+      "explanation": "string",
+      "improved": "string",
+      "band_impact": "string"
+    }
+  ],
   "feedback": [ "string (Nhận xét tổng quan Task 1)" ],
   "sample_essay": "string (Viết bài mẫu Band 8.0 cho Task 1 này)"
 }
@@ -220,6 +262,12 @@ F) Mỗi mục phải:
    - có improved (phiên bản sửa)
    - có explanation ngắn gọn tiếng Việt (1–2 câu)
    - có band_impact (ví dụ: "Reduces GRA to 5.0")
+G) BẮT BUỘC: Mỗi lỗi phải gán một "error_code" chính xác từ danh sách Error Taxonomy sau:
+   - [Task Response] W2-T1 Not Answering Question, W2-T2 Missing Position, W2-T3 Weak Argument, W2-T4 Off-topic
+   - [Coherence] W2-C1 Poor Paragraphing, W2-C2 Weak Linking, W2-C3 Idea Jump
+   - [Grammar] W2-G1 Complex Sentence Error, W2-G2 Fragment Sentence, W2-G3 Run-on Sentence
+   - [Lexical] W2-L1 Word Choice Inaccuracy, W2-L2 Collocation Error, W2-L3 Overgeneralization
+   - Nếu là mục "good" hoặc "suggestion" không có lỗi sai cụ thể, hãy dùng mã: "NONE"
 
 ━━━━━━━━━━━━━━━━━━━━━━
 QUY TẮC ƯỚC LƯỢNG BAND
@@ -245,6 +293,7 @@ OUTPUT: CHỈ TRẢ JSON HỢP LỆ
     {
       "text_snippet": "string",
       "type": "error|good|suggestion",
+      "error_code": "string",
       "explanation": "string (Vietnamese)",
       "improved": "string",
       "band_impact": "string"
@@ -254,6 +303,7 @@ OUTPUT: CHỈ TRẢ JSON HỢP LỆ
     {
       "text_snippet": "string",
       "type": "error|good|suggestion",
+      "error_code": "string",
       "explanation": "string (Vietnamese)",
       "improved": "string",
       "band_impact": "string"
@@ -263,6 +313,7 @@ OUTPUT: CHỈ TRẢ JSON HỢP LỆ
     {
       "text_snippet": "string",
       "type": "error|good|suggestion",
+      "error_code": "string",
       "explanation": "string (Vietnamese)",
       "improved": "string",
       "band6_replacement": "string",
@@ -274,6 +325,7 @@ OUTPUT: CHỈ TRẢ JSON HỢP LỆ
     {
       "text_snippet": "string",
       "type": "error|good|suggestion",
+      "error_code": "string",
       "explanation": "string (Vietnamese)",
       "improved": "string",
       "band_impact": "string"
@@ -296,11 +348,11 @@ OUTPUT: CHỈ TRẢ JSON HỢP LỆ
       openai,
       models: OPENAI_MODELS,
       createPayload: (model) => ({
-                model,
-                messages: [{ role: "user", content: userMessageContent.length > 0 ? userMessageContent : systemPrompt }],
-                max_tokens: 10000,
-                response_format: { type: "json_object" },
-            }),
+        model,
+        messages: [{ role: "user", content: userMessageContent.length > 0 ? userMessageContent : systemPrompt }],
+        max_tokens: 10000,
+        response_format: { type: "json_object" },
+      }),
       timeoutMs: Number(process.env.OPENAI_TIMEOUT_MS || 60000),
       maxAttempts: Number(process.env.OPENAI_MAX_ATTEMPTS || 3),
     });

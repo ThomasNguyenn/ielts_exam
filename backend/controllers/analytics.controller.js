@@ -2,6 +2,61 @@ import TestAttempt from "../models/TestAttempt.model.js";
 import WritingSubmission from "../models/WritingSubmission.model.js";
 import SpeakingSession from "../models/SpeakingSession.js";
 import mongoose from "mongoose";
+import OpenAI from "openai";
+import dotenv from "dotenv";
+dotenv.config();
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+/**
+ * Helper to fetch and merge all error logs for a specific user across R, L, W, S
+ */
+async function aggregateUserErrors(userId) {
+  const errorLogs = [];
+
+  // Reading & Listening
+  const attempts = await TestAttempt.find({ user_id: userId, "error_logs.0": { $exists: true } })
+    .sort({ submitted_at: -1 })
+    .select("type error_logs")
+    .lean();
+  attempts.forEach(a => {
+    if (a.error_logs) {
+      a.error_logs.forEach(log => {
+        errorLogs.push({ ...log, skill: a.type });
+      });
+    }
+  });
+
+  // Writing
+  const writings = await WritingSubmission.find({ user_id: userId, "error_logs.0": { $exists: true } })
+    .sort({ created_at: -1 })
+    .select("error_logs")
+    .lean();
+  writings.forEach(w => {
+    if (w.error_logs) {
+      w.error_logs.forEach(log => {
+        errorLogs.push({ ...log, skill: "writing" });
+      });
+    }
+  });
+
+  // Speaking
+  const speakings = await SpeakingSession.find({ userId: userId, "error_logs.0": { $exists: true } })
+    .sort({ createdAt: -1 })
+    .select("error_logs")
+    .lean();
+  speakings.forEach(s => {
+    if (s.error_logs) {
+      s.error_logs.forEach(log => {
+        errorLogs.push({ ...log, skill: "speaking" });
+      });
+    }
+  });
+
+  return errorLogs;
+}
 
 const READING_BAND_MAP = [
   { min: 39, band: 9.0 }, { min: 37, band: 8.5 }, { min: 35, band: 8.0 },
@@ -405,5 +460,133 @@ export const getStudentAnalytics = async (req, res) => {
     });
   } catch (error) {
     return sendAnalyticsError(res, error);
+  }
+};
+
+export const getErrorAnalytics = async (req, res) => {
+  try {
+    const { userId } = req.user;
+    const errorLogs = await aggregateUserErrors(userId);
+
+    // Grouping logic for Heatmap (Task Type vs Error Category) and Bar Charts (Cognitive Skill frequency)
+    const taskTypeVsCategory = {}; // { 'TFNG': { 'R-C4': 5, 'R-C1': 2 } }
+    const cognitiveSkillCount = {}; // { 'Literal Comprehension': 10 }
+    const skillBreakdown = { reading: 0, listening: 0, writing: 0, speaking: 0 };
+    const totalErrors = errorLogs.length;
+
+    errorLogs.forEach(log => {
+      if (log.skill) skillBreakdown[log.skill]++;
+
+      // Heatmap Aggregation
+      const tType = log.task_type || 'Unknown';
+      const eCode = log.error_code || 'UNCLASSIFIED';
+      if (!taskTypeVsCategory[tType]) taskTypeVsCategory[tType] = {};
+      taskTypeVsCategory[tType][eCode] = (taskTypeVsCategory[tType][eCode] || 0) + 1;
+
+      // Bar chart aggregation
+      const cogSkill = log.cognitive_skill || 'General';
+      cognitiveSkillCount[cogSkill] = (cognitiveSkillCount[cogSkill] || 0) + 1;
+    });
+
+    // Convert dictionaries to array format for Recharts
+    const heatmapData = Object.keys(taskTypeVsCategory).map(taskType => {
+      const row = { taskType };
+      Object.keys(taskTypeVsCategory[taskType]).forEach(code => {
+        row[code] = taskTypeVsCategory[taskType][code];
+      });
+      return row;
+    });
+
+    const cognitiveData = Object.keys(cognitiveSkillCount).map(skillName => ({
+      name: skillName,
+      value: cognitiveSkillCount[skillName]
+    })).sort((a, b) => b.value - a.value);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        totalErrors,
+        skillBreakdown,
+        heatmapData,
+        cognitiveData
+      }
+    });
+
+  } catch (error) {
+    console.error("Error generating analytics:", error);
+    return res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+export const getAIInsights = async (req, res) => {
+  try {
+    const { userId } = req.user;
+    const errorLogs = await aggregateUserErrors(userId);
+
+    if (errorLogs.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          feedback: "Bạn chưa có đủ dữ liệu lỗi để phân tích. Hãy làm thêm các bài kiểm tra hoặc bài tập thực hành nhé."
+        }
+      });
+    }
+
+    // To avoid massive token usage, only send the 50 most recent/frequent errors
+    // Compute frequencies to send a concise summary to the LLM
+    const frequencies = {};
+    errorLogs.forEach(log => {
+      const key = `Skill: ${log.skill} | Task Type: ${log.task_type} | Category: ${log.error_category} | Code: ${log.error_code}`;
+      frequencies[key] = (frequencies[key] || 0) + 1;
+    });
+
+    // Sort by most frequent
+    const topErrors = Object.entries(frequencies)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 20)
+      .map(([desc, count]) => `- ${desc} (Xuất hiện ${count} lần)`);
+
+    const prompt = `
+Bạn là một chuyên gia khảo thí IELTS xuất sắc. Dưới đây là bảng thống kê các lỗi thường gặp nhất của một học viên dựa trên hệ thống Taxonomy Error:
+
+${topErrors.join('\n')}
+
+Dựa vào dữ liệu trên, hãy viết một bản nhận xét ngắn gọn, truyền cảm hứng và mang tính chuyên môn cao (Bằng Tiếng Việt).
+Yêu cầu bắt buộc phải có trong câu trả lời JSON:
+1. "overview": Đánh giá tổng quan về kỹ năng yếu nhất hiện tại.
+2. "actionable_advice": Dạng Mảng (Array). Liệt kê chiến lược khắc phục cụ thể cho các lỗi xuất hiện nhiều nhất. Bắt buộc Mảng.
+3. "recommended_practice": Dạng Mảng (Array). Liệt kê chính xác tên các dạng bài (Task Types) mà học viên nên ưu tiên luyện tập ngay lập tức. (VD: "Matching Headings", "Writing Task 1", v.v.). Bắt buộc Mảng có ít nhất 2 mục.
+4. "encouragement": Lời động viên cuối cùng.
+
+Định dạng trả về (JSON hợp lệ duy nhất, không dùng markdown code block):
+{
+  "overview": "string",
+  "actionable_advice": ["string1", "string2"],
+  "recommended_practice": ["Tên Dạng Bài 1", "Tên Dạng Bài 2"],
+  "encouragement": "string"
+}
+`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "system", content: "You output strict JSON in Vietnamese." }, { role: "user", content: prompt }],
+      response_format: { type: "json_object" },
+      temperature: 0.2
+    });
+
+    const parsedInsights = JSON.parse(response.choices[0].message.content);
+
+    // Ensure arrays exist
+    parsedInsights.actionable_advice = Array.isArray(parsedInsights.actionable_advice) ? parsedInsights.actionable_advice : [parsedInsights.actionable_advice];
+    parsedInsights.recommended_practice = Array.isArray(parsedInsights.recommended_practice) ? parsedInsights.recommended_practice : [parsedInsights.recommended_practice];
+
+    return res.status(200).json({
+      success: true,
+      data: parsedInsights
+    });
+
+  } catch (error) {
+    console.error("Error generating AI insights:", error);
+    return res.status(500).json({ success: false, message: "Internal server error" });
   }
 };

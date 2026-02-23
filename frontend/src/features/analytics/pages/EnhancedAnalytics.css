@@ -1,0 +1,178 @@
+.analytics-dashboard {
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.ai-insight-trigger {
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+}
+
+.ai-insight-trigger:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(139, 92, 246, 0.1);
+    border-color: rgba(139, 92, 246, 0.3);
+}
+
+.ai-insights-panel {
+    margin-top: 2rem;
+    background: linear-gradient(to right, #ffffff, #fcfaff);
+    border-left: 4px solid #8b5cf6;
+}
+
+.ai-insights-panel h3 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #6d28d9;
+    margin-bottom: 1.5rem;
+}
+
+.ai-insight-section {
+    margin-bottom: 1.5rem;
+}
+
+.ai-insight-section h4 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #475569;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.ai-insight-section.overview p {
+    color: #334155;
+    line-height: 1.6;
+    font-size: 1.05rem;
+}
+
+.ai-insight-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+}
+
+.ai-insight-section.actionable ul {
+    list-style-type: disc;
+    padding-left: 1.2rem;
+    color: #334155;
+    line-height: 1.6;
+}
+
+.ai-insight-section.actionable li {
+    margin-bottom: 0.5rem;
+}
+
+.practice-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    background-color: #f1f5f9;
+    color: #0f172a;
+    padding: 0.4rem 0.8rem;
+    border-radius: 99px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    margin-right: 0.5rem;
+    margin-bottom: 0.5rem;
+    border: 1px solid #e2e8f0;
+}
+
+.ai-insight-section.encouragement {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px dashed #cbd5e1;
+    text-align: center;
+    color: #64748b;
+    font-style: italic;
+}
+
+/* Heatmap Styles */
+.heatmap-container {
+    margin-top: 1.5rem;
+    overflow-x: auto;
+}
+
+.heatmap-grid {
+    display: grid;
+    gap: 2px;
+    background-color: #f1f5f9;
+    padding: 2px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+}
+
+.heatmap-cell {
+    background-color: #ffffff;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    color: #334155;
+}
+
+.heatmap-cell.header {
+    font-weight: 600;
+    background-color: #f8fafc;
+    color: #475569;
+}
+
+.heatmap-cell.header.code {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    padding: 0.5rem 0;
+    transform: rotate(180deg);
+    min-height: 80px;
+}
+
+.heatmap-cell.row-label {
+    justify-content: flex-start;
+    padding-left: 1rem;
+    font-weight: 500;
+    border-right: 1px solid #e2e8f0;
+    background-color: #f8fafc;
+}
+
+.heatmap-cell.data {
+    font-weight: 600;
+    color: #0f172a;
+    transition: opacity 0.2s;
+}
+
+.heatmap-cell.data:hover {
+    opacity: 0.8;
+    cursor: crosshair;
+}
+
+.heatmap-legend {
+    display: flex;
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+    justify-content: center;
+    font-size: 0.85rem;
+    color: #64748b;
+}
+
+.heatmap-legend span {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.heatmap-legend i {
+    display: block;
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+}
+
+@media (max-width: 768px) {
+    .ai-insight-cols {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+}

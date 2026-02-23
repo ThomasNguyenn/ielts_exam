@@ -26,6 +26,21 @@ const TestAttemptSchema = new mongoose.Schema({
     is_correct: Boolean,
     user_answer: String,
     correct_answer: String
+  }],
+
+  // Error Taxonomy Tracking
+  error_logs: [{
+    task_type: { type: String }, // 'matching_headings', 'task1', 'part2', etc.
+    cognitive_skill: { type: String }, // e.g., 'R1. Literal Comprehension'
+    error_category: { type: String },  // e.g., 'A. Answer-Level Errors'
+    error_code: { type: String, required: true }, // e.g., 'R-A1', 'W2-G1', 'S-F1'
+    question_number: { type: Number }, // For R/L
+    user_answer: { type: String },     // Raw answer for R/L
+    correct_answer: { type: String },  // Target answer for R/L
+    student_highlights: [{ type: String }], // What text they highlighted before answering
+    text_snippet: { type: String },    // Exact phrase containing the error (for W/S)
+    explanation: { type: String },     // AI explanation of why it's an error
+    meta_error: { type: String }       // e.g., 'X1 Careless Error', 'X2 Time Pressure'
   }]
 }, { timestamps: true });
 

@@ -5,7 +5,7 @@ import { isAiAsyncModeEnabled } from "../config/queue.config.js";
 import { enqueueSpeakingAiScoreJob, isAiQueueReady } from "../queues/ai.queue.js";
 import { scoreSpeakingSessionById, generateMockExaminerFollowUp } from "../services/speakingGrading.service.js";
 import { evaluateSpeakingProvisionalScore } from "../services/speakingFastScore.service.js";
-import { ensurePart3ConversationScript } from "../services/speakingReadAloud.service.js";
+import { ensurePart3ConversationScript, generatePromptReadAloudPreview } from "../services/speakingReadAloud.service.js";
 import { parsePagination, buildPaginationMeta } from "../utils/pagination.js";
 
 const escapeRegex = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -276,6 +276,42 @@ export const preGeneratePart3ReadAloud = async (req, res) => {
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: "Server Error" });
+  }
+};
+
+export const generateSpeakingPromptReadAloud = async (req, res) => {
+  try {
+    const {
+      topicId = "preview",
+      prompt = "",
+      provider = "openai",
+      model,
+      voice,
+      speed,
+    } = req.body || {};
+
+    const generated = await generatePromptReadAloudPreview({
+      topicId,
+      prompt,
+      provider,
+      model,
+      voice,
+      speed,
+    });
+
+    return res.json({
+      success: true,
+      data: generated,
+    });
+  } catch (error) {
+    const statusCode = Number(error?.statusCode) || 500;
+    if (statusCode >= 500) {
+      console.error("Generate speaking prompt read-aloud failed:", error);
+    }
+    return res.status(statusCode).json({
+      success: false,
+      message: error.message || "Server Error",
+    });
   }
 };
 

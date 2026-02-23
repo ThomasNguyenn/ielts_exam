@@ -530,7 +530,7 @@ function getCorrectAnswersList(test, examType) {
 
 export const submitExam = async (req, res) => {
     const { id } = req.params;
-    const { answers, writing, timeTaken } = req.body || {};
+    const { answers, writing, timeTaken, student_highlights } = req.body || {};
     try {
         let test = await Test.findById(id)
             .populate('reading_passages')
@@ -811,6 +811,16 @@ export const submitExam = async (req, res) => {
 
             const { checkAchievements } = await import("../services/achievement.service.js");
             newlyUnlocked = await checkAchievements(userId);
+
+            // Fire and forget objective error taxonomy evaluation for R/L
+            if (examType === 'reading' || examType === 'listening') {
+                import("../services/taxonomy.service.js").then(({ evaluateObjectiveErrorsAsync }) => {
+                    // Start in background
+                    evaluateObjectiveErrorsAsync(attemptId, questionReview, examType, student_highlights).catch(err => {
+                        console.error("Error running taxonomy service:", err);
+                    });
+                });
+            }
         }
 
         res.status(200).json({

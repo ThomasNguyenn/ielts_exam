@@ -54,6 +54,7 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [submitLoading, setSubmitLoading] = useState(false);
+  const [generateAudioLoading, setGenerateAudioLoading] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -115,15 +116,39 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
     setForm((prev) => ({ ...prev, keywords: prev.keywords.filter((_, idx) => idx !== index) }));
   };
 
-  const handleGenerateAudio = () => {
+  const handleGenerateAudio = async (event) => {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+
     if (!form.prompt.trim()) {
-      showNotification('Vui lòng thêm câu hỏi chính trước.', 'warning');
+      showNotification('Vui long them cau hoi chinh truoc.', 'warning');
       return;
     }
-    const slug = form._id || `speaking-${Date.now()}`;
-    const pseudoUrl = `https://audio-preview.local/${encodeURIComponent(slug)}-${Date.now()}.mp3`;
-    updateForm('generatedAudioUrl', pseudoUrl);
-    showNotification('Đã tạo âm thanh câu hỏi (đường link).', 'success');
+
+    setGenerateAudioLoading(true);
+    try {
+      const response = await api.generateSpeakingReadAloud({
+        topicId: (form._id || `speaking-${Date.now()}`).trim(),
+        prompt: form.prompt,
+        provider: form.aiProvider || 'openai',
+        model: form.aiModel || undefined,
+        voice: form.aiVoice || undefined,
+      });
+
+      const payload = response?.data || response;
+      const audioUrl = String(payload?.url || '').trim();
+      if (!audioUrl) {
+        throw new Error('Generate audio succeeded but URL is missing');
+      }
+
+      updateForm('generatedAudioUrl', audioUrl);
+      showNotification('Da tao file mp3 cho cau hoi thanh cong.', 'success');
+    } catch (generateErr) {
+      console.error('Generate speaking read-aloud failed:', generateErr);
+      showNotification(generateErr.message || 'Khong the tao am thanh. Vui long thu lai.', 'error');
+    } finally {
+      setGenerateAudioLoading(false);
+    }
   };
 
   const handleSubmit = async (event) => {
@@ -346,8 +371,13 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
             </div>
 
             <div style={{ marginTop: '1rem' }}>
-              <button type="button" className="btn-manage-add" onClick={handleGenerateAudio}>
-                Tạo Âm thanh Câu Hỏi
+              <button
+                type="button"
+                className="btn-manage-add"
+                onClick={handleGenerateAudio}
+                disabled={generateAudioLoading}
+              >
+                {generateAudioLoading ? 'Dang tao mp3...' : 'Tao Am thanh Cau hoi'}
               </button>
             </div>
 

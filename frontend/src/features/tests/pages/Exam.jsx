@@ -264,11 +264,31 @@ export default function Exam() {
       }
     });
 
+    // Extract student highlights from passage states
+    const studentHighlights = [];
+    try {
+      const tempDiv = document.createElement('div');
+      Object.values(passageStates).forEach(html => {
+        if (!html) return;
+        tempDiv.innerHTML = html;
+        const nodes = tempDiv.querySelectorAll('.ielts-highlight');
+        nodes.forEach(node => {
+          const text = node.textContent.trim();
+          if (text && !studentHighlights.includes(text)) {
+            studentHighlights.push(text);
+          }
+        });
+      });
+    } catch (e) {
+      console.error("Failed to extract highlights", e);
+    }
+
     return api
       .submitExam(id, {
         answers: answersRef.current,
         writing: writingAnswersRef.current,
         timeTaken,
+        student_highlights: studentHighlights,
         isPractice: isSingleMode
       })
       .then((res) => {
@@ -442,7 +462,7 @@ export default function Exam() {
   if (error) return <div className="page"><p className="error">{error}</p><Link to="/tests">Back to tests</Link></div>;
   if (!exam) return <div className="page"><p className="muted">Exam not found.</p></div>;
 
-    if (submitted) {
+  if (submitted) {
     const { score, total, wrong, writingCount, isSingleMode: submittedSingleMode } = submitted;
     const wrongCount = wrong ?? (total - score);
     const correctPct = total ? (score / total) * 100 : 0;

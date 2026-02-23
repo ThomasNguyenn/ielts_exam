@@ -40,12 +40,17 @@ const getStoredEntry = (readAloud, item) => {
   return (readAloud?.sub_questions || []).find((entry) => entry?.index === item.index) || null;
 };
 
-const requestOpenAiSpeechBuffer = async (text) => {
+const requestOpenAiSpeechBuffer = async (text, { model, voice, speed } = {}) => {
   if (!OPENAI_API_KEY) {
     const error = new Error("OpenAI API key is not configured");
     error.code = "OPENAI_TTS_KEY_MISSING";
     throw error;
   }
+
+  const resolvedModel = String(model || OPENAI_TTS_MODEL || "").trim() || "gpt-4o-mini-tts";
+  const resolvedVoice = String(voice || OPENAI_TTS_VOICE || "").trim() || "alloy";
+  const parsedSpeed = Number(speed);
+  const resolvedSpeed = Number.isFinite(parsedSpeed) ? parsedSpeed : OPENAI_TTS_SPEED;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), OPENAI_TTS_TIMEOUT_MS);
@@ -58,11 +63,11 @@ const requestOpenAiSpeechBuffer = async (text) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: OPENAI_TTS_MODEL,
-        voice: OPENAI_TTS_VOICE,
+        model: resolvedModel,
+        voice: resolvedVoice,
         input: text,
         response_format: "mp3",
-        speed: OPENAI_TTS_SPEED,
+        speed: resolvedSpeed,
       }),
       signal: controller.signal,
     });
@@ -98,6 +103,46 @@ const uploadSpeechToCloudinary = async ({ topicId, item, audioBuffer, textHash }
     public_id: uploaded.public_id,
     mime_type: "audio/mpeg",
     generated_at: new Date(),
+  };
+};
+
+export const generatePromptReadAloudPreview = async ({
+  topicId = "preview",
+  prompt = "",
+  provider = "openai",
+  model,
+  voice,
+  speed,
+} = {}) => {
+  const normalizedPrompt = normalizeText(prompt);
+  if (!normalizedPrompt) {
+    const error = new Error("Prompt text is required");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const resolvedProvider = String(provider || "openai").trim().toLowerCase();
+  if (resolvedProvider !== "openai") {
+    const error = new Error("Only OpenAI provider is currently supported");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const textHash = hashText(normalizedPrompt);
+  const speechBuffer = await requestOpenAiSpeechBuffer(normalizedPrompt, { model, voice, speed });
+  const uploaded = await uploadSpeechToCloudinary({
+    topicId,
+    item: { type: "prompt", index: 0 },
+    audioBuffer: speechBuffer,
+    textHash,
+  });
+
+  return {
+    ...uploaded,
+    text_hash: textHash,
+    provider: resolvedProvider,
+    model: String(model || OPENAI_TTS_MODEL || "").trim() || "gpt-4o-mini-tts",
+    voice: String(voice || OPENAI_TTS_VOICE || "").trim() || "alloy",
   };
 };
 

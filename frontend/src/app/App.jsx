@@ -36,12 +36,13 @@ const WritingAIResult = lazy(() => import('@/features/practice/pages/WritingAIRe
 const SkillWorkshopPage = lazy(() => import('@/features/practice/pages/SkillWorkshopPage'));
 const StudyPlanSetup = lazy(() => import('@/features/study-plan/pages/StudyPlanSetup'));
 const StudyPlanFullView = lazy(() => import('@/features/study-plan/pages/StudyPlanFullView'));
-const AnalyticsDashboard = lazy(() => import('@/features/analytics/pages/AnalyticsDashboard'));
+const AnalyticsDashboard = lazy(() => import('@/features/analytics/pages/EnhancedAnalyticsDashboard'));
 const AchievementsPage = lazy(() => import('@/features/achievements/pages/AchievementsPage'));
 const WaitForConfirmation = lazy(() => import('@/features/system/pages/WaitForConfirmation'));
 const StudentRequests = lazy(() => import('@/features/admin/pages/StudentRequests'));
 const ManageUsers = lazy(() => import('@/features/admin/pages/ManageUsers'));
 const ManageInvitations = lazy(() => import('@/features/admin/pages/ManageInvitations'));
+const NotFound = lazy(() => import('@/features/system/pages/NotFound'));
 
 const RouteFallback = () => (
   <div className="page">
@@ -166,6 +167,79 @@ export default function App() {
             <ManageRoute>{withSuspense(<GradingInterface />)}</ManageRoute>
           } />
         </Route>
+        <Route path="/" element={withSuspense(<Layout />)}>
+          <Route index element={withSuspense(<Home />)} />
+          <Route path="tests" element={withSuspense(<TestList />)} />
+          <Route path="tests/:id" element={withSuspense(<TestDetail />)} />
+          <Route path="tests/:id/history" element={<ProtectedRoute>{withSuspense(<TestHistory />)}</ProtectedRoute>} />
+          <Route path="tests/:id/exam" element={<ProtectedRoute>{withSuspense(<Exam />)}</ProtectedRoute>} />
+
+          {/* Writing Practice/Test Route */}
+          <Route path="tests/writing/:id" element={<ProtectedRoute>{withSuspense(<PracticeFlowContainer />)}</ProtectedRoute>} />
+
+          {/* <Route path="practice" element={<Navigate to="/tests" replace />} /> Redirect old practice to tests */}
+          <Route path="practice" element={<ProtectedRoute>{withSuspense(<PracticeList />)}</ProtectedRoute>} />
+          <Route path="practice/:id" element={<ProtectedRoute>{withSuspense(<PracticeFlowContainer />)}</ProtectedRoute>} />
+          <Route path="learn/skills" element={<ProtectedRoute>{withSuspense(<SkillWorkshopPage />)}</ProtectedRoute>} />
+
+          <Route path="speaking" element={<ProtectedRoute>{withSuspense(<SpeakingList />)}</ProtectedRoute>} />
+          <Route path="practice/speaking/:id" element={<ProtectedRoute>{withSuspense(<SpeakingFlow />)}</ProtectedRoute>} />
+
+          <Route path="vocabulary" element={<ProtectedRoute>{withSuspense(<Vocabulary />)}</ProtectedRoute>} />
+
+          {/* Study Plan Routes */}
+          <Route path="study-plan/setup" element={<ProtectedRoute>{withSuspense(<StudyPlanSetup />)}</ProtectedRoute>} />
+          <Route path="study-plan/full" element={<ProtectedRoute>{withSuspense(<StudyPlanFullView />)}</ProtectedRoute>} />
+
+          {/* AI Scoring Result Page */}
+          <Route path="tests/writing/result-ai/:id" element={<ProtectedRoute>{withSuspense(<WritingAIResult />)}</ProtectedRoute>} />
+
+          <Route path="profile" element={<ProtectedRoute>{withSuspense(<Profile />)}</ProtectedRoute>} />
+          <Route path="analytics" element={<ProtectedRoute>{withSuspense(<AnalyticsDashboard />)}</ProtectedRoute>} />
+          <Route path="achievements" element={<ProtectedRoute>{withSuspense(<AchievementsPage />)}</ProtectedRoute>} />
+
+          {/* Auth Routes */}
+          <Route path="login" element={
+            <PublicRoute>{withSuspense(<Login />)}</PublicRoute>
+          } />
+          <Route path="register" element={
+            <PublicRoute>{withSuspense(<Register />)}</PublicRoute>
+          } />
+          <Route path="verify-email" element={<PublicRoute>{withSuspense(<VerifyEmail />)}</PublicRoute>} />
+          <Route path="forgot-password" element={<PublicRoute>{withSuspense(<ForgotPassword />)}</PublicRoute>} />
+          <Route path="reset-password" element={<PublicRoute>{withSuspense(<ResetPassword />)}</PublicRoute>} />
+          <Route path="wait-for-confirmation" element={withSuspense(<WaitForConfirmation />)} />
+
+          {/* Protected Manage Routes (Teacher/Admin) */}
+          <Route path="manage" element={
+            <ManageRoute>{withSuspense(<ManageLayout />)}</ManageRoute>
+          }>
+            <Route index element={<Navigate to="/manage/passages" replace />} />
+            <Route path="requests" element={withSuspense(<StudentRequests />)} />
+            <Route path="users" element={withSuspense(<ManageUsers />)} />
+            <Route path="passages" element={withSuspense(<ManagePassagesSinglePage />)} />
+            <Route path="passages/:id" element={withSuspense(<ManagePassagesSinglePage />)} />
+            <Route path="sections" element={withSuspense(<ManageSectionsSinglePage />)} />
+            <Route path="sections/:id" element={withSuspense(<ManageSectionsSinglePage />)} />
+            <Route path="tests" element={withSuspense(<ManageTestsSinglePage />)} />
+            <Route path="tests/:id" element={withSuspense(<ManageTestsSinglePage />)} />
+            <Route path="writings" element={withSuspense(<ManageWritingsSinglePage />)} />
+            <Route path="writings/:id" element={withSuspense(<ManageWritingsSinglePage />)} />
+            <Route path="speaking" element={withSuspense(<ManageSpeakingSinglePage />)} />
+            <Route path="speaking/:id" element={withSuspense(<ManageSpeakingSinglePage />)} />
+            <Route path="skill-modules" element={withSuspense(<AddSkillModules />)} />
+            <Route path="skill-modules/:id" element={withSuspense(<AddSkillModules />)} />
+            <Route path="invitations" element={withSuspense(<ManageInvitations />)} />
+          </Route>
+
+          {/* Grading Routes (Top Level for Teachers) */}
+          <Route path="grading" element={
+            <ManageRoute>{withSuspense(<GradingDashboard />)}</ManageRoute>
+          } />
+          <Route path="grading/:id" element={
+            <ManageRoute>{withSuspense(<GradingInterface />)}</ManageRoute>
+          } />
+        </Route>
         <Route path="scores" element={
           <ManageRoute>{withSuspense(<ScoreDashboard />)}</ManageRoute>
         } />
@@ -175,6 +249,7 @@ export default function App() {
         <Route path="analytics/student/:studentId" element={
           <ManageRoute>{withSuspense(<AnalyticsDashboard />)}</ManageRoute>
         } />
+        <Route path="*" element={withSuspense(<NotFound />)} />
       </Routes>
     </NotificationProvider>
   );

@@ -5,11 +5,10 @@ const CircularProgress = ({ score, maxScore = 9, size = 120, strokeWidth = 8 }) 
     const circumference = radius * 2 * Math.PI;
     const progress = (score / maxScore) * circumference;
 
-    // Color logic based on score
-    let strokeColor = '#ef4444'; // red-500
-    if (score >= 4) strokeColor = '#f59e0b'; // amber-500
-    if (score >= 6) strokeColor = '#6366F1'; // blue-500
-    if (score >= 7.5) strokeColor = '#10b981'; // emerald-500
+    let strokeColor = '#ef4444';
+    if (score >= 4) strokeColor = '#f59e0b';
+    if (score >= 6) strokeColor = '#6366F1';
+    if (score >= 7.5) strokeColor = '#10b981';
 
     return (
         <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
@@ -43,62 +42,121 @@ const CircularProgress = ({ score, maxScore = 9, size = 120, strokeWidth = 8 }) 
     );
 };
 
-export default function SpeakingResultPhase({ result, topic, onRetry }) {
-    if (!result) return null;
+const parseAnalysisPayload = (value) => {
+    if (!value) return null;
+    if (typeof value === 'object') return value;
 
-    const { transcript } = result;
-    let { analysis } = result;
-
-    if (typeof analysis === 'string') {
+    if (typeof value === 'string') {
         try {
-            analysis = JSON.parse(analysis);
-        } catch (e) {
-            console.error("Failed to parse analysis string in frontend:", e);
-            analysis = {};
+            const parsed = JSON.parse(value);
+            return parsed && typeof parsed === 'object' ? parsed : null;
+        } catch {
+            return null;
         }
     }
 
-    analysis = analysis || {};
+    return null;
+};
+
+const hasAnalysisPayload = (value) => (
+    Boolean(value) && typeof value === 'object' && Object.keys(value).length > 0
+);
+
+const toScoreNumber = (value, fallback = null) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const formatBandDelta = (value) => {
+    if (!Number.isFinite(value)) return null;
+    if (value === 0) return '0.0';
+    return value > 0 ? `+${value.toFixed(1)}` : value.toFixed(1);
+};
+
+export default function SpeakingResultPhase({ result, topic, onRetry }) {
+    if (!result) return null;
+
+    const transcript = String(result?.transcript || '').trim();
+    const scoringState = String(result?.scoring_state || '').trim().toLowerCase();
+
+    const finalAnalysis = parseAnalysisPayload(result?.analysis);
+    const provisionalAnalysis = parseAnalysisPayload(result?.provisional_analysis);
+
+    const hasFinal = hasAnalysisPayload(finalAnalysis);
+    const hasProvisional = hasAnalysisPayload(provisionalAnalysis);
+    const usingProvisional = !hasFinal && hasProvisional;
+    const activeAnalysis = usingProvisional ? provisionalAnalysis : finalAnalysis;
+    const isCompleted = scoringState === 'completed' || hasFinal;
+
+    const finalBand = toScoreNumber(finalAnalysis?.band_score);
+    const provisionalBand = toScoreNumber(provisionalAnalysis?.band_score);
+    const bandDelta = (
+        Number.isFinite(finalBand) && Number.isFinite(provisionalBand)
+            ? finalBand - provisionalBand
+            : null
+    );
 
     const safeAnalysis = {
-        band_score: analysis.band_score || 0,
-        general_feedback: analysis.general_feedback || "Không có nhận xét tổng quan.",
-        sample_answer: analysis.sample_answer || "Chưa có bài mẫu.",
+        band_score: toScoreNumber(activeAnalysis?.band_score, 0),
+        general_feedback: activeAnalysis?.general_feedback || 'No overall feedback.',
+        sample_answer: activeAnalysis?.sample_answer || 'No model answer yet.',
         criteria: {
-            fluency_coherence: analysis.fluency_coherence || { score: 0, feedback: "N/A" },
-            lexical_resource: analysis.lexical_resource || { score: 0, feedback: "N/A" },
-            grammatical_range: analysis.grammatical_range || { score: 0, feedback: "N/A" },
-            pronunciation: analysis.pronunciation || { score: 0, feedback: "N/A" }
+            fluency_coherence: activeAnalysis?.fluency_coherence || { score: 0, feedback: 'N/A' },
+            lexical_resource: activeAnalysis?.lexical_resource || { score: 0, feedback: 'N/A' },
+            grammatical_range: activeAnalysis?.grammatical_range || { score: 0, feedback: 'N/A' },
+            pronunciation: activeAnalysis?.pronunciation || { score: 0, feedback: 'N/A' },
         }
     };
 
     const criteriaConfig = {
-        fluency_coherence: { label: "Fluency & Coherence", color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-100" },
-        lexical_resource: { label: "Lexical Resource", color: "text-purple-600", bg: "bg-purple-50", border: "border-purple-100" },
-        grammatical_range: { label: "Grammatical Range", color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-100" },
-        pronunciation: { label: "Pronunciation", color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-100" }
+        fluency_coherence: { label: 'Fluency & Coherence', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100' },
+        lexical_resource: { label: 'Lexical Resource', color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-100' },
+        grammatical_range: { label: 'Grammatical Range', color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100' },
+        pronunciation: { label: 'Pronunciation', color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100' }
     };
 
     return (
         <div className="max-w-4xl mx-auto space-y-8 animate-fade-in pb-12">
-
-            {/* Overall Score Card */}
             <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100 flex flex-col md:flex-row items-center gap-8">
                 <div className="flex-shrink-0">
                     <CircularProgress score={safeAnalysis.band_score} />
                 </div>
                 <div className="flex-1 text-center md:text-left">
-                    <h2 className="text-xl font-bold text-slate-800 mb-2">Overall Feedback</h2>
-                    <p className="text-slate-600 leading-relaxed">
-                        {safeAnalysis.general_feedback}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <h2 className="text-xl font-bold text-slate-800">Overall Feedback</h2>
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${usingProvisional ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                            {usingProvisional ? 'Provisional estimate' : 'Final official score'}
+                        </span>
+                        {usingProvisional && result?.provisional_source && (
+                            <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
+                                {result.provisional_source}
+                            </span>
+                        )}
+                        {!usingProvisional && result?.ai_source && (
+                            <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
+                                {result.ai_source}
+                            </span>
+                        )}
+                    </div>
+                    <p className="text-slate-600 leading-relaxed">{safeAnalysis.general_feedback}</p>
+
+                    {Number.isFinite(finalBand) && Number.isFinite(provisionalBand) && (
+                        <p className="text-sm text-slate-500 mt-3">
+                            Provisional: {provisionalBand.toFixed(1)} | Final: {finalBand.toFixed(1)} | Delta: {formatBandDelta(bandDelta)}
+                        </p>
+                    )}
+
+                    {!isCompleted && (
+                        <p className="text-sm text-blue-600 mt-3">
+                            Final AI grading is still running in background.
+                        </p>
+                    )}
                 </div>
             </div>
 
-            {/* Criteria Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {Object.entries(safeAnalysis.criteria).map(([key, data]) => {
-                    const config = criteriaConfig[key] || { label: key, color: "text-gray-600", bg: "bg-gray-50", border: "border-gray-100" };
+                    const config = criteriaConfig[key] || { label: key, color: 'text-gray-600', bg: 'bg-gray-50', border: 'border-gray-100' };
                     return (
                         <div key={key} className={`p-6 rounded-xl border ${config.bg} ${config.border} transition-all hover:shadow-md`}>
                             <div className="flex justify-between items-start mb-3">
@@ -106,30 +164,27 @@ export default function SpeakingResultPhase({ result, topic, onRetry }) {
                                     {config.label}
                                 </h3>
                                 <div className={`px-3 py-1 rounded-full bg-white font-bold text-sm shadow-sm ${config.color}`}>
-                                    {data.score}
+                                    {toScoreNumber(data?.score, 0)}
                                 </div>
                             </div>
                             <p className="text-sm text-slate-600 leading-relaxed">
-                                {data.feedback}
+                                {data?.feedback || 'N/A'}
                             </p>
                         </div>
                     );
                 })}
             </div>
 
-            {/* Transcript & Model Answer Section */}
             <div className="grid grid-cols-1 gap-8">
-                {/* Transcript */}
                 <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-                    <h3 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-3 mb-4 flex items-center gap-2">
-                        <span className="text-slate-400">🎤</span> Your Transcript
+                    <h3 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-3 mb-4">
+                        Your Transcript
                     </h3>
                     <div className="p-4 bg-slate-50 rounded-xl text-slate-600 italic leading-relaxed text-sm">
-                        "{transcript || "No transcript available."}"
+                        "{transcript || 'No transcript available.'}"
                     </div>
                 </div>
 
-                {/* Model Answer */}
                 <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-8 border border-emerald-100 relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-4 opacity-10">
                         <svg className="w-24 h-24 text-emerald-600" fill="currentColor" viewBox="0 0 24 24">
@@ -137,8 +192,10 @@ export default function SpeakingResultPhase({ result, topic, onRetry }) {
                         </svg>
                     </div>
                     <h3 className="text-lg font-bold text-emerald-800 mb-4 flex items-center gap-2 relative z-10">
-                        <span className="bg-emerald-200 text-emerald-800 text-xs px-2 py-1 rounded uppercase tracking-wider font-extrabold">Band 7.0+</span>
-                        Model Answer
+                        <span className="bg-emerald-200 text-emerald-800 text-xs px-2 py-1 rounded uppercase tracking-wider font-extrabold">
+                            {isCompleted ? 'Band 7.0+' : 'Pending Final'}
+                        </span>
+                        {isCompleted ? 'Model Answer' : 'Model Answer (provisional view)'}
                     </h3>
                     <p className="text-emerald-900 leading-7 font-serif text-lg relative z-10 whitespace-pre-wrap">
                         {safeAnalysis.sample_answer}
@@ -146,7 +203,6 @@ export default function SpeakingResultPhase({ result, topic, onRetry }) {
                 </div>
             </div>
 
-            {/* Action Buttons */}
             <div className="flex justify-center pt-4">
                 <button
                     onClick={onRetry}

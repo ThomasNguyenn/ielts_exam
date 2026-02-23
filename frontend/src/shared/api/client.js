@@ -335,6 +335,8 @@ export const api = {
 
   // Analytics
   getAnalyticsDashboard: () => request('/api/analytics/dashboard'),
+  getAnalyticsErrors: () => request('/api/analytics/errors'),
+  getAnalyticsAIInsights: () => request('/api/analytics/ai-insights'),
   getAdminStudentAnalyticsDashboard: (studentId) => request(`/api/analytics/admin/${studentId}/dashboard`),
   getAnalyticsSkills: () => request('/api/analytics/skills'),
   getAnalyticsWeaknesses: () => request('/api/analytics/weaknesses'),

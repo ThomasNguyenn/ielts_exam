@@ -11,7 +11,7 @@ const SpeakingSessionSchema = new mongoose.Schema({
     ref: 'User',
     required: false
   },
-  
+
   // Audio & Transcript
   audioUrl: { type: String }, // Cloud URL (or local path for legacy records)
   audioPublicId: { type: String, default: null },
@@ -26,25 +26,25 @@ const SpeakingSessionSchema = new mongoose.Schema({
   },
   provisional_source: { type: String, default: null },
   provisional_ready_at: { type: Date, default: null },
-  
+
   // AI Analysis (Groq Llama 3)
   analysis: {
     band_score: { type: Number },
     fluency_coherence: {
-        score: Number,
-        feedback: String
+      score: Number,
+      feedback: String
     },
     lexical_resource: {
-        score: Number,
-        feedback: String
+      score: Number,
+      feedback: String
     },
     grammatical_range: {
-        score: Number,
-        feedback: String
+      score: Number,
+      feedback: String
     },
     pronunciation: {
-        score: Number,
-        feedback: String
+      score: Number,
+      feedback: String
     },
     general_feedback: { type: String },
     sample_answer: { type: String }
@@ -100,12 +100,28 @@ const SpeakingSessionSchema = new mongoose.Schema({
     isCompleted: { type: Boolean, default: false },
     updatedAt: { type: Date, default: null },
   },
-  
+
   status: {
     type: String,
     enum: ['recording', 'processing', 'completed', 'failed'],
     default: 'recording'
   },
+
+  // Error Taxonomy Tracking
+  error_logs: [{
+    task_type: { type: String }, // 'matching_headings', 'task1', 'part2', etc.
+    cognitive_skill: { type: String }, // e.g., 'R1. Literal Comprehension'
+    error_category: { type: String },  // e.g., 'A. Answer-Level Errors'
+    error_code: { type: String, required: true }, // e.g., 'R-A1', 'W2-G1', 'S-F1'
+    question_number: { type: Number }, // For R/L
+    user_answer: { type: String },     // Raw answer for R/L
+    correct_answer: { type: String },  // Target answer for R/L
+    student_highlights: [{ type: String }], // What text they highlighted before answering
+    text_snippet: { type: String },    // Exact phrase containing the error (for W/S)
+    explanation: { type: String },     // AI explanation of why it's an error
+    meta_error: { type: String }       // e.g., 'X1 Careless Error', 'X2 Time Pressure'
+  }],
+
   timestamp: { type: Date, default: Date.now }
 });
 

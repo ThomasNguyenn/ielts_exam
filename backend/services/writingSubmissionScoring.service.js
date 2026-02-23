@@ -83,6 +83,37 @@ export const scoreWritingSubmissionById = async ({ submissionId, force = false }
     feedback: ["AI scored multi-task writing submission."],
   };
 
+  // Extract Error Taxonomy Logs
+  const errorLogs = [];
+  for (const tr of taskResults) {
+    const aiRes = tr.result;
+    if (!aiRes) continue;
+
+    const criteriaList = [
+      { key: "task_response", cognitiveSkill: "W-TR (Task Achievement/Response)" },
+      { key: "coherence_cohesion", cognitiveSkill: "W-CC (Coherence & Cohesion)" },
+      { key: "lexical_resource", cognitiveSkill: "W-LR (Lexical Resource)" },
+      { key: "grammatical_range_accuracy", cognitiveSkill: "W-GRA (Grammatical Range & Accuracy)" },
+    ];
+
+    for (const { key, cognitiveSkill } of criteriaList) {
+      const items = Array.isArray(aiRes[key]) ? aiRes[key] : [];
+      for (const item of items) {
+        if (item.type === 'error' && item.error_code && item.error_code !== 'NONE') {
+          errorLogs.push({
+            task_type: tr.task_type,
+            cognitive_skill: cognitiveSkill,
+            error_category: key,
+            error_code: item.error_code,
+            text_snippet: item.text_snippet || "",
+            explanation: item.explanation || "",
+          });
+        }
+      }
+    }
+  }
+
+  submission.error_logs = errorLogs;
   submission.ai_result = aiResult;
   submission.is_ai_graded = true;
   submission.score = overallBand;
