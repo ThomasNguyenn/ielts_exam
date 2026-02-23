@@ -17,12 +17,12 @@ import WritingSubmission from '../models/WritingSubmission.model.js';
 // Note: Fallback import logic in case the name is different
 import SpeakingSession from '../models/SpeakingSession.js';
 
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/ielts_app";
+const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/ielts_app";
 
 async function seedErrors() {
     try {
-        console.log("Connecting to database...", MONGODB_URI);
-        await mongoose.connect(MONGODB_URI);
+        console.log("Connecting to database...", MONGO_URI);
+        await mongoose.connect(MONGO_URI);
         console.log("Connected to MongoDB.");
 
         // 1. Find a target user (grab the first Admin or Student)
