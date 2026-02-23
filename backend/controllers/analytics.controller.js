@@ -105,6 +105,52 @@ const toBandScore = (correctCount, type) => {
   return hit ? hit.band : 0;
 };
 
+const parseObjectiveAttempt = ({ score, total, percentage, type }) => {
+  const numericScore = Number(score);
+  const numericTotal = Number(total);
+  const numericPercentage = Number(percentage);
+
+  if (
+    Number.isFinite(numericScore) &&
+    Number.isFinite(numericTotal) &&
+    numericTotal > 0 &&
+    numericScore >= 0 &&
+    numericScore <= numericTotal
+  ) {
+    const scaledCorrect = (numericScore / numericTotal) * 40;
+    return {
+      band: toBandScore(scaledCorrect, type),
+      weightedCorrect: numericScore,
+      weightedTotal: numericTotal,
+    };
+  }
+
+  if (Number.isFinite(numericPercentage) && numericPercentage >= 0) {
+    const safePercentage = Math.min(100, numericPercentage);
+    const scaledCorrect = (safePercentage / 100) * 40;
+    return {
+      band: toBandScore(scaledCorrect, type),
+      weightedCorrect: scaledCorrect,
+      weightedTotal: 40,
+    };
+  }
+
+  if (Number.isFinite(numericScore) && numericScore >= 0 && numericScore <= 9) {
+    return {
+      band: numericScore,
+      weightedCorrect: null,
+      weightedTotal: null,
+    };
+  }
+
+  const safeCorrect = Number.isFinite(numericScore) ? Math.max(0, numericScore) : 0;
+  return {
+    band: toBandScore(safeCorrect, type),
+    weightedCorrect: safeCorrect,
+    weightedTotal: 40,
+  };
+};
+
 const monthKey = (value) => {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return null;
@@ -193,7 +239,7 @@ const buildAnalyticsPayload = async (targetUserId) => {
       type: { $in: ["reading", "listening"] },
       score: { $ne: null },
     })
-      .select("type score submitted_at time_taken_ms")
+      .select("type score total percentage submitted_at time_taken_ms")
       .lean(),
     WritingSubmission.find({
       user_id: objectId,
@@ -224,21 +270,59 @@ const buildAnalyticsPayload = async (targetUserId) => {
     ]),
   ]);
 
+  let readingCorrectWeighted = 0;
+  let readingTotalWeighted = 0;
+  const readingLegacyBands = [];
   const readingHistoryRaw = attempts
     .filter((item) => item.type === "reading")
-    .map((item) => ({
-      type: "reading",
-      score: toBandScore(item.score, "reading"),
-      date: item.submitted_at,
-    }));
+    .map((item) => {
+      const parsed = parseObjectiveAttempt({
+        score: item.score,
+        total: item.total,
+        percentage: item.percentage,
+        type: "reading",
+      });
 
+      if (Number.isFinite(parsed.weightedCorrect) && Number.isFinite(parsed.weightedTotal) && parsed.weightedTotal > 0) {
+        readingCorrectWeighted += parsed.weightedCorrect;
+        readingTotalWeighted += parsed.weightedTotal;
+      } else {
+        readingLegacyBands.push(parsed.band);
+      }
+
+      return {
+        type: "reading",
+        score: parsed.band,
+        date: item.submitted_at,
+      };
+    });
+
+  let listeningCorrectWeighted = 0;
+  let listeningTotalWeighted = 0;
+  const listeningLegacyBands = [];
   const listeningHistoryRaw = attempts
     .filter((item) => item.type === "listening")
-    .map((item) => ({
-      type: "listening",
-      score: toBandScore(item.score, "listening"),
-      date: item.submitted_at,
-    }));
+    .map((item) => {
+      const parsed = parseObjectiveAttempt({
+        score: item.score,
+        total: item.total,
+        percentage: item.percentage,
+        type: "listening",
+      });
+
+      if (Number.isFinite(parsed.weightedCorrect) && Number.isFinite(parsed.weightedTotal) && parsed.weightedTotal > 0) {
+        listeningCorrectWeighted += parsed.weightedCorrect;
+        listeningTotalWeighted += parsed.weightedTotal;
+      } else {
+        listeningLegacyBands.push(parsed.band);
+      }
+
+      return {
+        type: "listening",
+        score: parsed.band,
+        date: item.submitted_at,
+      };
+    });
 
   const writingHistoryRaw = writingSubmissions.map((item) => ({
     type: "writing",
@@ -252,8 +336,12 @@ const buildAnalyticsPayload = async (targetUserId) => {
     date: item.timestamp,
   }));
 
-  const readingBand = roundHalf(average(readingHistoryRaw.map((item) => item.score)));
-  const listeningBand = roundHalf(average(listeningHistoryRaw.map((item) => item.score)));
+  const readingBand = readingTotalWeighted > 0
+    ? roundHalf(toBandScore((readingCorrectWeighted / readingTotalWeighted) * 40, "reading"))
+    : roundHalf(average(readingLegacyBands.length ? readingLegacyBands : readingHistoryRaw.map((item) => item.score)));
+  const listeningBand = listeningTotalWeighted > 0
+    ? roundHalf(toBandScore((listeningCorrectWeighted / listeningTotalWeighted) * 40, "listening"))
+    : roundHalf(average(listeningLegacyBands.length ? listeningLegacyBands : listeningHistoryRaw.map((item) => item.score)));
   const writingBand = roundHalf(average(writingHistoryRaw.map((item) => item.score)));
   const speakingBand = roundHalf(average(speakingHistoryRaw.map((item) => item.score)));
 
@@ -404,6 +492,7 @@ const sendAnalyticsError = (res, error) => {
 
 export const getAnalyticsDashboard = async (req, res) => {
   try {
+    res.set("Cache-Control", "no-store");
     const payload = await buildAnalyticsPayload(req.user.userId);
     return res.json(payload);
   } catch (error) {
@@ -414,6 +503,7 @@ export const getAnalyticsDashboard = async (req, res) => {
 
 export const getAdminStudentAnalyticsDashboard = async (req, res) => {
   try {
+    res.set("Cache-Control", "no-store");
     const payload = await buildAnalyticsPayload(req.params.studentId);
     return res.json(payload);
   } catch (error) {
@@ -425,6 +515,7 @@ export const getAdminStudentAnalyticsDashboard = async (req, res) => {
 // Legacy endpoints retained for compatibility with older frontend calls.
 export const getSkillsBreakdown = async (req, res) => {
   try {
+    res.set("Cache-Control", "no-store");
     const payload = await buildAnalyticsPayload(req.user.userId);
     return res.json({ skills: payload.skills });
   } catch (error) {
@@ -434,6 +525,7 @@ export const getSkillsBreakdown = async (req, res) => {
 
 export const getWeaknessAnalysis = async (req, res) => {
   try {
+    res.set("Cache-Control", "no-store");
     const payload = await buildAnalyticsPayload(req.user.userId);
     return res.json({ weaknesses: payload.legacyWeaknesses });
   } catch (error) {
@@ -443,6 +535,7 @@ export const getWeaknessAnalysis = async (req, res) => {
 
 export const getProgressHistory = async (req, res) => {
   try {
+    res.set("Cache-Control", "no-store");
     const payload = await buildAnalyticsPayload(req.user.userId);
     return res.json({ history: payload.history });
   } catch (error) {
@@ -452,6 +545,7 @@ export const getProgressHistory = async (req, res) => {
 
 export const getStudentAnalytics = async (req, res) => {
   try {
+    res.set("Cache-Control", "no-store");
     const payload = await buildAnalyticsPayload(req.params.studentId);
     return res.json({
       skills: payload.skills,

@@ -1,5 +1,4 @@
 import TestAttempt from "../models/TestAttempt.model.js";
-import { GoogleGenerativeAI } from "@google/generativeAI"; // We might use Gemini too, but prompt requested OpenAI. I'll use OpenAI since we have it.
 import OpenAI from "openai";
 import dotenv from "dotenv";
 dotenv.config();
@@ -39,8 +38,12 @@ function levenshteinDistance(s1, s2) {
  */
 export async function evaluateObjectiveErrorsAsync(attemptId, questionReviewList, skill, studentHighlights = []) {
     try {
+        console.log(`[TAXONOMY] Starting evaluation for attempt ${attemptId}. Skill: ${skill}, Questions to review: ${questionReviewList.length}`);
         const attempt = await TestAttempt.findById(attemptId);
-        if (!attempt) return;
+        if (!attempt) {
+            console.error(`[TAXONOMY] Attempt not found in DB: ${attemptId}`);
+            return;
+        }
 
         const errorLogs = [];
         const unclassifiedErrorsForLLM = [];
@@ -104,6 +107,8 @@ export async function evaluateObjectiveErrorsAsync(attemptId, questionReviewList
             }
         }
 
+        console.log(`[TAXONOMY] Found ${errorLogs.length} heuristic errors. Sending ${unclassifiedErrorsForLLM.length} errors to LLM...`);
+
         // --- BACKGROUND LLM PROCESSING FOR COGNITIVE ERRORS ---
         if (unclassifiedErrorsForLLM.length > 0 && process.env.OPENAI_API_KEY) {
             try {
@@ -117,7 +122,9 @@ export async function evaluateObjectiveErrorsAsync(attemptId, questionReviewList
         if (errorLogs.length > 0) {
             attempt.error_logs = errorLogs;
             await attempt.save();
-            console.log(`Saved ${errorLogs.length} error logs for attempt ${attemptId}`);
+            console.log(`[TAXONOMY] Saved ${errorLogs.length} total error logs for attempt ${attemptId}`);
+        } else {
+            console.log(`[TAXONOMY] No error logs generated for attempt ${attemptId}`);
         }
 
     } catch (e) {

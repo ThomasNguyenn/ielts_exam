@@ -19,6 +19,9 @@ const TestAttemptSchema = new mongoose.Schema({
     feedback: String
   },
 
+  // Store the exact text the student highlighted during the exam
+  student_highlights: [{ type: String }],
+
   // Detailed question analysis for Weakness Detective
   detailed_answers: [{
     question_number: Number,

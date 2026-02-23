@@ -782,6 +782,7 @@ export const submitExam = async (req, res) => {
                 percentage: isWriting ? null : percentage,
                 time_taken_ms: typeof timeTaken === 'number' ? timeTaken : null,
                 submitted_at: new Date(),
+                student_highlights: Array.isArray(student_highlights) ? student_highlights : [],
                 detailed_answers: questionReview.map(q => ({
                     question_number: q.question_number,
                     question_type: q.type,
@@ -819,6 +820,8 @@ export const submitExam = async (req, res) => {
                     evaluateObjectiveErrorsAsync(attemptId, questionReview, examType, student_highlights).catch(err => {
                         console.error("Error running taxonomy service:", err);
                     });
+                }).catch(err => {
+                    console.error("Error importing taxonomy service:", err);
                 });
             }
         }

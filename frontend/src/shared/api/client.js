@@ -334,14 +334,14 @@ export const api = {
   },
 
   // Analytics
-  getAnalyticsDashboard: () => request('/api/analytics/dashboard'),
-  getAnalyticsErrors: () => request('/api/analytics/errors'),
-  getAnalyticsAIInsights: () => request('/api/analytics/ai-insights'),
-  getAdminStudentAnalyticsDashboard: (studentId) => request(`/api/analytics/admin/${studentId}/dashboard`),
-  getAnalyticsSkills: () => request('/api/analytics/skills'),
-  getAnalyticsWeaknesses: () => request('/api/analytics/weaknesses'),
-  getAnalyticsHistory: () => request('/api/analytics/history'),
-  getAdminStudentAnalytics: (studentId) => request(`/api/analytics/admin/${studentId}`),
+  getAnalyticsDashboard: () => request(`/api/analytics/dashboard?_t=${Date.now()}`),
+  getAnalyticsErrors: () => request(`/api/analytics/errors?_t=${Date.now()}`),
+  getAnalyticsAIInsights: () => request(`/api/analytics/ai-insights?_t=${Date.now()}`),
+  getAdminStudentAnalyticsDashboard: (studentId) => request(`/api/analytics/admin/${studentId}/dashboard?_t=${Date.now()}`),
+  getAnalyticsSkills: () => request(`/api/analytics/skills?_t=${Date.now()}`),
+  getAnalyticsWeaknesses: () => request(`/api/analytics/weaknesses?_t=${Date.now()}`),
+  getAnalyticsHistory: () => request(`/api/analytics/history?_t=${Date.now()}`),
+  getAdminStudentAnalytics: (studentId) => request(`/api/analytics/admin/${studentId}?_t=${Date.now()}`),
 
   // Leaderboard & Achievements
   getLeaderboard: (params = {}) => {
