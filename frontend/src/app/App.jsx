@@ -36,7 +36,7 @@ const WritingAIResult = lazy(() => import('@/features/practice/pages/WritingAIRe
 const SkillWorkshopPage = lazy(() => import('@/features/practice/pages/SkillWorkshopPage'));
 const StudyPlanSetup = lazy(() => import('@/features/study-plan/pages/StudyPlanSetup'));
 const StudyPlanFullView = lazy(() => import('@/features/study-plan/pages/StudyPlanFullView'));
-const AnalyticsDashboard = lazy(() => import('@/features/analytics/pages/EnhancedAnalyticsDashboard'));
+const AnalyticsContainer = lazy(() => import('@/features/analytics/pages/AnalyticsContainer'));
 const AchievementsPage = lazy(() => import('@/features/achievements/pages/AchievementsPage'));
 const WaitForConfirmation = lazy(() => import('@/features/system/pages/WaitForConfirmation'));
 const StudentRequests = lazy(() => import('@/features/admin/pages/StudentRequests'));
@@ -122,7 +122,7 @@ export default function App() {
           <Route path="tests/writing/result-ai/:id" element={<ProtectedRoute>{withSuspense(<WritingAIResult />)}</ProtectedRoute>} />
 
           <Route path="profile" element={<ProtectedRoute>{withSuspense(<Profile />)}</ProtectedRoute>} />
-          <Route path="analytics" element={<ProtectedRoute>{withSuspense(<AnalyticsDashboard />)}</ProtectedRoute>} />
+          <Route path="analytics" element={<ProtectedRoute>{withSuspense(<AnalyticsContainer />)}</ProtectedRoute>} />
           <Route path="achievements" element={<ProtectedRoute>{withSuspense(<AchievementsPage />)}</ProtectedRoute>} />
 
           {/* Auth Routes */}
@@ -195,7 +195,7 @@ export default function App() {
           <Route path="tests/writing/result-ai/:id" element={<ProtectedRoute>{withSuspense(<WritingAIResult />)}</ProtectedRoute>} />
 
           <Route path="profile" element={<ProtectedRoute>{withSuspense(<Profile />)}</ProtectedRoute>} />
-          <Route path="analytics" element={<ProtectedRoute>{withSuspense(<AnalyticsDashboard />)}</ProtectedRoute>} />
+          <Route path="analytics" element={<ProtectedRoute>{withSuspense(<AnalyticsContainer />)}</ProtectedRoute>} />
           <Route path="achievements" element={<ProtectedRoute>{withSuspense(<AchievementsPage />)}</ProtectedRoute>} />
 
           {/* Auth Routes */}
@@ -247,7 +247,7 @@ export default function App() {
           <ManageRoute>{withSuspense(<UserScoreDetail />)}</ManageRoute>
         } />
         <Route path="analytics/student/:studentId" element={
-          <ManageRoute>{withSuspense(<AnalyticsDashboard />)}</ManageRoute>
+          <ManageRoute>{withSuspense(<AnalyticsContainer />)}</ManageRoute>
         } />
         <Route path="*" element={withSuspense(<NotFound />)} />
       </Routes>

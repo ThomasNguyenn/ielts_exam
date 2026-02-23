@@ -547,22 +547,23 @@ export const getAIInsights = async (req, res) => {
       .map(([desc, count]) => `- ${desc} (Xuất hiện ${count} lần)`);
 
     const prompt = `
-Bạn là một chuyên gia khảo thí IELTS xuất sắc. Dưới đây là bảng thống kê các lỗi thường gặp nhất của một học viên dựa trên hệ thống Taxonomy Error:
+Bạn là một chuyên gia IELTS khắt khe nhưng đầy động lực. Dưới đây là bảng thống kê các lỗi thường gặp nhất của học viên dựa trên hệ thống phân loại lỗi (Taxonomy Error):
 
 ${topErrors.join('\n')}
 
-Dựa vào dữ liệu trên, hãy viết một bản nhận xét ngắn gọn, truyền cảm hứng và mang tính chuyên môn cao (Bằng Tiếng Việt).
-Yêu cầu bắt buộc phải có trong câu trả lời JSON:
-1. "overview": Đánh giá tổng quan về kỹ năng yếu nhất hiện tại.
-2. "actionable_advice": Dạng Mảng (Array). Liệt kê chiến lược khắc phục cụ thể cho các lỗi xuất hiện nhiều nhất. Bắt buộc Mảng.
-3. "recommended_practice": Dạng Mảng (Array). Liệt kê chính xác tên các dạng bài (Task Types) mà học viên nên ưu tiên luyện tập ngay lập tức. (VD: "Matching Headings", "Writing Task 1", v.v.). Bắt buộc Mảng có ít nhất 2 mục.
-4. "encouragement": Lời động viên cuối cùng.
+Dựa vào dữ liệu trên, hãy viết một bản phân tích cực kỳ CHUYÊN SÂU, CÁ NHÂN HOÁ, và CHỈ RA TẬN GỐC RỄ VẤN ĐỀ (Bằng Tiếng Việt). Đừng chỉ tóm tắt lỗi, hãy phân tích tại sao học viên lại mắc lỗi đó và làm thế nào để sửa dứt điểm.
 
-Định dạng trả về (JSON hợp lệ duy nhất, không dùng markdown code block):
+Yêu cầu bắt buộc phải có trong câu trả lời JSON:
+1. "overview": Phân tích sâu về nguyên nhân gốc rễ (Root Cause) dựa trên các mã lỗi trên. Giải thích TẠI SAO học viên mắc lỗi (VD: thiếu từ vựng chủ đề, nghe bắt key thay vì hiểu, tư duy dịch word-by-word). Phân tích chi tiết khoảng 3-4 câu.
+2. "actionable_advice": Dạng Mảng (Array). Đưa ra các chiến lược CỤ THỂ, thực tế, CÓ VÍ DỤ MINH HOẠ để khắc phục các lỗi nặng nhất. Thay vì nói chung chung "Cải thiện ngữ pháp", hãy chỉ đích danh (VD: "Để khắc phục lỗi W2-G1, hãy tập viết câu ghép bằng mệnh đề quan hệ (which, who) thay vì ghép câu lộn xộn"). Ít nhất 3 lời khuyên chi tiết.
+3. "recommended_practice": Dạng Mảng (Array). Liệt kê chính xác tên 2-3 dạng bài (Task Types) mà học viên nên luyện tập ngay (VD: "Matching Headings (Reading)", "IELTS Speaking Part 2").
+4. "encouragement": Lời động viên thực tế, mạnh mẽ mang tính thúc đẩy.
+
+Định dạng trả về (JSON hợp lệ duy nhất, không có markdown text bọc ngoài):
 {
   "overview": "string",
   "actionable_advice": ["string1", "string2"],
-  "recommended_practice": ["Tên Dạng Bài 1", "Tên Dạng Bài 2"],
+  "recommended_practice": ["Tên Dạng 1", "Tên Dạng 2"],
   "encouragement": "string"
 }
 `;

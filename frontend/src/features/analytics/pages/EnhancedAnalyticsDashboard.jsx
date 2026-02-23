@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
     BarChart,
@@ -9,10 +9,42 @@ import {
     Tooltip,
     ResponsiveContainer,
 } from 'recharts';
-import { Activity, Target, Brain, Flame } from 'lucide-react';
+import { Activity, Target, Brain, Flame, BarChart3 } from 'lucide-react';
 import { api } from '@/shared/api/client';
 import './AnalyticsDashboard.css'; // Reuse existing styles
 import './EnhancedAnalytics.css'; // New styles for heatmap and AI
+
+const TAXONOMY_LEGEND = {
+    // Reading/Listening
+    'R-A1': 'Sai chính tả',
+    'R-A2': 'Sai hình thức Số nhiều/Số ít',
+    'R-C1': 'Chọn sai từ khóa',
+    'R-C3': 'Nhầm lẫn ý chính',
+    'R-C4': 'Bẫy chi tiết',
+    'R-C5': 'Hiểu sai phạm vi (Scope Error)',
+    'R-T1': 'Nhầm lẫn Sự thật vs Ý kiến (TFNG)',
+    'R-T2': 'Suy luận quá mức (TFNG)',
+    'L-A1': 'Sai chính tả (Nghe)',
+    'L-A2': 'Sai hình thức Số nhiều/Số ít (Nghe)',
+    'L-C1': 'Nghe sót từ khóa',
+    'L-C4': 'Bẫy thông tin làm nhiễu (Distractor)',
+
+    // Writing
+    'W1-T1': 'Thiếu/Sai Overview',
+    'W1-L1': 'Từ vựng miêu tả xu hướng yếu',
+    'W2-T1': 'Không trả lời hết các vế câu hỏi',
+    'W2-C3': 'Ý tưởng rời rạc (Idea Jump)',
+    'W2-G1': 'Lỗi câu phức',
+    'W2-G3': 'Lỗi viết câu quá dài (Run-on)',
+    'W2-L2': 'Sai kết hợp từ (Collocation)',
+
+    // Speaking
+    'S-F1': 'Ngập ngừng quá mức (Hesitation)',
+    'S-F2': 'Lạm dụng từ chêm (Filler)',
+    'S-P1': 'Nhấn âm sai (Word Stress)',
+    'S-P2': 'Hỏng âm đuôi (Ending Sounds)',
+    'S-G2': 'Dùng sai thì (Tense)',
+};
 
 export default function EnhancedAnalyticsDashboard() {
     const { studentId } = useParams();
@@ -172,7 +204,9 @@ export default function EnhancedAnalyticsDashboard() {
                                 {/* Header Row */}
                                 <div className="heatmap-cell header corner">Dạng Bài</div>
                                 {allCodes.map(code => (
-                                    <div key={code} className="heatmap-cell header code" title={code}>{code}</div>
+                                    <div key={code} className="heatmap-cell header code" title={`${code} - ${TAXONOMY_LEGEND[code] || 'Lỗi chưa phân loại'}`}>
+                                        {code}
+                                    </div>
                                 ))}
 
                                 {/* Data Rows */}
@@ -186,7 +220,7 @@ export default function EnhancedAnalyticsDashboard() {
                                                     key={`${row.taskType}-${code}`}
                                                     className="heatmap-cell data"
                                                     style={{ backgroundColor: getHeatmapColor(val) }}
-                                                    title={`Code: ${code} | Count: ${val}`}
+                                                    title={`Loại lỗi: ${code} (${TAXONOMY_LEGEND[code] || 'Lỗi chưa phân loại'}) \nSố lần: ${val}`}
                                                 >
                                                     {val > 0 ? val : ''}
                                                 </div>

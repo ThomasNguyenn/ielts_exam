@@ -20,7 +20,7 @@ function swTimestampPlugin() {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const proxyTarget = env.VITE_PROXY_TARGET || 'https://ielts-exam-65pjc.ondigitalocean.app';
+  const proxyTarget = env.VITE_API_URL || 'https://ielts-exam-65pjc.ondigitalocean.app';
 
   return {
     plugins: [react(), swTimestampPlugin()],
