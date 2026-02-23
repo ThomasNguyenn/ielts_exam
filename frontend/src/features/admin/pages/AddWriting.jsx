@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { api } from '@/shared/api/client';
@@ -49,6 +49,7 @@ export default function AddWriting({ editIdOverride = null, embedded = false, on
   const editId = editIdOverride ?? normalizedRouteEditId;
   const navigate = useNavigate();
   const { showNotification } = useNotification();
+  const showNotificationRef = useRef(showNotification);
 
   const [form, setForm] = useState(writingToForm(null));
   const [loading, setLoading] = useState(true);
@@ -58,6 +59,10 @@ export default function AddWriting({ editIdOverride = null, embedded = false, on
   const [error, setError] = useState(null);
 
   const isTask1 = form.task_type === 'task1';
+
+  useEffect(() => {
+    showNotificationRef.current = showNotification;
+  }, [showNotification]);
 
   useEffect(() => {
     const load = async () => {
@@ -75,14 +80,14 @@ export default function AddWriting({ editIdOverride = null, embedded = false, on
         }
       } catch (loadErr) {
         setLoadError(loadErr.message);
-        showNotification(`Error loading writing task: ${loadErr.message}`, 'error');
+        showNotificationRef.current?.(`Error loading writing task: ${loadErr.message}`, 'error');
       } finally {
         setLoading(false);
       }
     };
 
     load();
-  }, [editId, showNotification]);
+  }, [editId]);
 
   const metadataDate = useMemo(() => {
     if (form.createdAt) {
@@ -115,7 +120,7 @@ export default function AddWriting({ editIdOverride = null, embedded = false, on
   };
 
   const handleSubmit = async (event) => {
-    event.preventDefault();
+    event?.preventDefault?.();
     setError(null);
 
     if (!form._id.trim() || !form.title.trim() || !form.prompt.trim()) {

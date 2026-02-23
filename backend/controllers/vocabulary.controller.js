@@ -165,8 +165,19 @@ export const reviewVocabulary = async (req, res) => {
         // Award XP
         const { addXP, XP_VOCAB_REVIEW } = await import("../services/gamification.service.js");
         const xpResult = await addXP(userId, XP_VOCAB_REVIEW, 'vocab');
+        const { checkAchievements } = await import("../services/achievement.service.js");
+        const newlyUnlocked = await checkAchievements(userId);
 
-        res.status(200).json({ success: true, data: vocabulary, xpResult });
+        res.status(200).json({
+            success: true,
+            data: {
+                vocabulary,
+                xpResult,
+                achievements: newlyUnlocked
+            },
+            xpResult,
+            achievements: newlyUnlocked
+        });
     } catch (error) {
         console.error('Error reviewing vocabulary:', error);
         res.status(500).json({ success: false, message: 'Server Error' });

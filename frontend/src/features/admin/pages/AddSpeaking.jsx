@@ -17,7 +17,7 @@ function speakingToForm(speaking) {
       sample_highlights: '',
       isActive: true,
       aiProvider: 'openai',
-      aiModel: 'tts-1',
+      aiModel: 'gpt-4o-mini-tts',
       aiVoice: 'alloy',
       generatedAudioUrl: '',
       createdAt: null,
@@ -34,7 +34,7 @@ function speakingToForm(speaking) {
     sample_highlights: speaking.sample_highlights || '',
     isActive: speaking.is_active ?? true,
     aiProvider: speaking.read_aloud?.provider || 'openai',
-    aiModel: speaking.read_aloud?.model || 'tts-1',
+    aiModel: speaking.read_aloud?.model || 'gpt-4o-mini-tts',
     aiVoice: speaking.read_aloud?.voice || 'alloy',
     generatedAudioUrl: speaking.read_aloud?.prompt?.url || '',
     createdAt: speaking.created_at || speaking.createdAt || null,
@@ -72,7 +72,7 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
         }
       } catch (loadErr) {
         setLoadError(loadErr.message);
-        showNotification(`Error loading speaking topic: ${loadErr.message}`, 'error');
+        showNotification(`Lỗi tải bài thi nói: ${loadErr.message}`, 'error');
       } finally {
         setLoading(false);
       }
@@ -117,13 +117,13 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
 
   const handleGenerateAudio = () => {
     if (!form.prompt.trim()) {
-      showNotification('Please add a prompt first.', 'warning');
+      showNotification('Vui lòng thêm câu hỏi chính trước.', 'warning');
       return;
     }
     const slug = form._id || `speaking-${Date.now()}`;
     const pseudoUrl = `https://audio-preview.local/${encodeURIComponent(slug)}-${Date.now()}.mp3`;
     updateForm('generatedAudioUrl', pseudoUrl);
-    showNotification('Audio preview generated (mock URL).', 'success');
+    showNotification('Đã tạo âm thanh câu hỏi (đường link).', 'success');
   };
 
   const handleSubmit = async (event) => {
@@ -131,7 +131,7 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
     setError(null);
 
     if (!form._id.trim() || !form.title.trim() || !form.prompt.trim()) {
-      showNotification('ID, title, and prompt are required.', 'error');
+      showNotification('ID, tiêu đề và câu hỏi chính là bắt buộc.', 'error');
       return;
     }
 
@@ -158,10 +158,10 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
 
       if (editId) {
         await api.updateSpeaking(editId, payload);
-        showNotification('Speaking topic updated.', 'success');
+        showNotification('Đã cập nhật bài thi nói.', 'success');
       } else {
         await api.createSpeaking(payload);
-        showNotification('Speaking topic created.', 'success');
+        showNotification('Đã tạo bài thi nói mới.', 'success');
         if (!editIdOverride) {
           navigate(`/manage/speaking/${form._id}`);
         }
@@ -177,10 +177,10 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
   };
 
   const handleSaveDraft = () => {
-    showNotification('Draft saved.', 'success');
+    showNotification('Đã lưu bản nháp.', 'success');
   };
 
-  if (loading) return <div className="manage-container"><p className="muted">Loading...</p></div>;
+  if (loading) return <div className="manage-container"><p className="muted">Đang tải...</p></div>;
   if (loadError) return <div className="manage-container"><p className="form-error">{loadError}</p></div>;
 
   return (
@@ -199,24 +199,24 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
             <X size={18} />
           </button>
           <div>
-          <h1 style={{ margin: 0, fontSize: '1.8rem' }}>{editId ? 'Edit Speaking Topic' : 'Create Speaking Topic'}</h1>
-          <p className="muted" style={{ marginTop: '0.5rem' }}>IELTS speaking editor with follow-up questions and AI voice settings.</p>
+            <h1 style={{ margin: 0, fontSize: '1.8rem' }}>{editId ? 'Chỉnh sửa Bài thi Nói' : 'Tạo Bài thi Nói'}</h1>
+            <p className="muted" style={{ marginTop: '0.5rem' }}>Trình soạn thảo bài thi IELTS Speaking với câu hỏi theo sau và cài đặt giọng nói AI.</p>
           </div>
         </div>
 
         <div className="manage-header-actions">
           <label className="status-toggle">
-            {form.isActive ? 'Active' : 'Inactive'}
+            {form.isActive ? 'Hoạt động' : 'Đã tắt'}
             <div className="switch">
               <input type="checkbox" checked={form.isActive} onChange={(event) => updateForm('isActive', event.target.checked)} />
               <span className="slider"></span>
             </div>
           </label>
 
-          <button type="button" className="btn-ghost" onClick={handleSaveDraft}>Save Draft</button>
+          <button type="button" className="btn-ghost" onClick={handleSaveDraft}>Lưu bản nháp</button>
 
           <button type="button" className="btn-manage-add" onClick={handleSubmit} disabled={submitLoading}>
-            {submitLoading ? 'Saving...' : 'Save Topic'}
+            {submitLoading ? 'Đang lưu...' : 'Lưu bài thi'}
           </button>
         </div>
       </div>
@@ -226,60 +226,60 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
       <div className="manage-layout-columns">
         <div className="manage-main">
           <div className="manage-card" style={{ borderLeft: '4px solid #F59E0B' }}>
-            <h3>Basic Information</h3>
+            <h3>Thông tin Cơ bản</h3>
 
             <div className="manage-input-group">
-              <label className="manage-input-label">Speaking Topic ID</label>
+              <label className="manage-input-label">ID Bài thi Nói</label>
               <input
                 className="manage-input-field"
                 value={form._id}
                 onChange={(event) => updateForm('_id', event.target.value)}
                 readOnly={!!editId}
-                placeholder="e.g., SPEAK_P2_001"
+                placeholder="VD: SPEAK_P2_001"
               />
             </div>
 
             <div className="manage-input-group">
-              <label className="manage-input-label">Title</label>
+              <label className="manage-input-label">Tiêu đề</label>
               <input
                 className="manage-input-field"
                 value={form.title}
                 onChange={(event) => updateForm('title', event.target.value)}
-                placeholder="Topic title"
+                placeholder="Tiêu đề bài thi"
               />
             </div>
 
             <div className="manage-input-group" style={{ marginBottom: 0 }}>
-              <label className="manage-input-label">Speaking Part</label>
+              <label className="manage-input-label">Phần thi Nói</label>
               <select className="manage-input-field" value={form.part} onChange={(event) => updateForm('part', event.target.value)}>
-                <option value="1">Part 1 - Introduction & Interview</option>
-                <option value="2">Part 2 - Long Turn (Cue Card)</option>
-                <option value="3">Part 3 - Discussion</option>
+                <option value="1">Part 1 - Giới thiệu & Phỏng vấn</option>
+                <option value="2">Part 2 - Nói tự do (Cue Card)</option>
+                <option value="3">Part 3 - Thảo luận</option>
               </select>
             </div>
           </div>
 
           <div className="manage-card">
-            <h3>Main Prompt</h3>
+            <h3>Câu hỏi Chính</h3>
             <div className="manage-input-group" style={{ marginBottom: 0 }}>
-              <label className="manage-input-label">{form.part === '2' ? 'Cue Card' : 'Main Question'}</label>
+              <label className="manage-input-label">{form.part === '2' ? 'Thẻ Cue Card' : 'Câu hỏi Chính'}</label>
               <textarea
                 className="manage-input-field"
                 value={form.prompt}
                 onChange={(event) => updateForm('prompt', event.target.value)}
                 rows={8}
                 placeholder={form.part === '2'
-                  ? 'Describe a memorable journey you have made...'
-                  : 'What kind of music do you like to listen to?'}
+                  ? 'Mô tả một chuyến đi đáng nhớ mà bạn đã trải qua...'
+                  : 'Bạn thích nghe thể loại nhạc nào?'}
               />
             </div>
           </div>
 
           <div className="manage-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ marginBottom: 0 }}>Follow-up Questions</h3>
+              <h3 style={{ marginBottom: 0 }}>Câu hỏi Tiếp nối</h3>
               <button type="button" className="btn btn-sm" style={{ background: '#FEF3C7', color: '#B45309' }} onClick={addSubQuestion}>
-                + Add Question
+                + Thêm Câu hỏi
               </button>
             </div>
 
@@ -294,13 +294,13 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
                     addSubQuestion();
                   }
                 }}
-                placeholder="Enter follow-up question"
+                placeholder="Nhập câu hỏi tiếp nối"
               />
-              <button type="button" className="btn btn-ghost btn-sm" onClick={addSubQuestion}>Add</button>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={addSubQuestion}>Thêm</button>
             </div>
 
             {form.sub_questions.length === 0 ? (
-              <p className="muted">No follow-up questions yet.</p>
+              <p className="muted">Chưa có câu hỏi tiếp nối nào.</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                 {form.sub_questions.map((question, index) => (
@@ -317,7 +317,7 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
                       rows={2}
                     />
                     <button type="button" className="btn btn-ghost btn-sm" style={{ color: '#EF4444' }} onClick={() => removeSubQuestion(index)}>
-                      Remove
+                      Xóa
                     </button>
                   </div>
                 ))}
@@ -326,47 +326,44 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
           </div>
 
           <div className="manage-card">
-            <h3>AI Audio Settings</h3>
+            <h3>Cài đặt Âm thanh AI</h3>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
               <div className="manage-input-group" style={{ marginBottom: 0 }}>
-                <label className="manage-input-label">Provider</label>
+                <label className="manage-input-label">Nhà cung cấp</label>
                 <select className="manage-input-field" value={form.aiProvider} onChange={(event) => updateForm('aiProvider', event.target.value)}>
                   <option value="openai">OpenAI</option>
-                  <option value="elevenlabs">ElevenLabs</option>
-                  <option value="google">Google Cloud</option>
-                  <option value="aws">AWS Polly</option>
                 </select>
               </div>
               <div className="manage-input-group" style={{ marginBottom: 0 }}>
-                <label className="manage-input-label">Model</label>
+                <label className="manage-input-label">Mô hình</label>
                 <input className="manage-input-field" value={form.aiModel} onChange={(event) => updateForm('aiModel', event.target.value)} />
               </div>
               <div className="manage-input-group" style={{ marginBottom: 0 }}>
-                <label className="manage-input-label">Voice</label>
+                <label className="manage-input-label">Giọng nói</label>
                 <input className="manage-input-field" value={form.aiVoice} onChange={(event) => updateForm('aiVoice', event.target.value)} />
               </div>
             </div>
 
             <div style={{ marginTop: '1rem' }}>
               <button type="button" className="btn-manage-add" onClick={handleGenerateAudio}>
-                Generate Audio Preview
+                Tạo Âm thanh Câu Hỏi
               </button>
             </div>
 
             {form.generatedAudioUrl && (
               <div style={{ marginTop: '0.75rem', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: '0.7rem', padding: '0.75rem' }}>
-                <div style={{ fontSize: '0.8rem', color: '#9A3412', fontWeight: 600 }}>Generated Audio URL</div>
+                <div style={{ fontSize: '0.8rem', color: '#9A3412', fontWeight: 600 }}>Đường dẫn Âm thanh đã tạo</div>
                 <div style={{ marginTop: '0.35rem', wordBreak: 'break-all', fontSize: '0.85rem' }}>{form.generatedAudioUrl}</div>
               </div>
             )}
           </div>
 
           <div className="manage-card">
-            <h3>Keywords & Sample Highlights</h3>
+            <h3>Từ khóa & Gợi ý Câu trả lời</h3>
 
             <div className="manage-input-group">
-              <label className="manage-input-label">Keywords</label>
+              <label className="manage-input-label">Từ khóa</label>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <input
                   className="manage-input-field"
@@ -378,9 +375,9 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
                       addKeyword();
                     }
                   }}
-                  placeholder="Type keyword and press Enter"
+                  placeholder="Nhập từ khóa và nhấn Enter"
                 />
-                <button type="button" className="btn btn-ghost btn-sm" onClick={addKeyword}>Add</button>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={addKeyword}>Thêm</button>
               </div>
 
               {form.keywords.length > 0 && (
@@ -411,13 +408,13 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
             </div>
 
             <div className="manage-input-group" style={{ marginBottom: 0 }}>
-              <label className="manage-input-label">Sample Highlights</label>
+              <label className="manage-input-label">Gợi ý Ý chính</label>
               <textarea
                 className="manage-input-field"
                 value={form.sample_highlights}
                 onChange={(event) => updateForm('sample_highlights', event.target.value)}
                 rows={6}
-                placeholder="Provide key points to cover..."
+                placeholder="Cung cấp các ý chính cần đề cập..."
               />
             </div>
           </div>
@@ -425,38 +422,38 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
 
         <div className="manage-sidebar-column">
           <div className="manage-card">
-            <h3>Metadata</h3>
+            <h3>Siêu dữ liệu</h3>
             <div className="metadata-list">
               <div className="meta-item">
-                <span className="meta-label">Created</span>
+                <span className="meta-label">Đã tạo lúc</span>
                 <span className="meta-value">{metadataDate}</span>
               </div>
               <div className="meta-item">
-                <span className="meta-label">Status</span>
-                <span className={`meta-badge ${form.isActive ? 'badge-active' : 'badge-draft'}`}>{form.isActive ? 'Active' : 'Inactive'}</span>
+                <span className="meta-label">Trạng thái</span>
+                <span className={`meta-badge ${form.isActive ? 'badge-active' : 'badge-draft'}`}>{form.isActive ? 'Hoạt động' : 'Đã tắt'}</span>
               </div>
               <div className="meta-item" style={{ background: '#FFF7ED', padding: '0.75rem', borderRadius: '0.6rem' }}>
-                <span className="meta-label">Speaking Part</span>
+                <span className="meta-label">Phần thi Nói</span>
                 <span className="meta-value" style={{ color: '#D97706', fontSize: '1.15rem' }}>Part {form.part}</span>
               </div>
               <div className="meta-item" style={{ background: '#F8FAFC', padding: '0.75rem', borderRadius: '0.6rem' }}>
-                <span className="meta-label">Follow-up Questions</span>
+                <span className="meta-label">Câu hỏi Tiếp nối</span>
                 <span className="meta-value">{form.sub_questions.length}</span>
               </div>
               <div className="meta-item" style={{ background: '#F8FAFC', padding: '0.75rem', borderRadius: '0.6rem' }}>
-                <span className="meta-label">Keywords</span>
+                <span className="meta-label">Từ khóa</span>
                 <span className="meta-value">{form.keywords.length}</span>
               </div>
             </div>
           </div>
 
           <div className="manage-card tips-card" style={{ background: 'linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 100%)' }}>
-            <h3 style={{ color: '#C2410C' }}>Tips</h3>
+            <h3 style={{ color: '#C2410C' }}>Mẹo</h3>
             <ul className="tips-list">
-              <li>Part 1 should stay personal and short-answer friendly.</li>
-              <li>Part 2 prompts should include clear cue-card bullets.</li>
-              <li>Part 3 should move into abstract discussion and reasoning.</li>
-              <li>Define keywords to guide feedback consistency.</li>
+              <li>Part 1 nên là các câu hỏi cá nhân và trả lời ngắn gọn.</li>
+              <li>Part 2 nên bao gồm các ý chính (bullets) rõ ràng cho cue-card.</li>
+              <li>Part 3 nên hướng tới thảo luận trừu tượng và lập luận.</li>
+              <li>Định nghĩa từ khóa để hướng dẫn đánh giá nhất quán.</li>
             </ul>
           </div>
         </div>

@@ -123,12 +123,20 @@ async function request(path, options = {}) {
   }
 
   // Intercept achievements and XP events globally
-  if (data?.data && (data.data.achievements?.length > 0 || data.data.xpResult)) {
+  const achievements =
+    data?.data?.achievements ||
+    data?.data?.newlyUnlocked ||
+    data?.achievements ||
+    data?.newlyUnlocked ||
+    [];
+  const xpResult = data?.data?.xpResult || data?.xpResult || null;
+
+  if ((Array.isArray(achievements) && achievements.length > 0) || xpResult) {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('achievements-unlocked', {
         detail: {
-          achievements: data.data.achievements,
-          xpResult: data.data.xpResult
+          achievements,
+          xpResult
         }
       }));
     }

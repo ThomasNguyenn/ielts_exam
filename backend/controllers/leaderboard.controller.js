@@ -66,7 +66,27 @@ export const getMyRank = async (req, res) => {
 export const getAchievementDefinitions = async (req, res) => {
     try {
         const achievements = await getAllAchievements();
-        res.json({ success: true, data: achievements });
+        const userId = req.user?.userId;
+        const userAchievements = userId ? await getUserAchievements(userId) : [];
+        const unlockedKeys = new Set(userAchievements.map((item) => item.achievementKey));
+
+        const sanitized = achievements.map((achievement, index) => {
+            if (!achievement.hidden || unlockedKeys.has(achievement.key)) {
+                return achievement;
+            }
+
+            const { condition, ...rest } = achievement;
+            return {
+                ...rest,
+                key: `hidden-locked-${index + 1}`,
+                title: '???',
+                description: 'Hidden achievement - unlock it to reveal details.',
+                icon: '❓',
+                xpReward: 0,
+            };
+        });
+
+        res.json({ success: true, data: sanitized });
     } catch (error) {
         console.error('Error fetching achievement definitions:', error);
         res.status(500).json({ success: false, message: 'Server Error' });
@@ -93,6 +113,7 @@ export const triggerAchievementCheck = async (req, res) => {
         res.json({
             success: true,
             data: {
+                achievements: newlyUnlocked,
                 newlyUnlocked,
                 count: newlyUnlocked.length,
             }

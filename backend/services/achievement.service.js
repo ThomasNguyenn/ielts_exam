@@ -292,6 +292,7 @@ function calcBand(score, type) {
 
 // ─── GATHER USER METRICS ───
 async function gatherMetrics(userId) {
+    const userIdString = String(userId);
     const [user, progress, attempts, writingSubs, vocabCount, vocabReviewCount] = await Promise.all([
         User.findById(userId).lean(),
         StudentProgress.findOne({ userId }).lean(),
@@ -301,15 +302,15 @@ async function gatherMetrics(userId) {
         (async () => {
             try {
                 const Vocabulary = (await import('../models/Vocabulary.model.js')).default;
-                return Vocabulary.countDocuments({ userId });
+                return Vocabulary.countDocuments({ user_id: userIdString });
             } catch { return 0; }
         })(),
-        // Vocab review count (approximate from reviewHistory length or total reviews)
+        // Vocab review count
         (async () => {
             try {
                 const Vocabulary = (await import('../models/Vocabulary.model.js')).default;
-                const vocabs = await Vocabulary.find({ userId }).select('reviewHistory').lean();
-                return vocabs.reduce((sum, v) => sum + (v.reviewHistory?.length || 0), 0);
+                const vocabs = await Vocabulary.find({ user_id: userIdString }).select('review_count').lean();
+                return vocabs.reduce((sum, v) => sum + (Number(v.review_count) || 0), 0);
             } catch { return 0; }
         })(),
     ]);
@@ -355,8 +356,22 @@ async function gatherMetrics(userId) {
     }
 
     // Modules
-    const modulesCompleted = progress?.completedModules?.length || 0;
+    const completedModuleIds = new Set(
+        (progress?.completedModules || [])
+            .map((item) => item?.moduleId ? String(item.moduleId) : null)
+            .filter(Boolean)
+    );
+    const modulesCompleted = completedModuleIds.size;
     const perfectQuizzes = (progress?.completedModules || []).filter(m => m.quizScore === 100).length;
+    let allModulesCompleted = 0;
+    try {
+        const SkillModule = (await import('../models/SkillModule.model.js')).default;
+        const activeModuleIds = (await SkillModule.find({ isActive: true }).select('_id').lean())
+            .map((module) => String(module._id));
+        if (activeModuleIds.length > 0 && activeModuleIds.every((moduleId) => completedModuleIds.has(moduleId))) {
+            allModulesCompleted = 1;
+        }
+    } catch { /* ignore */ }
 
     // Speaking sessions (from SpeakingSession model)
     let speakingSessions = 0, speakingPart1 = 0, speakingPart2 = 0, speakingPart3 = 0;
@@ -386,15 +401,14 @@ async function gatherMetrics(userId) {
         const StudyPlan = (await import('../models/StudyPlan.model.js')).default;
         const StudyTaskProgress = (await import('../models/StudyTaskProgress.model.js')).default;
         studyPlanCreated = await StudyPlan.countDocuments({ userId });
-        const taskProg = await StudyTaskProgress.findOne({ userId }).lean();
-        studyTasksCompleted = taskProg?.completedTasks?.length || 0;
+        studyTasksCompleted = await StudyTaskProgress.countDocuments({ userId, status: 'completed' });
     } catch { /* models may not exist */ }
 
     // Vocab mastered
     let vocabMastered = 0;
     try {
         const Vocabulary = (await import('../models/Vocabulary.model.js')).default;
-        vocabMastered = await Vocabulary.countDocuments({ userId, masteryLevel: { $gte: 4 } });
+        vocabMastered = await Vocabulary.countDocuments({ user_id: userIdString, mastery_level: { $gte: 4 } });
     } catch { /* ignore */ }
 
     // Writing task breakdown
@@ -406,21 +420,18 @@ async function gatherMetrics(userId) {
         const taskIds = new Set();
         subs.forEach(s => (s.writing_answers || []).forEach(wa => { if (wa.task_id) taskIds.add(wa.task_id); }));
         if (taskIds.size > 0) {
-            const writings = await Writing.find({ _id: { $in: [...taskIds] } }).select('taskNumber').lean();
+            const writings = await Writing.find({ _id: { $in: [...taskIds] } }).select('task_type').lean();
             const taskMap = {};
-            writings.forEach(w => { taskMap[String(w._id)] = w.taskNumber; });
+            writings.forEach(w => { taskMap[String(w._id)] = w.task_type; });
             subs.forEach(s => (s.writing_answers || []).forEach(wa => {
-                const num = taskMap[wa.task_id];
-                if (num === 1) writingTask1++;
-                else if (num === 2) writingTask2++;
+                const taskType = taskMap[String(wa.task_id)];
+                if (taskType === 'task1') writingTask1++;
+                else if (taskType === 'task2') writingTask2++;
             }));
         }
     } catch { /* ignore */ }
 
     // ─── HIDDEN ACHIEVEMENT METRICS ───
-    const today = new Date();
-    const todayStr = today.toISOString().slice(0, 10);
-
     // Helper: get date string from a Date or timestamp
     const toDateStr = (d) => d ? new Date(d).toISOString().slice(0, 10) : null;
 
@@ -503,7 +514,7 @@ async function gatherMetrics(userId) {
     let vocabInOneDay = 0;
     try {
         const Vocabulary = (await import('../models/Vocabulary.model.js')).default;
-        const vocabs = await Vocabulary.find({ userId }).select('createdAt').lean();
+        const vocabs = await Vocabulary.find({ user_id: userIdString }).select('createdAt').lean();
         const vocabByDay = {};
         vocabs.forEach(v => {
             const day = toDateStr(v.createdAt);
@@ -512,10 +523,10 @@ async function gatherMetrics(userId) {
         vocabInOneDay = Math.max(0, ...Object.values(vocabByDay));
     } catch { /* ignore */ }
 
-    // Fast reading (completed in over 30 min = timeTaken > 1800 seconds)
+    // Fast reading (completed in over 30 minutes)
     let fastReading = 0;
     attempts.filter(a => a.type === 'reading').forEach(a => {
-        if (a.timeTaken && a.timeTaken > 1800) fastReading = 1;
+        if (typeof a.time_taken_ms === 'number' && a.time_taken_ms > 30 * 60 * 1000) fastReading = 1;
     });
 
     // Weekend warrior (practiced both Saturday and Sunday)
@@ -604,7 +615,11 @@ async function gatherMetrics(userId) {
 
     // Hidden achievements unlocked count
     const hiddenKeys = ACHIEVEMENTS.filter(a => a.hidden).map(a => a.key);
-    const hiddenAchievementsUnlocked = (user.achievements || []).filter(a => hiddenKeys.includes(a.achievementKey)).length;
+    const hiddenAchievementsUnlocked = new Set(
+        (user.achievements || [])
+            .map((item) => item.achievementKey)
+            .filter((key) => hiddenKeys.includes(key))
+    ).size;
 
     return {
         streak: streakValue,
@@ -619,7 +634,7 @@ async function gatherMetrics(userId) {
         speaking_part2: speakingPart2,
         speaking_part3: speakingPart3,
         modules_completed: modulesCompleted,
-        all_modules_completed: modulesCompleted >= 7 ? 1 : 0,
+        all_modules_completed: allModulesCompleted,
         perfect_quiz: perfectQuizzes,
         study_plan_created: studyPlanCreated,
         study_tasks_completed: studyTasksCompleted,
@@ -659,14 +674,14 @@ async function gatherMetrics(userId) {
 // ─── CHECK AND UNLOCK ACHIEVEMENTS ───
 export const checkAchievements = async (userId) => {
     try {
-        const user = await User.findById(userId);
-        if (!user) return [];
-
         const metrics = await gatherMetrics(userId);
         if (!metrics) return [];
 
+        const user = await User.findById(userId).select('achievements').lean();
+        if (!user) return [];
+
         const allAchievements = await Achievement.find({}).lean();
-        const unlockedKeys = new Set(user.achievements.map(a => a.achievementKey));
+        const unlockedKeys = new Set((user.achievements || []).map((item) => item.achievementKey));
         const newlyUnlocked = [];
 
         for (const ach of allAchievements) {
@@ -676,20 +691,24 @@ export const checkAchievements = async (userId) => {
             if (metricValue === undefined || metricValue === null) continue;
 
             if (metricValue >= ach.condition.threshold) {
-                user.achievements.push({ achievementKey: ach.key, unlockedAt: new Date() });
-                newlyUnlocked.push(ach);
+                const unlockResult = await User.updateOne(
+                    { _id: userId, 'achievements.achievementKey': { $ne: ach.key } },
+                    { $push: { achievements: { achievementKey: ach.key, unlockedAt: new Date() } } }
+                );
+                if (unlockResult.modifiedCount === 0) continue;
 
                 // Grant XP reward
                 if (ach.xpReward > 0) {
                     await addXP(userId, ach.xpReward);
                 }
+                unlockedKeys.add(ach.key);
+                newlyUnlocked.push(ach);
             }
         }
 
-        if (newlyUnlocked.length > 0) {
-            user.totalAchievements = user.achievements.length;
-            await user.save();
-        }
+        const refreshed = await User.findById(userId).select('achievements').lean();
+        const uniqueAchievementCount = new Set((refreshed?.achievements || []).map((item) => item.achievementKey)).size;
+        await User.updateOne({ _id: userId }, { $set: { totalAchievements: uniqueAchievementCount } });
 
         return newlyUnlocked;
     } catch (error) {
@@ -704,5 +723,10 @@ export const getAllAchievements = () => Achievement.find({}).sort({ category: 1,
 // ─── GET USER ACHIEVEMENTS ───
 export const getUserAchievements = async (userId) => {
     const user = await User.findById(userId).select('achievements totalAchievements').lean();
-    return user?.achievements || [];
+    const seen = new Set();
+    return (user?.achievements || []).filter((item) => {
+        if (!item?.achievementKey || seen.has(item.achievementKey)) return false;
+        seen.add(item.achievementKey);
+        return true;
+    });
 };

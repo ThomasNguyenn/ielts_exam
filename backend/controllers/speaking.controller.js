@@ -479,8 +479,9 @@ export const submitSpeaking = async (req, res) => {
     let newlyUnlocked = [];
     if (userId) {
       const { addXP, XP_SPEAKING_SESSION } = await import("../services/gamification.service.js");
-      const { checkAchievements } = await import("../services/achievement.service.js");
       xpResult = await addXP(userId, XP_SPEAKING_SESSION, 'speaking');
+
+      const { checkAchievements } = await import("../services/achievement.service.js");
       newlyUnlocked = await checkAchievements(userId);
     }
 

@@ -397,10 +397,17 @@ export const completeModule = async (req, res) => {
             await progress.save();
         }
 
+        let newlyUnlocked = [];
+        if (userId) {
+            const { checkAchievements } = await import('../services/achievement.service.js');
+            newlyUnlocked = await checkAchievements(userId);
+        }
+
         res.json({
             success: true,
             message: 'Module completed',
             moduleId: id,
+            achievements: newlyUnlocked,
         });
     } catch (error) {
         console.error('Error completing module:', error);

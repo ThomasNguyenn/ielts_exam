@@ -191,8 +191,9 @@ export const submitWriting = async (req, res) => {
 
         if (userId) {
             const { addXP, XP_WRITING_SUBMIT } = await import("../services/gamification.service.js");
-            const { checkAchievements } = await import("../services/achievement.service.js");
             xpResult = await addXP(userId, XP_WRITING_SUBMIT, 'writing');
+
+            const { checkAchievements } = await import("../services/achievement.service.js");
             newlyUnlocked = await checkAchievements(userId);
         }
 
