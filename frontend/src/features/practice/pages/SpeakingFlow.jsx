@@ -23,9 +23,18 @@ const getSpeakingSessionId = (payload) => (
 );
 
 const getPollDelayMs = (attempt) => {
-    const baseMs = 4000;
-    const backoffMs = Math.min(Math.floor(attempt / 5) * 1000, 4000);
-    const jitterMs = Math.floor(Math.random() * 1000) - 500; // -500..+499
+    const jitterMs = Math.floor(Math.random() * 500) - 250; // -250..+249
+
+    if (attempt < 3) {
+        return Math.max(1200, 1500 + jitterMs);
+    }
+
+    if (attempt < 10) {
+        return Math.max(1800, 2400 + jitterMs);
+    }
+
+    const baseMs = 3500;
+    const backoffMs = Math.min(Math.floor((attempt - 10) / 5) * 800, 3200);
     return Math.max(2500, baseMs + backoffMs + jitterMs);
 };
 

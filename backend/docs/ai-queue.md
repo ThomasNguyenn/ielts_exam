@@ -11,11 +11,15 @@ This project supports asynchronous AI grading for `writing` and `speaking`.
 - `AI_ASYNC_MODE=true`
 - `REDIS_URL=redis://<host>:6379`
 - Optional:
-  - `AI_WORKER_CONCURRENCY=1`
+  - `AI_WORKER_CONCURRENCY=2` (recommended 2-4 in production)
   - `GEMINI_PRIMARY_MODEL=gemini-2.5-flash`
   - `GEMINI_FALLBACK_MODEL=gemini-2.0-flash`
   - `OPENAI_TIMEOUT_MS`
   - `GEMINI_TIMEOUT_MS`
+  - `SPEAKING_GEMINI_TIMEOUT_MS=25000` (speaking-specific timeout)
+  - `SPEAKING_GEMINI_MAX_ATTEMPTS=2` (speaking-specific retry cap)
+  - `SPEAKING_ANALYSIS_MAX_OUTPUT_TOKENS=1200` (reduce long responses)
+  - `SPEAKING_MOCK_MAX_OUTPUT_TOKENS=220`
   - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` (needed for auto-deleting speaking audio after scoring)
 
 ## Run

@@ -8,6 +8,19 @@ import './styles/index.css';
 import './styles/App.css';
 import './styles/App-mobile.css';
 
+const SW_CACHE_PREFIX = 'ielts-learning-';
+const SW_CURRENT_CACHE = 'ielts-learning-v4';
+
+async function cleanupAppCaches() {
+  if (typeof window === 'undefined' || !('caches' in window)) return;
+  const cacheNames = await window.caches.keys();
+  await Promise.all(
+    cacheNames
+      .filter((name) => name.startsWith(SW_CACHE_PREFIX) && name !== SW_CURRENT_CACHE)
+      .map((name) => window.caches.delete(name))
+  );
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <ErrorBoundary>
@@ -22,9 +35,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 if ('serviceWorker' in navigator) {
   if (import.meta.env.PROD) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js')
+      navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
         .then((registration) => {
           console.log('[PWA] Service Worker registered:', registration);
+          cleanupAppCaches().catch(() => undefined);
 
           const promptUpdate = (worker) => {
             if (!worker) return;
@@ -67,5 +81,6 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.getRegistrations().then((regs) => {
       regs.forEach((reg) => reg.unregister());
     });
+    cleanupAppCaches().catch(() => undefined);
   }
 }

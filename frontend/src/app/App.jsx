@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { api } from '@/shared/api/client';
 import { NotificationProvider } from '@/shared/context/NotificationContext';
+import AchievementToast from '@/features/achievements/components/AchievementToast';
 
 const Layout = lazy(() => import('@/shared/components/Layout'));
 const Home = lazy(() => import('@/features/home/pages/Home'));
@@ -37,7 +38,6 @@ const StudyPlanSetup = lazy(() => import('@/features/study-plan/pages/StudyPlanS
 const StudyPlanFullView = lazy(() => import('@/features/study-plan/pages/StudyPlanFullView'));
 const AnalyticsDashboard = lazy(() => import('@/features/analytics/pages/AnalyticsDashboard'));
 const AchievementsPage = lazy(() => import('@/features/achievements/pages/AchievementsPage'));
-const AchievementToast = lazy(() => import('@/features/achievements/components/AchievementToast'));
 const WaitForConfirmation = lazy(() => import('@/features/system/pages/WaitForConfirmation'));
 const StudentRequests = lazy(() => import('@/features/admin/pages/StudentRequests'));
 const ManageUsers = lazy(() => import('@/features/admin/pages/ManageUsers'));
@@ -91,7 +91,7 @@ function PublicRoute({ children }) {
 export default function App() {
   return (
     <NotificationProvider>
-      {withSuspense(<AchievementToast />)}
+      <AchievementToast />
       <Routes>
         <Route path="/" element={withSuspense(<Layout />)}>
           <Route index element={withSuspense(<Home />)} />

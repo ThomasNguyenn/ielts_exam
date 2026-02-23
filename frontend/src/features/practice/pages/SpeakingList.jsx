@@ -8,6 +8,51 @@ import './SpeakingList.css';
 
 const PAGE_SIZE = 12;
 
+function useAnimatedCount(target, durationMs = 1600) {
+    const safeTarget = Number.isFinite(Number(target)) ? Number(target) : 0;
+    const [value, setValue] = useState(0);
+    const valueRef = useRef(0);
+
+    useEffect(() => {
+        valueRef.current = value;
+    }, [value]);
+
+    useEffect(() => {
+        const mediaQuery = typeof window !== 'undefined' && window.matchMedia
+            ? window.matchMedia('(prefers-reduced-motion: reduce)')
+            : null;
+
+        if (mediaQuery?.matches) {
+            setValue(safeTarget);
+            return undefined;
+        }
+
+        const startValue = valueRef.current;
+        const delta = safeTarget - startValue;
+        if (delta === 0) return undefined;
+
+        const startTime = performance.now();
+        let rafId = 0;
+
+        const tick = (now) => {
+            const progress = Math.min((now - startTime) / durationMs, 1);
+            const eased = 1 - Math.pow(1 - progress, 3);
+            setValue(Math.round(startValue + (delta * eased)));
+
+            if (progress < 1) {
+                rafId = requestAnimationFrame(tick);
+            } else {
+                setValue(safeTarget);
+            }
+        };
+
+        rafId = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(rafId);
+    }, [safeTarget, durationMs]);
+
+    return value;
+}
+
 /* Assign a badge style per part number */
 const partBadgeClass = (part) => {
     if (part === 1) return 'sp-card-badge--p1';
@@ -91,6 +136,9 @@ export default function SpeakingList() {
     });
 
     const totalItems = pagination?.totalItems ?? tasks.length;
+    const animatedTotalItems = useAnimatedCount(totalItems, 1800);
+    const animatedUniqueTopics = useAnimatedCount(uniqueTopics.length, 1800);
+    const animatedParts = useAnimatedCount(3, 1800);
 
     /* Skeleton loading state */
     if (loading) {
@@ -142,15 +190,15 @@ export default function SpeakingList() {
                     </div>
                     <div className="sp-hero-stats">
                         <div className="sp-hero-stat">
-                            <span className="sp-hero-stat-value">{totalItems}</span>
+                            <span className="sp-hero-stat-value">{animatedTotalItems}</span>
                             <span className="sp-hero-stat-label">Câu hỏi</span>
                         </div>
                         <div className="sp-hero-stat">
-                            <span className="sp-hero-stat-value">{uniqueTopics.length}</span>
+                            <span className="sp-hero-stat-value">{animatedUniqueTopics}</span>
                             <span className="sp-hero-stat-label">Chủ đề</span>
                         </div>
                         <div className="sp-hero-stat">
-                            <span className="sp-hero-stat-value">3</span>
+                            <span className="sp-hero-stat-value">{animatedParts}</span>
                             <span className="sp-hero-stat-label">Parts</span>
                         </div>
                     </div>

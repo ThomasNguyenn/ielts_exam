@@ -34,6 +34,18 @@ const fallbackModel = normalizeGeminiModel(
 const GEMINI_MODELS = [primaryModel, fallbackModel].filter(
   (model, index, list) => Boolean(model) && list.indexOf(model) === index,
 );
+const SPEAKING_GEMINI_TIMEOUT_MS = Number(
+  process.env.SPEAKING_GEMINI_TIMEOUT_MS || process.env.GEMINI_TIMEOUT_MS || 30000,
+);
+const SPEAKING_GEMINI_MAX_ATTEMPTS = Number(
+  process.env.SPEAKING_GEMINI_MAX_ATTEMPTS || process.env.GEMINI_MAX_ATTEMPTS || 2,
+);
+const SPEAKING_ANALYSIS_MAX_OUTPUT_TOKENS = Number(
+  process.env.SPEAKING_ANALYSIS_MAX_OUTPUT_TOKENS || 1200,
+);
+const SPEAKING_MOCK_MAX_OUTPUT_TOKENS = Number(
+  process.env.SPEAKING_MOCK_MAX_OUTPUT_TOKENS || 220,
+);
 
 const isHttpUrl = (value) => /^https?:\/\//i.test(String(value || ""));
 
@@ -302,9 +314,12 @@ export const generateMockExaminerFollowUp = async ({
       genAI,
       models: GEMINI_MODELS,
       contents: [prompt],
-      generationConfig: { responseMimeType: "application/json" },
-      timeoutMs: Number(process.env.GEMINI_TIMEOUT_MS || 30000),
-      maxAttempts: Number(process.env.GEMINI_MAX_ATTEMPTS || 3),
+      generationConfig: {
+        responseMimeType: "application/json",
+        maxOutputTokens: SPEAKING_MOCK_MAX_OUTPUT_TOKENS,
+      },
+      timeoutMs: SPEAKING_GEMINI_TIMEOUT_MS,
+      maxAttempts: SPEAKING_GEMINI_MAX_ATTEMPTS,
     });
 
     const payload = aiResponse.data || {};
@@ -383,9 +398,12 @@ export const scoreSpeakingSessionById = async ({ sessionId, force = false } = {}
       genAI,
       models: GEMINI_MODELS,
       contents: [prompt, audioPart],
-      generationConfig: { responseMimeType: "application/json" },
-      timeoutMs: Number(process.env.GEMINI_TIMEOUT_MS || 45000),
-      maxAttempts: Number(process.env.GEMINI_MAX_ATTEMPTS || 3),
+      generationConfig: {
+        responseMimeType: "application/json",
+        maxOutputTokens: SPEAKING_ANALYSIS_MAX_OUTPUT_TOKENS,
+      },
+      timeoutMs: SPEAKING_GEMINI_TIMEOUT_MS,
+      maxAttempts: SPEAKING_GEMINI_MAX_ATTEMPTS,
     });
     analysis = aiResponse.data;
     aiSource = aiResponse.model;

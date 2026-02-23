@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api } from '@/shared/api/client';
 import { Trophy, Medal, Award, Lock, Star, Zap, Crown, ChevronLeft, ChevronRight } from 'lucide-react';
 import './AchievementsPage.css';
@@ -18,6 +18,51 @@ const CATEGORY_LABELS = {
 
 const TIER_LABELS = { bronze: 'Đồng', silver: 'Bạc', gold: 'Vàng', diamond: 'Kim Cương' };
 const PAGE_SIZE = 12;
+
+function useAnimatedCount(target, durationMs = 1800) {
+    const safeTarget = Number.isFinite(Number(target)) ? Number(target) : 0;
+    const [value, setValue] = useState(0);
+    const valueRef = useRef(0);
+
+    useEffect(() => {
+        valueRef.current = value;
+    }, [value]);
+
+    useEffect(() => {
+        const mediaQuery = typeof window !== 'undefined' && window.matchMedia
+            ? window.matchMedia('(prefers-reduced-motion: reduce)')
+            : null;
+
+        if (mediaQuery?.matches) {
+            setValue(safeTarget);
+            return undefined;
+        }
+
+        const startValue = valueRef.current;
+        const delta = safeTarget - startValue;
+        if (delta === 0) return undefined;
+
+        const startTime = performance.now();
+        let rafId = 0;
+
+        const tick = (now) => {
+            const progress = Math.min((now - startTime) / durationMs, 1);
+            const eased = 1 - Math.pow(1 - progress, 3);
+            setValue(Math.round(startValue + (delta * eased)));
+
+            if (progress < 1) {
+                rafId = requestAnimationFrame(tick);
+            } else {
+                setValue(safeTarget);
+            }
+        };
+
+        rafId = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(rafId);
+    }, [safeTarget, durationMs]);
+
+    return value;
+}
 
 export default function AchievementsPage() {
     const [activeTab, setActiveTab] = useState('achievements');
@@ -57,6 +102,8 @@ export default function AchievementsPage() {
     const unlockedKeys = new Set(userAchievements.map(a => a.achievementKey));
     const unlockedCount = unlockedKeys.size;
     const totalCount = definitions.length;
+    const animatedUnlockedCount = useAnimatedCount(unlockedCount, 1800);
+    const animatedXp = useAnimatedCount(myRank?.xp || 0, 1800);
 
     const filteredAchievements = definitions.filter(ach =>
         activeCategory === 'all' || ach.category === activeCategory
@@ -110,13 +157,13 @@ export default function AchievementsPage() {
                     <div className="ach-stats-row">
                         <div className="ach-stat-chip">
                             <Award size={16} />
-                            <strong>{unlockedCount}</strong> / {totalCount} thành tựu
+                            <strong>{animatedUnlockedCount}</strong> / {totalCount} thành tựu
                         </div>
                         {myRank && (
                             <>
                                 <div className="ach-stat-chip">
                                     <Zap size={16} />
-                                    <strong>{(myRank.xp || 0).toLocaleString()}</strong> XP
+                                    <strong>{animatedXp.toLocaleString()}</strong> XP
                                 </div>
                                 <div className="ach-stat-chip">
                                     <Star size={16} />

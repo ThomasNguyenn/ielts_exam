@@ -77,14 +77,22 @@ const uploadSpeakingAudio = async (audioFile) => {
     throw new Error("Audio buffer is missing");
   }
 
-  const b64 = Buffer.from(audioFile.buffer).toString("base64");
-  const dataURI = `data:${audioFile.mimetype || "audio/webm"};base64,${b64}`;
+  const result = await new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream({
+      folder: "ielts-speaking-recordings",
+      resource_type: "video",
+      use_filename: false,
+      unique_filename: true,
+    }, (error, streamResult) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve(streamResult);
+    });
 
-  const result = await cloudinary.uploader.upload(dataURI, {
-    folder: "ielts-speaking-recordings",
-    resource_type: "video",
-    use_filename: false,
-    unique_filename: true,
+    uploadStream.on("error", reject);
+    uploadStream.end(audioFile.buffer);
   });
 
   return {

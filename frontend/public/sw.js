@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ielts-learning-v3';
+const CACHE_NAME = 'ielts-learning-__BUILD_TIMESTAMP__';
 const PRECACHE_URLS = [
   '/index.html',
   '/manifest.json',
@@ -48,7 +48,7 @@ function shouldHandle(event) {
 
 async function networkFirstNavigation(event) {
   try {
-    const networkResponse = await fetch(new Request(event.request, { cache: 'no-store' }));
+    const networkResponse = await fetch(new Request(event.request, { cache: 'reload' }));
     if (networkResponse && networkResponse.status === 200) {
       const cache = await caches.open(CACHE_NAME);
       cache.put('/index.html', networkResponse.clone());
@@ -57,6 +57,21 @@ async function networkFirstNavigation(event) {
   } catch (error) {
     const cachedIndex = await caches.match('/index.html');
     if (cachedIndex) return cachedIndex;
+    throw error;
+  }
+}
+
+async function networkFirstAsset(event) {
+  try {
+    const networkResponse = await fetch(new Request(event.request, { cache: 'reload' }));
+    if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+      const cache = await caches.open(CACHE_NAME);
+      cache.put(event.request, networkResponse.clone());
+    }
+    return networkResponse;
+  } catch (error) {
+    const cached = await caches.match(event.request);
+    if (cached) return cached;
     throw error;
   }
 }
@@ -87,14 +102,18 @@ self.addEventListener('fetch', (event) => {
   }
 
   const destination = event.request.destination;
-  const isStaticAsset =
+  const isCodeAsset =
     destination === 'script' ||
     destination === 'style' ||
     destination === 'font' ||
-    destination === 'image' ||
     destination === 'manifest';
 
-  if (isStaticAsset) {
+  if (isCodeAsset) {
+    event.respondWith(networkFirstAsset(event));
+    return;
+  }
+
+  if (destination === 'image') {
     event.respondWith(staleWhileRevalidate(event));
     return;
   }

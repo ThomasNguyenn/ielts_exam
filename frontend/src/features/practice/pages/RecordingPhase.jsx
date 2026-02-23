@@ -2,6 +2,22 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNotification } from '@/shared/context/NotificationContext';
 
 const AUTO_RESUME_FALLBACK_MS = 20000;
+const AUDIO_BITS_PER_SECOND = 64000;
+const CHUNK_TIMESLICE_MS = 1000;
+
+const getSupportedRecordingMimeType = () => {
+    if (typeof window === 'undefined' || !window.MediaRecorder?.isTypeSupported) {
+        return null;
+    }
+
+    const candidates = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/mp4',
+    ];
+
+    return candidates.find((type) => window.MediaRecorder.isTypeSupported(type)) || null;
+};
 
 const toConversationQuestions = (topic) => {
     const part = Number(topic?.part || 0);
@@ -117,7 +133,13 @@ export default function RecordingPhase({ topic, onComplete }) {
             audioContext.createMediaStreamSource(stream).connect(analyser);
             visualize();
 
-            mediaRecorderRef.current = new MediaRecorder(stream);
+            const supportedMimeType = getSupportedRecordingMimeType();
+            const recorderOptions = {
+                audioBitsPerSecond: AUDIO_BITS_PER_SECOND,
+                ...(supportedMimeType ? { mimeType: supportedMimeType } : {}),
+            };
+
+            mediaRecorderRef.current = new MediaRecorder(stream, recorderOptions);
             chunksRef.current = [];
 
             mediaRecorderRef.current.ondataavailable = (event) => {
@@ -132,7 +154,7 @@ export default function RecordingPhase({ topic, onComplete }) {
                 if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
             };
 
-            mediaRecorderRef.current.start();
+            mediaRecorderRef.current.start(CHUNK_TIMESLICE_MS);
             setIsRecording(true);
             setIsRecorderPaused(false);
             setIsAutoAdvancing(false);

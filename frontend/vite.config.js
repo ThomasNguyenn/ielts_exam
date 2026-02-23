@@ -1,13 +1,29 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath, URL } from 'node:url';
+import fs from 'node:fs';
+import path from 'node:path';
+
+// Custom plugin: stamp sw.js with build timestamp so cache auto-busts on deploy
+function swTimestampPlugin() {
+  return {
+    name: 'sw-timestamp',
+    closeBundle() {
+      const swPath = path.resolve('dist', 'sw.js');
+      if (!fs.existsSync(swPath)) return;
+      const content = fs.readFileSync(swPath, 'utf-8');
+      const stamped = content.replace('__BUILD_TIMESTAMP__', Date.now().toString());
+      fs.writeFileSync(swPath, stamped);
+    },
+  };
+}
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const proxyTarget = env.VITE_PROXY_TARGET || 'https://ielts-exam-65pjc.ondigitalocean.app';
 
   return {
-    plugins: [react()],
+    plugins: [react(), swTimestampPlugin()],
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),

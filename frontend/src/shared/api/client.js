@@ -1,4 +1,11 @@
 const API_BASE = import.meta.env.VITE_API_URL || '';
+const ACHIEVEMENT_EVENT_IGNORED_PATHS = new Set([
+  '/api/auth/profile',
+  '/api/achievements',
+  '/api/achievements/me',
+]);
+const ACHIEVEMENT_EVENT_QUEUE_KEY = '__achievementUnlockQueue';
+const ACHIEVEMENT_EVENT_READY_FLAG = '__achievementToastReady';
 
 // Get token from localStorage
 function getToken() {
@@ -88,6 +95,39 @@ function handleUnauthorized(path) {
   }
 }
 
+function normalizeAchievementPayload(payload) {
+  if (!Array.isArray(payload)) return [];
+  return payload.filter((item) => item && typeof item === 'object');
+}
+
+function shouldEmitAchievementEvent(path, achievements, xpResult) {
+  if (ACHIEVEMENT_EVENT_IGNORED_PATHS.has(path)) return false;
+  if (xpResult) return true;
+  if (!Array.isArray(achievements) || achievements.length === 0) return false;
+
+  return achievements.some((item) =>
+    item?.title ||
+    item?.description ||
+    item?.icon ||
+    item?.key ||
+    item?.achievementKey
+  );
+}
+
+function emitAchievementEvent(detail) {
+  if (typeof window === 'undefined') return;
+
+  const isToastReady = window[ACHIEVEMENT_EVENT_READY_FLAG] === true;
+  if (!isToastReady) {
+    const existingQueue = Array.isArray(window[ACHIEVEMENT_EVENT_QUEUE_KEY])
+      ? window[ACHIEVEMENT_EVENT_QUEUE_KEY]
+      : [];
+    window[ACHIEVEMENT_EVENT_QUEUE_KEY] = [...existingQueue, detail].slice(-20);
+  }
+
+  window.dispatchEvent(new CustomEvent('achievements-unlocked', { detail }));
+}
+
 async function request(path, options = {}) {
   const url = `${API_BASE}${path}`;
   const token = getToken();
@@ -123,23 +163,17 @@ async function request(path, options = {}) {
   }
 
   // Intercept achievements and XP events globally
-  const achievements =
+  const rawAchievements =
     data?.data?.achievements ||
     data?.data?.newlyUnlocked ||
     data?.achievements ||
     data?.newlyUnlocked ||
     [];
+  const achievements = normalizeAchievementPayload(rawAchievements);
   const xpResult = data?.data?.xpResult || data?.xpResult || null;
 
-  if ((Array.isArray(achievements) && achievements.length > 0) || xpResult) {
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('achievements-unlocked', {
-        detail: {
-          achievements,
-          xpResult
-        }
-      }));
-    }
+  if (shouldEmitAchievementEvent(path, achievements, xpResult)) {
+    emitAchievementEvent({ achievements, xpResult });
   }
 
   return data;
