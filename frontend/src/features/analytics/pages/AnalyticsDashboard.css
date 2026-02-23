@@ -115,6 +115,19 @@
   font-size: 0.8125rem;
 }
 
+.analytics-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.analytics-card-head p {
+  margin: 0.2rem 0 0;
+  color: #64748b;
+  font-size: 0.8125rem;
+}
+
 .analytics-donut-layout {
   margin-top: 1rem;
   display: flex;
@@ -397,6 +410,11 @@
   }
 
   .analytics-progress-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .analytics-card-head {
     flex-direction: column;
     align-items: flex-start;
   }

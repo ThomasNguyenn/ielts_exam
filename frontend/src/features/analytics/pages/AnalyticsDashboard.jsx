@@ -28,6 +28,7 @@ const SKILL_COLORS = {
   Listening: '#0EA5E9',
   Speaking: '#F59E0B',
 };
+const SKILL_MODE_OPTIONS = ['overall', 'latest'];
 
 const EMPTY_SKILL_BREAKDOWN = [
   { name: 'Reading', value: 25, score: 0 },
@@ -431,6 +432,7 @@ export default function AnalyticsDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [progressPeriod, setProgressPeriod] = useState('month');
+  const [skillBreakdownMode, setSkillBreakdownMode] = useState('overall');
 
   useEffect(() => {
     let mounted = true;
@@ -483,7 +485,7 @@ export default function AnalyticsDashboard() {
     },
   };
 
-  const skillBreakdown = useMemo(() => {
+  const overallSkillBreakdown = useMemo(() => {
     const data = Array.isArray(dashboard?.skillBreakdown) && dashboard.skillBreakdown.length
       ? dashboard.skillBreakdown
       : EMPTY_SKILL_BREAKDOWN;
@@ -493,6 +495,57 @@ export default function AnalyticsDashboard() {
       color: SKILL_COLORS[item.name] || '#6366F1',
     }));
   }, [dashboard]);
+
+  const latestSkillScores = useMemo(() => {
+    const history = Array.isArray(dashboard?.history) ? dashboard.history : [];
+    const latestBySkill = {};
+
+    history.forEach((item) => {
+      const type = String(item?.type || '').toLowerCase();
+      const score = Number(item?.score);
+      const timestamp = new Date(item?.date).getTime();
+      if (!Number.isFinite(score) || Number.isNaN(timestamp)) return;
+      if (!latestBySkill[type] || timestamp > latestBySkill[type].timestamp) {
+        latestBySkill[type] = { score, timestamp };
+      }
+    });
+
+    return latestBySkill;
+  }, [dashboard]);
+
+  const skillBreakdown = useMemo(() => {
+    if (skillBreakdownMode === 'overall') return overallSkillBreakdown;
+
+    const typeByName = {
+      Reading: 'reading',
+      Writing: 'writing',
+      Listening: 'listening',
+      Speaking: 'speaking',
+    };
+
+    const latestData = overallSkillBreakdown.map((item) => {
+      const type = typeByName[item.name];
+      const latest = latestSkillScores[type];
+      return {
+        ...item,
+        score: Number.isFinite(latest?.score) ? Number(latest.score) : Number(item.score || 0),
+      };
+    });
+
+    const total = latestData.reduce((sum, item) => sum + Number(item.score || 0), 0);
+    return latestData.map((item) => ({
+      ...item,
+      value: total > 0 ? roundOne((Number(item.score || 0) / total) * 100) : 25,
+    }));
+  }, [overallSkillBreakdown, latestSkillScores, skillBreakdownMode]);
+
+  const donutCenterBand = useMemo(() => {
+    if (skillBreakdownMode === 'overall') return Number(summary.overallBand || 0);
+    const scores = skillBreakdown
+      .map((item) => Number(item.score))
+      .filter((value) => Number.isFinite(value));
+    return scores.length ? roundHalf(average(scores)) : 0;
+  }, [skillBreakdownMode, summary.overallBand, skillBreakdown]);
 
   const weaknessData = Array.isArray(dashboard?.weaknesses) ? dashboard.weaknesses : [];
   const weakCategorySet = useMemo(
@@ -598,8 +651,24 @@ export default function AnalyticsDashboard() {
 
       <div className="analytics-charts-grid">
         <div className="analytics-card">
-          <h3>Skill Breakdown</h3>
-          <p>Performance distribution across IELTS skills</p>
+          <div className="analytics-card-head">
+            <div>
+              <h3>Skill Breakdown</h3>
+              <p>{skillBreakdownMode === 'overall' ? 'Performance distribution across all attempts' : 'Performance based on latest attempt per skill'}</p>
+            </div>
+            <div className="analytics-period-switch">
+              {SKILL_MODE_OPTIONS.map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  className={`analytics-period-btn ${skillBreakdownMode === mode ? 'active' : ''}`}
+                  onClick={() => setSkillBreakdownMode(mode)}
+                >
+                  {mode === 'overall' ? 'Overall' : 'Latest'}
+                </button>
+              ))}
+            </div>
+          </div>
 
           <div className="analytics-donut-layout">
             <div className="analytics-donut-wrap">
@@ -622,8 +691,8 @@ export default function AnalyticsDashboard() {
                 </PieChart>
               </ResponsiveContainer>
               <div className="analytics-donut-center">
-                <p>{formatBand(summary.overallBand)}</p>
-                <span>Overall Band</span>
+                <p>{formatBand(donutCenterBand)}</p>
+                <span>{skillBreakdownMode === 'overall' ? 'Overall Band' : 'Latest Skill Avg'}</span>
               </div>
             </div>
 
