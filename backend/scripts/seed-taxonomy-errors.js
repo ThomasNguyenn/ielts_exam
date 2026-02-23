@@ -42,7 +42,7 @@ async function seedErrors() {
         // 1. DUMMY READING/LISTENING TEST ATTEMPT
         // ---------------------------------------------------------
         const testAttempt = new TestAttempt({
-            user: user._id,
+            user_id: user._id,
             test: new mongoose.Types.ObjectId(), // Fake test ID
             status: 'completed',
             score: 5.5,
@@ -109,7 +109,7 @@ async function seedErrors() {
         // 2. DUMMY WRITING SUBMISSION
         // ---------------------------------------------------------
         const writingSubmission = new WritingSubmission({
-            user: user._id,
+            user_id: user._id,
             test: new mongoose.Types.ObjectId(), // Fake test ID
             status: 'graded',
             overallBand: 6.0,
@@ -165,7 +165,7 @@ async function seedErrors() {
         // 3. DUMMY SPEAKING SESSION
         // ---------------------------------------------------------
         const speakingSession = new SpeakingSession({
-            user: user._id,
+            userId: user._id,
             modelTest: new mongoose.Types.ObjectId(), // Fake test ID
             status: 'completed',
             overallBand: 5.5,
