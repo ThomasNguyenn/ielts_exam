@@ -1,12 +1,16 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import AnalyticsDashboard from './AnalyticsDashboard';
-import EnhancedAnalyticsDashboard from './EnhancedAnalyticsDashboard';
+
+const AnalyticsDashboard = lazy(() => import('./AnalyticsDashboard'));
+const EnhancedAnalyticsDashboard = lazy(() => import('./EnhancedAnalyticsDashboard'));
 
 export default function AnalyticsContainer() {
     const { studentId } = useParams();
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('overview');
+    const fallback = (
+        <div className="analytics-loading">Dang tai bang phan tich...</div>
+    );
 
     return (
         <div className="analytics-container-wrapper" style={{ padding: '0', maxWidth: '1200px', margin: '0 auto' }}>
@@ -54,7 +58,9 @@ export default function AnalyticsContainer() {
             </div>
 
             <div className="analytics-tab-content">
-                {activeTab === 'overview' ? <AnalyticsDashboard /> : <EnhancedAnalyticsDashboard />}
+                <Suspense fallback={fallback}>
+                    {activeTab === 'overview' ? <AnalyticsDashboard /> : <EnhancedAnalyticsDashboard />}
+                </Suspense>
             </div>
         </div>
     );

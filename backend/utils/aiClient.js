@@ -25,7 +25,13 @@ const isRetryableError = (error) => {
   const statusCode = Number(error?.status || error?.statusCode || 0);
   const code = String(error?.code || "").toUpperCase();
 
-  if (code === "AI_TIMEOUT" || code === "ETIMEDOUT" || code === "ECONNRESET" || code === "ECONNABORTED") {
+  if (
+    code === "AI_TIMEOUT" ||
+    code === "ETIMEDOUT" ||
+    code === "ECONNRESET" ||
+    code === "ECONNABORTED" ||
+    code === "MODEL_JSON_PARSE_FAILED"
+  ) {
     return true;
   }
 
@@ -40,23 +46,181 @@ const isRetryableError = (error) => {
   return false;
 };
 
+const findJsonBoundary = (text, startIndex) => {
+  const stack = [];
+  let inString = false;
+  let escaped = false;
+
+  for (let i = startIndex; i < text.length; i += 1) {
+    const char = text[i];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+
+      if (char === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === "\"") {
+      inString = true;
+      continue;
+    }
+
+    if (char === "{" || char === "[") {
+      stack.push(char);
+      continue;
+    }
+
+    if (char === "}" || char === "]") {
+      const previous = stack.pop();
+      const isMatch = (previous === "{" && char === "}") || (previous === "[" && char === "]");
+      if (!isMatch) {
+        return -1;
+      }
+      if (stack.length === 0) {
+        return i;
+      }
+    }
+  }
+
+  return -1;
+};
+
 const extractJsonCandidate = (text) => {
   const trimmed = String(text || "")
     .replace(/```json/gi, "")
     .replace(/```/g, "")
     .trim();
 
-  const firstOpen = trimmed.indexOf("{");
-  const lastClose = trimmed.lastIndexOf("}");
-  if (firstOpen !== -1 && lastClose !== -1 && lastClose > firstOpen) {
-    return trimmed.slice(firstOpen, lastClose + 1);
+  const firstObject = trimmed.indexOf("{");
+  const firstArray = trimmed.indexOf("[");
+
+  let start = -1;
+  if (firstObject === -1) {
+    start = firstArray;
+  } else if (firstArray === -1) {
+    start = firstObject;
+  } else {
+    start = Math.min(firstObject, firstArray);
   }
+
+  if (start !== -1) {
+    const end = findJsonBoundary(trimmed, start);
+    if (end !== -1 && end > start) {
+      return trimmed.slice(start, end + 1);
+    }
+  }
+
   return trimmed;
+};
+
+const nextNonWhitespace = (text, startIndex) => {
+  for (let i = startIndex; i < text.length; i += 1) {
+    if (!/\s/.test(text[i])) return text[i];
+  }
+  return "";
+};
+
+const sanitizeJsonCandidate = (value) => {
+  const raw = String(value || "")
+    .replace(/^\uFEFF/, "")
+    .replace(/[\u201C\u201D]/g, "\"")
+    .replace(/[\u2018\u2019]/g, "'");
+
+  let output = "";
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < raw.length; i += 1) {
+    const char = raw[i];
+
+    if (inString) {
+      if (escaped) {
+        output += char;
+        escaped = false;
+        continue;
+      }
+
+      if (char === "\\") {
+        output += char;
+        escaped = true;
+        continue;
+      }
+
+      if (char === "\"") {
+        const nextChar = nextNonWhitespace(raw, i + 1);
+        if (nextChar === "," || nextChar === "}" || nextChar === "]" || nextChar === ":" || nextChar === "") {
+          output += char;
+          inString = false;
+        } else {
+          output += "\\\"";
+        }
+        continue;
+      }
+
+      if (char === "\n") {
+        output += "\\n";
+        continue;
+      }
+      if (char === "\r") {
+        output += "\\r";
+        continue;
+      }
+      if (char === "\t") {
+        output += "\\t";
+        continue;
+      }
+
+      const code = char.charCodeAt(0);
+      if (code < 0x20) {
+        output += `\\u${code.toString(16).padStart(4, "0")}`;
+        continue;
+      }
+
+      output += char;
+      continue;
+    }
+
+    if (char === "\"") {
+      inString = true;
+      output += char;
+      continue;
+    }
+
+    output += char;
+  }
+
+  return output.replace(/,\s*([}\]])/g, "$1");
 };
 
 export const parseModelJson = (rawText) => {
   const candidate = extractJsonCandidate(rawText);
-  return JSON.parse(candidate);
+
+  try {
+    return JSON.parse(candidate);
+  } catch (parseError) {
+    try {
+      const repaired = sanitizeJsonCandidate(candidate);
+      return JSON.parse(repaired);
+    } catch (repairError) {
+      const error = new SyntaxError(`Failed to parse model JSON: ${repairError.message}`);
+      error.code = "MODEL_JSON_PARSE_FAILED";
+      error.statusCode = 502;
+      error.cause = parseError;
+      error.rawPreview = candidate.slice(0, 500);
+      throw error;
+    }
+  }
 };
 
 export const runWithRetry = async ({
@@ -96,6 +260,7 @@ export const requestOpenAIJsonWithFallback = async ({
   createPayload,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   maxAttempts = DEFAULT_MAX_ATTEMPTS,
+  baseDelayMs = DEFAULT_BASE_DELAY_MS,
 }) => {
   if (!openai?.chat?.completions?.create) {
     throw new Error("OpenAI client is not initialized");
@@ -113,18 +278,24 @@ export const requestOpenAIJsonWithFallback = async ({
         label: `OpenAI:${model}`,
         timeoutMs,
         maxAttempts,
-        operation: () => openai.chat.completions.create(createPayload(model)),
+        baseDelayMs,
+        operation: async () => {
+          const response = await openai.chat.completions.create(createPayload(model));
+          const content = response?.choices?.[0]?.message?.content;
+          if (!content) {
+            throw new Error(`OpenAI returned empty content for model ${model}`);
+          }
+          return {
+            content,
+            parsed: parseModelJson(content),
+          };
+        },
       });
-
-      const content = completion?.choices?.[0]?.message?.content;
-      if (!content) {
-        throw new Error(`OpenAI returned empty content for model ${model}`);
-      }
 
       return {
         model,
-        data: parseModelJson(content),
-        rawText: content,
+        data: completion.parsed,
+        rawText: completion.content,
       };
     } catch (error) {
       lastError = error;
@@ -141,6 +312,7 @@ export const requestGeminiJsonWithFallback = async ({
   generationConfig,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   maxAttempts = DEFAULT_MAX_ATTEMPTS,
+  baseDelayMs = DEFAULT_BASE_DELAY_MS,
 }) => {
   const normalizedModels = (models || []).filter(Boolean);
   if (normalizedModels.length === 0) {
@@ -159,19 +331,25 @@ export const requestGeminiJsonWithFallback = async ({
         label: `Gemini:${modelName}`,
         timeoutMs,
         maxAttempts,
-        operation: () => model.generateContent(contents),
+        baseDelayMs,
+        operation: async () => {
+          const responseResult = await model.generateContent(contents);
+          const response = await responseResult.response;
+          const rawText = response?.text?.() || "";
+          if (!rawText.trim()) {
+            throw new Error(`Gemini returned empty content for model ${modelName}`);
+          }
+          return {
+            rawText,
+            parsed: parseModelJson(rawText),
+          };
+        },
       });
-
-      const response = await result.response;
-      const rawText = response?.text?.() || "";
-      if (!rawText.trim()) {
-        throw new Error(`Gemini returned empty content for model ${modelName}`);
-      }
 
       return {
         model: modelName,
-        data: parseModelJson(rawText),
-        rawText,
+        data: result.parsed,
+        rawText: result.rawText,
       };
     } catch (error) {
       lastError = error;

@@ -97,6 +97,7 @@ Output requirements:
 - Vietnamese language.
 - Clear and concise.
 - MUST include at least one short English quote from the passage when citing evidence. Keep the quote in original English and wrap quote with double quotes.
+- IMPORTANT: because output is JSON, any double quote inside explanation text MUST be escaped as \\".
 - Do not translate the quoted evidence.
 - Must be consistent with correct_answers when provided.
 
