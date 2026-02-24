@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect, useMemo, forwardRef, useImperativeHandle } from 'react';
+import DOMPurify from 'dompurify';
 
 /**
  * Tokenizes HTML string by wrapping independent words in <span> tags.
@@ -54,6 +55,24 @@ export function tokenizeHtml(html) {
   });
 
   return div.innerHTML;
+}
+
+function sanitizeHtmlContent(rawHtml) {
+  return DOMPurify.sanitize(String(rawHtml || ''), {
+    USE_PROFILES: { html: true },
+    FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form'],
+    FORBID_ATTR: [
+      'onerror',
+      'onload',
+      'onclick',
+      'onmouseover',
+      'onmouseenter',
+      'onmouseleave',
+      'onfocus',
+      'onblur',
+    ],
+    ADD_ATTR: ['data-note', 'data-question-number'],
+  });
 }
 
 /**
@@ -117,13 +136,15 @@ const HighlightableContent = forwardRef(({ htmlContent, onUpdateHtml, id, tagNam
   // Simple heuristic: If raw HTML contains "token-word", assumes it's managed.
   // Better: Just fix `tokenizeHtml` to not wrap if parent is already `token-word`.
 
+  const sanitizedHtml = useMemo(() => sanitizeHtmlContent(htmlContent), [htmlContent]);
+
   const processedHtml = useMemo(() => {
     // Determine if we need to tokenize
-    if (htmlContent && !htmlContent.includes('token-word')) {
-      return tokenizeHtml(htmlContent);
+    if (sanitizedHtml && !sanitizedHtml.includes('token-word')) {
+      return tokenizeHtml(sanitizedHtml);
     }
-    return htmlContent;
-  }, [htmlContent]);
+    return sanitizedHtml;
+  }, [sanitizedHtml]);
 
 
   const [noteModal, setNoteModal] = useState({ isOpen: false, range: null, initialValue: '', editNode: null });

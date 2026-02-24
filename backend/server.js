@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 import mongoose from "mongoose";
 import { connectDB } from "./config/db.js";
 import { validateEnvironment } from "./config/env.validation.js";
+import { closeRateLimitRedisConnection } from "./middleware/rateLimit.middleware.js";
 
 dotenv.config();
 validateEnvironment();
@@ -19,6 +20,12 @@ const startServer = async () => {
   const shutdown = async (signal) => {
     console.log(`\n[shutdown] ${signal} received — closing server...`);
     server.close(async () => {
+      try {
+        await closeRateLimitRedisConnection();
+      } catch (err) {
+        console.error("[shutdown] Error closing rate-limit Redis connection:", err.message);
+      }
+
       try {
         await mongoose.connection.close();
         console.log("[shutdown] MongoDB connection closed.");

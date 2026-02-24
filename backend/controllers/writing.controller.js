@@ -8,6 +8,24 @@ import { enqueueWritingAiScoreJob, isAiQueueReady } from "../queues/ai.queue.js"
 import { scoreWritingSubmissionById } from "../services/writingSubmissionScoring.service.js";
 import { parsePagination, buildPaginationMeta } from "../utils/pagination.js";
 
+const isTeacherOrAdminRequest = (req) => (
+    req.user?.role === "teacher" || req.user?.role === "admin"
+);
+
+const sanitizeWritingForLearner = (writing) => ({
+    _id: writing._id,
+    title: writing.title,
+    type: writing.type,
+    prompt: writing.prompt,
+    task_type: writing.task_type,
+    image_url: writing.image_url || null,
+    word_limit: writing.word_limit ?? null,
+    essay_word_limit: writing.essay_word_limit ?? null,
+    time_limit: writing.time_limit ?? null,
+    is_active: writing.is_active !== false,
+    is_real_test: Boolean(writing.is_real_test),
+});
+
 const canAccessSubmission = (submission, user) => {
     if (!user?.userId) return false;
     if (!submission?.user_id) return user.role === "admin" || user.role === "teacher";
@@ -45,8 +63,14 @@ const pickWritingPayload = (body = {}, { allowId = false } = {}) => {
 
 export const getAllWritings = async (req, res) => {
     try {
-        const writings = await Writing.find({});
-        res.status(200).json({ success: true, data: writings });
+        const privileged = isTeacherOrAdminRequest(req);
+        const writings = await Writing.find(privileged ? {} : { is_active: true });
+        if (privileged) {
+            return res.status(200).json({ success: true, data: writings });
+        }
+
+        const sanitized = writings.map((writing) => sanitizeWritingForLearner(writing));
+        return res.status(200).json({ success: true, data: sanitized });
     } catch (error) {
         res.status(500).json({ success: false, message: "Server Error" });
     }
@@ -106,11 +130,21 @@ export const deleteWriting = async (req, res) => {
 export const getWritingById = async (req, res) => {
     const { id } = req.params;
     try {
+        const privileged = isTeacherOrAdminRequest(req);
         const writing = await Writing.findById(id);
         if (!writing) {
             return res.status(404).json({ success: false, message: "Writing not found" });
         }
-        res.status(200).json({ success: true, data: writing });
+
+        if (!privileged && writing.is_active === false) {
+            return res.status(404).json({ success: false, message: "Writing not found" });
+        }
+
+        if (privileged) {
+            return res.status(200).json({ success: true, data: writing });
+        }
+
+        return res.status(200).json({ success: true, data: sanitizeWritingForLearner(writing) });
     } catch (error) {
         res.status(500).json({ success: false, message: "Server Error" });
     }
@@ -120,8 +154,12 @@ export const getWritingById = async (req, res) => {
 export const getWritingExam = async (req, res) => {
     const { id } = req.params;
     try {
+        const privileged = isTeacherOrAdminRequest(req);
         const writing = await Writing.findById(id);
         if (!writing) {
+            return res.status(404).json({ success: false, message: "Writing not found" });
+        }
+        if (!privileged && writing.is_active === false) {
             return res.status(404).json({ success: false, message: "Writing not found" });
         }
         res.status(200).json({

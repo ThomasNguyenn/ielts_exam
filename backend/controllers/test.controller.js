@@ -6,6 +6,9 @@ import { parsePagination, buildPaginationMeta } from "../utils/pagination.js";
 
 const escapeRegex = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const ALLOWED_TEST_TYPES = ['reading', 'listening', 'writing'];
+const isTeacherOrAdminRequest = (req) => (
+    req.user?.role === 'teacher' || req.user?.role === 'admin'
+);
 const pickTestPayload = (body = {}, { allowId = false } = {}) => {
     const allowed = [
         "title",
@@ -378,7 +381,36 @@ export const getTheTestById = async (req, res) => {
         if (!test) {
             return res.status(404).json({ success: false, message: "Test not found" });
         }
-        res.status(200).json({ success: true, data: test });
+        if (!isTeacherOrAdminRequest(req) && test.is_active === false) {
+            return res.status(404).json({ success: false, message: "Test not found" });
+        }
+
+        if (isTeacherOrAdminRequest(req)) {
+            return res.status(200).json({ success: true, data: test });
+        }
+
+        const examType = test.type || 'reading';
+        const sanitized = {
+            _id: test._id,
+            title: test.title,
+            category: test.category,
+            type: examType,
+            duration: test.duration,
+            is_active: Boolean(test.is_active),
+            is_real_test: Boolean(test.is_real_test),
+            full_audio: test.full_audio || null,
+            reading_passages: examType === 'reading'
+                ? (test.reading_passages || []).map((p) => stripForExam(p))
+                : [],
+            listening_sections: examType === 'listening'
+                ? (test.listening_sections || []).map((s) => stripForExam(s))
+                : [],
+            writing_tasks: examType === 'writing'
+                ? (test.writing_tasks || []).map((w) => stripForWritingExam(w))
+                : [],
+        };
+
+        return res.status(200).json({ success: true, data: sanitized });
     } catch (error) {
         res.status(500).json({ success: false, message: "Server Error" });
     }
@@ -422,6 +454,7 @@ function stripForWritingExam(item) {
 export const getExamData = async (req, res) => {
     const { id } = req.params;
     try {
+        const privileged = isTeacherOrAdminRequest(req);
         let test = await Test.findById(id)
             .populate('reading_passages')
             .populate('listening_sections')
@@ -433,6 +466,9 @@ export const getExamData = async (req, res) => {
             const Writing = (await import("../models/Writing.model.js")).default;
             const writingTask = await Writing.findById(id).lean();
             if (writingTask) {
+                if (!privileged && writingTask.is_active === false) {
+                    return res.status(404).json({ success: false, message: "Test or Writing task not found" });
+                }
                 return res.status(200).json({
                     success: true,
                     data: {
@@ -453,6 +489,9 @@ export const getExamData = async (req, res) => {
                     },
                 });
             }
+            return res.status(404).json({ success: false, message: "Test or Writing task not found" });
+        }
+        if (!privileged && test.is_active === false) {
             return res.status(404).json({ success: false, message: "Test or Writing task not found" });
         }
         const examType = test.type || 'reading';

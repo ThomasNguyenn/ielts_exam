@@ -40,30 +40,14 @@ if ('serviceWorker' in navigator) {
           console.log('[PWA] Service Worker registered:', registration);
           cleanupAppCaches().catch(() => undefined);
 
-          const promptUpdate = (worker) => {
-            if (!worker) return;
-            worker.postMessage({ type: 'SKIP_WAITING' });
-          };
-
-          if (registration.waiting) {
-            promptUpdate(registration.waiting);
-          }
-
           registration.addEventListener('updatefound', () => {
             const newWorker = registration.installing;
             if (!newWorker) return;
             newWorker.addEventListener('statechange', () => {
               if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                promptUpdate(newWorker);
+                console.log('[PWA] New version downloaded. It will be applied on the next reload.');
               }
             });
-          });
-
-          let hasRefreshed = false;
-          navigator.serviceWorker.addEventListener('controllerchange', () => {
-            if (hasRefreshed) return;
-            hasRefreshed = true;
-            window.location.reload();
           });
 
           // Force a check for new SW on load and periodically while tab is open.

@@ -26,15 +26,15 @@ const upload = multer({
   },
 });
 
-router.get("/", getAllWritings);
+router.get("/", optionalVerifyToken, getAllWritings);
 router.get("/submissions", verifyToken, isTeacherOrAdmin, getSubmissions);
 router.get("/submissions/:id", verifyToken, isTeacherOrAdmin, getSubmissionById);
 router.get("/submissions/:id/status", verifyToken, getSubmissionStatus);
 router.post("/", verifyToken, isTeacherOrAdmin, createWriting);
 router.post("/upload-image", verifyToken, isTeacherOrAdmin, upload.single('image'), uploadImage);
-router.get("/:id", getWritingById);
-router.get("/:id/exam", getWritingExam);
-router.post("/:id/submit", optionalVerifyToken, submitWriting);
+router.get("/:id", optionalVerifyToken, getWritingById);
+router.get("/:id/exam", optionalVerifyToken, getWritingExam);
+router.post("/:id/submit", verifyToken, submitWriting);
 router.post("/submissions/:id/score", verifyToken, isTeacherOrAdmin, scoreSubmission);
 router.post("/submissions/:id/ai-score", verifyToken, scoreSubmissionAI);
 router.post("/:id/regenerate-id", verifyToken, isTeacherOrAdmin, regenerateWritingId);

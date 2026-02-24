@@ -41,6 +41,9 @@ export const verifyToken = async (req, res, next) => {
 
     const token = authHeader.split(" ")[1];
     const decoded = jwt.verify(token, JWT_SECRET);
+    if (decoded?.tokenType && decoded.tokenType !== "access") {
+      return res.status(401).json({ success: false, message: "Invalid token" });
+    }
     const validated = await validateStudentSingleSession(decoded);
 
     req.user = validated;
@@ -67,6 +70,9 @@ export const optionalVerifyToken = async (req, res, next) => {
   try {
     const token = authHeader.split(" ")[1];
     const decoded = jwt.verify(token, JWT_SECRET);
+    if (decoded?.tokenType && decoded.tokenType !== "access") {
+      return next();
+    }
     const validated = await validateStudentSingleSession(decoded);
     req.user = validated;
   } catch (error) {

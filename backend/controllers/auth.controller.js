@@ -2,16 +2,23 @@ import User from "../models/User.model.js";
 import Invitation from "../models/Invitation.model.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { randomUUID, randomBytes } from "crypto";
-import { JWT_SECRET } from "../config/security.config.js";
+import { randomUUID, randomBytes, createHash } from "crypto";
+import {
+  JWT_SECRET,
+  JWT_REFRESH_SECRET,
+  ACCESS_TOKEN_EXPIRES_IN,
+  REFRESH_TOKEN_EXPIRES_IN,
+  REFRESH_COOKIE_NAME,
+  REFRESH_COOKIE_PATH,
+  REFRESH_COOKIE_SAMESITE,
+  REFRESH_COOKIE_SECURE,
+} from "../config/security.config.js";
 import { sendVerificationEmail, sendPasswordResetEmail } from "../services/email.service.js";
-
-const ALLOWED_ROLES = new Set(["student", "teacher", "admin"]);
-const JWT_EXPIRES_IN = "7d";
 
 const PASSWORD_MIN = 8;
 const PASSWORD_MAX = 72; // bcrypt limit
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const validatePassword = (password) => {
   if (!password || password.length < PASSWORD_MIN) {
@@ -27,27 +34,113 @@ const validatePassword = (password) => {
 };
 
 const createStudentSessionId = () => randomUUID();
+const normalizeEmail = (value) => String(value || "").trim().toLowerCase();
+const isValidEmail = (value) => EMAIL_REGEX.test(String(value || "").trim());
 
-const issueTokenForUser = (user, sessionId = null) => {
+const parseCookies = (cookieHeader = "") =>
+  String(cookieHeader || "")
+    .split(";")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .reduce((acc, part) => {
+      const separatorIndex = part.indexOf("=");
+      if (separatorIndex <= 0) return acc;
+      const key = decodeURIComponent(part.slice(0, separatorIndex).trim());
+      const value = decodeURIComponent(part.slice(separatorIndex + 1).trim());
+      acc[key] = value;
+      return acc;
+    }, {});
+
+const hashToken = (token) =>
+  createHash("sha256").update(String(token || ""), "utf8").digest("hex");
+
+const decodeTokenExpiry = (token) => {
+  const decoded = jwt.decode(token);
+  const expSec = Number(decoded?.exp || 0);
+  if (!Number.isFinite(expSec) || expSec <= 0) return null;
+  return new Date(expSec * 1000);
+};
+
+const getRefreshCookieOptions = (refreshToken) => {
+  const expires = decodeTokenExpiry(refreshToken);
+  return {
+    httpOnly: true,
+    secure: REFRESH_COOKIE_SECURE || REFRESH_COOKIE_SAMESITE === "none",
+    sameSite: REFRESH_COOKIE_SAMESITE,
+    path: REFRESH_COOKIE_PATH,
+    expires: expires || undefined,
+  };
+};
+
+const setRefreshTokenCookie = (res, refreshToken) => {
+  res.cookie(REFRESH_COOKIE_NAME, refreshToken, getRefreshCookieOptions(refreshToken));
+};
+
+const clearRefreshTokenCookie = (res) => {
+  res.clearCookie(REFRESH_COOKIE_NAME, {
+    httpOnly: true,
+    secure: REFRESH_COOKIE_SECURE || REFRESH_COOKIE_SAMESITE === "none",
+    sameSite: REFRESH_COOKIE_SAMESITE,
+    path: REFRESH_COOKIE_PATH,
+  });
+};
+
+const issueAccessTokenForUser = (user, sessionId = null) => {
   const payload = {
     userId: user._id,
     email: user.email,
     role: user.role,
+    tokenType: "access",
   };
 
   if (sessionId) {
     payload.sessionId = sessionId;
   }
 
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRES_IN });
 };
+
+const issueRefreshTokenForUser = (user, sessionId = null) => {
+  const payload = {
+    userId: user._id,
+    email: user.email,
+    role: user.role,
+    tokenType: "refresh",
+  };
+  if (sessionId) {
+    payload.sessionId = sessionId;
+  }
+
+  const token = jwt.sign(payload, JWT_REFRESH_SECRET, { expiresIn: REFRESH_TOKEN_EXPIRES_IN });
+  return {
+    token,
+    expiresAt: decodeTokenExpiry(token),
+  };
+};
+
+const getRefreshTokenFromRequest = (req) => {
+  const cookies = parseCookies(req.headers?.cookie || "");
+  return cookies[REFRESH_COOKIE_NAME] || null;
+};
+
+const pickAuthUserPayload = (user) => ({
+  _id: user._id,
+  email: user.email,
+  name: user.name,
+  role: user.role,
+  isConfirmed: user.isConfirmed,
+});
 
 export const register = async (req, res) => {
   try {
     const { email, password, name, inviteToken } = req.body;
+    const normalizedEmail = normalizeEmail(email);
 
-    if (!email || !password || !name) {
+    if (!normalizedEmail || !password || !name) {
       return res.status(400).json({ success: false, message: "Email, password, and name are required" });
+    }
+    if (!isValidEmail(normalizedEmail)) {
+      return res.status(400).json({ success: false, message: "Invalid email format" });
     }
 
     const passwordError = validatePassword(password);
@@ -56,7 +149,7 @@ export const register = async (req, res) => {
     }
 
     // Check if user already exists
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
+    const existingUser = await User.findOne({ email: normalizedEmail });
     if (existingUser) {
       return res.status(400).json({ success: false, message: "Email already registered" });
     }
@@ -77,7 +170,7 @@ export const register = async (req, res) => {
         return res.status(400).json({ success: false, message: "Invalid or expired invitation token" });
       }
 
-      if (invitation.email !== email.toLowerCase()) {
+      if (invitation.email !== normalizedEmail) {
         return res.status(400).json({ success: false, message: "Email does not match invitation" });
       }
 
@@ -94,7 +187,7 @@ export const register = async (req, res) => {
     const verificationTokenExpires = autoConfirm ? null : Date.now() + 24 * 60 * 60 * 1000;
 
     const user = new User({
-      email: email.toLowerCase(),
+      email: normalizedEmail,
       password: hashedPassword,
       name,
       role: assignedRole,
@@ -124,19 +217,19 @@ export const register = async (req, res) => {
       await sendVerificationEmail(user.email, verificationToken);
     }
 
-    const token = issueTokenForUser(user, studentSessionId);
+    const accessToken = issueAccessTokenForUser(user, studentSessionId);
+    const refreshToken = issueRefreshTokenForUser(user, studentSessionId);
+    user.refreshTokenHash = hashToken(refreshToken.token);
+    user.refreshTokenIssuedAt = new Date();
+    user.refreshTokenExpiresAt = refreshToken.expiresAt;
+    await user.save();
+    setRefreshTokenCookie(res, refreshToken.token);
 
     res.status(201).json({
       success: true,
       data: {
-        user: {
-          _id: user._id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          isConfirmed: user.isConfirmed,
-        },
-        token,
+        user: pickAuthUserPayload(user),
+        token: accessToken,
         message: autoConfirm
           ? "Registration successful. Welcome!"
           : "Registration successful. Please check your email to verify your account.",
@@ -183,15 +276,25 @@ export const verifyEmail = async (req, res) => {
 export const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const normalizedEmail = normalizeEmail(email);
+
+    if (!normalizedEmail) {
+      return res.status(400).json({ success: false, message: "Email is required" });
+    }
+
+    if (!isValidEmail(normalizedEmail)) {
+      return res.status(400).json({ success: false, message: "Invalid email format" });
+    }
+
+    const user = await User.findOne({ email: normalizedEmail });
 
     if (!user) {
       // Security: Don't reveal user existence
       return res.json({ success: true, message: "If an account exists, a reset email has been sent." });
     }
 
-    const resetToken = randomBytes(32).toString('hex');
-    user.resetPasswordToken = resetToken;
+    const resetToken = randomBytes(32).toString("hex");
+    user.resetPasswordToken = hashToken(resetToken);
     user.resetPasswordExpires = Date.now() + 1 * 60 * 60 * 1000; // 1 hour
     await user.save();
 
@@ -217,10 +320,13 @@ export const resetPassword = async (req, res) => {
       return res.status(400).json({ success: false, message: passwordError });
     }
 
+    const tokenHash = hashToken(token);
     const user = await User.findOne({
-      resetPasswordToken: token,
       resetPasswordExpires: { $gt: Date.now() }
-    });
+    }).or([
+      { resetPasswordToken: tokenHash },
+      { resetPasswordToken: token }, // Backward compatibility with old plaintext tokens
+    ]);
 
     if (!user) {
       return res.status(400).json({ success: false, message: "Invalid or expired token" });
@@ -230,6 +336,13 @@ export const resetPassword = async (req, res) => {
     user.password = await bcrypt.hash(newPassword, salt);
     user.resetPasswordToken = undefined;
     user.resetPasswordExpires = undefined;
+    user.refreshTokenHash = null;
+    user.refreshTokenIssuedAt = null;
+    user.refreshTokenExpiresAt = null;
+    if (user.role === "student") {
+      user.activeSessionId = createStudentSessionId();
+      user.activeSessionIssuedAt = new Date();
+    }
     await user.save();
 
     res.json({ success: true, message: "Password reset successfully" });
@@ -242,13 +355,17 @@ export const resetPassword = async (req, res) => {
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
+    const normalizedEmail = normalizeEmail(email);
 
-    if (!email || !password) {
+    if (!normalizedEmail || !password) {
       return res.status(400).json({ success: false, message: "Email and password are required" });
+    }
+    if (!isValidEmail(normalizedEmail)) {
+      return res.status(400).json({ success: false, message: "Invalid email format" });
     }
 
     // Find user
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await User.findOne({ email: normalizedEmail });
     if (!user) {
       return res.status(401).json({ success: false, message: "Invalid credentials" });
     }
@@ -264,26 +381,135 @@ export const login = async (req, res) => {
       studentSessionId = createStudentSessionId();
       user.activeSessionId = studentSessionId;
       user.activeSessionIssuedAt = new Date();
-      await user.save();
     }
 
-    const token = issueTokenForUser(user, studentSessionId);
+    const accessToken = issueAccessTokenForUser(user, studentSessionId);
+    const refreshToken = issueRefreshTokenForUser(user, studentSessionId);
+    user.refreshTokenHash = hashToken(refreshToken.token);
+    user.refreshTokenIssuedAt = new Date();
+    user.refreshTokenExpiresAt = refreshToken.expiresAt;
+    await user.save();
+    setRefreshTokenCookie(res, refreshToken.token);
 
     res.json({
       success: true,
       data: {
-        user: {
-          _id: user._id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          isConfirmed: user.isConfirmed,
-        },
-        token,
+        user: pickAuthUserPayload(user),
+        token: accessToken,
       },
     });
   } catch (error) {
     res.status(500).json({ success: false, message: "Server Error" });
+  }
+};
+
+export const refreshAccessToken = async (req, res) => {
+  try {
+    const refreshToken = getRefreshTokenFromRequest(req);
+    if (!refreshToken) {
+      clearRefreshTokenCookie(res);
+      return res.status(401).json({ success: false, message: "Refresh token missing" });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(refreshToken, JWT_REFRESH_SECRET);
+    } catch {
+      clearRefreshTokenCookie(res);
+      return res.status(401).json({ success: false, message: "Invalid refresh token" });
+    }
+
+    if (decoded?.tokenType !== "refresh" || !decoded?.userId) {
+      clearRefreshTokenCookie(res);
+      return res.status(401).json({ success: false, message: "Invalid refresh token" });
+    }
+
+    const user = await User.findById(decoded.userId);
+    if (!user) {
+      clearRefreshTokenCookie(res);
+      return res.status(401).json({ success: false, message: "Invalid refresh token" });
+    }
+
+    if (!user.refreshTokenHash || hashToken(refreshToken) !== user.refreshTokenHash) {
+      clearRefreshTokenCookie(res);
+      return res.status(401).json({ success: false, message: "Refresh token revoked" });
+    }
+
+    if (!user.refreshTokenExpiresAt || user.refreshTokenExpiresAt.getTime() <= Date.now()) {
+      user.refreshTokenHash = null;
+      user.refreshTokenIssuedAt = null;
+      user.refreshTokenExpiresAt = null;
+      await user.save();
+      clearRefreshTokenCookie(res);
+      return res.status(401).json({ success: false, message: "Refresh token expired" });
+    }
+
+    if (user.role === "student") {
+      const tokenSessionId = String(decoded.sessionId || "").trim();
+      const activeSessionId = String(user.activeSessionId || "").trim();
+      if (!tokenSessionId || !activeSessionId || tokenSessionId !== activeSessionId) {
+        clearRefreshTokenCookie(res);
+        return res.status(401).json({ success: false, message: "Session revoked" });
+      }
+    }
+
+    const sessionId = user.role === "student" ? String(user.activeSessionId || "").trim() : null;
+    const accessToken = issueAccessTokenForUser(user, sessionId || null);
+    const nextRefresh = issueRefreshTokenForUser(user, sessionId || null);
+
+    user.refreshTokenHash = hashToken(nextRefresh.token);
+    user.refreshTokenIssuedAt = new Date();
+    user.refreshTokenExpiresAt = nextRefresh.expiresAt;
+    await user.save();
+
+    setRefreshTokenCookie(res, nextRefresh.token);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        token: accessToken,
+        user: pickAuthUserPayload(user),
+      },
+    });
+  } catch (error) {
+    console.error("Refresh token error:", error);
+    clearRefreshTokenCookie(res);
+    return res.status(500).json({ success: false, message: "Server Error" });
+  }
+};
+
+export const logout = async (req, res) => {
+  try {
+    const refreshToken = getRefreshTokenFromRequest(req);
+    if (refreshToken) {
+      try {
+        const decoded = jwt.verify(refreshToken, JWT_REFRESH_SECRET);
+        if (decoded?.userId && decoded?.tokenType === "refresh") {
+          const updatePayload = {
+            refreshTokenHash: null,
+            refreshTokenIssuedAt: null,
+            refreshTokenExpiresAt: null,
+          };
+          if (decoded.role === "student") {
+            updatePayload.activeSessionId = createStudentSessionId();
+            updatePayload.activeSessionIssuedAt = new Date();
+          }
+
+          await User.findByIdAndUpdate(decoded.userId, {
+            $set: updatePayload,
+          });
+        }
+      } catch {
+        // Ignore invalid refresh token on logout.
+      }
+    }
+
+    clearRefreshTokenCookie(res);
+    return res.status(200).json({ success: true, message: "Logged out" });
+  } catch (error) {
+    console.error("Logout error:", error);
+    clearRefreshTokenCookie(res);
+    return res.status(500).json({ success: false, message: "Server Error" });
   }
 };
 

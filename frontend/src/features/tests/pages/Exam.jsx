@@ -5,115 +5,19 @@ import './Exam.css';
 import StepContent from '../components/exam/StepContent';
 import WritingStepContent from '../components/exam/WritingStepContent';
 import ReviewExamLayout from '../components/review-mode/ReviewExamLayout';
+import { calculateIELTSBand, buildQuestionSlots, buildSteps } from './examHelpers';
 
 const IELTSSettings = lazy(() => import('@/shared/components/IELTSSettings'));
 
-/** IELTS Band Score Calculator */
-function calculateIELTSBand(correctCount, testType) {
-  const bands = {
-    listening: [
-      { min: 39, band: 9.0 },
-      { min: 37, band: 8.5 },
-      { min: 35, band: 8.0 },
-      { min: 32, band: 7.5 },
-      { min: 30, band: 7.0 },
-      { min: 26, band: 6.5 },
-      { min: 23, band: 6.0 },
-      { min: 18, band: 5.5 },
-      { min: 16, band: 5.0 },
-      { min: 13, band: 4.5 },
-      { min: 10, band: 4.0 },
-      { min: 8, band: 3.5 },
-      { min: 6, band: 3.0 },
-      { min: 4, band: 2.5 },
-      { min: 2, band: 2.0 },
-      { min: 1, band: 1.0 },
-      { min: 0, band: 0 },
-    ],
-    reading: [
-      { min: 39, band: 9.0 },
-      { min: 37, band: 8.5 },
-      { min: 35, band: 8.0 },
-      { min: 33, band: 7.5 },
-      { min: 30, band: 7.0 },
-      { min: 27, band: 6.5 },
-      { min: 23, band: 6.0 },
-      { min: 19, band: 5.5 },
-      { min: 15, band: 5.0 },
-      { min: 13, band: 4.5 },
-      { min: 10, band: 4.0 },
-      { min: 8, band: 3.5 },
-      { min: 6, band: 3.0 },
-      { min: 4, band: 2.5 },
-      { min: 2, band: 2.0 },
-      { min: 1, band: 1.0 },
-      { min: 0, band: 0 },
-    ],
-  };
-
-  const typeBands = bands[testType] || bands.reading;
-  for (const b of typeBands) {
-    if (correctCount >= b.min) {
-      return b.band;
-    }
-  }
-  return 0;
-}
-
-/** Build flat list of question slots in exam order */
-function buildQuestionSlots(exam) {
-  const slots = [];
-  const pushSlots = (items) => {
-    if (!items) return;
-    for (const item of items) {
-      for (const group of item.question_groups || []) {
-        for (const q of group.questions || []) {
-          slots.push({
-            type: group.type,
-            instructions: group.instructions,
-            headings: group.headings || [],
-            options: group.options || [],
-            q_number: q.q_number,
-            text: q.text,
-            option: q.option || [],
-            correct_answer: q.correct_answer,
-          });
-        }
-      }
-    }
-  };
-  pushSlots(exam.reading);
-  pushSlots(exam.listening);
-  return slots;
-}
-
-/** Build steps: one per passage/section/writing-task with slot range */
-function buildSteps(exam) {
-  const steps = [];
-  let slotIndex = 0;
-  const pushStep = (type, label, item) => {
-    let start = slotIndex;
-    if (type === 'reading' || type === 'listening') {
-      for (const group of item.question_groups || []) {
-        slotIndex += (group.questions || []).length;
-      }
-    } else if (type === 'writing') {
-      // Writing tasks don't have slot indices
-      start = -1;
-    }
-    steps.push({ type, label, item, startSlotIndex: start, endSlotIndex: slotIndex });
-  };
-  (exam.reading || []).forEach((p, i) => pushStep('reading', `Passage ${i + 1}`, p));
-  (exam.listening || []).forEach((s, i) => pushStep('listening', `Section ${i + 1}`, s));
-  (exam.writing || []).forEach((w, i) => pushStep('writing', `Task ${i + 1}`, w));
-  return steps;
-}
+const EXAM_DRAFT_VERSION = 1;
+const EXAM_DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
 
 export default function Exam() {
   const { id } = useParams();
   const [exam, setExam] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [loadError, setLoadError] = useState(null);
+  const [submitError, setSubmitError] = useState(null);
   const [answers, setAnswers] = useState([]);
   const [writingAnswers, setWritingAnswers] = useState([]);
   const [submitted, setSubmitted] = useState(null);
@@ -146,6 +50,11 @@ export default function Exam() {
   // Determine single mode based on params. 
   // We strictly require 'part' param to be present for Single Mode to avoid "Full Test bug" where mode=single is always present.
   const isSingleMode = searchParams.get('mode') === 'single' && searchParams.get('part') !== null;
+  const draftKey = useMemo(() => {
+    const part = searchParams.get('part') ?? 'full';
+    const mode = searchParams.get('mode') ?? 'full';
+    return `exam-draft:${id}:${mode}:${part}`;
+  }, [id, location.search]);
 
   useEffect(() => {
     // Reset on mount so StrictMode's dev double-invocation does not leave it false.
@@ -166,6 +75,8 @@ export default function Exam() {
       .then((res) => {
         // console.log("Exam Data Received:", res.data); // Debug log
         setExam(res.data);
+        setLoadError(null);
+        setSubmitError(null);
         setPassageState({});
         const slots = buildQuestionSlots(res.data);
         const steps = buildSteps(res.data);
@@ -179,28 +90,81 @@ export default function Exam() {
         setWritingAnswers(initialWritingAnswers);
         writingAnswersRef.current = initialWritingAnswers;
 
-        // Initialize timer based on duration (in minutes)
         const duration = res.data.duration || 60;
-        setTimeRemaining(duration * 60); // Convert to seconds
+        const defaultTimeRemaining = duration * 60;
+        let restoredFromDraft = false;
+
+        try {
+          const rawDraft = localStorage.getItem(draftKey);
+          if (rawDraft) {
+            const draft = JSON.parse(rawDraft);
+            const isFresh = (Date.now() - Number(draft?.updatedAt || 0)) <= EXAM_DRAFT_TTL_MS;
+            const sameMode = Boolean(draft?.isSingleMode) === Boolean(isSingleMode);
+
+            if (isFresh && sameMode && Number(draft?.version) === EXAM_DRAFT_VERSION) {
+              if (Array.isArray(draft.answers) && draft.answers.length === slots.length) {
+                setAnswers(draft.answers);
+                answersRef.current = draft.answers;
+              }
+
+              if (Array.isArray(draft.writingAnswers) && draft.writingAnswers.length === writingCount) {
+                setWritingAnswers(draft.writingAnswers);
+                writingAnswersRef.current = draft.writingAnswers;
+              }
+
+              if (draft.passageStates && typeof draft.passageStates === 'object') {
+                setPassageState(draft.passageStates);
+              }
+
+              if (typeof draft.timeRemaining === 'number' && Number.isFinite(draft.timeRemaining) && draft.timeRemaining > 0) {
+                setTimeRemaining(Math.min(defaultTimeRemaining, Math.floor(draft.timeRemaining)));
+              } else {
+                setTimeRemaining(defaultTimeRemaining);
+              }
+
+              if (typeof draft.currentStep === 'number' && Number.isFinite(draft.currentStep) && steps.length > 0) {
+                const maxStep = steps.length - 1;
+                const restoredStep = Math.max(0, Math.min(maxStep, Math.floor(draft.currentStep)));
+                setCurrentStep(restoredStep);
+                restoredFromDraft = true;
+              }
+
+              if (typeof draft.startTime === 'number' && Number.isFinite(draft.startTime)) {
+                setStartTime(draft.startTime);
+              } else {
+                setStartTime(Date.now());
+              }
+            } else {
+              localStorage.removeItem(draftKey);
+              setTimeRemaining(defaultTimeRemaining);
+            }
+          } else {
+            setTimeRemaining(defaultTimeRemaining);
+          }
+        } catch {
+          setTimeRemaining(defaultTimeRemaining);
+        }
+
+        if (!restoredFromDraft) {
+          const searchParams = new URLSearchParams(location.search);
+          const partParam = searchParams.get('part');
+          if (partParam !== null) {
+            const partIndex = parseInt(partParam, 10);
+            if (!isNaN(partIndex)) {
+              setCurrentStep(partIndex);
+            }
+          }
+          setStartTime(Date.now());
+        }
+
         setTimeWarning(false);
         autoSubmitTriggeredRef.current = false;
         submitInFlightRef.current = false;
-
-        // Handle deep link to specific part
-        const searchParams = new URLSearchParams(location.search);
-        const partParam = searchParams.get('part');
-        if (partParam !== null) {
-          const partIndex = parseInt(partParam, 10);
-          if (!isNaN(partIndex)) {
-            setCurrentStep(partIndex);
-          }
-        }
-        setStartTime(Date.now());
         setMode('test');
       })
-      .catch((err) => setError(err.message))
+      .catch((err) => setLoadError(err.message))
       .finally(() => setLoading(false));
-  }, [id, location.search]);
+  }, [id, location.search, draftKey, isSingleMode]);
 
   // Timer countdown effect - Optimized to avoid re-creating interval every second
   useEffect(() => {
@@ -243,6 +207,54 @@ export default function Exam() {
     }, 1000);
   }, [submitted, timeRemaining]);
 
+  useEffect(() => {
+    if (!exam || loading || submitted) return;
+
+    const draftPayload = {
+      version: EXAM_DRAFT_VERSION,
+      updatedAt: Date.now(),
+      isSingleMode,
+      answers: answersRef.current,
+      writingAnswers: writingAnswersRef.current,
+      currentStep,
+      passageStates,
+      timeRemaining,
+      startTime,
+    };
+
+    try {
+      localStorage.setItem(draftKey, JSON.stringify(draftPayload));
+    } catch {
+      // Ignore storage quota errors to avoid interrupting exam flow.
+    }
+  }, [
+    exam,
+    loading,
+    submitted,
+    isSingleMode,
+    currentStep,
+    passageStates,
+    timeRemaining,
+    startTime,
+    answers,
+    writingAnswers,
+    draftKey,
+  ]);
+
+  useEffect(() => {
+    if (!exam || loading || submitted) return undefined;
+
+    const handleBeforeUnload = (event) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [exam, loading, submitted]);
+
   const performSubmit = (returnOnly = false) => {
     if (submitLoading || submitted || submitInFlightRef.current) return Promise.resolve(null);
     submitInFlightRef.current = true;
@@ -252,6 +264,7 @@ export default function Exam() {
       timerRef.current = null;
     }
     setSubmitLoading(true);
+    setSubmitError(null);
     setShowSubmitConfirm(false);
     setShowScoreChoice(false);
     const now = Date.now();
@@ -324,6 +337,12 @@ export default function Exam() {
           };
         }
 
+        try {
+          localStorage.removeItem(draftKey);
+        } catch {
+          // Ignore storage errors.
+        }
+
         if (!returnOnly) {
           if (isMountedRef.current) {
             setSubmitted(resultData);
@@ -334,9 +353,9 @@ export default function Exam() {
       })
       .catch((err) => {
         if (isMountedRef.current) {
-          setError(err.message);
+          setSubmitError(err.message || 'Failed to submit. Please try again.');
         }
-        throw err;
+        return null;
       })
       .finally(() => {
         submitInFlightRef.current = false;
@@ -359,7 +378,7 @@ export default function Exam() {
             // Ignore storage errors and continue navigation.
           }
           navigate(`/tests/writing/result-ai/${data.writingSubmissionId}`);
-        } else {
+        } else if (data) {
           // Fallback if ID is missing
           console.error("Missing writingSubmissionId");
           setSubmitted(data);
@@ -374,6 +393,7 @@ export default function Exam() {
 
   const handleSubmit = (e) => {
     if (e) e.preventDefault();
+    setSubmitError(null);
     if (isWriting && isSingleMode && !exam.is_real_test) {
       setShowScoreChoice(true);
     } else {
@@ -459,7 +479,7 @@ export default function Exam() {
 
 
   if (loading) return <div className="page"><p className="muted">Loading exam…</p></div>;
-  if (error) return <div className="page"><p className="error">{error}</p><Link to="/tests">Back to tests</Link></div>;
+  if (loadError) return <div className="page"><p className="error">{loadError}</p><Link to="/tests">Back to tests</Link></div>;
   if (!exam) return <div className="page"><p className="muted">Exam not found.</p></div>;
 
   if (submitted) {
@@ -710,6 +730,38 @@ export default function Exam() {
         <span className="exam-part-label">{step.label}</span>
         <span className="exam-part-title-text">{step.item.title || "Read the text and answer questions"}</span>
       </div >
+
+      {submitError && (
+        <div
+          className="exam-submit-error"
+          style={{
+            margin: '10px 0',
+            padding: '10px 14px',
+            borderRadius: '8px',
+            background: '#fff1f2',
+            color: '#9f1239',
+            border: '1px solid #fecdd3'
+          }}
+        >
+          <strong>Submit failed:</strong> {submitError}
+          <button
+            type="button"
+            style={{
+              marginLeft: '12px',
+              padding: '4px 10px',
+              borderRadius: '6px',
+              border: '1px solid #be123c',
+              background: '#fff',
+              color: '#9f1239',
+              cursor: 'pointer'
+            }}
+            onClick={() => performSubmit(false)}
+            disabled={submitLoading}
+          >
+            {submitLoading ? 'Retrying...' : 'Retry submit'}
+          </button>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="exam-form" onKeyDown={(e) => {
         // Prevent Enter key from submitting the form unexpectedly

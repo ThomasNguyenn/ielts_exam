@@ -4,29 +4,77 @@ const ACHIEVEMENT_EVENT_IGNORED_PATHS = new Set([
   '/api/achievements',
   '/api/achievements/me',
 ]);
+const AUTH_REFRESH_PATH = '/api/auth/refresh';
+const AUTH_LOGOUT_PATH = '/api/auth/logout';
 const ACHIEVEMENT_EVENT_QUEUE_KEY = '__achievementUnlockQueue';
 const ACHIEVEMENT_EVENT_READY_FLAG = '__achievementToastReady';
+const TOKEN_KEY = 'token';
+const USER_KEY = 'user';
+let refreshInFlight = null;
 
-// Get token from localStorage
+function getSessionStorage() {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
+function getLocalStorageSafe() {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function readWithLegacyMigration(key) {
+  const session = getSessionStorage();
+  const local = getLocalStorageSafe();
+
+  const sessionValue = session?.getItem(key);
+  if (sessionValue !== null && sessionValue !== undefined) {
+    return sessionValue;
+  }
+
+  const legacyValue = local?.getItem(key);
+  if (legacyValue !== null && legacyValue !== undefined && session) {
+    session.setItem(key, legacyValue);
+    local?.removeItem(key);
+    return legacyValue;
+  }
+
+  return null;
+}
+
+// Get token from sessionStorage (with one-time migration from localStorage)
 function getToken() {
-  const token = localStorage.getItem('token');
+  const token = readWithLegacyMigration(TOKEN_KEY);
   if (!token || token === 'undefined' || token === 'null') return null;
   return token;
 }
 
-// Set token in localStorage
+// Set token in sessionStorage
 function setToken(token) {
-  localStorage.setItem('token', token);
+  const session = getSessionStorage();
+  const local = getLocalStorageSafe();
+  session?.setItem(TOKEN_KEY, token);
+  local?.removeItem(TOKEN_KEY);
 }
 
-// Remove token from localStorage
+// Remove token from both storage scopes
 function removeToken() {
-  localStorage.removeItem('token');
+  const session = getSessionStorage();
+  const local = getLocalStorageSafe();
+  session?.removeItem(TOKEN_KEY);
+  local?.removeItem(TOKEN_KEY);
 }
 
-// Get user from localStorage
+// Get user from sessionStorage (with one-time migration from localStorage)
 function getUser() {
-  const user = localStorage.getItem('user');
+  const user = readWithLegacyMigration(USER_KEY);
   if (!user || user === 'undefined' || user === 'null') return null;
   try {
     return JSON.parse(user);
@@ -36,17 +84,23 @@ function getUser() {
   }
 }
 
-// Set user in localStorage
+// Set user in sessionStorage
 function setUser(user) {
-  localStorage.setItem('user', JSON.stringify(user));
+  const session = getSessionStorage();
+  const local = getLocalStorageSafe();
+  session?.setItem(USER_KEY, JSON.stringify(user));
+  local?.removeItem(USER_KEY);
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('auth-user-updated', { detail: user }));
   }
 }
 
-// Remove user from localStorage
+// Remove user from both storage scopes
 function removeUser() {
-  localStorage.removeItem('user');
+  const session = getSessionStorage();
+  const local = getLocalStorageSafe();
+  session?.removeItem(USER_KEY);
+  local?.removeItem(USER_KEY);
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('auth-user-updated', { detail: null }));
   }
@@ -76,6 +130,8 @@ function handleUnauthorized(path) {
   const publicAuthPaths = new Set([
     '/api/auth/login',
     '/api/auth/register',
+    '/api/auth/refresh',
+    '/api/auth/logout',
     '/api/auth/verify-giftcode',
     '/api/auth/verify-email',
     '/api/auth/forgot-password',
@@ -93,6 +149,57 @@ function handleUnauthorized(path) {
       window.location.href = '/login';
     }
   }
+}
+
+function canAttemptAuthRefresh(path, skipAuthRefresh = false) {
+  if (skipAuthRefresh) return false;
+  if (!path || typeof path !== 'string') return false;
+  if (path === AUTH_REFRESH_PATH || path === AUTH_LOGOUT_PATH) return false;
+  if (path.startsWith('/api/auth/login')) return false;
+  if (path.startsWith('/api/auth/register')) return false;
+  if (path.startsWith('/api/auth/verify-email')) return false;
+  if (path.startsWith('/api/auth/forgot-password')) return false;
+  if (path.startsWith('/api/auth/reset-password')) return false;
+  return true;
+}
+
+async function refreshAccessToken() {
+  if (refreshInFlight) return refreshInFlight;
+
+  refreshInFlight = (async () => {
+    try {
+      const response = await fetch(`${API_BASE}${AUTH_REFRESH_PATH}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return false;
+      }
+
+      const token = payload?.data?.token || payload?.token || null;
+      const user = payload?.data?.user || payload?.user || null;
+
+      if (!token) {
+        removeToken();
+        return false;
+      }
+
+      setToken(token);
+      if (user) {
+        setUser(user);
+      }
+      return true;
+    } catch {
+      return false;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+
+  return refreshInFlight;
 }
 
 function normalizeAchievementPayload(payload) {
@@ -129,27 +236,36 @@ function emitAchievementEvent(detail) {
 }
 
 async function request(path, options = {}) {
+  const { skipAuthRefresh = false, ...fetchOptions } = options;
   const url = `${API_BASE}${path}`;
   const token = getToken();
 
-  const isFormData = options.body instanceof FormData;
+  const isFormData = fetchOptions.body instanceof FormData;
 
   const headers = {
     ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(token && { Authorization: `Bearer ${token}` }),
-    ...options.headers,
+    ...fetchOptions.headers,
   };
 
   // Remove keys with undefined values to allow browser defaults (e.g. for FormData)
   Object.keys(headers).forEach(key => headers[key] === undefined && delete headers[key]);
 
   const res = await fetch(url, {
-    ...options,
+    ...fetchOptions,
     headers,
+    credentials: 'include',
   });
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
+    if (res.status === 401 && canAttemptAuthRefresh(path, skipAuthRefresh)) {
+      const refreshed = await refreshAccessToken();
+      if (refreshed) {
+        return request(path, { ...fetchOptions, skipAuthRefresh: true });
+      }
+    }
+
     if (res.status === 401) {
       handleUnauthorized(path);
     }
@@ -183,6 +299,7 @@ export const api = {
   // Auth
   register: (body) => request('/api/auth/register', { method: 'POST', body: JSON.stringify(body) }),
   login: (body) => request('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
+  refreshSession: () => request(AUTH_REFRESH_PATH, { method: 'POST', skipAuthRefresh: true }),
   verifyEmail: (token) => request('/api/auth/verify-email', { method: 'POST', body: JSON.stringify({ token }) }),
   forgotPassword: (email) => request('/api/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
   resetPassword: (token, newPassword) => request('/api/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, newPassword }) }),
@@ -197,18 +314,22 @@ export const api = {
   getUser,
   setUser,
   removeUser,
-  logout: () => {
-    removeToken();
-    removeUser();
+  logout: async () => {
+    try {
+      await request(AUTH_LOGOUT_PATH, { method: 'POST', skipAuthRefresh: true });
+    } catch {
+      // Ignore server logout errors and clear local session anyway.
+    } finally {
+      removeToken();
+      removeUser();
+    }
   },
   isAuthenticated: () => {
     const token = getToken();
     if (!token) return false;
-    if (isTokenExpired(token)) {
-      removeToken();
-      removeUser();
-      return false;
-    }
+    const user = getUser();
+    if (!user) return false;
+    if (isTokenExpired(token)) return false;
     return true;
   },
 

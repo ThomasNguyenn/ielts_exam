@@ -51,6 +51,9 @@ const userSchema = new mongoose.Schema({
   verificationTokenExpires: { type: Date, default: null },
   resetPasswordToken: { type: String, default: null },
   resetPasswordExpires: { type: Date, default: null },
+  refreshTokenHash: { type: String, default: null },
+  refreshTokenExpiresAt: { type: Date, default: null },
+  refreshTokenIssuedAt: { type: Date, default: null },
 
   // Achievement tracking
   achievements: [{
