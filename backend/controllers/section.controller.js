@@ -1,4 +1,5 @@
 import Section from "../models/Section.model.js";
+import { handleControllerError, sendControllerError } from '../utils/controllerError.js';
 
 const pickSectionPayload = (body = {}, { allowId = false } = {}) => {
     const allowed = ["title", "content", "audio_url", "question_groups", "source"];
@@ -19,7 +20,7 @@ export const getAllSections = async(req, res) => {
         const sections = await Section.find({});
         res.status(200).json({ success: true, data : sections});
     } catch(error){
-        res.status(500).json({ success: false, message: "Server Error"});
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -27,7 +28,7 @@ export const createSection = async(req, res) => {
     const section = pickSectionPayload(req.body, { allowId: true }); // user will send this data by api
 
     if(!section.title || !section.content || !section.question_groups){
-        return res.status(400).json({ success: false, message: "Please provide all info"});
+        return sendControllerError(req, res, { statusCode: 400, message: "Please provide all info" });
     }
 
     const newSection = new Section(section);
@@ -37,8 +38,7 @@ export const createSection = async(req, res) => {
         res.status(201).json({ success: true, data : newSection });
     }
     catch(error){
-        console.error("Create section error:", error);
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -47,11 +47,11 @@ export const getSectionById = async(req, res) => {
     try {
         const section = await Section.findById(id);
         if (!section) {
-            return res.status(404).json({ success: false, message: "Section not found" });
+            return sendControllerError(req, res, { statusCode: 404, message: "Section not found"  });
         }
         res.status(200).json({ success: true, data: section });
     } catch (error) {
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -60,18 +60,17 @@ export const updateSection = async(req, res) => {
     const section = pickSectionPayload(req.body);
 
     if (Object.keys(section).length === 0) {
-        return res.status(400).json({ success: false, message: "No valid update fields provided" });
+        return sendControllerError(req, res, { statusCode: 400, message: "No valid update fields provided"  });
     }
 
     try {
         const updatedSection = await Section.findByIdAndUpdate(id, section, { new: true });
         if (!updatedSection) {
-            return res.status(404).json({ success: false, message: "Section not found" });
+            return sendControllerError(req, res, { statusCode: 404, message: "Section not found"  });
         }
         res.status(200).json({ success: true, data: updatedSection });
     } catch (error) {
-        console.error("Update section error:", error);
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -80,10 +79,12 @@ export const deleteSection = async(req, res) => {
     try{
         const deletedSection = await Section.findByIdAndDelete(id);
         if (!deletedSection) {
-            return res.status(404).json({ success: false, message: "Section not found" });
+            return sendControllerError(req, res, { statusCode: 404, message: "Section not found"  });
         }
         return res.status(200).json({ success: true, message: "Delete Success"});
     } catch (error){
-        return res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
+
+

@@ -1,5 +1,6 @@
 import Passage from "../models/Passage.model.js";
 import { generatePassageQuestionInsights } from "../services/passageInsight.service.js";
+import { handleControllerError, sendControllerError } from '../utils/controllerError.js';
 
 const pickPassagePayload = (body = {}, { allowId = false } = {}) => {
     const allowed = ["title", "content", "question_groups", "source"];
@@ -20,7 +21,7 @@ export const getAllPassages = async(req, res) => {
         const passages = await Passage.find({});
         res.status(200).json({ success: true, data : passages});
     } catch(error){
-        res.status(500).json({ success: false, message: "Server Error"});
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -28,7 +29,7 @@ export const createPassage = async(req, res) => {
     const passage = pickPassagePayload(req.body, { allowId: true }); // user will send this data by api
 
     if(!passage.title || !passage.content || !passage.question_groups){
-        return res.status(400).json({ success: false, message: "Please provide all info"});
+        return sendControllerError(req, res, { statusCode: 400, message: "Please provide all info" });
     }
 
     const newPassage = new Passage(passage);
@@ -38,8 +39,7 @@ export const createPassage = async(req, res) => {
         res.status(201).json({ success: true, data : newPassage });
     }
     catch(error){
-        console.error("Create passage error:", error);
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -48,11 +48,11 @@ export const getPassageById = async(req, res) => {
     try {
         const passage = await Passage.findById(id);
         if (!passage) {
-            return res.status(404).json({ success: false, message: "Passage not found" });
+            return sendControllerError(req, res, { statusCode: 404, message: "Passage not found"  });
         }
         res.status(200).json({ success: true, data: passage });
     } catch (error) {
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -61,18 +61,17 @@ export const updatePassage = async(req, res) => {
     const passage = pickPassagePayload(req.body);
 
     if (Object.keys(passage).length === 0) {
-        return res.status(400).json({ success: false, message: "No valid update fields provided" });
+        return sendControllerError(req, res, { statusCode: 400, message: "No valid update fields provided"  });
     }
 
     try {
         const updatedPassage = await Passage.findByIdAndUpdate(id, passage, { new: true });
         if (!updatedPassage) {
-            return res.status(404).json({ success: false, message: "Passage not found" });
+            return sendControllerError(req, res, { statusCode: 404, message: "Passage not found"  });
         }
         res.status(200).json({ success: true, data: updatedPassage });
     } catch (error) {
-        console.error("Update passage error:", error);
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -81,11 +80,11 @@ export const deletePassage = async(req, res) => {
     try{
         const deletedPassage = await Passage.findByIdAndDelete(id);
         if (!deletedPassage) {
-            return res.status(404).json({ success: false, message: "Passage not found" });
+            return sendControllerError(req, res, { statusCode: 404, message: "Passage not found"  });
         }
         return res.status(200).json({ success: true, message: "Delete Success"});
     } catch (error){
-        return res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -113,10 +112,11 @@ export const generatePassageInsights = async (req, res) => {
         });
     } catch (error) {
         const statusCode = Number(error?.statusCode) || 500;
-        console.error("Generate passage insights error:", error);
-        return res.status(statusCode).json({
-            success: false,
-            message: statusCode >= 500 ? "Failed to generate passage insights" : (error.message || "Failed to generate passage insights"),
-        });
+        const message = statusCode >= 500
+            ? "Failed to generate passage insights"
+            : (error.message || "Failed to generate passage insights");
+        return handleControllerError(req, res, error, { statusCode, message });
     }
 };
+
+

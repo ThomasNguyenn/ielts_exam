@@ -25,9 +25,15 @@ import skillsRoutes from "./routes/skills.routes.js";
 import progressRoutes from "./routes/progress.routes.js";
 import modelEssayRoutes from "./routes/modelEssay.routes.js";
 import leaderboardRoutes from "./routes/leaderboard.route.js";
-import { initAchievements } from "./controllers/leaderboard.controller.js";
 
 const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
+const TRUST_PROXY_HINTS = new Set(["loopback", "linklocal", "uniquelocal"]);
+const LOCAL_FALLBACK_ORIGINS = [
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+];
 
 const applyIf = (predicate, middleware) => (req, res, next) => {
   if (predicate(req)) {
@@ -35,6 +41,65 @@ const applyIf = (predicate, middleware) => (req, res, next) => {
   }
   return next();
 };
+
+const resolveTrustProxySetting = () => {
+  const raw = String(process.env.TRUST_PROXY || "").trim();
+  if (!raw) return false;
+
+  const normalized = raw.toLowerCase();
+  if (["0", "false", "no", "off"].includes(normalized)) return false;
+  if (["1", "true", "yes", "on"].includes(normalized)) return 1;
+  if (TRUST_PROXY_HINTS.has(normalized)) return normalized;
+
+  const asNumber = Number(raw);
+  if (Number.isFinite(asNumber) && asNumber >= 0) return Math.floor(asNumber);
+  return raw;
+};
+
+const parseBooleanEnv = (value, fallback) => {
+  if (value === undefined || value === null || value === "") return fallback;
+  const normalized = String(value).trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "off"].includes(normalized)) return false;
+  return fallback;
+};
+
+const normalizeOrigin = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return null;
+  }
+};
+
+const resolveAllowedOrigins = () => {
+  const configuredOrigins = String(process.env.FRONTEND_ORIGINS || "")
+    .split(",")
+    .map((origin) => normalizeOrigin(origin))
+    .filter(Boolean);
+
+  const fallbackOrigins = LOCAL_FALLBACK_ORIGINS
+    .map((origin) => normalizeOrigin(origin))
+    .filter(Boolean);
+
+  return configuredOrigins.length > 0 ? configuredOrigins : fallbackOrigins;
+};
+
+const shouldAllowNoOriginCorsRequests = () =>
+  parseBooleanEnv(process.env.CORS_ALLOW_NO_ORIGIN, process.env.NODE_ENV !== "production");
+
+const hasCloudinaryConfig = () =>
+  Boolean(
+    String(process.env.CLOUDINARY_CLOUD_NAME || "").trim() &&
+    String(process.env.CLOUDINARY_API_KEY || "").trim() &&
+    String(process.env.CLOUDINARY_API_SECRET || "").trim(),
+  );
+
+const shouldServeLocalUploads = () =>
+  parseBooleanEnv(process.env.SERVE_LOCAL_UPLOADS, !hasCloudinaryConfig());
 
 const ensureUploadDirectory = () => {
   const uploadDir = path.join(process.cwd(), "uploads");
@@ -78,29 +143,26 @@ export const createApp = ({ startBackgroundJobs = true } = {}) => {
 
   app.disable("x-powered-by");
   app.use(helmet());
-  app.set("trust proxy", 1);
+  app.set("trust proxy", resolveTrustProxySetting());
 
-  const configuredOrigins = (process.env.FRONTEND_ORIGINS || "")
-    .split(",")
-    .map((origin) => origin.trim())
-    .filter(Boolean);
-
-  const allowedOrigins = configuredOrigins.length > 0
-    ? configuredOrigins
-    : [
-      "http://localhost:3000",
-      "http://127.0.0.1:3000",
-      "http://localhost:5173",
-      "http://127.0.0.1:5173",
-    ];
+  const allowedOrigins = resolveAllowedOrigins();
+  const allowNoOriginCorsRequests = shouldAllowNoOriginCorsRequests();
 
   const corsOptions = {
     origin: (origin, callback) => {
       if (!origin) {
-        return callback(null, true);
+        if (allowNoOriginCorsRequests) {
+          return callback(null, true);
+        }
+
+        const corsError = new Error("CORS origin header is required");
+        corsError.statusCode = 403;
+        corsError.code = "CORS_ORIGIN_REQUIRED";
+        return callback(corsError);
       }
 
-      if (allowedOrigins.includes(origin)) {
+      const normalizedOrigin = normalizeOrigin(origin);
+      if (normalizedOrigin && allowedOrigins.includes(normalizedOrigin)) {
         return callback(null, true);
       }
 
@@ -223,21 +285,20 @@ export const createApp = ({ startBackgroundJobs = true } = {}) => {
   app.use("/api/model-essays", modelEssayRoutes);
   app.use("/api", leaderboardRoutes);
 
-  // Seed achievements on startup
-  initAchievements().catch(err => console.error('Achievement seed error:', err));
+  if (shouldServeLocalUploads()) {
+    const uploadDir = ensureUploadDirectory();
+    app.use("/uploads", express.static(uploadDir, {
+      maxAge: "1d",
+      etag: true,
+      lastModified: true,
+    }));
 
-  const uploadDir = ensureUploadDirectory();
-  app.use("/uploads", express.static(uploadDir, {
-    maxAge: "1d",
-    etag: true,
-    lastModified: true,
-  }));
-
-  if (startBackgroundJobs) {
-    const cleanupOldRecordings = createRecordingCleanupJob(uploadDir);
-    cleanupOldRecordings();
-    const cleanupInterval = setInterval(cleanupOldRecordings, 12 * 60 * 60 * 1000);
-    cleanupInterval.unref?.();
+    if (startBackgroundJobs) {
+      const cleanupOldRecordings = createRecordingCleanupJob(uploadDir);
+      cleanupOldRecordings();
+      const cleanupInterval = setInterval(cleanupOldRecordings, 12 * 60 * 60 * 1000);
+      cleanupInterval.unref?.();
+    }
   }
 
   app.use(notFoundHandler);

@@ -1,11 +1,12 @@
-import { parseContent } from '../services/contentGen.service.js';
+import { parseContent } from '../services/contentGen.service.js';
+import { handleControllerError, sendControllerError } from '../utils/controllerError.js';
 
 export const parseRawContent = async (req, res) => {
     try {
         const { rawText, imageUrls, type } = req.body;
 
         if (!rawText && (!imageUrls || imageUrls.length === 0)) {
-            return res.status(400).json({ success: false, message: "Please provide raw text or image URLs." });
+            return sendControllerError(req, res, { statusCode: 400, message: "Please provide raw text or image URLs."  });
         }
 
         const result = await parseContent(rawText, imageUrls, type);
@@ -15,7 +16,8 @@ export const parseRawContent = async (req, res) => {
             data: result
         });
     } catch (error) {
-        console.error("Parse Content Error:", error);
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
+
+

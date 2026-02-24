@@ -14,6 +14,7 @@ import {
   REFRESH_COOKIE_SECURE,
 } from "../config/security.config.js";
 import { sendVerificationEmail, sendPasswordResetEmail } from "../services/email.service.js";
+import { handleControllerError, sendControllerError, logControllerError } from "../utils/controllerError.js";
 
 const PASSWORD_MIN = 8;
 const PASSWORD_MAX = 72; // bcrypt limit
@@ -137,21 +138,21 @@ export const register = async (req, res) => {
     const normalizedEmail = normalizeEmail(email);
 
     if (!normalizedEmail || !password || !name) {
-      return res.status(400).json({ success: false, message: "Email, password, and name are required" });
+      return sendControllerError(req, res, { statusCode: 400, message: "Email, password, and name are required"  });
     }
     if (!isValidEmail(normalizedEmail)) {
-      return res.status(400).json({ success: false, message: "Invalid email format" });
+      return sendControllerError(req, res, { statusCode: 400, message: "Invalid email format"  });
     }
 
     const passwordError = validatePassword(password);
     if (passwordError) {
-      return res.status(400).json({ success: false, message: passwordError });
+      return sendControllerError(req, res, { statusCode: 400, message: passwordError  });
     }
 
     // Check if user already exists
     const existingUser = await User.findOne({ email: normalizedEmail });
     if (existingUser) {
-      return res.status(400).json({ success: false, message: "Email already registered" });
+      return sendControllerError(req, res, { statusCode: 400, message: "Email already registered"  });
     }
 
     // Resolve invitation if invite token is provided
@@ -167,11 +168,11 @@ export const register = async (req, res) => {
       });
 
       if (!invitation) {
-        return res.status(400).json({ success: false, message: "Invalid or expired invitation token" });
+        return sendControllerError(req, res, { statusCode: 400, message: "Invalid or expired invitation token"  });
       }
 
       if (invitation.email !== normalizedEmail) {
-        return res.status(400).json({ success: false, message: "Email does not match invitation" });
+        return sendControllerError(req, res, { statusCode: 400, message: "Email does not match invitation"  });
       }
 
       assignedRole = invitation.role;
@@ -203,26 +204,42 @@ export const register = async (req, res) => {
       user.activeSessionIssuedAt = new Date();
     }
 
-    await user.save();
-
-    // Mark invitation as accepted
-    if (invitation) {
-      invitation.status = "accepted";
-      invitation.acceptedAt = new Date();
-      await invitation.save();
-    }
-
-    // Send verification email only for non-invited users
-    if (!user.isConfirmed && verificationToken) {
-      await sendVerificationEmail(user.email, verificationToken);
-    }
-
     const accessToken = issueAccessTokenForUser(user, studentSessionId);
     const refreshToken = issueRefreshTokenForUser(user, studentSessionId);
     user.refreshTokenHash = hashToken(refreshToken.token);
     user.refreshTokenIssuedAt = new Date();
     user.refreshTokenExpiresAt = refreshToken.expiresAt;
     await user.save();
+
+    // Send verification email only for non-invited users.
+    // Roll back the created account when email delivery fails to avoid partial registration.
+    if (!user.isConfirmed && verificationToken) {
+      try {
+        await sendVerificationEmail(user.email, verificationToken);
+      } catch (mailError) {
+        await User.deleteOne({ _id: user._id }).catch((rollbackError) => {
+          logControllerError(req, rollbackError, {
+            route: "auth.register.rollback",
+            context: { createdUserId: String(user._id) },
+          });
+        });
+        return res.status(503).json({
+          success: false,
+          code: "EMAIL_DELIVERY_FAILED",
+          message: "Could not send verification email. Please try registering again.",
+        });
+      }
+    }
+
+    // Invitation persistence is best-effort so successful registrations are not lost on transient invitation failures.
+    if (invitation) {
+      invitation.status = "accepted";
+      invitation.acceptedAt = new Date();
+      await invitation.save().catch((invitationError) => {
+        console.warn("Invitation acceptance update failed:", invitationError.message);
+      });
+    }
+
     setRefreshTokenCookie(res, refreshToken.token);
 
     res.status(201).json({
@@ -237,10 +254,9 @@ export const register = async (req, res) => {
     });
   } catch (error) {
     if (error.code === 11000) {
-      return res.status(400).json({ success: false, message: "Email already registered" });
+      return sendControllerError(req, res, { statusCode: 400, message: "Email already registered"  });
     }
-    console.error("Register Error:", error);
-    res.status(500).json({ success: false, message: "Server Error" });
+    return handleControllerError(req, res, error, { route: "auth.register" });
   }
 };
 
@@ -249,7 +265,7 @@ export const verifyEmail = async (req, res) => {
     const { token } = req.body;
 
     if (!token) {
-      return res.status(400).json({ success: false, message: "Token is required" });
+      return sendControllerError(req, res, { statusCode: 400, message: "Token is required"  });
     }
 
     const user = await User.findOne({
@@ -258,7 +274,7 @@ export const verifyEmail = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(400).json({ success: false, message: "Invalid or expired token" });
+      return sendControllerError(req, res, { statusCode: 400, message: "Invalid or expired token"  });
     }
 
     user.isConfirmed = true;
@@ -268,8 +284,7 @@ export const verifyEmail = async (req, res) => {
 
     res.json({ success: true, message: "Email verified successfully" });
   } catch (error) {
-    console.error("Verify Email Error:", error);
-    res.status(500).json({ success: false, message: "Server Error" });
+    return handleControllerError(req, res, error, { route: "auth.verifyEmail" });
   }
 };
 
@@ -279,11 +294,11 @@ export const forgotPassword = async (req, res) => {
     const normalizedEmail = normalizeEmail(email);
 
     if (!normalizedEmail) {
-      return res.status(400).json({ success: false, message: "Email is required" });
+      return sendControllerError(req, res, { statusCode: 400, message: "Email is required"  });
     }
 
     if (!isValidEmail(normalizedEmail)) {
-      return res.status(400).json({ success: false, message: "Invalid email format" });
+      return sendControllerError(req, res, { statusCode: 400, message: "Invalid email format"  });
     }
 
     const user = await User.findOne({ email: normalizedEmail });
@@ -302,8 +317,7 @@ export const forgotPassword = async (req, res) => {
 
     res.json({ success: true, message: "If an account exists, a reset email has been sent." });
   } catch (error) {
-    console.error("Forgot Password Error:", error);
-    res.status(500).json({ success: false, message: "Server Error" });
+    return handleControllerError(req, res, error, { route: "auth.forgotPassword" });
   }
 };
 
@@ -312,12 +326,12 @@ export const resetPassword = async (req, res) => {
     const { token, newPassword } = req.body;
 
     if (!token || !newPassword) {
-      return res.status(400).json({ success: false, message: "Token and new password are required" });
+      return sendControllerError(req, res, { statusCode: 400, message: "Token and new password are required"  });
     }
 
     const passwordError = validatePassword(newPassword);
     if (passwordError) {
-      return res.status(400).json({ success: false, message: passwordError });
+      return sendControllerError(req, res, { statusCode: 400, message: passwordError  });
     }
 
     const tokenHash = hashToken(token);
@@ -329,7 +343,7 @@ export const resetPassword = async (req, res) => {
     ]);
 
     if (!user) {
-      return res.status(400).json({ success: false, message: "Invalid or expired token" });
+      return sendControllerError(req, res, { statusCode: 400, message: "Invalid or expired token"  });
     }
 
     const salt = await bcrypt.genSalt(10);
@@ -347,8 +361,7 @@ export const resetPassword = async (req, res) => {
 
     res.json({ success: true, message: "Password reset successfully" });
   } catch (error) {
-    console.error("Reset Password Error:", error);
-    res.status(500).json({ success: false, message: "Server Error" });
+    return handleControllerError(req, res, error, { route: "auth.resetPassword" });
   }
 };
 
@@ -358,22 +371,22 @@ export const login = async (req, res) => {
     const normalizedEmail = normalizeEmail(email);
 
     if (!normalizedEmail || !password) {
-      return res.status(400).json({ success: false, message: "Email and password are required" });
+      return sendControllerError(req, res, { statusCode: 400, message: "Email and password are required"  });
     }
     if (!isValidEmail(normalizedEmail)) {
-      return res.status(400).json({ success: false, message: "Invalid email format" });
+      return sendControllerError(req, res, { statusCode: 400, message: "Invalid email format"  });
     }
 
     // Find user
     const user = await User.findOne({ email: normalizedEmail });
     if (!user) {
-      return res.status(401).json({ success: false, message: "Invalid credentials" });
+      return sendControllerError(req, res, { statusCode: 401, message: "Invalid credentials"  });
     }
 
     // Check password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(401).json({ success: false, message: "Invalid credentials" });
+      return sendControllerError(req, res, { statusCode: 401, message: "Invalid credentials"  });
     }
 
     let studentSessionId = null;
@@ -399,7 +412,7 @@ export const login = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: "Server Error" });
+    return handleControllerError(req, res, error, { route: "auth.login" });
   }
 };
 
@@ -408,7 +421,7 @@ export const refreshAccessToken = async (req, res) => {
     const refreshToken = getRefreshTokenFromRequest(req);
     if (!refreshToken) {
       clearRefreshTokenCookie(res);
-      return res.status(401).json({ success: false, message: "Refresh token missing" });
+      return sendControllerError(req, res, { statusCode: 401, message: "Refresh token missing"  });
     }
 
     let decoded;
@@ -416,23 +429,23 @@ export const refreshAccessToken = async (req, res) => {
       decoded = jwt.verify(refreshToken, JWT_REFRESH_SECRET);
     } catch {
       clearRefreshTokenCookie(res);
-      return res.status(401).json({ success: false, message: "Invalid refresh token" });
+      return sendControllerError(req, res, { statusCode: 401, message: "Invalid refresh token"  });
     }
 
     if (decoded?.tokenType !== "refresh" || !decoded?.userId) {
       clearRefreshTokenCookie(res);
-      return res.status(401).json({ success: false, message: "Invalid refresh token" });
+      return sendControllerError(req, res, { statusCode: 401, message: "Invalid refresh token"  });
     }
 
     const user = await User.findById(decoded.userId);
     if (!user) {
       clearRefreshTokenCookie(res);
-      return res.status(401).json({ success: false, message: "Invalid refresh token" });
+      return sendControllerError(req, res, { statusCode: 401, message: "Invalid refresh token"  });
     }
 
     if (!user.refreshTokenHash || hashToken(refreshToken) !== user.refreshTokenHash) {
       clearRefreshTokenCookie(res);
-      return res.status(401).json({ success: false, message: "Refresh token revoked" });
+      return sendControllerError(req, res, { statusCode: 401, message: "Refresh token revoked"  });
     }
 
     if (!user.refreshTokenExpiresAt || user.refreshTokenExpiresAt.getTime() <= Date.now()) {
@@ -441,7 +454,7 @@ export const refreshAccessToken = async (req, res) => {
       user.refreshTokenExpiresAt = null;
       await user.save();
       clearRefreshTokenCookie(res);
-      return res.status(401).json({ success: false, message: "Refresh token expired" });
+      return sendControllerError(req, res, { statusCode: 401, message: "Refresh token expired"  });
     }
 
     if (user.role === "student") {
@@ -449,7 +462,7 @@ export const refreshAccessToken = async (req, res) => {
       const activeSessionId = String(user.activeSessionId || "").trim();
       if (!tokenSessionId || !activeSessionId || tokenSessionId !== activeSessionId) {
         clearRefreshTokenCookie(res);
-        return res.status(401).json({ success: false, message: "Session revoked" });
+        return sendControllerError(req, res, { statusCode: 401, message: "Session revoked"  });
       }
     }
 
@@ -472,9 +485,8 @@ export const refreshAccessToken = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Refresh token error:", error);
     clearRefreshTokenCookie(res);
-    return res.status(500).json({ success: false, message: "Server Error" });
+    return handleControllerError(req, res, error, { route: "auth.refreshAccessToken" });
   }
 };
 
@@ -507,9 +519,8 @@ export const logout = async (req, res) => {
     clearRefreshTokenCookie(res);
     return res.status(200).json({ success: true, message: "Logged out" });
   } catch (error) {
-    console.error("Logout error:", error);
     clearRefreshTokenCookie(res);
-    return res.status(500).json({ success: false, message: "Server Error" });
+    return handleControllerError(req, res, error, { route: "auth.logout" });
   }
 };
 
@@ -517,11 +528,11 @@ export const getProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user.userId).select('-password');
     if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
+      return sendControllerError(req, res, { statusCode: 404, message: "User not found"  });
     }
     res.json({ success: true, data: user });
   } catch (error) {
-    res.status(500).json({ success: false, message: "Server Error" });
+    return handleControllerError(req, res, error, { route: "auth.getProfile" });
   }
 };
 
@@ -543,7 +554,7 @@ export const updateProfile = async (req, res) => {
     ).select('-password');
 
     if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
+      return sendControllerError(req, res, { statusCode: 404, message: "User not found"  });
     }
 
     res.json({
@@ -552,8 +563,7 @@ export const updateProfile = async (req, res) => {
       message: "Profile updated successfully"
     });
   } catch (error) {
-    console.error("Update profile error:", error);
-    res.status(500).json({ success: false, message: "Server Error" });
+    return handleControllerError(req, res, error, { route: "auth.updateProfile" });
   }
 };
 
@@ -562,7 +572,7 @@ export const validateInviteToken = async (req, res) => {
     const { token } = req.params;
 
     if (!token) {
-      return res.status(400).json({ success: false, message: "Token is required" });
+      return sendControllerError(req, res, { statusCode: 400, message: "Token is required"  });
     }
 
     const invitation = await Invitation.findOne({
@@ -572,7 +582,11 @@ export const validateInviteToken = async (req, res) => {
     }).select("email role expiresAt").lean();
 
     if (!invitation) {
-      return res.status(404).json({ success: false, valid: false, message: "Invalid or expired invitation" });
+      return sendControllerError(req, res, {
+        statusCode: 404,
+        message: "Invalid or expired invitation",
+        details: { valid: false },
+      });
     }
 
     res.json({
@@ -585,7 +599,7 @@ export const validateInviteToken = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error in validateInviteToken:", error);
-    res.status(500).json({ success: false, message: "Server Error" });
+    return handleControllerError(req, res, error, { route: "auth.validateInviteToken" });
   }
 };
+

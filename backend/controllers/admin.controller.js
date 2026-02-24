@@ -13,6 +13,7 @@ import StudyTaskProgress from "../models/StudyTaskProgress.model.js";
 import StudyTaskHistory from "../models/StudyTaskHistory.model.js";
 import mongoose from "mongoose";
 import { parsePagination, buildPaginationMeta } from "../utils/pagination.js";
+import { handleControllerError, sendControllerError } from '../utils/controllerError.js';
 
 export const getAllUsersWithLatestScores = async (req, res) => {
     try {
@@ -92,8 +93,7 @@ export const getAllUsersWithLatestScores = async (req, res) => {
             pagination: buildPaginationMeta({ page, limit, totalItems }),
         });
     } catch (error) {
-        console.error("Error in getAllUsersWithLatestScores:", error);
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -121,8 +121,7 @@ export const getUserAttempts = async (req, res) => {
             pagination: buildPaginationMeta({ page, limit, totalItems }),
         });
     } catch (error) {
-        console.error("Error in getUserAttempts:", error);
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -144,8 +143,7 @@ export const getPendingStudents = async (req, res) => {
             pagination: buildPaginationMeta({ page, limit, totalItems }),
         });
     } catch (error) {
-        console.error("Error in getPendingStudents:", error);
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -155,13 +153,12 @@ export const approveStudent = async (req, res) => {
         const user = await User.findByIdAndUpdate(userId, { isConfirmed: true }, { new: true }).select('-password');
         
         if (!user) {
-            return res.status(404).json({ success: false, message: "User not found" });
+            return sendControllerError(req, res, { statusCode: 404, message: "User not found"  });
         }
 
         res.json({ success: true, data: user, message: "Student approved successfully" });
     } catch (error) {
-        console.error("Error in approveStudent:", error);
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -188,8 +185,7 @@ export const getUsers = async (req, res) => {
             pagination: buildPaginationMeta({ page, limit, totalItems }),
         });
     } catch (error) {
-        console.error("Error in getUsers:", error);
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -199,17 +195,17 @@ export const deleteUser = async (req, res) => {
         
         // Prevent deleting self? Maybe.
         if (req.user && req.user.userId === userId) {
-             return res.status(400).json({ success: false, message: "Cannot delete yourself" });
+             return sendControllerError(req, res, { statusCode: 400, message: "Cannot delete yourself"  });
         }
 
         if (!mongoose.Types.ObjectId.isValid(userId)) {
-            return res.status(400).json({ success: false, message: "Invalid user id" });
+            return sendControllerError(req, res, { statusCode: 400, message: "Invalid user id"  });
         }
 
         const user = await User.findById(userId).select("_id").lean();
         
         if (!user) {
-            return res.status(404).json({ success: false, message: "User not found" });
+            return sendControllerError(req, res, { statusCode: 404, message: "User not found"  });
         }
 
         const plans = await StudyPlan.find({ userId }, "_id").lean();
@@ -239,8 +235,7 @@ export const deleteUser = async (req, res) => {
 
         res.json({ success: true, message: "User deleted successfully" });
     } catch (error) {
-        console.error("Error in deleteUser:", error);
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -253,16 +248,16 @@ export const changeUserRole = async (req, res) => {
         const { role } = req.body;
 
         if (!role || !PROMOTABLE_ROLES.has(role)) {
-            return res.status(400).json({ success: false, message: "Role must be one of: student, teacher, admin" });
+            return sendControllerError(req, res, { statusCode: 400, message: "Role must be one of: student, teacher, admin"  });
         }
 
         if (req.user.userId === userId) {
-            return res.status(400).json({ success: false, message: "Cannot change your own role" });
+            return sendControllerError(req, res, { statusCode: 400, message: "Cannot change your own role"  });
         }
 
         const user = await User.findById(userId).select("name email role isConfirmed");
         if (!user) {
-            return res.status(404).json({ success: false, message: "User not found" });
+            return sendControllerError(req, res, { statusCode: 404, message: "User not found"  });
         }
 
         const oldRole = user.role;
@@ -282,8 +277,7 @@ export const changeUserRole = async (req, res) => {
             data: { _id: user._id, name: user.name, email: user.email, role: user.role },
         });
     } catch (error) {
-        console.error("Error in changeUserRole:", error);
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -295,16 +289,16 @@ export const inviteUser = async (req, res) => {
         const { email, role } = req.body;
 
         if (!email || !role) {
-            return res.status(400).json({ success: false, message: "Email and role are required" });
+            return sendControllerError(req, res, { statusCode: 400, message: "Email and role are required"  });
         }
 
         if (!INVITABLE_ROLES.has(role)) {
-            return res.status(400).json({ success: false, message: "Can only invite teacher or admin roles" });
+            return sendControllerError(req, res, { statusCode: 400, message: "Can only invite teacher or admin roles"  });
         }
 
         const existingUser = await User.findOne({ email: email.toLowerCase() }).select("_id").lean();
         if (existingUser) {
-            return res.status(400).json({ success: false, message: "A user with this email already exists" });
+            return sendControllerError(req, res, { statusCode: 400, message: "A user with this email already exists"  });
         }
 
         const existingInvite = await Invitation.findOne({
@@ -314,7 +308,7 @@ export const inviteUser = async (req, res) => {
         }).lean();
 
         if (existingInvite) {
-            return res.status(400).json({ success: false, message: "An active invitation already exists for this email" });
+            return sendControllerError(req, res, { statusCode: 400, message: "An active invitation already exists for this email"  });
         }
 
         const invitation = new Invitation({
@@ -338,8 +332,7 @@ export const inviteUser = async (req, res) => {
             },
         });
     } catch (error) {
-        console.error("Error in inviteUser:", error);
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -372,7 +365,8 @@ export const getInvitations = async (req, res) => {
             pagination: buildPaginationMeta({ page, limit, totalItems }),
         });
     } catch (error) {
-        console.error("Error in getInvitations:", error);
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
+
+

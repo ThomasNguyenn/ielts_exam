@@ -249,22 +249,6 @@ const ACHIEVEMENTS = [
     { key: 'hidden_legend', title: 'Huyền thoại IELTS', description: 'Mở khóa 150 thành tựu', icon: '🏛️', category: 'mastery', tier: 'diamond', xpReward: 10000, condition: { metric: 'total_achievements', threshold: 150 }, order: 20, hidden: true },
 ];
 
-// ─── SEED ACHIEVEMENTS ───
-export const seedAchievements = async () => {
-    try {
-        for (const ach of ACHIEVEMENTS) {
-            await Achievement.findOneAndUpdate(
-                { key: ach.key },
-                ach,
-                { upsert: true, new: true }
-            );
-        }
-        console.log(`✅ Seeded ${ACHIEVEMENTS.length} achievements`);
-    } catch (error) {
-        console.error('Error seeding achievements:', error);
-    }
-};
-
 // ─── BAND SCORE CALCULATORS ───
 const readingBandMap = [
     { min: 39, band: 9.0 }, { min: 37, band: 8.5 }, { min: 35, band: 8.0 },

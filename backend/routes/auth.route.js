@@ -12,13 +12,14 @@ import {
   validateInviteToken,
 } from "../controllers/auth.controller.js";
 import { verifyToken } from "../middleware/auth.middleware.js";
+import { requireTrustedOrigin } from "../middleware/csrf.middleware.js";
 
 const router = express.Router();
 
 router.post("/register", register);
 router.post("/login", login);
-router.post("/refresh", refreshAccessToken);
-router.post("/logout", logout);
+router.post("/refresh", requireTrustedOrigin, refreshAccessToken);
+router.post("/logout", requireTrustedOrigin, logout);
 router.post("/verify-email", verifyEmail);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);

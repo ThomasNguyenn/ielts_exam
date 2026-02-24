@@ -1,5 +1,6 @@
 import StudentProgress from '../models/StudentProgress.model.js';
-import SkillModule from '../models/SkillModule.model.js';
+import SkillModule from '../models/SkillModule.model.js';
+import { handleControllerError, sendControllerError } from '../utils/controllerError.js';
 
 // Get or create student progress
 export const getMyProgress = async (req, res) => {
@@ -16,8 +17,7 @@ export const getMyProgress = async (req, res) => {
 
         res.json({ success: true, data: progress });
     } catch (error) {
-        console.error('Error fetching progress:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -28,7 +28,7 @@ export const getSkillBreakdown = async (req, res) => {
         const progress = await StudentProgress.findOne({ userId });
 
         if (!progress) {
-            return res.status(404).json({ success: false, message: 'Progress not found' });
+            return sendControllerError(req, res, { statusCode: 404, message: 'Progress not found'  });
         }
 
         const skillScores = progress.skillScores;
@@ -46,8 +46,7 @@ export const getSkillBreakdown = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error fetching skill breakdown:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -82,8 +81,7 @@ export const updateSkillScores = async (req, res) => {
 
         res.json({ success: true, data: progress });
     } catch (error) {
-        console.error('Error updating skill scores:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -95,7 +93,7 @@ export const markModuleComplete = async (req, res) => {
 
         const module = await SkillModule.findById(moduleId);
         if (!module) {
-            return res.status(404).json({ success: false, message: 'Module not found' });
+            return sendControllerError(req, res, { statusCode: 404, message: 'Module not found'  });
         }
 
         let progress = await StudentProgress.findOne({ userId });
@@ -131,8 +129,7 @@ export const markModuleComplete = async (req, res) => {
 
         res.json({ success: true, data: progress });
     } catch (error) {
-        console.error('Error marking module complete:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -148,8 +145,7 @@ export const getBadges = async (req, res) => {
 
         res.json({ success: true, data: progress.badges });
     } catch (error) {
-        console.error('Error fetching badges:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -171,8 +167,7 @@ export const getStreak = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error fetching streak:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -205,3 +200,5 @@ function checkAndAwardBadges(progress) {
         progress.awardBadge('Skill Champion', '👑', 'Achieved 90+ average across all skills');
     }
 }
+
+

@@ -1,5 +1,6 @@
 import SkillModule from '../models/SkillModule.model.js';
-import StudentProgress from '../models/StudentProgress.model.js';
+import StudentProgress from '../models/StudentProgress.model.js';
+import { handleControllerError, sendControllerError } from '../utils/controllerError.js';
 
 const toNumber = (value, fallback) => {
     const parsed = Number(value);
@@ -160,8 +161,7 @@ export const getAllModules = async (req, res) => {
 
         res.json({ success: true, data: modules });
     } catch (error) {
-        console.error('Error fetching modules:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -174,13 +174,12 @@ export const getModuleById = async (req, res) => {
             .lean();
 
         if (!module) {
-            return res.status(404).json({ success: false, message: 'Module not found' });
+            return sendControllerError(req, res, { statusCode: 404, message: 'Module not found'  });
         }
 
         res.json({ success: true, data: module });
     } catch (error) {
-        console.error('Error fetching module:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -196,8 +195,7 @@ export const getAllModulesForManage = async (req, res) => {
 
         res.json({ success: true, data: modules });
     } catch (error) {
-        console.error('Error fetching modules for management:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -208,13 +206,12 @@ export const getModuleByIdForManage = async (req, res) => {
         const module = await SkillModule.findById(id).lean();
 
         if (!module) {
-            return res.status(404).json({ success: false, message: 'Module not found' });
+            return sendControllerError(req, res, { statusCode: 404, message: 'Module not found'  });
         }
 
         res.json({ success: true, data: module });
     } catch (error) {
-        console.error('Error fetching module for management:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -224,8 +221,8 @@ export const createModule = async (req, res) => {
         const payload = buildModulePayload(req.body, false);
 
         if (!payload.title || !payload.description || !payload.content?.lesson) {
-            return res.status(400).json({
-                success: false,
+            return sendControllerError(req, res, {
+                statusCode: 400,
                 message: 'title, description, and content.lesson are required',
             });
         }
@@ -241,8 +238,7 @@ export const createModule = async (req, res) => {
         const saved = await SkillModule.findById(created._id).lean();
         res.status(201).json({ success: true, data: saved });
     } catch (error) {
-        console.error('Error creating module:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -253,11 +249,11 @@ export const updateModule = async (req, res) => {
         const payload = buildModulePayload(req.body, true);
 
         if (Object.keys(payload).length === 0) {
-            return res.status(400).json({ success: false, message: 'No updates provided' });
+            return sendControllerError(req, res, { statusCode: 400, message: 'No updates provided'  });
         }
 
         if (payload.content && Object.prototype.hasOwnProperty.call(payload.content, 'lesson') && !payload.content.lesson) {
-            return res.status(400).json({ success: false, message: 'content.lesson cannot be empty' });
+            return sendControllerError(req, res, { statusCode: 400, message: 'content.lesson cannot be empty'  });
         }
 
         const updated = await SkillModule.findByIdAndUpdate(id, payload, {
@@ -266,7 +262,7 @@ export const updateModule = async (req, res) => {
         });
 
         if (!updated) {
-            return res.status(404).json({ success: false, message: 'Module not found' });
+            return sendControllerError(req, res, { statusCode: 404, message: 'Module not found'  });
         }
 
         await syncModuleOrderAndPrerequisites();
@@ -274,8 +270,7 @@ export const updateModule = async (req, res) => {
 
         res.json({ success: true, data: refreshed });
     } catch (error) {
-        console.error('Error updating module:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -290,14 +285,13 @@ export const deleteModule = async (req, res) => {
         );
 
         if (!deleted) {
-            return res.status(404).json({ success: false, message: 'Module not found' });
+            return sendControllerError(req, res, { statusCode: 404, message: 'Module not found'  });
         }
 
         await syncModuleOrderAndPrerequisites();
         res.json({ success: true, message: 'Module disabled successfully' });
     } catch (error) {
-        console.error('Error deleting module:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -309,20 +303,20 @@ export const reorderModules = async (req, res) => {
             : [];
 
         if (moduleIds.length === 0) {
-            return res.status(400).json({ success: false, message: 'moduleIds must be a non-empty array' });
+            return sendControllerError(req, res, { statusCode: 400, message: 'moduleIds must be a non-empty array'  });
         }
 
         const uniqueIds = [...new Set(moduleIds)];
         if (uniqueIds.length !== moduleIds.length) {
-            return res.status(400).json({ success: false, message: 'moduleIds contains duplicates' });
+            return sendControllerError(req, res, { statusCode: 400, message: 'moduleIds contains duplicates'  });
         }
 
         const activeModules = await SkillModule.find({ isActive: true }).select('_id').lean();
         const activeIds = activeModules.map((module) => String(module._id));
 
         if (activeIds.length !== moduleIds.length) {
-            return res.status(400).json({
-                success: false,
+            return sendControllerError(req, res, {
+                statusCode: 400,
                 message: 'moduleIds must include all active modules exactly once',
             });
         }
@@ -330,8 +324,8 @@ export const reorderModules = async (req, res) => {
         const incomingSet = new Set(moduleIds);
         const isExactMatch = activeIds.every((id) => incomingSet.has(id));
         if (!isExactMatch) {
-            return res.status(400).json({
-                success: false,
+            return sendControllerError(req, res, {
+                statusCode: 400,
                 message: 'moduleIds must match active module ids',
             });
         }
@@ -363,8 +357,7 @@ export const reorderModules = async (req, res) => {
             data: updatedModules,
         });
     } catch (error) {
-        console.error('Error reordering modules:', error);
-        return res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -376,7 +369,7 @@ export const completeModule = async (req, res) => {
         const quizScore = Number(req.body?.quizScore);
         const module = await SkillModule.findById(id);
         if (!module) {
-            return res.status(404).json({ success: false, message: 'Module not found' });
+            return sendControllerError(req, res, { statusCode: 404, message: 'Module not found'  });
         }
 
         const progress = await StudentProgress.findOneAndUpdate(
@@ -410,8 +403,7 @@ export const completeModule = async (req, res) => {
             achievements: newlyUnlocked,
         });
     } catch (error) {
-        console.error('Error completing module:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -422,17 +414,17 @@ export const submitQuiz = async (req, res) => {
         const { answers } = req.body;
 
         if (!Array.isArray(answers)) {
-            return res.status(400).json({ success: false, message: 'answers must be an array' });
+            return sendControllerError(req, res, { statusCode: 400, message: 'answers must be an array'  });
         }
 
         const module = await SkillModule.findOne({ _id: id, isActive: true });
         if (!module) {
-            return res.status(404).json({ success: false, message: 'Module not found' });
+            return sendControllerError(req, res, { statusCode: 404, message: 'Module not found'  });
         }
 
         const quiz = module.content?.checkpointQuiz || [];
         if (quiz.length === 0) {
-            return res.status(400).json({ success: false, message: 'No quiz available' });
+            return sendControllerError(req, res, { statusCode: 400, message: 'No quiz available'  });
         }
 
         let correctCount = 0;
@@ -461,7 +453,8 @@ export const submitQuiz = async (req, res) => {
             results,
         });
     } catch (error) {
-        console.error('Error submitting quiz:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error);
     }
 };
+
+

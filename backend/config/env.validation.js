@@ -13,6 +13,21 @@ const toBoolean = (value) => {
   return ["1", "true", "yes", "on"].includes(normalized);
 };
 
+const parseOriginList = (value) =>
+  String(value || "")
+    .split(",")
+    .map((origin) => String(origin || "").trim())
+    .filter(Boolean);
+
+const isValidOrigin = (value) => {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+};
+
 const redact = (value) => {
   if (!value) return "<empty>";
   if (value.length <= 6) return "***";
@@ -21,6 +36,12 @@ const redact = (value) => {
 
 export const validateEnvironment = ({ env = process.env } = {}) => {
   const requiredVars = [...REQUIRED_ENV_VARS];
+  const isProduction = String(env.NODE_ENV || "").trim().toLowerCase() === "production";
+
+  if (isProduction) {
+    requiredVars.push("FRONTEND_ORIGINS");
+  }
+
   if (toBoolean(env.AI_ASYNC_MODE)) {
     requiredVars.push("REDIS_URL");
   }
@@ -34,6 +55,15 @@ export const validateEnvironment = ({ env = process.env } = {}) => {
     throw new Error(
       `Missing required environment variables: ${missing.join(", ")}`,
     );
+  }
+
+  if (isProduction) {
+    const configuredOrigins = parseOriginList(env.FRONTEND_ORIGINS);
+    const invalidOrigins = configuredOrigins.filter((origin) => !isValidOrigin(origin));
+    if (configuredOrigins.length === 0 || invalidOrigins.length > 0) {
+      const details = invalidOrigins.length > 0 ? ` Invalid origins: ${invalidOrigins.join(", ")}` : "";
+      throw new Error(`FRONTEND_ORIGINS must include valid http(s) origins in production.${details}`);
+    }
   }
 
   const hasOpenAiKey = OPENAI_KEY_ENV_NAMES.some((name) => {

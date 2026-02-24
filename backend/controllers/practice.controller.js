@@ -3,6 +3,7 @@ import PracticeSession from '../models/PracticeSession.js';
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
 import { requestOpenAIJsonWithFallback } from '../utils/aiClient.js';
+import { handleControllerError, sendControllerError, logControllerError } from '../utils/controllerError.js';
 dotenv.config();
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.OPEN_API_KEY;
@@ -25,14 +26,13 @@ export const getRandomQuestion = async (req, res) => {
         if (!question) {
             // Fallback if no task2 found, try any
             const anyQuestion = await Writing.findOne();
-            if (!anyQuestion) return res.status(404).json({ message: "No questions found" });
+            if (!anyQuestion) return sendControllerError(req, res, { statusCode: 404, message: "No questions found"  });
             return res.json(anyQuestion);
         }
 
         res.json(question);
     } catch (error) {
-        console.error("getRandomQuestion error:", error);
-        res.status(500).json({ message: "Server Error" });
+        return handleControllerError(req, res, error, { route: "practice.getRandomQuestion" });
     }
 };
 
@@ -43,7 +43,7 @@ export const checkOutline = async (req, res) => {
 
         // 1. Fetch Question context
         const question = await Writing.findById(questionId);
-        if (!question) return res.status(404).json({ message: "Question not found" });
+        if (!question) return sendControllerError(req, res, { statusCode: 404, message: "Question not found"  });
 
         // 2. Call AI
         let prompt;
@@ -125,7 +125,10 @@ export const checkOutline = async (req, res) => {
             });
             aiResponse = aiResult.data;
         } catch (aiError) {
-            console.error("checkOutline AI fallback triggered:", aiError.message);
+            logControllerError(req, aiError, {
+                route: "practice.checkOutline.aiFallback",
+                context: { questionId },
+            });
             aiResponse = {
                 general_feedback: "He thong tam thoi khong phan tich duoc outline. Hay thu lai sau.",
                 improvements: ["Viet ro hon y chinh.", "Dam bao bai bam sat de."],
@@ -145,8 +148,10 @@ export const checkOutline = async (req, res) => {
 
         res.json({ session_id: session._id, feedback: aiResponse });
     } catch (error) {
-        console.error("AI Error:", error);
-        res.status(500).json({ message: "Server Error" });
+        return handleControllerError(req, res, error, {
+            route: "practice.checkOutline",
+            context: { questionId: req.body?.questionId },
+        });
     }
 };
 
@@ -156,7 +161,7 @@ export const generateMaterials = async (req, res) => {
         const { questionId } = req.params;
         const question = await Writing.findById(questionId);
         if (!question) {
-            return res.status(404).json({ success: false, message: "Question not found" });
+            return sendControllerError(req, res, { statusCode: 404, message: "Question not found"  });
         }
 
         const prompt = `
@@ -188,7 +193,10 @@ export const generateMaterials = async (req, res) => {
             });
             materials = aiResult.data;
         } catch (aiError) {
-            console.error("generateMaterials AI fallback triggered:", aiError.message);
+            logControllerError(req, aiError, {
+                route: "practice.generateMaterials.aiFallback",
+                context: { questionId },
+            });
             materials = {
                 vocab: [],
                 structures: [],
@@ -204,8 +212,10 @@ export const generateMaterials = async (req, res) => {
 
         res.json(materials);
     } catch (error) {
-        console.error("generateMaterials error:", error);
-        res.status(500).json({ message: "Server Error" });
+        return handleControllerError(req, res, error, {
+            route: "practice.generateMaterials",
+            context: { questionId: req.params?.questionId },
+        });
     }
 };
 
@@ -215,7 +225,7 @@ export const submitWriting = async (req, res) => {
         const { sessionId, fullEssay, gradingMode = 'ai' } = req.body; // gradingMode: 'ai' | 'standard'
 
         const session = await PracticeSession.findById(sessionId).populate('questionId');
-        if (!session) return res.status(404).json({ message: "Session not found" });
+        if (!session) return sendControllerError(req, res, { statusCode: 404, message: "Session not found"  });
 
         session.fullEssay = fullEssay;
 
@@ -324,7 +334,10 @@ export const submitWriting = async (req, res) => {
             });
             result = aiResult.data;
         } catch (aiError) {
-            console.error("submitWriting AI fallback triggered:", aiError.message);
+            logControllerError(req, aiError, {
+                route: "practice.submitWriting.aiFallback",
+                context: { sessionId },
+            });
             result = {
                 band_score: 0,
                 criteria_scores: {
@@ -345,7 +358,10 @@ export const submitWriting = async (req, res) => {
 
         res.json({ ...result, fullEssay, gradingMode: 'ai' });
     } catch (error) {
-        console.error("submitWriting error:", error);
-        res.status(500).json({ message: "Server Error" });
+        return handleControllerError(req, res, error, {
+            route: "practice.submitWriting",
+            context: { sessionId: req.body?.sessionId },
+        });
     }
 };
+

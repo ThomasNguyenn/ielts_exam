@@ -1,4 +1,5 @@
-import ModelEssay from '../models/ModelEssay.model.js';
+import ModelEssay from '../models/ModelEssay.model.js';
+import { handleControllerError, sendControllerError } from '../utils/controllerError.js';
 
 // Get model essays with filters
 export const getModelEssays = async (req, res) => {
@@ -20,8 +21,7 @@ export const getModelEssays = async (req, res) => {
 
         res.json({ success: true, data: essays });
     } catch (error) {
-        console.error('Error fetching model essays:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -33,13 +33,12 @@ export const getModelEssayById = async (req, res) => {
         const essay = await ModelEssay.findById(id).lean();
 
         if (!essay) {
-            return res.status(404).json({ success: false, message: 'Model essay not found' });
+            return sendControllerError(req, res, { statusCode: 404, message: 'Model essay not found'  });
         }
 
         res.json({ success: true, data: essay });
     } catch (error) {
-        console.error('Error fetching model essay:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -51,7 +50,7 @@ export const submitAnalysisTask = async (req, res) => {
 
         const essay = await ModelEssay.findById(id);
         if (!essay) {
-            return res.status(404).json({ success: false, message: 'Model essay not found' });
+            return sendControllerError(req, res, { statusCode: 404, message: 'Model essay not found'  });
         }
 
         // Simple validation based on task type
@@ -101,7 +100,8 @@ export const submitAnalysisTask = async (req, res) => {
             } : null
         });
     } catch (error) {
-        console.error('Error submitting analysis task:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error);
     }
 };
+
+

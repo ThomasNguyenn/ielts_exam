@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_URL || '';
+const API_BASE = import.meta.env?.VITE_API_URL || '';
 const ACHIEVEMENT_EVENT_IGNORED_PATHS = new Set([
   '/api/auth/profile',
   '/api/achievements',
@@ -11,6 +11,7 @@ const ACHIEVEMENT_EVENT_READY_FLAG = '__achievementToastReady';
 const TOKEN_KEY = 'token';
 const USER_KEY = 'user';
 let refreshInFlight = null;
+let sessionBootstrapInFlight = null;
 
 function getSessionStorage() {
   if (typeof window === 'undefined') return null;
@@ -118,12 +119,25 @@ function isTokenExpired(token) {
     if (!payloadPart) return true;
     const base64 = payloadPart.replace(/-/g, '+').replace(/_/g, '/');
     const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
-    const payload = JSON.parse(atob(padded));
+    const decoded =
+      typeof atob === 'function'
+        ? atob(padded)
+        : Buffer.from(padded, 'base64').toString('utf8');
+    const payload = JSON.parse(decoded);
     if (!payload?.exp) return false;
     return Date.now() >= payload.exp * 1000;
   } catch {
     return true;
   }
+}
+
+function hasValidAccessSession() {
+  const token = getToken();
+  if (!token) return false;
+  const user = getUser();
+  if (!user) return false;
+  if (isTokenExpired(token)) return false;
+  return true;
 }
 
 function handleUnauthorized(path) {
@@ -200,6 +214,24 @@ async function refreshAccessToken() {
   })();
 
   return refreshInFlight;
+}
+
+async function bootstrapSession() {
+  if (hasValidAccessSession()) return true;
+  if (sessionBootstrapInFlight) return sessionBootstrapInFlight;
+
+  sessionBootstrapInFlight = (async () => {
+    const refreshed = await refreshAccessToken();
+    if (!refreshed) {
+      removeToken();
+      removeUser();
+    }
+    return refreshed;
+  })().finally(() => {
+    sessionBootstrapInFlight = null;
+  });
+
+  return sessionBootstrapInFlight;
 }
 
 function normalizeAchievementPayload(payload) {
@@ -314,6 +346,7 @@ export const api = {
   getUser,
   setUser,
   removeUser,
+  bootstrapSession,
   logout: async () => {
     try {
       await request(AUTH_LOGOUT_PATH, { method: 'POST', skipAuthRefresh: true });
@@ -325,12 +358,7 @@ export const api = {
     }
   },
   isAuthenticated: () => {
-    const token = getToken();
-    if (!token) return false;
-    const user = getUser();
-    if (!user) return false;
-    if (isTokenExpired(token)) return false;
-    return true;
+    return hasValidAccessSession();
   },
 
   // Tests

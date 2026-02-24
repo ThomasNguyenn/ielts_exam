@@ -5,6 +5,7 @@ import mongoose from "mongoose";
 import OpenAI from "openai";
 import dotenv from "dotenv";
 import { getErrorCodeMeta, normalizeErrorCode } from "../services/taxonomy.registry.js";
+import { handleControllerError, sendControllerError } from '../utils/controllerError.js';
 dotenv.config();
 
 const openai = new OpenAI({
@@ -734,10 +735,10 @@ const buildAnalyticsPayload = async (targetUserId) => {
   };
 };
 
-const sendAnalyticsError = (res, error) => {
-  const status = Number(error?.status || 500);
+const sendAnalyticsError = (req, res, error) => {
+  const statusCode = Number(error?.statusCode || error?.status || 500);
   const message = error?.message || "Failed to load analytics";
-  return res.status(status).json({ message });
+  return handleControllerError(req, res, error, { statusCode, message });
 };
 
 export const getAnalyticsDashboard = async (req, res) => {
@@ -746,8 +747,7 @@ export const getAnalyticsDashboard = async (req, res) => {
     const payload = await buildAnalyticsPayload(req.user.userId);
     return res.json(payload);
   } catch (error) {
-    console.error("Analytics dashboard error:", error);
-    return sendAnalyticsError(res, error);
+    return sendAnalyticsError(req, res, error);
   }
 };
 
@@ -757,8 +757,7 @@ export const getAdminStudentAnalyticsDashboard = async (req, res) => {
     const payload = await buildAnalyticsPayload(req.params.studentId);
     return res.json(payload);
   } catch (error) {
-    console.error("Admin analytics dashboard error:", error);
-    return sendAnalyticsError(res, error);
+    return sendAnalyticsError(req, res, error);
   }
 };
 
@@ -769,7 +768,7 @@ export const getSkillsBreakdown = async (req, res) => {
     const payload = await buildAnalyticsPayload(req.user.userId);
     return res.json({ skills: payload.skills });
   } catch (error) {
-    return sendAnalyticsError(res, error);
+    return sendAnalyticsError(req, res, error);
   }
 };
 
@@ -779,7 +778,7 @@ export const getWeaknessAnalysis = async (req, res) => {
     const payload = await buildAnalyticsPayload(req.user.userId);
     return res.json({ weaknesses: payload.legacyWeaknesses });
   } catch (error) {
-    return sendAnalyticsError(res, error);
+    return sendAnalyticsError(req, res, error);
   }
 };
 
@@ -789,7 +788,7 @@ export const getProgressHistory = async (req, res) => {
     const payload = await buildAnalyticsPayload(req.user.userId);
     return res.json({ history: payload.history });
   } catch (error) {
-    return sendAnalyticsError(res, error);
+    return sendAnalyticsError(req, res, error);
   }
 };
 
@@ -803,7 +802,7 @@ export const getStudentAnalytics = async (req, res) => {
       history: payload.history,
     });
   } catch (error) {
-    return sendAnalyticsError(res, error);
+    return sendAnalyticsError(req, res, error);
   }
 };
 
@@ -812,7 +811,7 @@ export const getErrorAnalytics = async (req, res) => {
     res.set("Cache-Control", "no-store");
     const { userId } = req.user;
     if (!mongoose.Types.ObjectId.isValid(userId)) {
-      return res.status(400).json({ success: false, message: "Invalid user id" });
+      return sendControllerError(req, res, { statusCode: 400, message: "Invalid user id"  });
     }
     const filters = parseAnalyticsFilters(req.query);
     const errorLogs = filterErrorLogs(await aggregateUserErrors(userId), filters);
@@ -868,8 +867,7 @@ export const getErrorAnalytics = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Error generating analytics:", error);
-    return res.status(500).json({ success: false, message: "Internal server error" });
+    return handleControllerError(req, res, error);
   }
 };
 
@@ -878,7 +876,7 @@ export const getErrorAnalyticsDetails = async (req, res) => {
     res.set("Cache-Control", "no-store");
     const { userId } = req.user;
     if (!mongoose.Types.ObjectId.isValid(userId)) {
-      return res.status(400).json({ success: false, message: "Invalid user id" });
+      return sendControllerError(req, res, { statusCode: 400, message: "Invalid user id"  });
     }
 
     const filters = parseAnalyticsFilters(req.query);
@@ -915,8 +913,7 @@ export const getErrorAnalyticsDetails = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error generating analytics details:", error);
-    return res.status(500).json({ success: false, message: "Internal server error" });
+    return handleControllerError(req, res, error);
   }
 };
 
@@ -925,7 +922,7 @@ export const getAIInsights = async (req, res) => {
     res.set("Cache-Control", "no-store");
     const { userId } = req.user;
     if (!mongoose.Types.ObjectId.isValid(userId)) {
-      return res.status(400).json({ success: false, message: "Invalid user id" });
+      return sendControllerError(req, res, { statusCode: 400, message: "Invalid user id"  });
     }
     const filters = parseAnalyticsFilters(req.query);
     const errorLogs = filterErrorLogs(await aggregateUserErrors(userId), filters);
@@ -1004,8 +1001,7 @@ export const getAIInsights = async (req, res) => {
       data: normalizedPayload,
     });
   } catch (error) {
-    console.error("Error generating AI insights:", error);
-    return res.status(500).json({ success: false, message: "Internal server error" });
+    return handleControllerError(req, res, error);
   }
 };
 
@@ -1020,8 +1016,7 @@ export const getAdminStudentErrorAnalytics = async (req, res) => {
     };
     return await getErrorAnalytics(scopedReq, res);
   } catch (error) {
-    console.error("Error generating admin analytics:", error);
-    return res.status(500).json({ success: false, message: "Internal server error" });
+    return handleControllerError(req, res, error);
   }
 };
 
@@ -1036,8 +1031,7 @@ export const getAdminStudentErrorAnalyticsDetails = async (req, res) => {
     };
     return await getErrorAnalyticsDetails(scopedReq, res);
   } catch (error) {
-    console.error("Error generating admin analytics details:", error);
-    return res.status(500).json({ success: false, message: "Internal server error" });
+    return handleControllerError(req, res, error);
   }
 };
 
@@ -1052,7 +1046,8 @@ export const getAdminStudentAIInsights = async (req, res) => {
     };
     return await getAIInsights(scopedReq, res);
   } catch (error) {
-    console.error("Error generating admin AI insights:", error);
-    return res.status(500).json({ success: false, message: "Internal server error" });
+    return handleControllerError(req, res, error);
   }
 };
+
+

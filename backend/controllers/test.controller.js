@@ -1,8 +1,9 @@
 import mongoose from "mongoose";
 import Test from "../models/Test.model.js";
 import TestAttempt from "../models/TestAttempt.model.js";
-import WritingSubmission from "../models/WritingSubmission.model.js";
 import { parsePagination, buildPaginationMeta } from "../utils/pagination.js";
+import { SubmissionError, submitExamFlow } from "../services/testSubmission.service.js";
+import { handleControllerError, sendControllerError } from "../utils/controllerError.js";
 
 const escapeRegex = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const ALLOWED_TEST_TYPES = ['reading', 'listening', 'writing'];
@@ -86,7 +87,7 @@ export const getAllTests = async (req, res) => {
             pagination: buildPaginationMeta({ page, limit, totalItems })
         });
     } catch (error) {
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -128,7 +129,7 @@ export const getTestCategories = async (req, res) => {
 
         res.status(200).json({ success: true, data });
     } catch (error) {
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -137,7 +138,7 @@ export const getMyLatestAttempts = async (req, res) => {
     try {
         const userId = req.user?.userId;
         if (!userId) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
+            return sendControllerError(req, res, { statusCode: 401, message: "Unauthorized"  });
         }
 
         const attempts = await TestAttempt.aggregate([
@@ -165,7 +166,7 @@ export const getMyLatestAttempts = async (req, res) => {
 
         res.status(200).json({ success: true, data: attempts });
     } catch (error) {
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -174,7 +175,7 @@ export const getMyAttemptSummary = async (req, res) => {
     try {
         const userId = req.user?.userId;
         if (!userId) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
+            return sendControllerError(req, res, { statusCode: 401, message: "Unauthorized"  });
         }
 
         const userObjectId = new mongoose.Types.ObjectId(userId);
@@ -242,7 +243,7 @@ export const getMyAttemptSummary = async (req, res) => {
 
         res.status(200).json({ success: true, data: summary });
     } catch (error) {
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -252,14 +253,14 @@ export const getMyTestAttempts = async (req, res) => {
         const userId = req.user?.userId;
         const { id } = req.params;
         if (!userId) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
+            return sendControllerError(req, res, { statusCode: 401, message: "Unauthorized"  });
         }
         const attempts = await TestAttempt.find({ user_id: userId, test_id: id })
             .sort({ submitted_at: -1 })
             .lean();
         res.status(200).json({ success: true, data: attempts });
     } catch (error) {
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -267,7 +268,7 @@ export const createTest = async (req, res) => {
     const test = pickTestPayload(req.body, { allowId: true }); // user will send this data by api
 
     if (!test.title) {
-        return res.status(400).json({ success: false, message: "Please provide all info" });
+        return sendControllerError(req, res, { statusCode: 400, message: "Please provide all info"  });
     }
 
     const newTest = new Test(test);
@@ -277,8 +278,7 @@ export const createTest = async (req, res) => {
         res.status(201).json({ success: true, data: newTest });
     }
     catch (error) {
-        console.error("Create test error:", error);
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -287,17 +287,17 @@ export const updateTest = async (req, res) => {
 
     const test = pickTestPayload(req.body);
     if (Object.keys(test).length === 0) {
-        return res.status(400).json({ success: false, message: "No valid update fields provided" });
+        return sendControllerError(req, res, { statusCode: 400, message: "No valid update fields provided"  });
     }
 
     try {
         const updatedTest = await Test.findByIdAndUpdate(id, test, { new: true });
         if (!updatedTest) {
-            return res.status(404).json({ success: false, message: "Test not found" });
+            return sendControllerError(req, res, { statusCode: 404, message: "Test not found"  });
         }
         return res.status(200).json({ success: true, data: updatedTest });
     } catch (error) {
-        return res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 
 };
@@ -307,11 +307,11 @@ export const deleteTest = async (req, res) => {
     try {
         const deletedTest = await Test.findByIdAndDelete(id);
         if (!deletedTest) {
-            return res.status(404).json({ success: false, message: "Test not found" });
+            return sendControllerError(req, res, { statusCode: 404, message: "Test not found"  });
         }
         return res.status(200).json({ success: true, message: "Delete Success" });
     } catch (error) {
-        return res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -323,7 +323,7 @@ export const renumberTestQuestions = async (req, res) => {
             .populate('listening_sections');
 
         if (!test) {
-            return res.status(404).json({ success: false, message: "Test not found" });
+            return sendControllerError(req, res, { statusCode: 404, message: "Test not found"  });
         }
 
         let currentQNum = 1;
@@ -365,8 +365,7 @@ export const renumberTestQuestions = async (req, res) => {
         res.status(200).json({ success: true, message: `Renumbered questions 1 to ${currentQNum - 1}` });
 
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -379,10 +378,10 @@ export const getTheTestById = async (req, res) => {
             .populate('writing_tasks')
             .lean();
         if (!test) {
-            return res.status(404).json({ success: false, message: "Test not found" });
+            return sendControllerError(req, res, { statusCode: 404, message: "Test not found"  });
         }
         if (!isTeacherOrAdminRequest(req) && test.is_active === false) {
-            return res.status(404).json({ success: false, message: "Test not found" });
+            return sendControllerError(req, res, { statusCode: 404, message: "Test not found"  });
         }
 
         if (isTeacherOrAdminRequest(req)) {
@@ -412,7 +411,7 @@ export const getTheTestById = async (req, res) => {
 
         return res.status(200).json({ success: true, data: sanitized });
     } catch (error) {
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -467,7 +466,7 @@ export const getExamData = async (req, res) => {
             const writingTask = await Writing.findById(id).lean();
             if (writingTask) {
                 if (!privileged && writingTask.is_active === false) {
-                    return res.status(404).json({ success: false, message: "Test or Writing task not found" });
+                    return sendControllerError(req, res, { statusCode: 404, message: "Test or Writing task not found"  });
                 }
                 return res.status(200).json({
                     success: true,
@@ -489,10 +488,10 @@ export const getExamData = async (req, res) => {
                     },
                 });
             }
-            return res.status(404).json({ success: false, message: "Test or Writing task not found" });
+            return sendControllerError(req, res, { statusCode: 404, message: "Test or Writing task not found"  });
         }
         if (!privileged && test.is_active === false) {
-            return res.status(404).json({ success: false, message: "Test or Writing task not found" });
+            return sendControllerError(req, res, { statusCode: 404, message: "Test or Writing task not found"  });
         }
         const examType = test.type || 'reading';
         const reading = examType === 'reading'
@@ -519,373 +518,28 @@ export const getExamData = async (req, res) => {
             },
         });
     } catch (error) {
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
-
-/** Normalize answer for comparison */
-function normalizeAnswer(val) {
-    if (val === null || val === undefined) return '';
-    const normalized = String(val).trim().toLowerCase().replace(/\s+/g, ' ');
-
-    // Mapping for common IELTS abbreviations and variations to canonical values
-    const mapping = {
-        'not given': 'not given',
-        'not': 'not given',
-        'ng': 'not given',
-        'true': 'true',
-        't': 'true',
-        'false': 'false',
-        'f': 'false',
-        'yes': 'yes',
-        'y': 'yes',
-        'no': 'no',
-        'n': 'no'
-    };
-
-    return mapping[normalized] || normalized;
-}
-
-/** Build flat list of correct_answers (one per question) in exam order; optional type filter */
-function getCorrectAnswersList(test, examType) {
-    const list = [];
-    const processItem = (item) => {
-        if (!item || !item.question_groups) return;
-        for (const g of item.question_groups) {
-            for (const q of g.questions || []) {
-                list.push((q.correct_answers || []).map(normalizeAnswer));
-            }
-        }
-    };
-    const type = examType || test.type || 'reading';
-    if (type === 'reading') {
-        for (const p of test.reading_passages || []) processItem(p);
-    } else if (type === 'listening') {
-        for (const s of test.listening_sections || []) processItem(s);
-    }
-    // Writing type doesn't have correct answers for scoring
-    return list;
-}
 
 export const submitExam = async (req, res) => {
-    const { id } = req.params;
-    const { answers, writing, timeTaken, student_highlights } = req.body || {};
+    const { id: testId } = req.params;
+
     try {
-        let test = await Test.findById(id)
-            .populate('reading_passages')
-            .populate('listening_sections')
-            .populate('writing_tasks')
-            .lean();
-
-        if (!test) {
-            // Fallback for standalone writing tasks loaded via /api/tests/:id/exam
-            const Writing = (await import("../models/Writing.model.js")).default;
-            const standaloneWritingTask = await Writing.findById(id).lean();
-            if (!standaloneWritingTask) {
-                return res.status(404).json({ success: false, message: "Test or Writing task not found" });
-            }
-
-            test = {
-                _id: standaloneWritingTask._id,
-                type: 'writing',
-                reading_passages: [],
-                listening_sections: [],
-                writing_tasks: [standaloneWritingTask],
-            };
-        }
-
-        const examType = test.type || 'reading';
-        const safeAnswers = Array.isArray(answers) ? answers : [];
-        const safeWriting = Array.isArray(writing) ? writing : [];
-
-        if (examType !== 'writing' && !Array.isArray(answers)) {
-            return res.status(400).json({ success: false, message: "answers must be an array" });
-        }
-
-
-        const userId = req.user?.userId;
-        const attemptId = userId ? new mongoose.Types.ObjectId() : null;
-
-        // Check if this is a practice run (don't save history)
-        const isPractice = req.body.isPractice === true;
-        const shouldSave = userId && attemptId && !isPractice;
-
-        let studentName = 'Anonymous';
-        let studentEmail = '';
-
-        if (userId) {
-            const User = (await import("../models/User.model.js")).default;
-            const user = await User.findById(userId);
-            if (user) {
-                studentName = user.name || user.email.split('@')[0];
-                studentEmail = user.email;
-            }
-        }
-
-        // Save writing submissions if this is a writing test
-        if (examType === 'writing' && safeWriting.length > 0) {
-            const writingAnswers = safeWriting.map((answer, index) => {
-                const task = test.writing_tasks?.[index];
-                const answerText = typeof answer === "string" ? answer : String(answer ?? "");
-                const trimmed = answerText.trim();
-                if (!task || !trimmed) return null;
-                const wordCount = trimmed.split(/\s+/).length;
-                return {
-                    task_id: task._id || task.id || String(task),
-                    task_title: task.title || `Task ${index + 1}`,
-                    answer_text: answerText,
-                    word_count: wordCount,
-                };
-            }).filter(Boolean); // Only save valid non-empty answers
-
-            // We must save writing submission if it's a writing test, even if it's practice mode, 
-            // because AI scoring needs a submission ID.
-            if (writingAnswers.length > 0) {
-                // If it's practice, we might not have attemptId, but we still need a submission.
-                // WE MUST CREATE IT.
-                const submission = await WritingSubmission.create({
-                    test_id: id,
-                    writing_answers: writingAnswers,
-                    status: 'pending',
-                    user_id: userId,
-                    attempt_id: shouldSave ? attemptId : null, // Only link if attempt is saved
-                    student_name: studentName,
-                    student_email: studentEmail
-                });
-                // Expose the submission ID for frontend redirect
-                res.locals.writingSubmissionId = submission._id;
-            }
-        }
-
-        const correctList = getCorrectAnswersList(test, examType);
-        const total = correctList.length;
-        let score = 0;
-        const userNormalized = safeAnswers.map((a) => normalizeAnswer(a));
-
-        // Build detailed question review data
-        const questionReview = [];
-        let xpResult = null;
-        let newlyUnlocked = [];
-
-        const processItemForReview = (item, itemType) => {
-            if (!item || !item.question_groups) return;
-            let qIndex = questionReview.length;
-            for (const g of item.question_groups) {
-                const groupQuestions = Array.isArray(g.questions) ? g.questions : [];
-
-                // SPECIAL LOGIC: Multi-select (Choose N) - Order Independent Grading
-                if (g.type === 'mult_choice' && groupQuestions.length > 1) {
-                    // 1. Build Pool of needed answers (array of arrays of valid synonyms)
-                    // e.g. [ ['a'], ['c'] ]
-                    let groupCorrectPool = [];
-                    groupQuestions.forEach(q => {
-                        groupCorrectPool.push((q.correct_answers || []).map(normalizeAnswer));
-                    });
-
-                    for (const q of groupQuestions) {
-                        const userAnswer = qIndex < userNormalized.length ? userNormalized[qIndex] : "";
-                        let isCorrect = false;
-
-                        // Find if userAnswer matches ANY set in the pool
-                        // We iterate the pool to find a match that hasn't been used yet
-                        const matchIndex = groupCorrectPool.findIndex(variants => variants && variants.includes(userAnswer));
-
-                        if (matchIndex !== -1) {
-                            isCorrect = true;
-                            // Mark this option set as used so it cannot be matched again
-                            // (Prevents getting double points for entering "A" twice if "A" is only valid once)
-                            groupCorrectPool[matchIndex] = null;
-                        }
-
-                        if (isCorrect) score++;
-
-                        const finalCorrectAnswer = (q.correct_answers && q.correct_answers.length > 0) ? q.correct_answers[0] : "";
-
-                        questionReview.push({
-                            question_number: q.q_number,
-                            type: g.type,
-                            question_text: q.text,
-                            your_answer: safeAnswers[qIndex] || "",
-                            correct_answer: finalCorrectAnswer,
-                            options: (q.option && q.option.length > 0) ? q.option : (g.options || []),
-                            headings: g.headings || [],
-                            is_correct: isCorrect,
-                            explanation: q.explanation || "",
-                            passage_reference: q.passage_reference || "",
-                            item_type: itemType,
-                        });
-                        qIndex++;
-                    }
-
-                } else {
-                    // STANDARD LOGIC
-                    for (const q of groupQuestions) {
-                        const correctOptions = correctList[qIndex] || [];
-                        const userAnswer = qIndex < userNormalized.length ? userNormalized[qIndex] : "";
-                        let isCorrect = correctOptions.length && correctOptions.includes(userAnswer);
-
-                        // Special logic for Matching Headings / Features / Information
-                        if (!isCorrect && ['matching_headings', 'matching_features', 'matching_information', 'matching_info', 'matching'].includes(g.type)) {
-                            const headings = g.headings || [];
-                            // Find the heading object selected by the user (userAnswer is the ID)
-                            // Note: userAnswer is normalized (lowercase). Heading IDs are usually "i", "ii", or "A", "B". 
-                            // We try to match normalized ID.
-                            const selectedHeading = headings.find(h => normalizeAnswer(h.id) === userAnswer);
-
-                            if (selectedHeading) {
-                                // Helper to clean roman numerals (i., ii., etc) for text comparison
-                                const clean = (str) => (str || '').toLowerCase().replace(/^[ivx]+\.?\s*/i, '').trim();
-                                const cleanedHeadingText = clean(selectedHeading.text);
-                                const normalizedHeadingText = normalizeAnswer(selectedHeading.text);
-
-                                // Check against all valid correct options
-                                if (correctOptions.some(opt => {
-                                    // 1. Check if option matches Heading Text exactly (normalized)
-                                    if (opt === normalizedHeadingText) return true;
-                                    // 2. Check if option matches Heading Text without Roman numerals
-                                    if (clean(opt) === cleanedHeadingText) return true;
-                                    // 3. Check if option is an ID that matches the selected heading ID (already covered by initial check, but for completeness)
-                                    if (normalizeAnswer(opt) === normalizeAnswer(selectedHeading.id)) return true;
-                                    return false;
-                                })) {
-                                    isCorrect = true;
-                                }
-                            }
-                        }
-
-                        if (isCorrect) score++;
-
-                        const finalCorrectAnswer = (q.correct_answers && q.correct_answers.length > 0) ? q.correct_answers[0] : (correctOptions[0] || "");
-
-                        // Persistent file logging REMOVED for performance
-                        // import('fs').then(fs => {
-                        //     const logData = `[${new Date().toISOString()}] Q${q.q_number}: type=${g.type}, userAnswer="${userAnswer}", correctAlternatives=${JSON.stringify(correctOptions)}, finalCorrectAnswer="${finalCorrectAnswer}", matches=${isCorrect}\n`;
-                        //     fs.appendFileSync('exam_debug.log', logData);
-                        // });
-
-                        questionReview.push({
-                            question_number: q.q_number,
-                            type: g.type,
-                            question_text: q.text,
-                            your_answer: safeAnswers[qIndex] || "",
-                            correct_answer: finalCorrectAnswer,
-                            options: (q.option && q.option.length > 0) ? q.option : (g.options || []),
-                            headings: g.headings || [], // Include headings for matching questions
-                            is_correct: isCorrect,
-                            explanation: q.explanation || "",
-                            passage_reference: q.passage_reference || "",
-                            item_type: itemType,
-                        });
-                        qIndex++;
-                    }
-                }
-            }
-        };
-
-        if (examType === 'reading') {
-            for (const p of test.reading_passages || []) processItemForReview(p, 'reading');
-        } else if (examType === 'listening') {
-            for (const s of test.listening_sections || []) processItemForReview(s, 'listening');
-        }
-
-        let skipped = 0;
-        for (let i = 0; i < total; i++) {
-            const ans = userNormalized[i];
-            if (!ans || ans === '') {
-                skipped++;
-            }
-        }
-
-        const answeredWrong = total - score - skipped;
-        const wrong = answeredWrong;
-
-        const percentage = total ? Math.round((score / total) * 100) : null;
-        const readingScore = examType === 'reading' ? score : 0;
-        const readingTotal = examType === 'reading' ? total : 0;
-        const listeningScore = examType === 'listening' ? score : 0;
-        const listeningTotal = examType === 'listening' ? total : 0;
-        const writingCount = examType === 'writing' ? (test.writing_tasks || []).length : 0;
-
-        // Store attempt for logged-in users (if not practice mode)
-        if (shouldSave) {
-            const isWriting = examType === 'writing';
-            await TestAttempt.create({
-                _id: attemptId,
-                user_id: userId,
-                test_id: id,
-                type: examType,
-                score: isWriting ? null : score,
-                total: isWriting ? null : total,
-                wrong: isWriting ? null : wrong,
-                skipped: isWriting ? null : skipped,
-                percentage: isWriting ? null : percentage,
-                time_taken_ms: typeof timeTaken === 'number' ? timeTaken : null,
-                submitted_at: new Date(),
-                student_highlights: Array.isArray(student_highlights) ? student_highlights : [],
-                detailed_answers: questionReview.map(q => ({
-                    question_number: q.question_number,
-                    question_type: q.type,
-                    is_correct: q.is_correct,
-                    user_answer: q.your_answer,
-                    correct_answer: q.correct_answer
-                }))
-            });
-
-            // Optimisation: Keep only latest 10 attempts
-            const attempts = await TestAttempt.find({ user_id: userId, test_id: id })
-                .sort({ submitted_at: -1 })
-                .select('_id');
-
-            if (attempts.length > 10) {
-                const toDelete = attempts.slice(10).map(a => a._id);
-                if (toDelete.length > 0) {
-                    await TestAttempt.deleteMany({ _id: { $in: toDelete } });
-                    // Also clean up related writing submissions if any
-                    await WritingSubmission.deleteMany({ attempt_id: { $in: toDelete } });
-                }
-            }
-
-            // Award XP synchronously (it's very fast, 1 DB query)
-            const { addXP, XP_TEST_COMPLETION } = await import("../services/gamification.service.js");
-            xpResult = await addXP(userId, XP_TEST_COMPLETION, 'test');
-
-            const { checkAchievements } = await import("../services/achievement.service.js");
-            newlyUnlocked = await checkAchievements(userId);
-
-            // Fire and forget objective error taxonomy evaluation for R/L
-            if (examType === 'reading' || examType === 'listening') {
-                import("../services/taxonomy.service.js").then(({ evaluateObjectiveErrorsAsync }) => {
-                    // Start in background
-                    evaluateObjectiveErrorsAsync(attemptId, questionReview, examType, student_highlights).catch(err => {
-                        console.error("Error running taxonomy service:", err);
-                    });
-                }).catch(err => {
-                    console.error("Error importing taxonomy service:", err);
-                });
-            }
-        }
-
-        res.status(200).json({
-            success: true,
-            data: {
-                score,
-                total,
-                wrong,
-                readingScore,
-                readingTotal,
-                listeningScore,
-                listeningTotal,
-                writingCount,
-                question_review: questionReview,
-                timeTaken: typeof timeTaken === 'number' ? timeTaken : 0,
-                writing_answers: examType === 'writing' ? safeWriting : [],
-                xpResult, // Return XP gain info
-                achievements: newlyUnlocked, // Newly unlocked achievements
-                writingSubmissionId: res.locals.writingSubmissionId || null, // Return submission ID for AI redirect
-            },
+        const data = await submitExamFlow({
+            testId,
+            userId: req.user?.userId,
+            body: req.body || {},
         });
+
+        res.status(200).json({ success: true, data });
     } catch (error) {
-        console.error("submitExam error:", error);
-        res.status(500).json({ success: false, message: "Server Error" });
+        if (error instanceof SubmissionError) {
+            return res.status(error.statusCode).json({ success: false, message: error.message });
+        }
+
+        return handleControllerError(req, res, error);
     }
 };
+
+

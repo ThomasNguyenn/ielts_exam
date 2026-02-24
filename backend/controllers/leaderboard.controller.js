@@ -1,6 +1,7 @@
 import User from '../models/User.model.js';
-import { checkAchievements, getAllAchievements, getUserAchievements, seedAchievements } from '../services/achievement.service.js';
+import { checkAchievements, getAllAchievements, getUserAchievements } from '../services/achievement.service.js';
 import { getLevelTitle } from '../services/gamification.service.js';
+import { handleControllerError, sendControllerError } from '../utils/controllerError.js';
 
 // GET /api/leaderboard — Top 20 students by XP
 export const getLeaderboard = async (req, res) => {
@@ -25,8 +26,7 @@ export const getLeaderboard = async (req, res) => {
 
         res.json({ success: true, data: leaderboard });
     } catch (error) {
-        console.error('Error fetching leaderboard:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error, { route: 'leaderboard.getLeaderboard' });
     }
 };
 
@@ -35,7 +35,7 @@ export const getMyRank = async (req, res) => {
     try {
         const userId = req.user.userId;
         const user = await User.findById(userId).select('name xp level totalAchievements').lean();
-        if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+        if (!user) return sendControllerError(req, res, { statusCode: 404, message: 'User not found'  });
 
         // Count how many students have more XP
         const higherCount = await User.countDocuments({
@@ -57,8 +57,7 @@ export const getMyRank = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error fetching my rank:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error, { route: 'leaderboard.getMyRank' });
     }
 };
 
@@ -88,8 +87,7 @@ export const getAchievementDefinitions = async (req, res) => {
 
         res.json({ success: true, data: sanitized });
     } catch (error) {
-        console.error('Error fetching achievement definitions:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error, { route: 'leaderboard.getAchievementDefinitions' });
     }
 };
 
@@ -100,8 +98,7 @@ export const getMyAchievements = async (req, res) => {
         const userAchievements = await getUserAchievements(userId);
         res.json({ success: true, data: userAchievements });
     } catch (error) {
-        console.error('Error fetching my achievements:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error, { route: 'leaderboard.getMyAchievements' });
     }
 };
 
@@ -119,12 +116,7 @@ export const triggerAchievementCheck = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error checking achievements:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error, { route: 'leaderboard.triggerAchievementCheck' });
     }
 };
 
-// Seed achievements on import (call from server.js)
-export const initAchievements = async () => {
-    await seedAchievements();
-};

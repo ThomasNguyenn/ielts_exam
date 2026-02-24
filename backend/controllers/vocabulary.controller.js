@@ -1,11 +1,12 @@
-import Vocabulary from '../models/Vocabulary.model.js';
+import Vocabulary from '../models/Vocabulary.model.js';
+import { handleControllerError, sendControllerError } from '../utils/controllerError.js';
 
 // Get all vocabulary for a user
 export const getUserVocabulary = async (req, res) => {
     try {
         const userId = req.user?.userId;
         if (!userId) {
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
+            return sendControllerError(req, res, { statusCode: 401, message: 'Unauthorized'  });
         }
 
         const { search, mastery, dueOnly } = req.query;
@@ -34,8 +35,7 @@ export const getUserVocabulary = async (req, res) => {
 
         res.status(200).json({ success: true, data: vocabulary });
     } catch (error) {
-        console.error('Error fetching vocabulary:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -44,7 +44,7 @@ export const getDueVocabulary = async (req, res) => {
     try {
         const userId = req.user?.userId;
         if (!userId) {
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
+            return sendControllerError(req, res, { statusCode: 401, message: 'Unauthorized'  });
         }
 
         const dueWords = await Vocabulary.find({
@@ -54,8 +54,7 @@ export const getDueVocabulary = async (req, res) => {
 
         res.status(200).json({ success: true, data: dueWords, count: dueWords.length });
     } catch (error) {
-        console.error('Error fetching due vocabulary:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -64,15 +63,15 @@ export const addVocabulary = async (req, res) => {
     try {
         const userId = req.user?.userId;
         if (!userId) {
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
+            return sendControllerError(req, res, { statusCode: 401, message: 'Unauthorized'  });
         }
 
         const { word, context, source_test_id, source_passage_id, definition, notes } = req.body;
 
         if (!word || !context) {
-            return res.status(400).json({
-                success: false,
-                message: 'Word and context are required'
+            return sendControllerError(req, res, {
+                statusCode: 400,
+                message: 'Word and context are required',
             });
         }
 
@@ -83,9 +82,9 @@ export const addVocabulary = async (req, res) => {
         });
 
         if (existing) {
-            return res.status(409).json({
-                success: false,
-                message: 'Word already in your vocabulary list'
+            return sendControllerError(req, res, {
+                statusCode: 409,
+                message: 'Word already in your vocabulary list',
             });
         }
 
@@ -101,8 +100,7 @@ export const addVocabulary = async (req, res) => {
 
         res.status(201).json({ success: true, data: vocabulary });
     } catch (error) {
-        console.error('Error adding vocabulary:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -114,7 +112,7 @@ export const updateVocabulary = async (req, res) => {
         const { definition, notes } = req.body;
 
         if (!userId) {
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
+            return sendControllerError(req, res, { statusCode: 401, message: 'Unauthorized'  });
         }
 
         const vocabulary = await Vocabulary.findOneAndUpdate(
@@ -124,13 +122,12 @@ export const updateVocabulary = async (req, res) => {
         );
 
         if (!vocabulary) {
-            return res.status(404).json({ success: false, message: 'Vocabulary not found' });
+            return sendControllerError(req, res, { statusCode: 404, message: 'Vocabulary not found'  });
         }
 
         res.status(200).json({ success: true, data: vocabulary });
     } catch (error) {
-        console.error('Error updating vocabulary:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -142,20 +139,20 @@ export const reviewVocabulary = async (req, res) => {
         const { difficulty } = req.body; // 'easy', 'medium', 'hard'
 
         if (!userId) {
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
+            return sendControllerError(req, res, { statusCode: 401, message: 'Unauthorized'  });
         }
 
         if (!['easy', 'medium', 'hard'].includes(difficulty)) {
-            return res.status(400).json({
-                success: false,
-                message: 'Difficulty must be easy, medium, or hard'
+            return sendControllerError(req, res, {
+                statusCode: 400,
+                message: 'Difficulty must be easy, medium, or hard',
             });
         }
 
         const vocabulary = await Vocabulary.findOne({ _id: id, user_id: userId });
 
         if (!vocabulary) {
-            return res.status(404).json({ success: false, message: 'Vocabulary not found' });
+            return sendControllerError(req, res, { statusCode: 404, message: 'Vocabulary not found'  });
         }
 
         // Use the SRS method to calculate next review
@@ -179,8 +176,7 @@ export const reviewVocabulary = async (req, res) => {
             achievements: newlyUnlocked
         });
     } catch (error) {
-        console.error('Error reviewing vocabulary:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -191,7 +187,7 @@ export const deleteVocabulary = async (req, res) => {
         const { id } = req.params;
 
         if (!userId) {
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
+            return sendControllerError(req, res, { statusCode: 401, message: 'Unauthorized'  });
         }
 
         const vocabulary = await Vocabulary.findOneAndDelete({
@@ -200,13 +196,12 @@ export const deleteVocabulary = async (req, res) => {
         });
 
         if (!vocabulary) {
-            return res.status(404).json({ success: false, message: 'Vocabulary not found' });
+            return sendControllerError(req, res, { statusCode: 404, message: 'Vocabulary not found'  });
         }
 
         res.status(200).json({ success: true, message: 'Vocabulary deleted' });
     } catch (error) {
-        console.error('Error deleting vocabulary:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -215,7 +210,7 @@ export const getVocabularyStats = async (req, res) => {
     try {
         const userId = req.user?.userId;
         if (!userId) {
-            return res.status(401).json({ success: false, message: 'Unauthorized' });
+            return sendControllerError(req, res, { statusCode: 401, message: 'Unauthorized'  });
         }
 
         const total = await Vocabulary.countDocuments({ user_id: userId });
@@ -239,7 +234,8 @@ export const getVocabularyStats = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Error fetching vocabulary stats:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error);
     }
 };
+
+

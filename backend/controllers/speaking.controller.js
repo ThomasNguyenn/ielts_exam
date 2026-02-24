@@ -7,6 +7,7 @@ import { scoreSpeakingSessionById, generateMockExaminerFollowUp } from "../servi
 import { evaluateSpeakingProvisionalScore } from "../services/speakingFastScore.service.js";
 import { ensurePart3ConversationScript, generatePromptReadAloudPreview } from "../services/speakingReadAloud.service.js";
 import { parsePagination, buildPaginationMeta } from "../utils/pagination.js";
+import { handleControllerError, sendControllerError } from '../utils/controllerError.js';
 
 const escapeRegex = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const normalizeTopicList = (values = []) => {
@@ -129,19 +130,18 @@ export const getRandomSpeaking = async (req, res) => {
   try {
     const count = await Speaking.countDocuments({ is_active: true });
     if (count === 0) {
-      return res.status(404).json({ success: false, message: "No speaking topics found" });
+      return sendControllerError(req, res, { statusCode: 404, message: "No speaking topics found"  });
     }
     const random = Math.floor(Math.random() * count);
     const topic = await Speaking.findOne({ is_active: true }).skip(random);
 
     if (!topic) {
-      return res.status(404).json({ success: false, message: "No speaking topics found" });
+      return sendControllerError(req, res, { statusCode: 404, message: "No speaking topics found"  });
     }
 
     return res.json({ success: true, data: topic });
   } catch (error) {
-    console.error("Get random speaking failed:", error);
-    return res.status(500).json({ success: false, message: "Server Error" });
+    return handleControllerError(req, res, error);
   }
 };
 
@@ -199,8 +199,7 @@ export const getSpeakings = async (req, res) => {
       pagination: buildPaginationMeta({ page, limit, totalItems })
     });
   } catch (error) {
-    console.error("Get speakings failed:", error);
-    return res.status(500).json({ success: false, message: "Server Error" });
+    return handleControllerError(req, res, error);
   }
 };
 
@@ -208,7 +207,7 @@ export const getSpeakingById = async (req, res) => {
   try {
     const topic = await Speaking.findById(req.params.id);
     if (!topic) {
-      return res.status(404).json({ success: false, message: "Speaking topic not found" });
+      return sendControllerError(req, res, { statusCode: 404, message: "Speaking topic not found"  });
     }
 
     const conversationScript = await ensurePart3ConversationScript(topic);
@@ -219,8 +218,7 @@ export const getSpeakingById = async (req, res) => {
 
     return res.json({ success: true, data: payload });
   } catch (error) {
-    console.error("Get speaking by id failed:", error);
-    return res.status(500).json({ success: false, message: "Server Error" });
+    return handleControllerError(req, res, error);
   }
 };
 
@@ -275,7 +273,7 @@ export const preGeneratePart3ReadAloud = async (req, res) => {
       data: summary,
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
   }
 };
 
@@ -305,11 +303,8 @@ export const generateSpeakingPromptReadAloud = async (req, res) => {
     });
   } catch (error) {
     const statusCode = Number(error?.statusCode) || 500;
-    if (statusCode >= 500) {
-      console.error("Generate speaking prompt read-aloud failed:", error);
-    }
-    return res.status(statusCode).json({
-      success: false,
+    return handleControllerError(req, res, error, {
+      statusCode,
       message: error.message || "Server Error",
     });
   }
@@ -319,11 +314,11 @@ export const getSpeakingSession = async (req, res) => {
   try {
     const session = await SpeakingSession.findById(req.params.id).lean();
     if (!session) {
-      return res.status(404).json({ success: false, message: "Speaking session not found" });
+      return sendControllerError(req, res, { statusCode: 404, message: "Speaking session not found"  });
     }
 
     if (!canAccessSession(session, req.user)) {
-      return res.status(403).json({ success: false, message: "Forbidden" });
+      return sendControllerError(req, res, { statusCode: 403, message: "Forbidden"  });
     }
 
     return res.json({
@@ -349,7 +344,7 @@ export const getSpeakingSession = async (req, res) => {
       },
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
   }
 };
 
@@ -357,22 +352,22 @@ export const runMockExaminerTurn = async (req, res) => {
   try {
     const session = await SpeakingSession.findById(req.params.id);
     if (!session) {
-      return res.status(404).json({ success: false, message: "Speaking session not found" });
+      return sendControllerError(req, res, { statusCode: 404, message: "Speaking session not found"  });
     }
 
     if (!canAccessSession(session, req.user)) {
-      return res.status(403).json({ success: false, message: "Forbidden" });
+      return sendControllerError(req, res, { statusCode: 403, message: "Forbidden"  });
     }
 
     const topic = await Speaking.findById(session.questionId).lean();
     if (!topic) {
-      return res.status(404).json({ success: false, message: "Speaking topic not found" });
+      return sendControllerError(req, res, { statusCode: 404, message: "Speaking topic not found"  });
     }
 
     const userAnswerRaw = String(req.body?.userAnswer || "").trim();
     if (userAnswerRaw.length > MAX_CANDIDATE_ANSWER_CHARS) {
-      return res.status(400).json({
-        success: false,
+      return sendControllerError(req, res, {
+        statusCode: 400,
         message: `Answer is too long. Maximum ${MAX_CANDIDATE_ANSWER_CHARS} characters.`,
       });
     }
@@ -456,8 +451,7 @@ export const runMockExaminerTurn = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Mock examiner turn failed:", error);
-    return res.status(500).json({ success: false, message: "Server Error" });
+    return handleControllerError(req, res, error);
   }
 };
 
@@ -468,7 +462,7 @@ export const createSpeaking = async (req, res) => {
     const savedTopic = await newTopic.save();
     return res.status(201).json({ success: true, data: savedTopic });
   } catch (error) {
-    return res.status(400).json({ success: false, message: error.message });
+    return sendControllerError(req, res, { statusCode: 400, message: error.message  });
   }
 };
 
@@ -476,7 +470,7 @@ export const updateSpeaking = async (req, res) => {
   try {
     const payload = pickSpeakingPayload(req.body);
     if (Object.keys(payload).length === 0) {
-      return res.status(400).json({ success: false, message: "No valid update fields provided" });
+      return sendControllerError(req, res, { statusCode: 400, message: "No valid update fields provided"  });
     }
 
     const updatedTopic = await Speaking.findByIdAndUpdate(
@@ -485,11 +479,11 @@ export const updateSpeaking = async (req, res) => {
       { new: true },
     );
     if (!updatedTopic) {
-      return res.status(404).json({ success: false, message: "Speaking topic not found" });
+      return sendControllerError(req, res, { statusCode: 404, message: "Speaking topic not found"  });
     }
     return res.json({ success: true, data: updatedTopic });
   } catch (error) {
-    return res.status(400).json({ success: false, message: error.message });
+    return sendControllerError(req, res, { statusCode: 400, message: error.message  });
   }
 };
 
@@ -497,12 +491,11 @@ export const deleteSpeaking = async (req, res) => {
   try {
     const topic = await Speaking.findByIdAndDelete(req.params.id);
     if (!topic) {
-      return res.status(404).json({ success: false, message: "Speaking topic not found" });
+      return sendControllerError(req, res, { statusCode: 404, message: "Speaking topic not found"  });
     }
     return res.json({ success: true, message: "Speaking topic deleted successfully" });
   } catch (error) {
-    console.error("Delete speaking failed:", error);
-    return res.status(500).json({ success: false, message: "Server Error" });
+    return handleControllerError(req, res, error);
   }
 };
 
@@ -514,12 +507,12 @@ export const submitSpeaking = async (req, res) => {
     const audioFile = req.file;
 
     if (!audioFile) {
-      return res.status(400).json({ message: "Audio file is required" });
+      return sendControllerError(req, res, { statusCode: 400, message: "Audio file is required"  });
     }
 
     const topic = await Speaking.findById(questionId).select("_id");
     if (!topic) {
-      return res.status(404).json({ message: "Speaking topic not found" });
+      return sendControllerError(req, res, { statusCode: 404, message: "Speaking topic not found"  });
     }
 
     const uploadedAudio = await uploadSpeakingAudio(audioFile);
@@ -650,7 +643,8 @@ export const submitSpeaking = async (req, res) => {
     if (session?._id) {
       await SpeakingSession.findByIdAndUpdate(session._id, { status: "failed", scoring_state: "failed" }).catch(() => { });
     }
-    console.error("Speaking submission failed:", error);
-    return res.status(500).json({ success: false, message: "Server Error" });
+    return handleControllerError(req, res, error);
   }
 };
+
+

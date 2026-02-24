@@ -1,8 +1,13 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { api } from '@/shared/api/client';
 import { NotificationProvider } from '@/shared/context/NotificationContext';
 import AchievementToast from '@/features/achievements/components/AchievementToast';
+import {
+  resolveManageRouteRedirect,
+  resolveProtectedRouteRedirect,
+  resolvePublicRouteRedirect,
+} from './routeGuards';
 
 const Layout = lazy(() => import('@/shared/components/Layout'));
 const Home = lazy(() => import('@/features/home/pages/Home'));
@@ -59,38 +64,75 @@ const withSuspense = (element) => (
 
 // Protected Route wrapper
 function ProtectedRoute({ children }) {
-  if (!api.isAuthenticated()) {
-    return <Navigate to="/login" replace />;
-  }
   const user = api.getUser();
-  if (user?.role === 'student' && !user?.isConfirmed) {
-    return <Navigate to="/wait-for-confirmation" replace />;
+  const redirectTo = resolveProtectedRouteRedirect({
+    isAuthenticated: api.isAuthenticated(),
+    user,
+  });
+
+  if (redirectTo) {
+    return <Navigate to={redirectTo} replace />;
   }
+
   return children;
 }
 
 // Manage Route wrapper (teacher or admin)
 function ManageRoute({ children }) {
   const user = api.getUser();
-  if (!api.isAuthenticated() || !['teacher', 'admin'].includes(user?.role)) {
-    return <Navigate to="/" replace />;
+  const redirectTo = resolveManageRouteRedirect({
+    isAuthenticated: api.isAuthenticated(),
+    user,
+  });
+
+  if (redirectTo) {
+    return <Navigate to={redirectTo} replace />;
   }
+
   return children;
 }
 
 // Public Route wrapper (redirect if logged in)
 function PublicRoute({ children }) {
-  if (api.isAuthenticated()) {
-    const user = api.getUser();
-    if (user?.role === 'student' && !user?.isConfirmed) {
-      return <Navigate to="/wait-for-confirmation" replace />;
-    }
-    return <Navigate to="/" replace />;
+  const user = api.getUser();
+  const redirectTo = resolvePublicRouteRedirect({
+    isAuthenticated: api.isAuthenticated(),
+    user,
+  });
+
+  if (redirectTo) {
+    return <Navigate to={redirectTo} replace />;
   }
+
   return children;
 }
 
 export default function App() {
+  const [authBootstrapReady, setAuthBootstrapReady] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    api.bootstrapSession()
+      .catch(() => false)
+      .finally(() => {
+        if (mounted) setAuthBootstrapReady(true);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  if (!authBootstrapReady) {
+    return (
+      <NotificationProvider>
+        <AchievementToast />
+        <RouteFallback />
+      </NotificationProvider>
+    );
+  }
+
   return (
     <NotificationProvider>
       <AchievementToast />

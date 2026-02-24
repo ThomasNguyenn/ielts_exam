@@ -47,6 +47,13 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           manualChunks(id) {
+            if (
+              id.includes('vite/preload-helper') ||
+              id.includes('commonjsHelpers.js')
+            ) {
+              return 'vendor-runtime';
+            }
+
             if (!id.includes('node_modules')) return;
 
             if (id.includes('recharts')) {
@@ -69,7 +76,46 @@ export default defineConfig(({ mode }) => {
               return 'vendor-icons';
             }
 
-            return 'vendor';
+            if (
+              id.includes('react-markdown') ||
+              id.includes('/remark-') ||
+              id.includes('/rehype-') ||
+              id.includes('/micromark') ||
+              id.includes('/mdast-util-') ||
+              id.includes('/hast-util-') ||
+              id.includes('/unist-')
+            ) {
+              return 'vendor-markdown';
+            }
+
+            if (
+              id.includes('dompurify') ||
+              id.includes('html-react-parser') ||
+              id.includes('/htmlparser2') ||
+              id.includes('/domhandler') ||
+              id.includes('/domutils') ||
+              id.includes('/entities')
+            ) {
+              return 'vendor-html';
+            }
+
+            if (
+              id.includes('react-router-dom') ||
+              id.includes('/react-router/') ||
+              id.includes('@remix-run/router')
+            ) {
+              return 'vendor-router';
+            }
+
+            if (
+              id.includes('/react/') ||
+              id.includes('react-dom') ||
+              id.includes('/scheduler/')
+            ) {
+              return 'vendor-react';
+            }
+
+            return undefined;
           },
         },
       },

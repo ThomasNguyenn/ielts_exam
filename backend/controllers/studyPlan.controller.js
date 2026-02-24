@@ -9,6 +9,7 @@ import Writing from '../models/Writing.model.js';
 import Speaking from '../models/Speaking.model.js';
 import Test from '../models/Test.model.js';
 import { parsePagination, buildPaginationMeta } from '../utils/pagination.js';
+import { handleControllerError, sendControllerError } from '../utils/controllerError.js';
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 const TASK_STATUS = new Set(['pending', 'completed', 'skipped']);
@@ -423,17 +424,17 @@ export const createStudyPlan = async (req, res) => {
         const userId = req.user.userId;
 
         if (!targetDate || targetBand === undefined || targetBand === null) {
-            return res.status(400).json({ success: false, message: 'Missing targetDate or targetBand' });
+            return sendControllerError(req, res, { statusCode: 400, message: 'Missing targetDate or targetBand'  });
         }
 
         const parsedTargetDate = parseTargetDate(targetDate);
         if (!parsedTargetDate) {
-            return res.status(400).json({ success: false, message: 'Invalid targetDate' });
+            return sendControllerError(req, res, { statusCode: 400, message: 'Invalid targetDate'  });
         }
 
         const today = startOfDay(new Date());
         if (parsedTargetDate < today) {
-            return res.status(400).json({ success: false, message: 'targetDate must be today or in the future' });
+            return sendControllerError(req, res, { statusCode: 400, message: 'targetDate must be today or in the future'  });
         }
 
         const existingPlans = await StudyPlan.find({ userId }, '_id').lean();
@@ -468,8 +469,7 @@ export const createStudyPlan = async (req, res) => {
             tasksCount: generatedTasks.length
         });
     } catch (error) {
-        console.error('Create study plan error:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -482,10 +482,10 @@ export const getMyPlan = async (req, res) => {
         const to = req.query.to ? parseDate(req.query.to) : null;
 
         if (req.query.from && !from) {
-            return res.status(400).json({ success: false, message: 'Invalid from date' });
+            return sendControllerError(req, res, { statusCode: 400, message: 'Invalid from date'  });
         }
         if (req.query.to && !to) {
-            return res.status(400).json({ success: false, message: 'Invalid to date' });
+            return sendControllerError(req, res, { statusCode: 400, message: 'Invalid to date'  });
         }
 
         const plan = await StudyPlan.findOne({ userId, isActive: true });
@@ -523,8 +523,7 @@ export const getMyPlan = async (req, res) => {
 
         res.json({ success: true, plan, tasks });
     } catch (error) {
-        console.error('Get study plan error:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -536,12 +535,12 @@ export const updateTaskStatus = async (req, res) => {
         const userId = req.user.userId;
 
         if (!TASK_STATUS.has(status)) {
-            return res.status(400).json({ success: false, message: 'Invalid status value' });
+            return sendControllerError(req, res, { statusCode: 400, message: 'Invalid status value'  });
         }
 
         const plan = await StudyPlan.findOne({ userId, isActive: true });
         if (!plan) {
-            return res.status(404).json({ success: false, message: 'Active plan not found' });
+            return sendControllerError(req, res, { statusCode: 404, message: 'Active plan not found'  });
         }
 
         const taskSnapshot = await resolveTaskSnapshot({
@@ -552,7 +551,7 @@ export const updateTaskStatus = async (req, res) => {
         });
 
         if (!taskSnapshot) {
-            return res.status(404).json({ success: false, message: 'Task not found in current roadmap' });
+            return sendControllerError(req, res, { statusCode: 404, message: 'Task not found in current roadmap'  });
         }
 
         if (status === 'pending') {
@@ -598,8 +597,7 @@ export const updateTaskStatus = async (req, res) => {
             task: mapTaskToResponse(progress)
         });
     } catch (error) {
-        console.error('Update task status error:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -609,22 +607,22 @@ export const updateStudyPlan = async (req, res) => {
         const userId = req.user.userId;
 
         if (!targetDate || targetBand === undefined || targetBand === null) {
-            return res.status(400).json({ success: false, message: 'Missing targetDate or targetBand' });
+            return sendControllerError(req, res, { statusCode: 400, message: 'Missing targetDate or targetBand'  });
         }
 
         const parsedTargetDate = parseTargetDate(targetDate);
         if (!parsedTargetDate) {
-            return res.status(400).json({ success: false, message: 'Invalid targetDate' });
+            return sendControllerError(req, res, { statusCode: 400, message: 'Invalid targetDate'  });
         }
 
         const today = startOfDay(new Date());
         if (parsedTargetDate < today) {
-            return res.status(400).json({ success: false, message: 'targetDate must be today or in the future' });
+            return sendControllerError(req, res, { statusCode: 400, message: 'targetDate must be today or in the future'  });
         }
 
         const plan = await StudyPlan.findOne({ userId, isActive: true });
         if (!plan) {
-            return res.status(404).json({ success: false, message: 'Active plan not found' });
+            return sendControllerError(req, res, { statusCode: 404, message: 'Active plan not found'  });
         }
 
         // Archive completed tasks from active plan before resetting roadmap.
@@ -668,8 +666,7 @@ export const updateStudyPlan = async (req, res) => {
             tasksCount: generatedTasks.length
         });
     } catch (error) {
-        console.error('Update study plan error:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -749,7 +746,8 @@ export const getStudyHistory = async (req, res) => {
 
         res.json({ success: true, tasks });
     } catch (error) {
-        console.error('Get study history error:', error);
-        res.status(500).json({ success: false, message: 'Server Error' });
+        return handleControllerError(req, res, error);
     }
 };
+
+

@@ -7,6 +7,7 @@ import { isAiAsyncModeEnabled } from "../config/queue.config.js";
 import { enqueueWritingAiScoreJob, isAiQueueReady } from "../queues/ai.queue.js";
 import { scoreWritingSubmissionById } from "../services/writingSubmissionScoring.service.js";
 import { parsePagination, buildPaginationMeta } from "../utils/pagination.js";
+import { handleControllerError, sendControllerError } from '../utils/controllerError.js';
 
 const isTeacherOrAdminRequest = (req) => (
     req.user?.role === "teacher" || req.user?.role === "admin"
@@ -72,7 +73,7 @@ export const getAllWritings = async (req, res) => {
         const sanitized = writings.map((writing) => sanitizeWritingForLearner(writing));
         return res.status(200).json({ success: true, data: sanitized });
     } catch (error) {
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -80,7 +81,7 @@ export const createWriting = async (req, res) => {
     const writing = pickWritingPayload(req.body, { allowId: true });
 
     if (!writing._id || !writing.title || !writing.prompt) {
-        return res.status(400).json({ success: false, message: "Please provide _id, title, and prompt" });
+        return sendControllerError(req, res, { statusCode: 400, message: "Please provide _id, title, and prompt"  });
     }
 
     const newWriting = new Writing(writing);
@@ -90,8 +91,7 @@ export const createWriting = async (req, res) => {
         res.status(201).json({ success: true, data: newWriting });
     }
     catch (error) {
-        console.error("Create writing error:", error);
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -100,17 +100,17 @@ export const updateWriting = async (req, res) => {
 
     const writing = pickWritingPayload(req.body);
     if (Object.keys(writing).length === 0) {
-        return res.status(400).json({ success: false, message: "No valid update fields provided" });
+        return sendControllerError(req, res, { statusCode: 400, message: "No valid update fields provided"  });
     }
 
     try {
         const updatedWriting = await Writing.findByIdAndUpdate(id, writing, { new: true });
         if (!updatedWriting) {
-            return res.status(404).json({ success: false, message: "Writing not found" });
+            return sendControllerError(req, res, { statusCode: 404, message: "Writing not found"  });
         }
         return res.status(200).json({ success: true, data: updatedWriting });
     } catch (error) {
-        return res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -119,11 +119,11 @@ export const deleteWriting = async (req, res) => {
     try {
         const deletedWriting = await Writing.findByIdAndDelete(id);
         if (!deletedWriting) {
-            return res.status(404).json({ success: false, message: "Writing not found" });
+            return sendControllerError(req, res, { statusCode: 404, message: "Writing not found"  });
         }
         return res.status(200).json({ success: true, message: "Delete Success" });
     } catch (error) {
-        return res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -133,11 +133,11 @@ export const getWritingById = async (req, res) => {
         const privileged = isTeacherOrAdminRequest(req);
         const writing = await Writing.findById(id);
         if (!writing) {
-            return res.status(404).json({ success: false, message: "Writing not found" });
+            return sendControllerError(req, res, { statusCode: 404, message: "Writing not found"  });
         }
 
         if (!privileged && writing.is_active === false) {
-            return res.status(404).json({ success: false, message: "Writing not found" });
+            return sendControllerError(req, res, { statusCode: 404, message: "Writing not found"  });
         }
 
         if (privileged) {
@@ -146,7 +146,7 @@ export const getWritingById = async (req, res) => {
 
         return res.status(200).json({ success: true, data: sanitizeWritingForLearner(writing) });
     } catch (error) {
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -157,10 +157,10 @@ export const getWritingExam = async (req, res) => {
         const privileged = isTeacherOrAdminRequest(req);
         const writing = await Writing.findById(id);
         if (!writing) {
-            return res.status(404).json({ success: false, message: "Writing not found" });
+            return sendControllerError(req, res, { statusCode: 404, message: "Writing not found"  });
         }
         if (!privileged && writing.is_active === false) {
-            return res.status(404).json({ success: false, message: "Writing not found" });
+            return sendControllerError(req, res, { statusCode: 404, message: "Writing not found"  });
         }
         res.status(200).json({
             success: true,
@@ -182,7 +182,7 @@ export const getWritingExam = async (req, res) => {
             },
         });
     } catch (error) {
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -193,19 +193,19 @@ export const submitWriting = async (req, res) => {
     const userId = req.user?.userId; // Get user ID if authenticated
 
     if (!answer) {
-        return res.status(400).json({ success: false, message: "Answer is required" });
+        return sendControllerError(req, res, { statusCode: 400, message: "Answer is required"  });
     }
 
     try {
         const writing = await Writing.findById(id);
         if (!writing) {
             console.warn(`[SubmitWriting] Writing task not found: ${id}`);
-            return res.status(404).json({ success: false, message: "Writing not found" });
+            return sendControllerError(req, res, { statusCode: 404, message: "Writing not found"  });
         }
 
         const trimmedAnswer = (answer || '').trim();
         if (!trimmedAnswer) {
-            return res.status(400).json({ success: false, message: "Answer is required and cannot be empty" });
+            return sendControllerError(req, res, { statusCode: 400, message: "Answer is required and cannot be empty"  });
         }
 
         // Calculate word count
@@ -290,8 +290,7 @@ export const submitWriting = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Submit writing error:", error);
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -324,8 +323,7 @@ export const getSubmissions = async (req, res) => {
             pagination: buildPaginationMeta({ page, limit, totalItems }),
         });
     } catch (error) {
-        console.error("Get submissions error:", error);
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -335,12 +333,12 @@ export const getSubmissionById = async (req, res) => {
     try {
         // Validate ObjectId format - if invalid, return 404 instead of crashing
         if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(404).json({ success: false, message: "Submission not found" });
+            return sendControllerError(req, res, { statusCode: 404, message: "Submission not found"  });
         }
 
         const submission = await WritingSubmission.findById(id);
         if (!submission) {
-            return res.status(404).json({ success: false, message: "Submission not found" });
+            return sendControllerError(req, res, { statusCode: 404, message: "Submission not found"  });
         }
 
         // Populate task details (images, prompts) for each writing answer
@@ -363,8 +361,7 @@ export const getSubmissionById = async (req, res) => {
 
         res.status(200).json({ success: true, data: enrichedSubmission });
     } catch (error) {
-        console.error("Get submission error:", error);
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -373,16 +370,16 @@ export const getSubmissionStatus = async (req, res) => {
     const { id } = req.params;
     try {
         if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(404).json({ success: false, message: "Submission not found" });
+            return sendControllerError(req, res, { statusCode: 404, message: "Submission not found"  });
         }
 
         const submission = await WritingSubmission.findById(id).lean();
         if (!submission) {
-            return res.status(404).json({ success: false, message: "Submission not found" });
+            return sendControllerError(req, res, { statusCode: 404, message: "Submission not found"  });
         }
 
         if (!canAccessSubmission(submission, req.user)) {
-            return res.status(403).json({ success: false, message: "Forbidden" });
+            return sendControllerError(req, res, { statusCode: 403, message: "Forbidden"  });
         }
 
         return res.status(200).json({
@@ -399,8 +396,7 @@ export const getSubmissionStatus = async (req, res) => {
             },
         });
     } catch (error) {
-        console.error("Get submission status error:", error);
-        return res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -413,7 +409,7 @@ export const scoreSubmission = async (req, res) => {
         const submission = await WritingSubmission.findById(id);
 
         if (!submission) {
-            return res.status(404).json({ success: false, message: "Submission not found" });
+            return sendControllerError(req, res, { statusCode: 404, message: "Submission not found"  });
         }
 
         const user = await User.findById(req.user?.userId);
@@ -424,7 +420,7 @@ export const scoreSubmission = async (req, res) => {
             : (scores && typeof scores === "object" ? [scores] : []);
 
         if (incomingScores.length === 0 && !feedback) {
-            return res.status(400).json({ success: false, message: "scores or feedback is required" });
+            return sendControllerError(req, res, { statusCode: 400, message: "scores or feedback is required"  });
         }
 
         if (incomingScores.length > 0) {
@@ -505,8 +501,7 @@ export const scoreSubmission = async (req, res) => {
 
         res.status(200).json({ success: true, data: submission });
     } catch (error) {
-        console.error("Score submission error:", error);
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -521,7 +516,7 @@ export const regenerateWritingId = async (req, res) => {
         // 1. Find the original writing task
         const oldWriting = await Writing.findById(id).lean();
         if (!oldWriting) {
-            return res.status(404).json({ success: false, message: "Writing task not found" });
+            return sendControllerError(req, res, { statusCode: 404, message: "Writing task not found"  });
         }
 
         // 2. Create new ID
@@ -563,8 +558,7 @@ export const regenerateWritingId = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Regenerate ID error:", error);
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -574,16 +568,16 @@ export const scoreSubmissionAI = async (req, res) => {
     try {
         const submission = await WritingSubmission.findById(id);
         if (!submission) {
-            return res.status(404).json({ success: false, message: "Submission not found" });
+            return sendControllerError(req, res, { statusCode: 404, message: "Submission not found"  });
         }
 
         if (!canAccessSubmission(submission, req.user)) {
-            return res.status(403).json({ success: false, message: "Forbidden" });
+            return sendControllerError(req, res, { statusCode: 403, message: "Forbidden"  });
         }
 
         // For Single Task mode, we check the first answer
         if (!submission.writing_answers || submission.writing_answers.length === 0) {
-            return res.status(400).json({ success: false, message: "No writing answers found in submission" });
+            return sendControllerError(req, res, { statusCode: 400, message: "No writing answers found in submission"  });
         }
 
         const shouldQueue = isAiAsyncModeEnabled() && isAiQueueReady();
@@ -619,8 +613,7 @@ export const scoreSubmissionAI = async (req, res) => {
         return res.status(200).json({ success: true, data: scored.submission });
 
     } catch (error) {
-        console.error("AI Score submission error:", error);
-        res.status(500).json({ success: false, message: "Server Error" });
+        return handleControllerError(req, res, error);
     }
 };
 
@@ -628,7 +621,7 @@ export const scoreSubmissionAI = async (req, res) => {
 export const uploadImage = async (req, res) => {
     try {
         if (!req.file) {
-            return res.status(400).json({ success: false, message: "No file uploaded" });
+            return sendControllerError(req, res, { statusCode: 400, message: "No file uploaded"  });
         }
 
         const cloudinary = (await import("../utils/cloudinary.js")).default;
@@ -649,7 +642,8 @@ export const uploadImage = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error("Upload image error:", error);
-        res.status(500).json({ success: false, message: "Upload failed" });
+        return handleControllerError(req, res, error);
     }
 };
+
+
