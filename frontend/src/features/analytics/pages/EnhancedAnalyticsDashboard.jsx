@@ -61,6 +61,52 @@ const SKILL_OPTIONS = [
     { value: 'speaking', label: 'Speaking' },
 ];
 
+const TASK_TYPE_LABELS = {
+    unknown: 'Unknown',
+    reading: 'Reading',
+    listening: 'Listening',
+    writing: 'Writing',
+    speaking: 'Speaking',
+    task1: 'Task 1',
+    task2: 'Task 2',
+    part1: 'Part 1',
+    part2: 'Part 2',
+    part3: 'Part 3',
+    true_false_not_given: 'True / False / Not Given',
+    yes_no_not_given: 'Yes / No / Not Given',
+    multiple_choice: 'Multiple Choice',
+    matching_headings: 'Matching Headings',
+    matching_information: 'Matching Information',
+    matching_features: 'Matching Features',
+    matching_info: 'Matching Information',
+    matching: 'Matching',
+    note_completion: 'Note Completion',
+    summary_completion: 'Summary Completion',
+    sentence_completion: 'Sentence Completion',
+    table_completion: 'Table Completion',
+    flow_chart_completion: 'Flow-chart Completion',
+    flowchart_completion: 'Flow-chart Completion',
+    diagram_completion: 'Diagram Completion',
+    map_labeling: 'Map Labeling',
+    short_answer: 'Short Answer',
+    form_completion: 'Form Completion',
+};
+
+const normalizeTaskType = (value) => String(value || 'unknown')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+
+const formatTaskType = (taskType) => {
+    const normalized = normalizeTaskType(taskType);
+    if (TASK_TYPE_LABELS[normalized]) return TASK_TYPE_LABELS[normalized];
+    return normalized
+        .split('_')
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ');
+};
+
 export default function EnhancedAnalyticsDashboard() {
     const { studentId } = useParams();
     const navigate = useNavigate();
@@ -135,6 +181,18 @@ export default function EnhancedAnalyticsDashboard() {
         }
     };
 
+    const openErrorDetailsPage = () => {
+        const params = new URLSearchParams();
+        if (rangeFilter !== 'all') params.set('range', rangeFilter);
+        if (skillFilter !== 'all') params.set('skill', skillFilter);
+
+        const basePath = studentId
+            ? `/analytics/student/${studentId}/errors`
+            : '/analytics/errors';
+        const query = params.toString();
+        navigate(query ? `${basePath}?${query}` : basePath);
+    };
+
     if (loading) {
         return <div className="analytics-loading">Đang tải bảng phân tích lỗi...</div>;
     }
@@ -149,23 +207,66 @@ export default function EnhancedAnalyticsDashboard() {
     }
 
     const { totalErrors, heatmapData, cognitiveData } = dashboard || {};
+    const heatmapRows = Array.isArray(heatmapData) ? heatmapData : [];
 
-    // Heatmap color logic
+    const codeTotals = heatmapRows.reduce((acc, row) => {
+        Object.entries(row || {}).forEach(([key, value]) => {
+            if (key === 'taskType') return;
+            const count = Number(value || 0);
+            if (!Number.isFinite(count) || count <= 0) return;
+            acc[key] = (acc[key] || 0) + count;
+        });
+        return acc;
+    }, {});
+
+    const sortedCodes = Object.entries(codeTotals)
+        .sort((a, b) => b[1] - a[1])
+        .map(([code]) => code);
+    const visibleCodes = sortedCodes.slice(0, 12);
+
+    const normalizedHeatmapRows = heatmapRows
+        .map((row) => {
+            const taskType = String(row?.taskType || 'unknown');
+            const values = visibleCodes.reduce((acc, code) => {
+                acc[code] = Number(row?.[code] || 0);
+                return acc;
+            }, {});
+
+            const total = Object.entries(row || {}).reduce((sum, [key, value]) => {
+                if (key === 'taskType') return sum;
+                return sum + Number(value || 0);
+            }, 0);
+
+            return {
+                taskType,
+                taskTypeLabel: formatTaskType(taskType),
+                values,
+                total,
+            };
+        })
+        .sort((a, b) => b.total - a.total);
+
+    const visibleCodeTotals = visibleCodes.reduce((acc, code) => {
+        acc[code] = normalizedHeatmapRows.reduce((sum, row) => sum + Number(row.values?.[code] || 0), 0);
+        return acc;
+    }, {});
+    const grandVisibleTotal = Object.values(visibleCodeTotals).reduce((sum, value) => sum + Number(value || 0), 0);
+    const maxCellValue = Math.max(1, ...normalizedHeatmapRows.flatMap((row) => visibleCodes.map((code) => Number(row.values?.[code] || 0))));
+
     const getHeatmapColor = (value) => {
-        if (!value || value === 0) return '#f8fafc'; // empty
-        if (value < 3) return '#fef08a'; // yellow-200
-        if (value < 6) return '#fb923c'; // orange-400
-        return '#ef4444'; // red-500
+        const count = Number(value || 0);
+        if (!count) return '#f8fafc';
+        const ratio = Math.max(0, Math.min(1, count / maxCellValue));
+        const lightness = 96 - ratio * 58;
+        return `hsl(208 92% ${lightness}%)`;
     };
 
-    // Extract all unique error codes across all task types to build columns
-    const allCodesSet = new Set();
-    heatmapData?.forEach(row => {
-        Object.keys(row).forEach(key => {
-            if (key !== 'taskType') allCodesSet.add(key);
-        });
-    });
-    const allCodes = Array.from(allCodesSet).sort();
+    const getHeatmapTextColor = (value) => {
+        const count = Number(value || 0);
+        if (!count) return '#94a3b8';
+        const ratio = Math.max(0, Math.min(1, count / maxCellValue));
+        return ratio >= 0.55 ? '#ffffff' : '#0f172a';
+    };
 
     return (
         <div className="analytics-dashboard">
@@ -277,49 +378,87 @@ export default function EnhancedAnalyticsDashboard() {
                     <h3><Flame size={20} /> Vết Hằn Lỗi (Error Heatmap)</h3>
                     <p>Ma trận tần suất lỗi theo từng dạng bài</p>
 
+                    <div className="heatmap-detail-action-row">
+                        <button type="button" className="analytics-detail-btn" onClick={openErrorDetailsPage}>
+                            Xem chi tiết từng lỗi
+                        </button>
+                    </div>
                     <div className="heatmap-container">
-                        {(!heatmapData || heatmapData.length === 0) ? (
+                        {normalizedHeatmapRows.length === 0 || visibleCodes.length === 0 ? (
                             <div className="analytics-empty">Chưa đủ dữ liệu để tạo bản đồ lỗi.</div>
                         ) : (
-                            <div className="heatmap-grid" style={{ gridTemplateColumns: `150px repeat(${allCodes.length}, minmax(40px, 1fr))` }}>
-                                {/* Header Row */}
-                                <div className="heatmap-cell header corner">Dạng Bài</div>
-                                {allCodes.map(code => (
-                                    <div key={code} className="heatmap-cell header code" title={`${code} - ${TAXONOMY_LEGEND[code] || 'Lỗi chưa phân loại'}`}>
-                                        {code}
-                                    </div>
-                                ))}
+                            <div className="heatmap-v2-shell">
+                                <div className="heatmap-v2-summary">
+                                    <span className="heatmap-v2-chip">Question types: <strong>{normalizedHeatmapRows.length}</strong></span>
+                                    <span className="heatmap-v2-chip">Visible codes: <strong>{visibleCodes.length}</strong> / {sortedCodes.length}</span>
+                                    <span className="heatmap-v2-chip">Peak cell: <strong>{maxCellValue}</strong></span>
+                                </div>
 
-                                {/* Data Rows */}
-                                {heatmapData.map((row, idx) => (
-                                    <React.Fragment key={idx}>
-                                        <div className="heatmap-cell row-label" title={row.taskType}>{row.taskType}</div>
-                                        {allCodes.map(code => {
-                                            const val = row[code] || 0;
-                                            return (
-                                                <div
-                                                    key={`${row.taskType}-${code}`}
-                                                    className="heatmap-cell data"
-                                                    style={{ backgroundColor: getHeatmapColor(val) }}
-                                                    title={`Loại lỗi: ${code} (${TAXONOMY_LEGEND[code] || 'Lỗi chưa phân loại'}) \nSố lần: ${val}`}
-                                                >
-                                                    {val > 0 ? val : ''}
+                                <div className="heatmap-v2-scroll">
+                                    <div className="heatmap-v2-grid" style={{ gridTemplateColumns: `260px repeat(${visibleCodes.length}, minmax(88px, 1fr)) 90px` }}>
+                                        <div className="heatmap-v2-cell heatmap-v2-header heatmap-v2-corner">Question Type</div>
+                                        {visibleCodes.map((code) => (
+                                            <div
+                                                key={code}
+                                                className="heatmap-v2-cell heatmap-v2-header heatmap-v2-code"
+                                                title={`${code} - ${TAXONOMY_LEGEND[code] || 'Unclassified error'}`}
+                                            >
+                                                <span className="heatmap-v2-code-key">{code}</span>
+                                                <span className="heatmap-v2-code-label">{TAXONOMY_LEGEND[code] || 'Unclassified'}</span>
+                                            </div>
+                                        ))}
+                                        <div className="heatmap-v2-cell heatmap-v2-header heatmap-v2-total-head">Total</div>
+
+                                        {normalizedHeatmapRows.map((row) => (
+                                            <React.Fragment key={row.taskType}>
+                                                <div className="heatmap-v2-cell heatmap-v2-row-label" title={row.taskType}>
+                                                    <span className="heatmap-v2-row-main">{row.taskTypeLabel}</span>
                                                 </div>
-                                            );
-                                        })}
-                                    </React.Fragment>
-                                ))}
+                                                {visibleCodes.map((code) => {
+                                                    const value = Number(row.values?.[code] || 0);
+                                                    return (
+                                                        <div
+                                                            key={`${row.taskType}-${code}`}
+                                                            className="heatmap-v2-cell heatmap-v2-data"
+                                                            style={{
+                                                                backgroundColor: getHeatmapColor(value),
+                                                                color: getHeatmapTextColor(value),
+                                                            }}
+                                                            title={`${row.taskTypeLabel} | ${code}: ${value}`}
+                                                        >
+                                                            {value > 0 ? value : ''}
+                                                        </div>
+                                                    );
+                                                })}
+                                                <div className="heatmap-v2-cell heatmap-v2-total-cell">{row.total}</div>
+                                            </React.Fragment>
+                                        ))}
+
+                                        <div className="heatmap-v2-cell heatmap-v2-footer-label">Code total</div>
+                                        {visibleCodes.map((code) => (
+                                            <div key={`total-${code}`} className="heatmap-v2-cell heatmap-v2-footer-cell">
+                                                {visibleCodeTotals[code] || 0}
+                                            </div>
+                                        ))}
+                                        <div className="heatmap-v2-cell heatmap-v2-footer-cell">{grandVisibleTotal}</div>
+                                    </div>
+                                </div>
+
+                                {sortedCodes.length > visibleCodes.length ? (
+                                    <p className="heatmap-v2-note">
+                                        Showing top {visibleCodes.length} error codes by frequency for readability.
+                                    </p>
+                                ) : null}
                             </div>
                         )}
-                        <div className="heatmap-legend">
+                        <div className="heatmap-v2-legend">
                             <span><i style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }} /> 0</span>
-                            <span><i style={{ backgroundColor: '#fef08a' }} /> 1-2</span>
-                            <span><i style={{ backgroundColor: '#fb923c' }} /> 3-5</span>
-                            <span><i style={{ backgroundColor: '#ef4444' }} /> 6+</span>
+                            <span><i style={{ backgroundColor: 'hsl(208 92% 82%)' }} /> Low</span>
+                            <span><i style={{ backgroundColor: 'hsl(208 92% 62%)' }} /> Medium</span>
+                            <span><i style={{ backgroundColor: 'hsl(208 92% 38%)' }} /> High</span>
                         </div>
                     </div>
                 </div>
-
                 <div className="analytics-card analytics-card-wide">
                     <h3><BarChart3 size={20} /> Phân bố theo Kỹ năng nhận thức (Cognitive Skill)</h3>
                     <p>Các rào cản nhận thức thường gặp nhất khi làm bài</p>
@@ -344,3 +483,4 @@ export default function EnhancedAnalyticsDashboard() {
         </div>
     );
 }
+

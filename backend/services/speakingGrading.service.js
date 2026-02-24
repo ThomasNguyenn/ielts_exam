@@ -5,6 +5,7 @@ import Speaking from "../models/Speaking.model.js";
 import SpeakingSession from "../models/SpeakingSession.js";
 import cloudinary from "../utils/cloudinary.js";
 import { requestGeminiJsonWithFallback } from "../utils/aiClient.js";
+import { createTaxonomyErrorLog } from "./taxonomy.registry.js";
 
 dotenv.config();
 
@@ -437,26 +438,56 @@ export const scoreSpeakingSessionById = async ({ sessionId, force = false } = {}
 
   // Extract Error Taxonomy Logs
   if (Array.isArray(analysis.error_logs) && analysis.error_logs.length > 0) {
-    session.error_logs = analysis.error_logs.map(log => {
-      // Basic categorization based on standard prefix (e.g., S-F1 -> Fluency)
-      let category = 'Speaking AI Detected';
-      let cogSkill = 'S-Speaking Skill';
-      const codeStr = String(log.code || 'S-UNCLASSIFIED');
+    const taskType = topic.part ? `part${topic.part}` : "speaking";
+    const speakingFallbackByPrefix = {
+      "S-F": {
+        cognitiveSkill: "S-FC. Fluency & Coherence",
+        errorCategory: "Fluency & Coherence",
+        taxonomyDimension: "fluency_coherence",
+      },
+      "S-L": {
+        cognitiveSkill: "S-LR. Lexical Resource",
+        errorCategory: "Lexical Resource",
+        taxonomyDimension: "lexical",
+      },
+      "S-G": {
+        cognitiveSkill: "S-GRA. Grammatical Range & Accuracy",
+        errorCategory: "Grammar",
+        taxonomyDimension: "grammar",
+      },
+      "S-P": {
+        cognitiveSkill: "S-PR. Pronunciation",
+        errorCategory: "Pronunciation",
+        taxonomyDimension: "pronunciation",
+      },
+    };
 
-      if (codeStr.startsWith('S-F')) { category = 'Fluency & Coherence'; cogSkill = 'Speech Flow & Self-Correction'; }
-      else if (codeStr.startsWith('S-L')) { category = 'Lexical Resource'; cogSkill = 'Vocabulary & Collocation'; }
-      else if (codeStr.startsWith('S-G')) { category = 'Grammatical Range'; cogSkill = 'Sentence Structure & Accuracy'; }
-      else if (codeStr.startsWith('S-P')) { category = 'Pronunciation'; cogSkill = 'Phonemes & Suprasegmentals'; }
+    session.error_logs = analysis.error_logs
+      .map((log) => {
+        const sourceCode = String(log?.code || log?.error_code || "").trim().toUpperCase();
+        const normalizedLog = createTaxonomyErrorLog({
+          skillDomain: "speaking",
+          taskType,
+          questionType: taskType,
+          errorCode: sourceCode || "S-UNCLASSIFIED",
+          textSnippet: String(log?.snippet || log?.text_snippet || ""),
+          explanation: String(log?.explanation || ""),
+          detectionMethod: "llm",
+          confidence: log?.confidence,
+          secondaryErrorCodes: log?.secondary_error_codes,
+        });
 
-      return {
-        task_type: topic.part ? `part${topic.part}` : 'speaking', // e.g., 'part2'
-        cognitive_skill: cogSkill,
-        error_category: category,
-        error_code: codeStr,
-        text_snippet: String(log.snippet || ''),
-        explanation: String(log.explanation || '')
-      };
-    });
+        if (normalizedLog.error_code === "S-UNCLASSIFIED") {
+          const fallback =
+            speakingFallbackByPrefix[sourceCode.slice(0, 3)] || null;
+          normalizedLog.cognitive_skill = fallback?.cognitiveSkill || normalizedLog.cognitive_skill;
+          normalizedLog.error_category = fallback?.errorCategory || normalizedLog.error_category;
+          normalizedLog.taxonomy_dimension = fallback?.taxonomyDimension || normalizedLog.taxonomy_dimension;
+        }
+
+        return normalizedLog;
+      })
+      .filter(Boolean);
   }
 
   session.status = "completed";

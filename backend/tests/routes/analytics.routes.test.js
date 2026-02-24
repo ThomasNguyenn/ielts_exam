@@ -10,9 +10,12 @@ const mockedControllers = vi.hoisted(() => ({
   getAnalyticsDashboard: vi.fn((req, res) => res.status(200).json({ ok: true })),
   getAdminStudentAnalyticsDashboard: vi.fn((req, res) => res.status(200).json({ ok: true })),
   getErrorAnalytics: vi.fn((req, res) => res.status(200).json({ ok: true })),
+  getErrorAnalyticsDetails: vi.fn((req, res) => res.status(200).json({ route: "self-errors-details" })),
   getAIInsights: vi.fn((req, res) => res.status(200).json({ ok: true })),
   getAdminStudentErrorAnalytics: vi.fn((req, res) =>
     res.status(200).json({ route: "admin-errors", studentId: req.params.studentId })),
+  getAdminStudentErrorAnalyticsDetails: vi.fn((req, res) =>
+    res.status(200).json({ route: "admin-errors-details", studentId: req.params.studentId })),
   getAdminStudentAIInsights: vi.fn((req, res) =>
     res.status(200).json({ route: "admin-ai-insights", studentId: req.params.studentId })),
 }));
@@ -45,6 +48,23 @@ describe("analytics admin routes", () => {
     expect(mockedControllers.getAdminStudentErrorAnalytics).toHaveBeenCalledTimes(1);
   });
 
+  it("routes /errors/details to getErrorAnalyticsDetails", async () => {
+    const res = await request(app).get("/api/analytics/errors/details");
+
+    expect(res.status).toBe(200);
+    expect(res.body.route).toBe("self-errors-details");
+    expect(mockedControllers.getErrorAnalyticsDetails).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes /admin/:studentId/errors/details to getAdminStudentErrorAnalyticsDetails", async () => {
+    const res = await request(app).get("/api/analytics/admin/student-789/errors/details");
+
+    expect(res.status).toBe(200);
+    expect(res.body.route).toBe("admin-errors-details");
+    expect(res.body.studentId).toBe("student-789");
+    expect(mockedControllers.getAdminStudentErrorAnalyticsDetails).toHaveBeenCalledTimes(1);
+  });
+
   it("routes /admin/:studentId/ai-insights to getAdminStudentAIInsights", async () => {
     const res = await request(app).get("/api/analytics/admin/student-456/ai-insights");
 
@@ -54,4 +74,3 @@ describe("analytics admin routes", () => {
     expect(mockedControllers.getAdminStudentAIInsights).toHaveBeenCalledTimes(1);
   });
 });
-

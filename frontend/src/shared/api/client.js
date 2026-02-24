@@ -339,6 +339,10 @@ export const api = {
     const query = toQueryString({ ...params, _t: Date.now() });
     return request(`/api/analytics/errors${query ? `?${query}` : ''}`);
   },
+  getAnalyticsErrorDetails: (params = {}) => {
+    const query = toQueryString({ ...params, _t: Date.now() });
+    return request(`/api/analytics/errors/details${query ? `?${query}` : ''}`);
+  },
   getAnalyticsAIInsights: (params = {}) => {
     const query = toQueryString({ ...params, _t: Date.now() });
     return request(`/api/analytics/ai-insights${query ? `?${query}` : ''}`);
@@ -347,6 +351,10 @@ export const api = {
   getAdminStudentAnalyticsErrors: (studentId, params = {}) => {
     const query = toQueryString({ ...params, _t: Date.now() });
     return request(`/api/analytics/admin/${studentId}/errors${query ? `?${query}` : ''}`);
+  },
+  getAdminStudentAnalyticsErrorDetails: (studentId, params = {}) => {
+    const query = toQueryString({ ...params, _t: Date.now() });
+    return request(`/api/analytics/admin/${studentId}/errors/details${query ? `?${query}` : ''}`);
   },
   getAdminStudentAnalyticsAIInsights: (studentId, params = {}) => {
     const query = toQueryString({ ...params, _t: Date.now() });

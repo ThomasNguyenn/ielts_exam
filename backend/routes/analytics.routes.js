@@ -7,8 +7,10 @@ import {
   getAnalyticsDashboard,
   getAdminStudentAnalyticsDashboard,
   getErrorAnalytics,
+  getErrorAnalyticsDetails,
   getAIInsights,
   getAdminStudentErrorAnalytics,
+  getAdminStudentErrorAnalyticsDetails,
   getAdminStudentAIInsights,
 } from "../controllers/analytics.controller.js";
 import { verifyToken, isTeacherOrAdmin } from "../middleware/auth.middleware.js";
@@ -20,6 +22,7 @@ router.use(verifyToken);
 // User Analytics
 router.get("/dashboard", getAnalyticsDashboard);
 router.get("/errors", getErrorAnalytics);
+router.get("/errors/details", getErrorAnalyticsDetails);
 router.get("/ai-insights", getAIInsights);
 router.get("/skills", getSkillsBreakdown);
 router.get("/weaknesses", getWeaknessAnalysis);
@@ -29,6 +32,7 @@ router.get("/history", getProgressHistory);
 router.get("/admin/:studentId/dashboard", isTeacherOrAdmin, getAdminStudentAnalyticsDashboard);
 router.get("/admin/:studentId", isTeacherOrAdmin, getStudentAnalytics);
 router.get("/admin/:studentId/errors", isTeacherOrAdmin, getAdminStudentErrorAnalytics);
+router.get("/admin/:studentId/errors/details", isTeacherOrAdmin, getAdminStudentErrorAnalyticsDetails);
 router.get("/admin/:studentId/ai-insights", isTeacherOrAdmin, getAdminStudentAIInsights);
 
 export default router;

@@ -1,6 +1,7 @@
 import WritingSubmission from "../models/WritingSubmission.model.js";
 import Writing from "../models/Writing.model.js";
 import { gradeEssay } from "./grading.service.js";
+import { createTaxonomyErrorLog } from "./taxonomy.registry.js";
 
 const toBandHalfStep = (score) => Math.round(Number(score || 0) * 2) / 2;
 
@@ -85,29 +86,64 @@ export const scoreWritingSubmissionById = async ({ submissionId, force = false }
 
   // Extract Error Taxonomy Logs
   const errorLogs = [];
+  const criteriaFallbacks = {
+    task_response: {
+      cognitiveSkill: "W-TR. Task Response / Achievement",
+      errorCategory: "Task Response / Achievement",
+      taxonomyDimension: "task_response",
+    },
+    coherence_cohesion: {
+      cognitiveSkill: "W-CC. Coherence & Cohesion",
+      errorCategory: "Coherence & Cohesion",
+      taxonomyDimension: "coherence",
+    },
+    lexical_resource: {
+      cognitiveSkill: "W-LR. Lexical Resource",
+      errorCategory: "Lexical Resource",
+      taxonomyDimension: "lexical",
+    },
+    grammatical_range_accuracy: {
+      cognitiveSkill: "W-GRA. Grammatical Range & Accuracy",
+      errorCategory: "Grammatical Range & Accuracy",
+      taxonomyDimension: "grammar",
+    },
+  };
+
   for (const tr of taskResults) {
     const aiRes = tr.result;
     if (!aiRes) continue;
 
     const criteriaList = [
-      { key: "task_response", cognitiveSkill: "W-TR (Task Achievement/Response)" },
-      { key: "coherence_cohesion", cognitiveSkill: "W-CC (Coherence & Cohesion)" },
-      { key: "lexical_resource", cognitiveSkill: "W-LR (Lexical Resource)" },
-      { key: "grammatical_range_accuracy", cognitiveSkill: "W-GRA (Grammatical Range & Accuracy)" },
+      { key: "task_response" },
+      { key: "coherence_cohesion" },
+      { key: "lexical_resource" },
+      { key: "grammatical_range_accuracy" },
     ];
 
-    for (const { key, cognitiveSkill } of criteriaList) {
+    for (const { key } of criteriaList) {
       const items = Array.isArray(aiRes[key]) ? aiRes[key] : [];
       for (const item of items) {
-        if (item.type === 'error' && item.error_code && item.error_code !== 'NONE') {
-          errorLogs.push({
-            task_type: tr.task_type,
-            cognitive_skill: cognitiveSkill,
-            error_category: key,
-            error_code: item.error_code,
-            text_snippet: item.text_snippet || "",
+        if (item.type === "error" && item.error_code && item.error_code !== "NONE") {
+          const normalizedLog = createTaxonomyErrorLog({
+            skillDomain: "writing",
+            taskType: tr.task_type,
+            questionType: tr.task_type,
+            errorCode: item.error_code,
+            textSnippet: item.text_snippet || "",
             explanation: item.explanation || "",
+            detectionMethod: "llm",
+            confidence: item.confidence,
+            secondaryErrorCodes: item.secondary_error_codes,
           });
+
+          if (normalizedLog.error_code === "W-UNCLASSIFIED") {
+            const fallback = criteriaFallbacks[key];
+            normalizedLog.cognitive_skill = fallback?.cognitiveSkill || normalizedLog.cognitive_skill;
+            normalizedLog.error_category = fallback?.errorCategory || normalizedLog.error_category;
+            normalizedLog.taxonomy_dimension = fallback?.taxonomyDimension || normalizedLog.taxonomy_dimension;
+          }
+
+          errorLogs.push(normalizedLog);
         }
       }
     }
@@ -126,4 +162,3 @@ export const scoreWritingSubmissionById = async ({ submissionId, force = false }
     skipped: false,
   };
 };
-

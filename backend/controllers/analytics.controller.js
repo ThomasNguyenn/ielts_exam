@@ -67,6 +67,48 @@ const filterErrorLogs = (errorLogs = [], filters = {}) => {
   });
 };
 
+const parseDetailsPagination = (query = {}) => {
+  const parsedPage = Number(query.page);
+  const parsedLimit = Number(query.limit);
+
+  const page = Number.isFinite(parsedPage) && parsedPage > 0
+    ? Math.floor(parsedPage)
+    : 1;
+  const limit = Number.isFinite(parsedLimit) && parsedLimit > 0
+    ? Math.min(100, Math.max(5, Math.floor(parsedLimit)))
+    : 20;
+
+  return { page, limit };
+};
+
+const buildTaxonomyReason = (log = {}) => {
+  const parts = [
+    log?.error_code ? `Ma loi: ${log.error_code}` : null,
+    log?.error_category ? `Nhom: ${log.error_category}` : null,
+    log?.cognitive_skill ? `Ky nang: ${log.cognitive_skill}` : null,
+    log?.taxonomy_dimension ? `Dimension: ${log.taxonomy_dimension}` : null,
+  ].filter(Boolean);
+
+  if (parts.length === 0) return "Khong du du lieu de giai thich phan loai taxonomy.";
+  return `${parts.join(" | ")}.`;
+};
+
+const normalizeErrorDetailsFilters = (query = {}) => ({
+  errorCode: String(query.errorCode || query.code || "").trim().toUpperCase(),
+  taskType: String(query.taskType || "").trim().toLowerCase(),
+});
+
+const filterErrorDetails = (details = [], query = {}) => {
+  const { errorCode, taskType } = normalizeErrorDetailsFilters(query);
+  if (!errorCode && !taskType) return details;
+
+  return details.filter((item) => {
+    const codeOk = !errorCode || String(item?.error_code || "").toUpperCase() === errorCode;
+    const taskTypeOk = !taskType || String(item?.task_type || "").toLowerCase() === taskType;
+    return codeOk && taskTypeOk;
+  });
+};
+
 /**
  * Helper to fetch and merge all error logs for a specific user across R, L, W, S
  */
@@ -113,6 +155,113 @@ async function aggregateUserErrors(userId) {
   });
 
   return errorLogs;
+}
+
+async function aggregateUserErrorDetails(userId) {
+  const details = [];
+
+  const attempts = await TestAttempt.find({ user_id: userId, "error_logs.0": { $exists: true } })
+    .sort({ submitted_at: -1 })
+    .select("_id type test_id submitted_at error_logs")
+    .lean();
+  attempts.forEach((attemptDoc) => {
+    (attemptDoc.error_logs || []).forEach((log, index) => {
+      details.push({
+        id: `attempt:${attemptDoc._id}:${index}`,
+        source_type: "test_attempt",
+        source_id: String(attemptDoc._id),
+        source_label: "Test Attempt",
+        source_ref: attemptDoc.test_id || null,
+        skill: attemptDoc.type || "unknown",
+        logged_at: attemptDoc.submitted_at,
+        task_type: log.task_type || "unknown",
+        task_type_label: formatQuestionType(log.task_type || "unknown"),
+        question_number: log.question_number || null,
+        error_code: log.error_code || "UNCLASSIFIED",
+        error_category: log.error_category || "",
+        cognitive_skill: log.cognitive_skill || "",
+        taxonomy_dimension: log.taxonomy_dimension || "",
+        detection_method: log.detection_method || "",
+        taxonomy_version: log.taxonomy_version || "",
+        confidence: Number.isFinite(Number(log.confidence)) ? Number(log.confidence) : null,
+        text_snippet: log.text_snippet || "",
+        user_answer: log.user_answer || "",
+        correct_answer: log.correct_answer || "",
+        explanation: log.explanation || "",
+        taxonomy_reason: buildTaxonomyReason(log),
+      });
+    });
+  });
+
+  const writings = await WritingSubmission.find({ user_id: userId, "error_logs.0": { $exists: true } })
+    .sort({ submitted_at: -1, createdAt: -1 })
+    .select("_id test_id submitted_at createdAt error_logs")
+    .lean();
+  writings.forEach((writingDoc) => {
+    const loggedAt = writingDoc.submitted_at || writingDoc.createdAt;
+    (writingDoc.error_logs || []).forEach((log, index) => {
+      details.push({
+        id: `writing:${writingDoc._id}:${index}`,
+        source_type: "writing_submission",
+        source_id: String(writingDoc._id),
+        source_label: "Writing Submission",
+        source_ref: writingDoc.test_id || null,
+        skill: "writing",
+        logged_at: loggedAt,
+        task_type: log.task_type || "unknown",
+        task_type_label: formatQuestionType(log.task_type || "unknown"),
+        question_number: log.question_number || null,
+        error_code: log.error_code || "UNCLASSIFIED",
+        error_category: log.error_category || "",
+        cognitive_skill: log.cognitive_skill || "",
+        taxonomy_dimension: log.taxonomy_dimension || "",
+        detection_method: log.detection_method || "",
+        taxonomy_version: log.taxonomy_version || "",
+        confidence: Number.isFinite(Number(log.confidence)) ? Number(log.confidence) : null,
+        text_snippet: log.text_snippet || "",
+        user_answer: log.user_answer || "",
+        correct_answer: log.correct_answer || "",
+        explanation: log.explanation || "",
+        taxonomy_reason: buildTaxonomyReason(log),
+      });
+    });
+  });
+
+  const speakings = await SpeakingSession.find({ userId: userId, "error_logs.0": { $exists: true } })
+    .sort({ timestamp: -1, createdAt: -1 })
+    .select("_id questionId timestamp createdAt error_logs")
+    .lean();
+  speakings.forEach((speakingDoc) => {
+    const loggedAt = speakingDoc.timestamp || speakingDoc.createdAt;
+    (speakingDoc.error_logs || []).forEach((log, index) => {
+      details.push({
+        id: `speaking:${speakingDoc._id}:${index}`,
+        source_type: "speaking_session",
+        source_id: String(speakingDoc._id),
+        source_label: "Speaking Session",
+        source_ref: speakingDoc.questionId || null,
+        skill: "speaking",
+        logged_at: loggedAt,
+        task_type: log.task_type || "unknown",
+        task_type_label: formatQuestionType(log.task_type || "unknown"),
+        question_number: log.question_number || null,
+        error_code: log.error_code || "UNCLASSIFIED",
+        error_category: log.error_category || "",
+        cognitive_skill: log.cognitive_skill || "",
+        taxonomy_dimension: log.taxonomy_dimension || "",
+        detection_method: log.detection_method || "",
+        taxonomy_version: log.taxonomy_version || "",
+        confidence: Number.isFinite(Number(log.confidence)) ? Number(log.confidence) : null,
+        text_snippet: log.text_snippet || "",
+        user_answer: log.user_answer || "",
+        correct_answer: log.correct_answer || "",
+        explanation: log.explanation || "",
+        taxonomy_reason: buildTaxonomyReason(log),
+      });
+    });
+  });
+
+  return details;
 }
 
 const READING_BAND_MAP = [
@@ -680,6 +829,53 @@ export const getErrorAnalytics = async (req, res) => {
   }
 };
 
+export const getErrorAnalyticsDetails = async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store");
+    const { userId } = req.user;
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ success: false, message: "Invalid user id" });
+    }
+
+    const filters = parseAnalyticsFilters(req.query);
+    const pagination = parseDetailsPagination(req.query);
+    const totalFilters = normalizeErrorDetailsFilters(req.query);
+
+    const rawDetails = await aggregateUserErrorDetails(userId);
+    const scopedByTimeSkill = filterErrorLogs(rawDetails, filters);
+    const scopedDetails = filterErrorDetails(scopedByTimeSkill, req.query)
+      .sort((a, b) => new Date(b.logged_at || 0) - new Date(a.logged_at || 0));
+
+    const total = scopedDetails.length;
+    const totalPages = Math.max(1, Math.ceil(total / pagination.limit));
+    const page = Math.min(pagination.page, totalPages);
+    const start = (page - 1) * pagination.limit;
+    const items = scopedDetails.slice(start, start + pagination.limit);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        filters: {
+          range: filters.range,
+          skill: filters.skill,
+          errorCode: totalFilters.errorCode || "",
+          taskType: totalFilters.taskType || "",
+        },
+        pagination: {
+          page,
+          limit: pagination.limit,
+          total,
+          totalPages,
+        },
+        items,
+      },
+    });
+  } catch (error) {
+    console.error("Error generating analytics details:", error);
+    return res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
 export const getAIInsights = async (req, res) => {
   try {
     res.set("Cache-Control", "no-store");
@@ -781,6 +977,22 @@ export const getAdminStudentErrorAnalytics = async (req, res) => {
     return await getErrorAnalytics(scopedReq, res);
   } catch (error) {
     console.error("Error generating admin analytics:", error);
+    return res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+export const getAdminStudentErrorAnalyticsDetails = async (req, res) => {
+  try {
+    const scopedReq = {
+      ...req,
+      user: {
+        ...req.user,
+        userId: req.params.studentId,
+      },
+    };
+    return await getErrorAnalyticsDetails(scopedReq, res);
+  } catch (error) {
+    console.error("Error generating admin analytics details:", error);
     return res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
