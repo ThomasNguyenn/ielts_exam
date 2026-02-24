@@ -4,6 +4,7 @@ import SpeakingSession from "../models/SpeakingSession.js";
 import mongoose from "mongoose";
 import OpenAI from "openai";
 import dotenv from "dotenv";
+import { getErrorCodeMeta, normalizeErrorCode } from "../services/taxonomy.registry.js";
 dotenv.config();
 
 const openai = new OpenAI({
@@ -82,8 +83,12 @@ const parseDetailsPagination = (query = {}) => {
 };
 
 const buildTaxonomyReason = (log = {}) => {
+  const normalizedCode = normalizeErrorCode(log?.error_code || "");
+  const meta = getErrorCodeMeta(normalizedCode);
+  const errorLabel = String(log?.error_label || meta?.label || "").trim();
   const parts = [
     log?.error_code ? `Ma loi: ${log.error_code}` : null,
+    errorLabel ? `Loai loi: ${errorLabel}` : null,
     log?.error_category ? `Nhom: ${log.error_category}` : null,
     log?.cognitive_skill ? `Ky nang: ${log.cognitive_skill}` : null,
     log?.taxonomy_dimension ? `Dimension: ${log.taxonomy_dimension}` : null,
@@ -93,18 +98,54 @@ const buildTaxonomyReason = (log = {}) => {
   return `${parts.join(" | ")}.`;
 };
 
+const getErrorLabel = (log = {}) => {
+  const normalizedCode = normalizeErrorCode(log?.error_code || "");
+  const meta = getErrorCodeMeta(normalizedCode);
+  const explicitLabel = String(log?.error_label || "").trim();
+  if (explicitLabel) return explicitLabel;
+  if (meta?.label) return meta.label;
+  return "";
+};
+
 const normalizeErrorDetailsFilters = (query = {}) => ({
   errorCode: String(query.errorCode || query.code || "").trim().toUpperCase(),
   taskType: String(query.taskType || "").trim().toLowerCase(),
 });
 
+const normalizeTaskTypeForDetails = (rawType = "") => {
+  const normalized = String(rawType || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^\w]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+  if (!normalized) return "";
+
+  const aliasMap = {
+    true_false_notgiven: "true_false_not_given",
+    tfng: "true_false_not_given",
+    yes_no_notgiven: "yes_no_not_given",
+    ynng: "yes_no_not_given",
+    matching_info: "matching_information",
+    flowchart_completion: "flow_chart_completion",
+    mult_choice: "multiple_choice",
+    multiple_choice_single: "multiple_choice",
+    multiple_choice_multi: "multiple_choice",
+    mult_choice_multi: "multiple_choice",
+  };
+
+  return aliasMap[normalized] || normalized;
+};
+
 const filterErrorDetails = (details = [], query = {}) => {
-  const { errorCode, taskType } = normalizeErrorDetailsFilters(query);
+  const { errorCode, taskType: rawTaskType } = normalizeErrorDetailsFilters(query);
+  const taskType = normalizeTaskTypeForDetails(rawTaskType);
   if (!errorCode && !taskType) return details;
 
   return details.filter((item) => {
     const codeOk = !errorCode || String(item?.error_code || "").toUpperCase() === errorCode;
-    const taskTypeOk = !taskType || String(item?.task_type || "").toLowerCase() === taskType;
+    const itemTaskType = normalizeTaskTypeForDetails(item?.task_type || "");
+    const taskTypeOk = !taskType || itemTaskType === taskType;
     return codeOk && taskTypeOk;
   });
 };
@@ -178,6 +219,7 @@ async function aggregateUserErrorDetails(userId) {
         task_type_label: formatQuestionType(log.task_type || "unknown"),
         question_number: log.question_number || null,
         error_code: log.error_code || "UNCLASSIFIED",
+        error_label: getErrorLabel(log),
         error_category: log.error_category || "",
         cognitive_skill: log.cognitive_skill || "",
         taxonomy_dimension: log.taxonomy_dimension || "",
@@ -212,6 +254,7 @@ async function aggregateUserErrorDetails(userId) {
         task_type_label: formatQuestionType(log.task_type || "unknown"),
         question_number: log.question_number || null,
         error_code: log.error_code || "UNCLASSIFIED",
+        error_label: getErrorLabel(log),
         error_category: log.error_category || "",
         cognitive_skill: log.cognitive_skill || "",
         taxonomy_dimension: log.taxonomy_dimension || "",
@@ -246,6 +289,7 @@ async function aggregateUserErrorDetails(userId) {
         task_type_label: formatQuestionType(log.task_type || "unknown"),
         question_number: log.question_number || null,
         error_code: log.error_code || "UNCLASSIFIED",
+        error_label: getErrorLabel(log),
         error_category: log.error_category || "",
         cognitive_skill: log.cognitive_skill || "",
         taxonomy_dimension: log.taxonomy_dimension || "",

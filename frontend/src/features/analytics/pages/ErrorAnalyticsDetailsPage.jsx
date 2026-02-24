@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, CalendarClock, ChevronLeft, ChevronRight, FileText } from 'lucide-react';
 import { api } from '@/shared/api/client';
@@ -19,6 +19,30 @@ const SKILL_OPTIONS = [
   { value: 'listening', label: 'Listening' },
   { value: 'writing', label: 'Writing' },
   { value: 'speaking', label: 'Speaking' },
+];
+
+const TASK_TYPE_OPTIONS = [
+  { value: 'all', label: 'All task types' },
+  { value: 'true_false_not_given', label: 'True / False / Not Given' },
+  { value: 'yes_no_not_given', label: 'Yes / No / Not Given' },
+  { value: 'multiple_choice', label: 'Multiple Choice' },
+  { value: 'matching_headings', label: 'Matching Headings' },
+  { value: 'matching_information', label: 'Matching Information' },
+  { value: 'matching_features', label: 'Matching Features' },
+  { value: 'note_completion', label: 'Note Completion' },
+  { value: 'summary_completion', label: 'Summary Completion' },
+  { value: 'sentence_completion', label: 'Sentence Completion' },
+  { value: 'table_completion', label: 'Table Completion' },
+  { value: 'flow_chart_completion', label: 'Flow-chart Completion' },
+  { value: 'diagram_completion', label: 'Diagram Completion' },
+  { value: 'map_labeling', label: 'Map Labeling' },
+  { value: 'short_answer', label: 'Short Answer' },
+  { value: 'form_completion', label: 'Form Completion' },
+  { value: 'task1', label: 'Writing Task 1' },
+  { value: 'task2', label: 'Writing Task 2' },
+  { value: 'part1', label: 'Speaking Part 1' },
+  { value: 'part2', label: 'Speaking Part 2' },
+  { value: 'part3', label: 'Speaking Part 3' },
 ];
 
 const formatDateTime = (value) => {
@@ -42,13 +66,12 @@ export default function ErrorAnalyticsDetailsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [payload, setPayload] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [isListLoading, setIsListLoading] = useState(true);
   const [error, setError] = useState('');
   const requestVersionRef = useRef(0);
 
   const range = searchParams.get('range') || 'all';
   const skill = searchParams.get('skill') || 'all';
-  const errorCode = searchParams.get('errorCode') || '';
   const taskType = searchParams.get('taskType') || '';
   const page = Math.max(1, Number(searchParams.get('page') || 1));
   const limit = 20;
@@ -71,13 +94,12 @@ export default function ErrorAnalyticsDetailsPage() {
     requestVersionRef.current = requestVersion;
 
     const fetchDetails = async () => {
-      setLoading(true);
+      setIsListLoading(true);
       setError('');
       try {
         const params = {
           range,
           skill,
-          errorCode: clean(errorCode) || undefined,
           taskType: clean(taskType) || undefined,
           page,
           limit,
@@ -93,7 +115,7 @@ export default function ErrorAnalyticsDetailsPage() {
         setError(err?.message || 'Failed to load error details.');
       } finally {
         if (cancelled || requestVersionRef.current !== requestVersion) return;
-        setLoading(false);
+        setIsListLoading(false);
       }
     };
 
@@ -101,7 +123,7 @@ export default function ErrorAnalyticsDetailsPage() {
     return () => {
       cancelled = true;
     };
-  }, [studentId, range, skill, errorCode, taskType, page]);
+  }, [studentId, range, skill, taskType, page]);
 
   const items = Array.isArray(payload?.items) ? payload.items : [];
   const pagination = payload?.pagination || {};
@@ -112,11 +134,13 @@ export default function ErrorAnalyticsDetailsPage() {
     studentId ? 'Taxonomy Error Details (Student)' : 'Taxonomy Error Details'
   ), [studentId]);
 
-  if (loading) {
+  const isInitialLoading = isListLoading && !payload;
+
+  if (isInitialLoading) {
     return <div className="analytics-loading">Đang tải chi tiết lỗi...</div>;
   }
 
-  if (error) {
+  if (error && !payload) {
     return (
       <div className="analytics-error-card">
         <p>{error}</p>
@@ -156,103 +180,101 @@ export default function ErrorAnalyticsDetailsPage() {
         </label>
 
         <label className="enhanced-analytics-filter">
-          <span>Error Code</span>
-          <input
-            className="error-details-input"
-            value={errorCode}
-            placeholder="e.g. R-C4"
-            onChange={(e) => updateQuery({ errorCode: e.target.value.toUpperCase() }, true)}
-          />
-        </label>
-
-        <label className="enhanced-analytics-filter">
           <span>Task Type</span>
-          <input
-            className="error-details-input"
-            value={taskType}
-            placeholder="e.g. matching_information"
-            onChange={(e) => updateQuery({ taskType: e.target.value.toLowerCase() }, true)}
-          />
+          <select
+            value={taskType || 'all'}
+            onChange={(e) => updateQuery({ taskType: e.target.value }, true)}
+          >
+            {TASK_TYPE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
         </label>
       </div>
 
       <div className="error-details-meta">
         <span>Total errors: <strong>{total}</strong></span>
         <span>Page: <strong>{page}</strong> / {totalPages}</span>
+        {isListLoading ? <span className="error-details-updating">Updating...</span> : null}
       </div>
 
-      {items.length === 0 ? (
-        <div className="analytics-empty">Không có lỗi phù hợp bộ lọc hiện tại.</div>
-      ) : (
-        <div className="error-details-list">
-          {items.map((item) => {
-            const snippet = clean(item?.text_snippet);
-            const userAnswer = clean(item?.user_answer);
-            const correctAnswer = clean(item?.correct_answer);
+      {error ? <div className="analytics-inline-error">{error}</div> : null}
 
-            return (
-              <article key={item.id} className="error-details-card">
-                <header className="error-details-card-head">
-                  <div className="error-details-badges">
-                    <span className="error-badge skill">{clean(item.skill) || 'unknown'}</span>
-                    <span className="error-badge code">{clean(item.error_code) || 'UNCLASSIFIED'}</span>
-                    <span className="error-badge task">{clean(item.task_type_label) || clean(item.task_type) || 'Unknown'}</span>
-                  </div>
-                  <div className="error-details-time">
-                    <CalendarClock size={14} />
-                    <span>{formatDateTime(item.logged_at)}</span>
-                  </div>
-                </header>
+      <div className={`error-details-list-wrap${isListLoading ? ' is-updating' : ''}`}>
+        {items.length === 0 ? (
+          <div className="analytics-empty">Không có lỗi phù hợp bộ lọc hiện tại.</div>
+        ) : (
+          <div className="error-details-list">
+            {items.map((item) => {
+              const snippet = clean(item?.text_snippet);
+              const userAnswer = clean(item?.user_answer);
+              const correctAnswer = clean(item?.correct_answer);
 
-                <div className="error-details-context">
-                  <p><FileText size={14} /> <strong>Bài:</strong> {clean(item.source_label) || '-'} | <strong>Ref:</strong> {clean(item.source_ref) || '-'} | <strong>Record:</strong> {clean(item.source_id) || '-'}</p>
-                  <p><AlertTriangle size={14} /> <strong>Câu:</strong> {item.question_number ?? '-'} | <strong>Nhóm taxonomy:</strong> {clean(item.error_category) || '-'} | <strong>Kỹ năng:</strong> {clean(item.cognitive_skill) || '-'}</p>
-                </div>
-
-                {snippet ? (
-                  <div className="error-details-snippet">
-                    <p className="label">Câu/đoạn sai</p>
-                    <p>{snippet}</p>
-                  </div>
-                ) : null}
-
-                {(userAnswer || correctAnswer) ? (
-                  <div className="error-details-answer-grid">
-                    <div>
-                      <p className="label">User answer</p>
-                      <p>{userAnswer || '-'}</p>
+              return (
+                <article key={item.id} className="error-details-card">
+                  <header className="error-details-card-head">
+                    <div className="error-details-badges">
+                      <span className="error-badge skill">{clean(item.skill) || 'unknown'}</span>
+                      <span className="error-badge code">{clean(item.error_code) || 'UNCLASSIFIED'}</span>
+                      <span className="error-badge task">{clean(item.task_type_label) || clean(item.task_type) || 'Unknown'}</span>
                     </div>
-                    <div>
-                      <p className="label">Correct answer</p>
-                      <p>{correctAnswer || '-'}</p>
+                    <div className="error-details-time">
+                      <CalendarClock size={14} />
+                      <span>{formatDateTime(item.logged_at)}</span>
                     </div>
-                  </div>
-                ) : null}
+                  </header>
 
-                <div className="error-details-reason">
-                  <p className="label">Vì sao xếp taxonomy này</p>
-                  <p>{clean(item.taxonomy_reason) || 'Không có mô tả taxonomy reason.'}</p>
-                  {clean(item.explanation) ? (
-                    <p className="explanation">Giải thích chi tiết: {item.explanation}</p>
+                  <div className="error-details-context">
+                    <p><FileText size={14} /> <strong>Bài:</strong> {clean(item.source_label) || '-'} | <strong>Ref:</strong> {clean(item.source_ref) || '-'} | <strong>Record:</strong> {clean(item.source_id) || '-'}</p>
+                    <p><AlertTriangle size={14} /> <strong>Câu:</strong> {item.question_number ?? '-'} | <strong>Nhóm taxonomy:</strong> {clean(item.error_category) || '-'} | <strong>Kỹ năng:</strong> {clean(item.cognitive_skill) || '-'}</p>
+                    <p><strong>Lỗi cụ thể:</strong> {clean(item.error_label) || '-'}</p>
+                  </div>
+
+                  {snippet ? (
+                    <div className="error-details-snippet">
+                      <p className="label">Câu/đoạn sai</p>
+                      <p>{snippet}</p>
+                    </div>
                   ) : null}
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      )}
+
+                  {(userAnswer || correctAnswer) ? (
+                    <div className="error-details-answer-grid">
+                      <div>
+                        <p className="label">User answer</p>
+                        <p>{userAnswer || '-'}</p>
+                      </div>
+                      <div>
+                        <p className="label">Correct answer</p>
+                        <p>{correctAnswer || '-'}</p>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="error-details-reason">
+                    <p className="label">Vì sao xếp taxonomy này</p>
+                    <p>{clean(item.taxonomy_reason) || 'Không có mô tả taxonomy reason.'}</p>
+                    {clean(item.explanation) ? (
+                      <p className="explanation">Giải thích chi tiết: {item.explanation}</p>
+                    ) : null}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       <div className="error-details-pagination">
         <button
           type="button"
-          disabled={page <= 1}
+          disabled={page <= 1 || isListLoading}
           onClick={() => updateQuery({ page: String(page - 1) })}
         >
           <ChevronLeft size={16} /> Prev
         </button>
         <button
           type="button"
-          disabled={page >= totalPages}
+          disabled={page >= totalPages || isListLoading}
           onClick={() => updateQuery({ page: String(page + 1) })}
         >
           Next <ChevronRight size={16} />
