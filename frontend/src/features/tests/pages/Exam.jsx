@@ -149,9 +149,15 @@ export default function Exam() {
           const searchParams = new URLSearchParams(location.search);
           const partParam = searchParams.get('part');
           if (partParam !== null) {
-            const partIndex = parseInt(partParam, 10);
-            if (!isNaN(partIndex)) {
-              setCurrentStep(partIndex);
+            const requestedPartIndex = Number.parseInt(partParam, 10);
+            if (Number.isFinite(requestedPartIndex) && steps.length > 0) {
+              const maxStep = steps.length - 1;
+              const normalizedPartIndex =
+                requestedPartIndex > maxStep && requestedPartIndex - 1 >= 0 && requestedPartIndex - 1 <= maxStep
+                  ? requestedPartIndex - 1
+                  : requestedPartIndex;
+              const safeStep = Math.max(0, Math.min(maxStep, normalizedPartIndex));
+              setCurrentStep(safeStep);
             }
           }
           setStartTime(Date.now());

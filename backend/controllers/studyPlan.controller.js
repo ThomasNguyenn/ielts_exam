@@ -96,7 +96,7 @@ const buildLinkMap = (tests) => {
             test.reading_passages.forEach((pId, index) => {
                 const idStr = pId?.toString();
                 if (idStr) {
-                    linkMap.set(idStr, `/tests/${test._id}/exam?part=${index + 1}&mode=single`);
+                    linkMap.set(idStr, `/tests/${test._id}/exam?part=${index}&mode=single`);
                 }
             });
         }
@@ -105,7 +105,7 @@ const buildLinkMap = (tests) => {
             test.listening_sections.forEach((sId, index) => {
                 const idStr = sId?.toString();
                 if (idStr) {
-                    linkMap.set(idStr, `/tests/${test._id}/exam?part=${index + 1}&mode=single&type=listening`);
+                    linkMap.set(idStr, `/tests/${test._id}/exam?part=${index}&mode=single&type=listening`);
                 }
             });
         }
