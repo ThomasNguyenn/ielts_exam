@@ -10,6 +10,63 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+const ANALYTICS_SKILLS = new Set(["reading", "listening", "writing", "speaking"]);
+const ANALYTICS_RANGE_DAYS = {
+  "7d": 7,
+  "30d": 30,
+  "90d": 90,
+};
+const AI_INSIGHTS_CACHE_TTL_MS = 30 * 60 * 1000;
+const AI_INSIGHTS_CACHE_MAX_ENTRIES = 200;
+const aiInsightsCache = new Map();
+
+const parseAnalyticsFilters = (query = {}) => {
+  const rawRange = String(query.range || "all").toLowerCase();
+  const days = ANALYTICS_RANGE_DAYS[rawRange] || null;
+  const since = days ? new Date(Date.now() - days * 24 * 60 * 60 * 1000) : null;
+
+  const rawSkill = String(query.skill || query.skills || "all").toLowerCase();
+  const parsedSkills = rawSkill
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .filter((item) => ANALYTICS_SKILLS.has(item));
+  const skills = parsedSkills.length ? new Set(parsedSkills) : null;
+
+  return {
+    range: days ? rawRange : "all",
+    skill: skills ? [...skills].sort().join(",") : "all",
+    since,
+    skills,
+  };
+};
+
+const isCacheEntryFresh = (entry) => (
+  entry &&
+  Number.isFinite(entry.cachedAt) &&
+  Date.now() - entry.cachedAt <= AI_INSIGHTS_CACHE_TTL_MS
+);
+
+const setCachedInsights = (key, value) => {
+  aiInsightsCache.set(key, { cachedAt: Date.now(), value });
+  while (aiInsightsCache.size > AI_INSIGHTS_CACHE_MAX_ENTRIES) {
+    const oldestKey = aiInsightsCache.keys().next().value;
+    aiInsightsCache.delete(oldestKey);
+  }
+};
+
+const filterErrorLogs = (errorLogs = [], filters = {}) => {
+  const { since, skills } = filters;
+  return errorLogs.filter((log) => {
+    if (skills && !skills.has(String(log?.skill || "").toLowerCase())) return false;
+    if (since) {
+      const loggedAt = new Date(log?.logged_at);
+      if (Number.isNaN(loggedAt.getTime()) || loggedAt < since) return false;
+    }
+    return true;
+  });
+};
+
 /**
  * Helper to fetch and merge all error logs for a specific user across R, L, W, S
  */
@@ -19,12 +76,12 @@ async function aggregateUserErrors(userId) {
   // Reading & Listening
   const attempts = await TestAttempt.find({ user_id: userId, "error_logs.0": { $exists: true } })
     .sort({ submitted_at: -1 })
-    .select("type error_logs")
+    .select("type error_logs submitted_at")
     .lean();
   attempts.forEach(a => {
     if (a.error_logs) {
       a.error_logs.forEach(log => {
-        errorLogs.push({ ...log, skill: a.type });
+        errorLogs.push({ ...log, skill: a.type, logged_at: a.submitted_at });
       });
     }
   });
@@ -32,12 +89,12 @@ async function aggregateUserErrors(userId) {
   // Writing
   const writings = await WritingSubmission.find({ user_id: userId, "error_logs.0": { $exists: true } })
     .sort({ created_at: -1 })
-    .select("error_logs")
+    .select("error_logs created_at")
     .lean();
   writings.forEach(w => {
     if (w.error_logs) {
       w.error_logs.forEach(log => {
-        errorLogs.push({ ...log, skill: "writing" });
+        errorLogs.push({ ...log, skill: "writing", logged_at: w.created_at });
       });
     }
   });
@@ -45,12 +102,12 @@ async function aggregateUserErrors(userId) {
   // Speaking
   const speakings = await SpeakingSession.find({ userId: userId, "error_logs.0": { $exists: true } })
     .sort({ createdAt: -1 })
-    .select("error_logs")
+    .select("error_logs timestamp")
     .lean();
   speakings.forEach(s => {
     if (s.error_logs) {
       s.error_logs.forEach(log => {
-        errorLogs.push({ ...log, skill: "speaking" });
+        errorLogs.push({ ...log, skill: "speaking", logged_at: s.timestamp });
       });
     }
   });
@@ -559,8 +616,13 @@ export const getStudentAnalytics = async (req, res) => {
 
 export const getErrorAnalytics = async (req, res) => {
   try {
+    res.set("Cache-Control", "no-store");
     const { userId } = req.user;
-    const errorLogs = await aggregateUserErrors(userId);
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ success: false, message: "Invalid user id" });
+    }
+    const filters = parseAnalyticsFilters(req.query);
+    const errorLogs = filterErrorLogs(await aggregateUserErrors(userId), filters);
 
     // Grouping logic for Heatmap (Task Type vs Error Category) and Bar Charts (Cognitive Skill frequency)
     const taskTypeVsCategory = {}; // { 'TFNG': { 'R-C4': 5, 'R-C1': 2 } }
@@ -569,7 +631,9 @@ export const getErrorAnalytics = async (req, res) => {
     const totalErrors = errorLogs.length;
 
     errorLogs.forEach(log => {
-      if (log.skill) skillBreakdown[log.skill]++;
+      if (log.skill && Object.prototype.hasOwnProperty.call(skillBreakdown, log.skill)) {
+        skillBreakdown[log.skill]++;
+      }
 
       // Heatmap Aggregation
       const tType = log.task_type || 'Unknown';
@@ -599,6 +663,10 @@ export const getErrorAnalytics = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: {
+        filters: {
+          range: filters.range,
+          skill: filters.skill,
+        },
         totalErrors,
         skillBreakdown,
         heatmapData,
@@ -614,74 +682,121 @@ export const getErrorAnalytics = async (req, res) => {
 
 export const getAIInsights = async (req, res) => {
   try {
+    res.set("Cache-Control", "no-store");
     const { userId } = req.user;
-    const errorLogs = await aggregateUserErrors(userId);
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ success: false, message: "Invalid user id" });
+    }
+    const filters = parseAnalyticsFilters(req.query);
+    const errorLogs = filterErrorLogs(await aggregateUserErrors(userId), filters);
 
     if (errorLogs.length === 0) {
-      return res.status(200).json({
-        success: true,
-        data: {
-          feedback: "Bạn chưa có đủ dữ liệu lỗi để phân tích. Hãy làm thêm các bài kiểm tra hoặc bài tập thực hành nhé."
-        }
-      });
+      const emptyPayload = {
+        no_data: true,
+        feedback: "Ban chua co du du lieu loi de phan tich. Hay lam them cac bai kiem tra hoac bai tap thuc hanh nhe.",
+        overview: "Ban chua co du du lieu loi de phan tich. Hay lam them cac bai kiem tra hoac bai tap thuc hanh nhe.",
+        actionable_advice: [],
+        recommended_practice: [],
+        encouragement: "",
+        filters: {
+          range: filters.range,
+          skill: filters.skill,
+        },
+      };
+      return res.status(200).json({ success: true, data: emptyPayload });
     }
 
-    // To avoid massive token usage, only send the 50 most recent/frequent errors
-    // Compute frequencies to send a concise summary to the LLM
+    const latestErrorMs = errorLogs.reduce((max, log) => {
+      const ts = new Date(log?.logged_at).getTime();
+      if (Number.isNaN(ts)) return max;
+      return Math.max(max, ts);
+    }, 0);
+    const cacheKey = `${userId}|${filters.range}|${filters.skill}|${errorLogs.length}|${latestErrorMs}`;
+    const cachedInsights = aiInsightsCache.get(cacheKey);
+    if (isCacheEntryFresh(cachedInsights)) {
+      return res.status(200).json({ success: true, data: cachedInsights.value });
+    }
+
     const frequencies = {};
-    errorLogs.forEach(log => {
+    errorLogs.forEach((log) => {
       const key = `Skill: ${log.skill} | Task Type: ${log.task_type} | Category: ${log.error_category} | Code: ${log.error_code}`;
       frequencies[key] = (frequencies[key] || 0) + 1;
     });
 
-    // Sort by most frequent
     const topErrors = Object.entries(frequencies)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 20)
-      .map(([desc, count]) => `- ${desc} (Xuất hiện ${count} lần)`);
+      .map(([desc, count]) => `- ${desc} (${count})`);
 
-    const prompt = `
-Bạn là một chuyên gia IELTS khắt khe nhưng đầy động lực. Dưới đây là bảng thống kê các lỗi thường gặp nhất của học viên dựa trên hệ thống phân loại lỗi (Taxonomy Error):
-
-${topErrors.join('\n')}
-
-Dựa vào dữ liệu trên, hãy viết một bản phân tích cực kỳ CHUYÊN SÂU, CÁ NHÂN HOÁ, và CHỈ RA TẬN GỐC RỄ VẤN ĐỀ (Bằng Tiếng Việt). Đừng chỉ tóm tắt lỗi, hãy phân tích tại sao học viên lại mắc lỗi đó và làm thế nào để sửa dứt điểm.
-
-Yêu cầu bắt buộc phải có trong câu trả lời JSON:
-1. "overview": Phân tích sâu về nguyên nhân gốc rễ (Root Cause) dựa trên các mã lỗi trên. Giải thích TẠI SAO học viên mắc lỗi (VD: thiếu từ vựng chủ đề, nghe bắt key thay vì hiểu, tư duy dịch word-by-word). Phân tích chi tiết khoảng 3-4 câu.
-2. "actionable_advice": Dạng Mảng (Array). Đưa ra các chiến lược CỤ THỂ, thực tế, CÓ VÍ DỤ MINH HOẠ để khắc phục các lỗi nặng nhất. Thay vì nói chung chung "Cải thiện ngữ pháp", hãy chỉ đích danh (VD: "Để khắc phục lỗi W2-G1, hãy tập viết câu ghép bằng mệnh đề quan hệ (which, who) thay vì ghép câu lộn xộn"). Ít nhất 3 lời khuyên chi tiết.
-3. "recommended_practice": Dạng Mảng (Array). Liệt kê chính xác tên 2-3 dạng bài (Task Types) mà học viên nên luyện tập ngay (VD: "Matching Headings (Reading)", "IELTS Speaking Part 2").
-4. "encouragement": Lời động viên thực tế, mạnh mẽ mang tính thúc đẩy.
-
-Định dạng trả về (JSON hợp lệ duy nhất, không có markdown text bọc ngoài):
-{
-  "overview": "string",
-  "actionable_advice": ["string1", "string2"],
-  "recommended_practice": ["Tên Dạng 1", "Tên Dạng 2"],
-  "encouragement": "string"
-}
-`;
+    const prompt = `Analyze the student's IELTS error taxonomy and return strict JSON in Vietnamese.\nTop errors:\n${topErrors.join("\n")}\n\nReturn exactly:\n{\n  \"overview\": \"string\",\n  \"actionable_advice\": [\"string\"],\n  \"recommended_practice\": [\"string\"],\n  \"encouragement\": \"string\"\n}`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      messages: [{ role: "system", content: "You output strict JSON in Vietnamese." }, { role: "user", content: prompt }],
+      messages: [
+        { role: "system", content: "Return valid JSON only. Use Vietnamese language." },
+        { role: "user", content: prompt },
+      ],
       response_format: { type: "json_object" },
-      temperature: 0.2
+      temperature: 0.2,
     });
 
     const parsedInsights = JSON.parse(response.choices[0].message.content);
+    const normalizedPayload = {
+      no_data: false,
+      feedback: parsedInsights.feedback || null,
+      overview: parsedInsights.overview || "",
+      actionable_advice: Array.isArray(parsedInsights.actionable_advice)
+        ? parsedInsights.actionable_advice
+        : [parsedInsights.actionable_advice].filter(Boolean),
+      recommended_practice: Array.isArray(parsedInsights.recommended_practice)
+        ? parsedInsights.recommended_practice
+        : [parsedInsights.recommended_practice].filter(Boolean),
+      encouragement: parsedInsights.encouragement || "",
+      filters: {
+        range: filters.range,
+        skill: filters.skill,
+      },
+    };
 
-    // Ensure arrays exist
-    parsedInsights.actionable_advice = Array.isArray(parsedInsights.actionable_advice) ? parsedInsights.actionable_advice : [parsedInsights.actionable_advice];
-    parsedInsights.recommended_practice = Array.isArray(parsedInsights.recommended_practice) ? parsedInsights.recommended_practice : [parsedInsights.recommended_practice];
-
+    setCachedInsights(cacheKey, normalizedPayload);
     return res.status(200).json({
       success: true,
-      data: parsedInsights
+      data: normalizedPayload,
     });
-
   } catch (error) {
     console.error("Error generating AI insights:", error);
+    return res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+export const getAdminStudentErrorAnalytics = async (req, res) => {
+  try {
+    const scopedReq = {
+      ...req,
+      user: {
+        ...req.user,
+        userId: req.params.studentId,
+      },
+    };
+    return await getErrorAnalytics(scopedReq, res);
+  } catch (error) {
+    console.error("Error generating admin analytics:", error);
+    return res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+export const getAdminStudentAIInsights = async (req, res) => {
+  try {
+    const scopedReq = {
+      ...req,
+      user: {
+        ...req.user,
+        userId: req.params.studentId,
+      },
+    };
+    return await getAIInsights(scopedReq, res);
+  } catch (error) {
+    console.error("Error generating admin AI insights:", error);
     return res.status(500).json({ success: false, message: "Internal server error" });
   }
 };

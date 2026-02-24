@@ -8,6 +8,8 @@ import {
   getAdminStudentAnalyticsDashboard,
   getErrorAnalytics,
   getAIInsights,
+  getAdminStudentErrorAnalytics,
+  getAdminStudentAIInsights,
 } from "../controllers/analytics.controller.js";
 import { verifyToken, isTeacherOrAdmin } from "../middleware/auth.middleware.js";
 
@@ -26,5 +28,7 @@ router.get("/history", getProgressHistory);
 // Admin Analytics
 router.get("/admin/:studentId/dashboard", isTeacherOrAdmin, getAdminStudentAnalyticsDashboard);
 router.get("/admin/:studentId", isTeacherOrAdmin, getStudentAnalytics);
+router.get("/admin/:studentId/errors", isTeacherOrAdmin, getAdminStudentErrorAnalytics);
+router.get("/admin/:studentId/ai-insights", isTeacherOrAdmin, getAdminStudentAIInsights);
 
 export default router;

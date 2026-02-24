@@ -335,9 +335,23 @@ export const api = {
 
   // Analytics
   getAnalyticsDashboard: () => request(`/api/analytics/dashboard?_t=${Date.now()}`),
-  getAnalyticsErrors: () => request(`/api/analytics/errors?_t=${Date.now()}`),
-  getAnalyticsAIInsights: () => request(`/api/analytics/ai-insights?_t=${Date.now()}`),
+  getAnalyticsErrors: (params = {}) => {
+    const query = toQueryString({ ...params, _t: Date.now() });
+    return request(`/api/analytics/errors${query ? `?${query}` : ''}`);
+  },
+  getAnalyticsAIInsights: (params = {}) => {
+    const query = toQueryString({ ...params, _t: Date.now() });
+    return request(`/api/analytics/ai-insights${query ? `?${query}` : ''}`);
+  },
   getAdminStudentAnalyticsDashboard: (studentId) => request(`/api/analytics/admin/${studentId}/dashboard?_t=${Date.now()}`),
+  getAdminStudentAnalyticsErrors: (studentId, params = {}) => {
+    const query = toQueryString({ ...params, _t: Date.now() });
+    return request(`/api/analytics/admin/${studentId}/errors${query ? `?${query}` : ''}`);
+  },
+  getAdminStudentAnalyticsAIInsights: (studentId, params = {}) => {
+    const query = toQueryString({ ...params, _t: Date.now() });
+    return request(`/api/analytics/admin/${studentId}/ai-insights${query ? `?${query}` : ''}`);
+  },
   getAnalyticsSkills: () => request(`/api/analytics/skills?_t=${Date.now()}`),
   getAnalyticsWeaknesses: () => request(`/api/analytics/weaknesses?_t=${Date.now()}`),
   getAnalyticsHistory: () => request(`/api/analytics/history?_t=${Date.now()}`),

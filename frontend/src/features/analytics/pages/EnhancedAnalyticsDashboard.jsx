@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
     BarChart,
@@ -46,6 +46,21 @@ const TAXONOMY_LEGEND = {
     'S-G2': 'Dùng sai thì (Tense)',
 };
 
+const RANGE_OPTIONS = [
+    { value: 'all', label: 'All time' },
+    { value: '7d', label: 'Last 7 days' },
+    { value: '30d', label: 'Last 30 days' },
+    { value: '90d', label: 'Last 90 days' },
+];
+
+const SKILL_OPTIONS = [
+    { value: 'all', label: 'All skills' },
+    { value: 'reading', label: 'Reading' },
+    { value: 'listening', label: 'Listening' },
+    { value: 'writing', label: 'Writing' },
+    { value: 'speaking', label: 'Speaking' },
+];
+
 export default function EnhancedAnalyticsDashboard() {
     const { studentId } = useParams();
     const navigate = useNavigate();
@@ -54,31 +69,68 @@ export default function EnhancedAnalyticsDashboard() {
     const [loading, setLoading] = useState(true);
     const [loadingAi, setLoadingAi] = useState(false);
     const [error, setError] = useState('');
+    const [aiError, setAiError] = useState('');
+    const [rangeFilter, setRangeFilter] = useState('all');
+    const [skillFilter, setSkillFilter] = useState('all');
+    const fetchVersionRef = useRef(0);
+    const aiFetchVersionRef = useRef(0);
 
     useEffect(() => {
+        let cancelled = false;
+        const fetchVersion = Date.now();
+        fetchVersionRef.current = fetchVersion;
+        aiFetchVersionRef.current = fetchVersion;
+
         async function fetchDashboard() {
             setLoading(true);
+            setError('');
+            setAiInsights(null);
+            setAiError('');
             try {
-                // Fetch the new aggregated errors endpoint
-                const response = await api.getAnalyticsErrors();
+                const params = {
+                    range: rangeFilter !== 'all' ? rangeFilter : undefined,
+                    skill: skillFilter !== 'all' ? skillFilter : undefined,
+                };
+                const response = studentId
+                    ? await api.getAdminStudentAnalyticsErrors(studentId, params)
+                    : await api.getAnalyticsErrors(params);
+                if (cancelled || fetchVersionRef.current !== fetchVersion) return;
                 setDashboard(response?.data || null);
             } catch (err) {
+                if (cancelled || fetchVersionRef.current !== fetchVersion) return;
                 setError(err?.message || 'Failed to load error analytics.');
             } finally {
+                if (cancelled || fetchVersionRef.current !== fetchVersion) return;
                 setLoading(false);
             }
         }
         fetchDashboard();
-    }, [studentId]);
+        return () => {
+            cancelled = true;
+        };
+    }, [studentId, rangeFilter, skillFilter]);
 
     const fetchAiInsights = async () => {
+        const aiVersion = Date.now();
+        aiFetchVersionRef.current = aiVersion;
         setLoadingAi(true);
+        setAiError('');
         try {
-            const response = await api.getAnalyticsAIInsights();
+            const params = {
+                range: rangeFilter !== 'all' ? rangeFilter : undefined,
+                skill: skillFilter !== 'all' ? skillFilter : undefined,
+            };
+            const response = studentId
+                ? await api.getAdminStudentAnalyticsAIInsights(studentId, params)
+                : await api.getAnalyticsAIInsights(params);
+            if (aiFetchVersionRef.current !== aiVersion) return;
             setAiInsights(response?.data || null);
         } catch (err) {
+            if (aiFetchVersionRef.current !== aiVersion) return;
             console.error("AI Insight error", err);
+            setAiError(err?.message || 'Failed to generate AI insights.');
         } finally {
+            if (aiFetchVersionRef.current !== aiVersion) return;
             setLoadingAi(false);
         }
     };
@@ -128,6 +180,25 @@ export default function EnhancedAnalyticsDashboard() {
                 <p>Khám phá cấu trúc lỗi kỹ năng IELTS của bạn bằng AI</p>
             </div>
 
+            <div className="enhanced-analytics-filters">
+                <label className="enhanced-analytics-filter">
+                    <span>Range</span>
+                    <select value={rangeFilter} onChange={(e) => setRangeFilter(e.target.value)}>
+                        {RANGE_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                    </select>
+                </label>
+                <label className="enhanced-analytics-filter">
+                    <span>Skill</span>
+                    <select value={skillFilter} onChange={(e) => setSkillFilter(e.target.value)}>
+                        {SKILL_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                    </select>
+                </label>
+            </div>
+
             <div className="analytics-stats-grid">
                 <div className="analytics-stat-card">
                     <div className="analytics-stat-top">
@@ -140,7 +211,12 @@ export default function EnhancedAnalyticsDashboard() {
                     <p className="analytics-stat-change">Từ tất cả các phiên làm bài</p>
                 </div>
 
-                <div className="analytics-stat-card ai-insight-trigger" onClick={fetchAiInsights}>
+                <button
+                    type="button"
+                    className="analytics-stat-card ai-insight-trigger"
+                    onClick={fetchAiInsights}
+                    disabled={loadingAi}
+                >
                     <div className="analytics-stat-top">
                         <span className="analytics-stat-label">AI Nhận Xét</span>
                         <span className="analytics-stat-icon-wrap" style={{ backgroundColor: `#8b5cf614` }}>
@@ -154,7 +230,8 @@ export default function EnhancedAnalyticsDashboard() {
                             {aiInsights ? 'Cập nhật lại nhận xét' : 'Nhấp để AI phân tích lỗi'}
                         </p>
                     )}
-                </div>
+                </button>
+                {aiError ? <p className="analytics-ai-error">{aiError}</p> : null}
             </div>
 
             {aiInsights && (
@@ -163,9 +240,10 @@ export default function EnhancedAnalyticsDashboard() {
 
                     <div className="ai-insight-section overview">
                         <h4>Tổng quan</h4>
-                        <p>{aiInsights.overview}</p>
+                        <p>{aiInsights.feedback || aiInsights.overview}</p>
                     </div>
 
+                    {!aiInsights.feedback && (
                     <div className="ai-insight-cols">
                         <div className="ai-insight-section actionable">
                             <h4>Chiến lược khắc phục</h4>
@@ -184,10 +262,13 @@ export default function EnhancedAnalyticsDashboard() {
                             </div>
                         </div>
                     </div>
+                    )}
 
-                    <div className="ai-insight-section encouragement">
-                        <p><em>"{aiInsights.encouragement}"</em></p>
-                    </div>
+                    {!aiInsights.feedback && (
+                        <div className="ai-insight-section encouragement">
+                            <p><em>{aiInsights.encouragement ? `"${aiInsights.encouragement}"` : ''}</em></p>
+                        </div>
+                    )}
                 </div>
             )}
 
