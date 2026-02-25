@@ -11,50 +11,45 @@ import {
 } from 'recharts';
 import { Activity, Target, Brain, Flame, BarChart3 } from 'lucide-react';
 import { api } from '@/shared/api/client';
-import './AnalyticsDashboard.css'; // Reuse existing styles
-import './EnhancedAnalytics.css'; // New styles for heatmap and AI
+import './AnalyticsDashboard.css';
+import './EnhancedAnalytics.css';
 
 const TAXONOMY_LEGEND = {
-    // Reading/Listening
     'R-A1': 'Sai chính tả',
-    'R-A2': 'Sai hình thức Số nhiều/Số ít',
+    'R-A2': 'Sai hình thức số nhiều/số ít',
     'R-C1': 'Chọn sai từ khóa',
     'R-C3': 'Nhầm lẫn ý chính',
     'R-C4': 'Bẫy chi tiết',
-    'R-C5': 'Hiểu sai phạm vi (Scope Error)',
-    'R-T1': 'Nhầm lẫn Sự thật vs Ý kiến (TFNG)',
-    'R-T2': 'Suy luận quá mức (TFNG)',
+    'R-C5': 'Hiểu sai phạm vi',
+    'R-T1': 'Nhầm lẫn NOT GIVEN và FALSE/NO',
+    'R-T2': 'Suy luận quá mức',
     'L-A1': 'Sai chính tả (Nghe)',
-    'L-A2': 'Sai hình thức Số nhiều/Số ít (Nghe)',
+    'L-A2': 'Sai hình thức số nhiều/số ít (Nghe)',
     'L-C1': 'Nghe sót từ khóa',
-    'L-C4': 'Bẫy thông tin làm nhiễu (Distractor)',
-
-    // Writing
-    'W1-T1': 'Thiếu/Sai Overview',
-    'W1-L1': 'Từ vựng miêu tả xu hướng yếu',
+    'L-C4': 'Bẫy thông tin gây nhiễu',
+    'W1-T1': 'Thiếu/sai Overview',
+    'W1-L1': 'Từ vựng mô tả xu hướng yếu',
     'W2-T1': 'Không trả lời hết các vế câu hỏi',
-    'W2-C3': 'Ý tưởng rời rạc (Idea Jump)',
+    'W2-C3': 'Ý tưởng rời rạc',
     'W2-G1': 'Lỗi câu phức',
-    'W2-G3': 'Lỗi viết câu quá dài (Run-on)',
-    'W2-L2': 'Sai kết hợp từ (Collocation)',
-
-    // Speaking
-    'S-F1': 'Ngập ngừng quá mức (Hesitation)',
-    'S-F2': 'Lạm dụng từ chêm (Filler)',
-    'S-P1': 'Nhấn âm sai (Word Stress)',
-    'S-P2': 'Hỏng âm đuôi (Ending Sounds)',
-    'S-G2': 'Dùng sai thì (Tense)',
+    'W2-G3': 'Lỗi câu quá dài',
+    'W2-L2': 'Sai kết hợp từ',
+    'S-F1': 'Ngập ngừng quá mức',
+    'S-F2': 'Lạm dụng từ đệm',
+    'S-P1': 'Nhấn âm sai',
+    'S-P2': 'Mất âm đuôi',
+    'S-G2': 'Dùng sai thì',
 };
 
 const RANGE_OPTIONS = [
-    { value: 'all', label: 'Toan bo thoi gian' },
-    { value: '7d', label: '7 ngay gan day' },
-    { value: '30d', label: '30 ngay gan day' },
-    { value: '90d', label: '90 ngay gan day' },
+    { value: 'all', label: 'Toàn bộ thời gian' },
+    { value: '7d', label: '7 ngày gần đây' },
+    { value: '30d', label: '30 ngày gần đây' },
+    { value: '90d', label: '90 ngày gần đây' },
 ];
 
 const SKILL_OPTIONS = [
-    { value: 'all', label: 'Tat ca ky nang' },
+    { value: 'all', label: 'Tất cả kỹ năng' },
     { value: 'reading', label: 'Đọc' },
     { value: 'listening', label: 'Nghe' },
     { value: 'writing', label: 'Viết' },
@@ -62,7 +57,7 @@ const SKILL_OPTIONS = [
 ];
 
 const TASK_TYPE_LABELS = {
-    unknown: 'Khong xac dinh',
+    unknown: 'Unknown',
     reading: 'Reading',
     listening: 'Listening',
     writing: 'Writing',
@@ -164,12 +159,13 @@ export default function EnhancedAnalyticsDashboard() {
                 setDashboard(response?.data || null);
             } catch (err) {
                 if (cancelled || fetchVersionRef.current !== fetchVersion) return;
-                setError(err?.message || 'Khong tai duoc du lieu phan tich loi.');
+                setError(err?.message || 'Không tải được dữ liệu phân tích lỗi.');
             } finally {
                 if (cancelled || fetchVersionRef.current !== fetchVersion) return;
                 setLoading(false);
             }
         }
+
         fetchDashboard();
         return () => {
             cancelled = true;
@@ -193,8 +189,8 @@ export default function EnhancedAnalyticsDashboard() {
             setAiInsights(response?.data || null);
         } catch (err) {
             if (aiFetchVersionRef.current !== aiVersion) return;
-            console.error("AI Insight error", err);
-            setAiError(err?.message || 'Khong tao duoc nhan xet AI.');
+            console.error('AI Insight error', err);
+            setAiError(err?.message || 'Không tạo được nhận xét AI.');
         } finally {
             if (aiFetchVersionRef.current !== aiVersion) return;
             setLoadingAi(false);
@@ -324,7 +320,7 @@ export default function EnhancedAnalyticsDashboard() {
 
             <div className="enhanced-analytics-filters">
                 <label className="enhanced-analytics-filter">
-                    <span>Khoang thoi gian</span>
+                    <span>Khoảng thời gian</span>
                     <select value={rangeFilter} onChange={(e) => setRangeFilter(e.target.value)}>
                         {RANGE_OPTIONS.map((option) => (
                             <option key={option.value} value={option.value}>{option.label}</option>
@@ -332,7 +328,7 @@ export default function EnhancedAnalyticsDashboard() {
                     </select>
                 </label>
                 <label className="enhanced-analytics-filter">
-                    <span>Ky nang</span>
+                    <span>Kỹ năng</span>
                     <select value={skillFilter} onChange={(e) => setSkillFilter(e.target.value)}>
                         {SKILL_OPTIONS.map((option) => (
                             <option key={option.value} value={option.value}>{option.label}</option>
@@ -345,7 +341,7 @@ export default function EnhancedAnalyticsDashboard() {
                 <div className="analytics-stat-card">
                     <div className="analytics-stat-top">
                         <span className="analytics-stat-label">Tổng Lỗi Ghi Nhận</span>
-                        <span className="analytics-stat-icon-wrap" style={{ backgroundColor: `#ef444414` }}>
+                        <span className="analytics-stat-icon-wrap" style={{ backgroundColor: '#ef444414' }}>
                             <Activity className="analytics-stat-icon" style={{ color: '#ef4444' }} />
                         </span>
                     </div>
@@ -361,7 +357,7 @@ export default function EnhancedAnalyticsDashboard() {
                 >
                     <div className="analytics-stat-top">
                         <span className="analytics-stat-label">AI Nhận Xét</span>
-                        <span className="analytics-stat-icon-wrap" style={{ backgroundColor: `#8b5cf614` }}>
+                        <span className="analytics-stat-icon-wrap" style={{ backgroundColor: '#8b5cf614' }}>
                             <Brain className="analytics-stat-icon" style={{ color: '#8b5cf6' }} />
                         </span>
                     </div>
@@ -386,24 +382,24 @@ export default function EnhancedAnalyticsDashboard() {
                     </div>
 
                     {!aiInsights.feedback && (
-                    <div className="ai-insight-cols">
-                        <div className="ai-insight-section actionable">
-                            <h4>Chiến lược khắc phục</h4>
-                            <ul>
-                                {aiInsights.actionable_advice?.map((adv, idx) => (
-                                    <li key={idx}>{adv}</li>
-                                ))}
-                            </ul>
-                        </div>
-                        <div className="ai-insight-section practice">
-                            <h4>Ưu tiên luyện tập</h4>
-                            <div className="tags">
-                                {aiInsights.recommended_practice?.map((prac, idx) => (
-                                    <span key={idx} className="practice-tag"><Target size={14} /> {prac}</span>
-                                ))}
+                        <div className="ai-insight-cols">
+                            <div className="ai-insight-section actionable">
+                                <h4>Chiến lược khắc phục</h4>
+                                <ul>
+                                    {aiInsights.actionable_advice?.map((adv, idx) => (
+                                        <li key={idx}>{adv}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                            <div className="ai-insight-section practice">
+                                <h4>Ưu tiên luyện tập</h4>
+                                <div className="tags">
+                                    {aiInsights.recommended_practice?.map((prac, idx) => (
+                                        <span key={idx} className="practice-tag"><Target size={14} /> {prac}</span>
+                                    ))}
+                                </div>
                             </div>
                         </div>
-                    </div>
                     )}
 
                     {!aiInsights.feedback && (
@@ -430,14 +426,14 @@ export default function EnhancedAnalyticsDashboard() {
                         ) : (
                             <div className="heatmap-v2-shell">
                                 <div className="heatmap-v2-summary">
-                                    <span className="heatmap-v2-chip">Dang cau hoi: <strong>{normalizedHeatmapRows.length}</strong></span>
-                                    <span className="heatmap-v2-chip">Ma loi hien thi: <strong>{visibleCodes.length}</strong> / {sortedCodes.length}</span>
-                                    <span className="heatmap-v2-chip">O cao nhat: <strong>{maxCellValue}</strong></span>
+                                    <span className="heatmap-v2-chip">Question Types: <strong>{normalizedHeatmapRows.length}</strong></span>
+                                    <span className="heatmap-v2-chip">Mã lỗi hiển thị: <strong>{visibleCodes.length}</strong> / {sortedCodes.length}</span>
+                                    <span className="heatmap-v2-chip">Ô cao nhất: <strong>{maxCellValue}</strong></span>
                                 </div>
 
                                 <div className="heatmap-v2-scroll">
                                     <div className="heatmap-v2-grid" style={{ gridTemplateColumns: `260px repeat(${visibleCodes.length}, minmax(88px, 1fr)) 90px` }}>
-                                        <div className="heatmap-v2-cell heatmap-v2-header heatmap-v2-corner">Dang cau hoi</div>
+                                        <div className="heatmap-v2-cell heatmap-v2-header heatmap-v2-corner">Question Type</div>
                                         {visibleCodes.map((code) => (
                                             <div
                                                 key={code}
@@ -448,7 +444,7 @@ export default function EnhancedAnalyticsDashboard() {
                                                 <span className="heatmap-v2-code-label">{resolveCodeLabel(code)}</span>
                                             </div>
                                         ))}
-                                        <div className="heatmap-v2-cell heatmap-v2-header heatmap-v2-total-head">Tong</div>
+                                        <div className="heatmap-v2-cell heatmap-v2-header heatmap-v2-total-head">Tổng</div>
 
                                         {normalizedHeatmapRows.map((row) => (
                                             <React.Fragment key={row.taskType}>
@@ -475,7 +471,7 @@ export default function EnhancedAnalyticsDashboard() {
                                             </React.Fragment>
                                         ))}
 
-                                        <div className="heatmap-v2-cell heatmap-v2-footer-label">Tong theo ma</div>
+                                        <div className="heatmap-v2-cell heatmap-v2-footer-label">Tổng theo mã</div>
                                         {visibleCodes.map((code) => (
                                             <div key={`total-${code}`} className="heatmap-v2-cell heatmap-v2-footer-cell">
                                                 {visibleCodeTotals[code] || 0}
@@ -487,15 +483,15 @@ export default function EnhancedAnalyticsDashboard() {
 
                                 {sortedCodes.length > visibleCodes.length ? (
                                     <p className="heatmap-v2-note">
-                                        Dang hien thi top {visibleCodes.length} ma loi co tan suat cao nhat de de theo doi.
+                                        Đang hiển thị top {visibleCodes.length} mã lỗi có tần suất cao nhất để dễ theo dõi.
                                     </p>
                                 ) : null}
                             </div>
                         )}
                         <div className="heatmap-v2-legend">
                             <span><i style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }} /> 0</span>
-                            <span><i style={{ backgroundColor: 'hsl(208 92% 82%)' }} /> Thap</span>
-                            <span><i style={{ backgroundColor: 'hsl(208 92% 62%)' }} /> Trung binh</span>
+                            <span><i style={{ backgroundColor: 'hsl(208 92% 82%)' }} /> Thấp</span>
+                            <span><i style={{ backgroundColor: 'hsl(208 92% 62%)' }} /> Trung bình</span>
                             <span><i style={{ backgroundColor: 'hsl(208 92% 38%)' }} /> Cao</span>
                         </div>
                     </div>
@@ -524,4 +520,3 @@ export default function EnhancedAnalyticsDashboard() {
         </div>
     );
 }
-

@@ -67,6 +67,19 @@ describe("taxonomy.registry", () => {
     expect(log.taxonomy_version).toBe("ielts_taxonomy_v2");
   });
 
+  it("maps legacy incomplete-answer code to a non-word-limit canonical code", () => {
+    const log = createTaxonomyErrorLog({
+      skillDomain: "reading",
+      taskType: "summary_completion",
+      errorCode: "R-A6",
+      textSnippet: "Example summary gap",
+      explanation: "Blank response",
+    });
+
+    expect(log.error_code).toBe("R.NC.OMIT");
+    expect(log.error_code).not.toBe("R.NC.WLIM");
+  });
+
   it("falls back to skill unclassified code when code is invalid", () => {
     const log = createTaxonomyErrorLog({
       skillDomain: "speaking",

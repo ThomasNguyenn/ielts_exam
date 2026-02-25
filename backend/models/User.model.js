@@ -18,6 +18,12 @@ const userSchema = new mongoose.Schema({
     required: true,
     trim: true,
   },
+  avatarSeed: {
+    type: String,
+    default: "",
+    trim: true,
+    maxlength: 120,
+  },
   role: {
     type: String,
     enum: ['student', 'teacher', 'admin'],

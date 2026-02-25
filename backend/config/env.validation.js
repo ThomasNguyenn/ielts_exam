@@ -7,10 +7,20 @@ const REQUIRED_ENV_VARS = [
 ];
 
 const OPENAI_KEY_ENV_NAMES = ["OPENAI_API_KEY", "OPEN_API_KEY"];
+const MIN_SECRET_LENGTH = 32;
+const ALLOWED_SAMESITE_VALUES = new Set(["lax", "strict", "none"]);
 
 const toBoolean = (value) => {
   const normalized = String(value || "").trim().toLowerCase();
   return ["1", "true", "yes", "on"].includes(normalized);
+};
+
+const parseBooleanEnv = (value, fallback) => {
+  if (value === undefined || value === null || value === "") return fallback;
+  const normalized = String(value).trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "off"].includes(normalized)) return false;
+  return fallback;
 };
 
 const parseOriginList = (value) =>
@@ -28,6 +38,16 @@ const isValidOrigin = (value) => {
   }
 };
 
+const isHttpsOrigin = (value) => {
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
+};
+
+const hasMinimumLength = (value, minLength) => String(value || "").trim().length >= minLength;
+
 const redact = (value) => {
   if (!value) return "<empty>";
   if (value.length <= 6) return "***";
@@ -40,6 +60,7 @@ export const validateEnvironment = ({ env = process.env } = {}) => {
 
   if (isProduction) {
     requiredVars.push("FRONTEND_ORIGINS");
+    requiredVars.push("JWT_REFRESH_SECRET");
   }
 
   if (toBoolean(env.AI_ASYNC_MODE)) {
@@ -58,11 +79,48 @@ export const validateEnvironment = ({ env = process.env } = {}) => {
   }
 
   if (isProduction) {
+    if (!hasMinimumLength(env.JWT_SECRET, MIN_SECRET_LENGTH)) {
+      throw new Error(`JWT_SECRET must be at least ${MIN_SECRET_LENGTH} characters in production.`);
+    }
+    if (!hasMinimumLength(env.JWT_REFRESH_SECRET, MIN_SECRET_LENGTH)) {
+      throw new Error(`JWT_REFRESH_SECRET must be at least ${MIN_SECRET_LENGTH} characters in production.`);
+    }
+    if (String(env.JWT_REFRESH_SECRET || "").trim() === String(env.JWT_SECRET || "").trim()) {
+      throw new Error("JWT_REFRESH_SECRET must be different from JWT_SECRET in production.");
+    }
+  }
+
+  if (isProduction) {
     const configuredOrigins = parseOriginList(env.FRONTEND_ORIGINS);
     const invalidOrigins = configuredOrigins.filter((origin) => !isValidOrigin(origin));
     if (configuredOrigins.length === 0 || invalidOrigins.length > 0) {
       const details = invalidOrigins.length > 0 ? ` Invalid origins: ${invalidOrigins.join(", ")}` : "";
       throw new Error(`FRONTEND_ORIGINS must include valid http(s) origins in production.${details}`);
+    }
+
+    const nonHttpsOrigins = configuredOrigins.filter((origin) => !isHttpsOrigin(origin));
+    if (nonHttpsOrigins.length > 0) {
+      throw new Error(`FRONTEND_ORIGINS must use https in production. Insecure origins: ${nonHttpsOrigins.join(", ")}`);
+    }
+
+    const sameSite = String(env.REFRESH_COOKIE_SAMESITE || "lax").trim().toLowerCase();
+    if (!ALLOWED_SAMESITE_VALUES.has(sameSite)) {
+      throw new Error("REFRESH_COOKIE_SAMESITE must be one of: lax, strict, none");
+    }
+
+    const refreshCookieSecure = parseBooleanEnv(
+      env.REFRESH_COOKIE_SECURE,
+      sameSite === "none" || isProduction,
+    );
+    if (!refreshCookieSecure) {
+      throw new Error("REFRESH_COOKIE_SECURE must be true in production.");
+    }
+    if (sameSite === "none" && !refreshCookieSecure) {
+      throw new Error("REFRESH_COOKIE_SECURE must be true when REFRESH_COOKIE_SAMESITE is 'none'.");
+    }
+
+    if (toBoolean(env.CORS_ALLOW_NO_ORIGIN)) {
+      throw new Error("CORS_ALLOW_NO_ORIGIN must be disabled in production.");
     }
   }
 

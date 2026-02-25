@@ -1,12 +1,12 @@
 ﻿import React, { useState, useEffect } from 'react';
 
 const ANALYSIS_STEPS = [
-    "Äang phÃ¢n tÃ­ch má»Ÿ bÃ i...",
-    "Äang phÃ¢n tÃ­ch thÃ¢n bÃ i...",
-    "Äang phÃ¢n tÃ­ch káº¿t luáº­n...",
-    "Äang phÃ¢n tÃ­ch tá»« vá»±ng...",
-    "Äang kiá»ƒm tra ngá»¯ phÃ¡p...",
-    "Äang phÃ¢n tÃ­ch phong cÃ¡ch viáº¿t..."
+    "Đang phân tích mở bài...",
+    "Đang phân tích thân bài...",
+    "Đang phân tích kết luận...",
+    "Đang phân tích từ vựng...",
+    "Đang kiểm tra ngữ pháp...",
+    "Đang phân tích phong cách viết..."
 ];
 
 const WritingAnalysisLoading = ({ isFinished, onAnimationComplete, elapsedLabel = '00:00' }) => {
@@ -77,7 +77,7 @@ const WritingAnalysisLoading = ({ isFinished, onAnimationComplete, elapsedLabel 
                 </div>
 
                 {/* Text Content */}
-                <h2 className="text-2xl font-black text-slate-800 mb-2">Äang phÃ¢n tÃ­ch bÃ i viáº¿t</h2>
+                <h2 className="text-2xl font-black text-slate-800 mb-2">Đang phân tích bài viết</h2>
                 <p className="text-slate-500 font-medium mb-3">Vui lòng chờ trong giây lát...</p>
                 <p className="text-slate-600 font-semibold mb-8">Thời gian chờ: {elapsedLabel}</p>
 
@@ -123,9 +123,9 @@ const WritingAnalysisLoading = ({ isFinished, onAnimationComplete, elapsedLabel 
 
                 {/* Random Tip Box (Optional) */}
                 <div className="mt-6 bg-slate-50 p-4 rounded-xl border border-slate-200 w-full text-center">
-                    <div className="flex justify-center mb-2 text-2xl">ðŸŽ¯</div>
+                    <div className="flex justify-center mb-2 text-2xl">🎯</div>
                     <p className="text-xs text-slate-500 italic">
-                        "Khi Ä‘Æ°a vÃ­ dá»¥, hÃ£y tháº­t cá»¥ thá»ƒ. Äá»«ng nÃ³i chung chung."
+                        "Khi đưa ví dụ, hãy thật cụ thể. Đừng nói chung chung."
                     </p>
                 </div>
             </div>

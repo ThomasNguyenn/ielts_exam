@@ -150,7 +150,7 @@ const LEGACY_TO_CANONICAL = Object.freeze({
   "R-A3": "R.NC.WFORM",
   "R-A4": "R.NC.NUM",
   "R-A5": "R.NC.WLIM",
-  "R-A6": "R.NC.WLIM",
+  "R-A6": "R.NC.OMIT",
   "R-C1": "R.NC.KEY",
   "R-C2": "R.MH.PARA",
   "R-C3": "R.MH.MID",

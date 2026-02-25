@@ -7,6 +7,8 @@ const requireEnv = (name) => {
 };
 
 export const JWT_SECRET = requireEnv("JWT_SECRET");
+const IS_PRODUCTION = String(process.env.NODE_ENV || "").trim().toLowerCase() === "production";
+const ALLOWED_SAMESITE_VALUES = new Set(["lax", "strict", "none"]);
 
 const parseBooleanEnv = (value, fallback) => {
   if (value === undefined || value === null || value === "") return fallback;
@@ -22,9 +24,22 @@ export const REFRESH_TOKEN_EXPIRES_IN = (process.env.REFRESH_TOKEN_EXPIRES_IN ||
 export const REFRESH_COOKIE_NAME = (process.env.REFRESH_COOKIE_NAME || "lr_refresh").trim();
 export const REFRESH_COOKIE_PATH = (process.env.REFRESH_COOKIE_PATH || "/api/auth").trim();
 
-const defaultSameSite = process.env.NODE_ENV === "production" ? "none" : "lax";
-export const REFRESH_COOKIE_SAMESITE = (process.env.REFRESH_COOKIE_SAMESITE || defaultSameSite).trim().toLowerCase();
+if (!REFRESH_COOKIE_PATH.startsWith("/")) {
+  throw new Error("REFRESH_COOKIE_PATH must start with '/'");
+}
+
+const defaultSameSite = "lax";
+export const REFRESH_COOKIE_SAMESITE = (process.env.REFRESH_COOKIE_SAMESITE || defaultSameSite)
+  .trim()
+  .toLowerCase();
+if (!ALLOWED_SAMESITE_VALUES.has(REFRESH_COOKIE_SAMESITE)) {
+  throw new Error("REFRESH_COOKIE_SAMESITE must be one of: lax, strict, none");
+}
+
 export const REFRESH_COOKIE_SECURE = parseBooleanEnv(
   process.env.REFRESH_COOKIE_SECURE,
-  REFRESH_COOKIE_SAMESITE === "none" || process.env.NODE_ENV === "production",
+  REFRESH_COOKIE_SAMESITE === "none" || IS_PRODUCTION,
 );
+if (REFRESH_COOKIE_SAMESITE === "none" && !REFRESH_COOKIE_SECURE) {
+  throw new Error("REFRESH_COOKIE_SECURE must be true when REFRESH_COOKIE_SAMESITE is 'none'");
+}

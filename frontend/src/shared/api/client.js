@@ -140,6 +140,14 @@ function hasValidAccessSession() {
   return true;
 }
 
+function hasStoredSession() {
+  const token = getToken();
+  if (!token) return false;
+  const user = getUser();
+  if (!user) return false;
+  return true;
+}
+
 function handleUnauthorized(path) {
   const publicAuthPaths = new Set([
     '/api/auth/login',
@@ -358,7 +366,9 @@ export const api = {
     }
   },
   isAuthenticated: () => {
-    return hasValidAccessSession();
+    // Keep UX stable when access token expires: requests will refresh on 401.
+    // Hard logout still happens when refresh fails.
+    return hasStoredSession();
   },
 
   // Tests

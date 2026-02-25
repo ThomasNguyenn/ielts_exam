@@ -14,6 +14,12 @@ import {
   REFRESH_COOKIE_SECURE,
 } from "../config/security.config.js";
 import { sendVerificationEmail, sendPasswordResetEmail } from "../services/email.service.js";
+import {
+  buildProfileDashboard,
+  normalizeProfileTargets,
+  sanitizeAvatarSeed,
+  sanitizeDisplayName,
+} from "../services/profileDashboard.service.js";
 import { handleControllerError, sendControllerError, logControllerError } from "../utils/controllerError.js";
 
 const PASSWORD_MIN = 8;
@@ -130,6 +136,19 @@ const pickAuthUserPayload = (user) => ({
   name: user.name,
   role: user.role,
   isConfirmed: user.isConfirmed,
+});
+
+const pickProfileUserPayload = (user) => ({
+  _id: user._id,
+  email: user.email,
+  name: user.name,
+  role: user.role,
+  isConfirmed: user.isConfirmed,
+  createdAt: user.createdAt || null,
+  avatarSeed: sanitizeAvatarSeed(user.avatarSeed, `${user.name || user.email || "ielts-student"}`),
+  targets: normalizeProfileTargets(user.targets),
+  xp: Number(user.xp || 0),
+  level: Number(user.level || 1),
 });
 
 export const register = async (req, res) => {
@@ -526,11 +545,22 @@ export const logout = async (req, res) => {
 
 export const getProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select('-password');
+    const user = await User.findById(req.user.userId).lean();
     if (!user) {
       return sendControllerError(req, res, { statusCode: 404, message: "User not found"  });
     }
-    res.json({ success: true, data: user });
+
+    const profileUser = pickProfileUserPayload(user);
+    const dashboard = await buildProfileDashboard(req.user.userId, { targets: profileUser.targets });
+
+    res.set("Cache-Control", "no-store");
+    res.json({
+      success: true,
+      data: {
+        ...profileUser,
+        dashboard,
+      },
+    });
   } catch (error) {
     return handleControllerError(req, res, error, { route: "auth.getProfile" });
   }
@@ -539,27 +569,67 @@ export const getProfile = async (req, res) => {
 export const updateProfile = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { targets, name } = req.body;
+    const existingUser = await User.findById(userId).select("name email role isConfirmed createdAt targets avatarSeed xp level");
+    if (!existingUser) {
+      return sendControllerError(req, res, { statusCode: 404, message: "User not found"  });
+    }
+
+    const { targets, name, avatarSeed } = req.body || {};
 
     const updateFields = {};
-    if (name) updateFields.name = name;
-    if (targets) {
-      updateFields.targets = targets;
+
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, "name")) {
+      const sanitizedName = sanitizeDisplayName(name);
+      if (!sanitizedName) {
+        return sendControllerError(req, res, { statusCode: 400, message: "Name cannot be empty"  });
+      }
+      updateFields.name = sanitizedName;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, "targets")) {
+      updateFields.targets = normalizeProfileTargets(targets, existingUser.targets || {});
+    }
+
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, "avatarSeed")) {
+      updateFields.avatarSeed = sanitizeAvatarSeed(
+        avatarSeed,
+        existingUser.avatarSeed || existingUser.name || existingUser.email || "ielts-student",
+      );
+    }
+
+    if (Object.keys(updateFields).length === 0) {
+      const profileUser = pickProfileUserPayload(existingUser.toObject());
+      const dashboard = await buildProfileDashboard(userId, { targets: profileUser.targets });
+      res.set("Cache-Control", "no-store");
+      return res.json({
+        success: true,
+        data: {
+          ...profileUser,
+          dashboard,
+        },
+        message: "No profile changes detected",
+      });
     }
 
     const user = await User.findByIdAndUpdate(
       userId,
       { $set: updateFields },
       { new: true, runValidators: true }
-    ).select('-password');
-
+    ).lean();
     if (!user) {
       return sendControllerError(req, res, { statusCode: 404, message: "User not found"  });
     }
 
+    const profileUser = pickProfileUserPayload(user);
+    const dashboard = await buildProfileDashboard(userId, { targets: profileUser.targets });
+
+    res.set("Cache-Control", "no-store");
     res.json({
       success: true,
-      data: user,
+      data: {
+        ...profileUser,
+        dashboard,
+      },
       message: "Profile updated successfully"
     });
   } catch (error) {
