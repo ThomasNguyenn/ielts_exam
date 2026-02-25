@@ -9,8 +9,11 @@ import { calculateIELTSBand, buildQuestionSlots, buildSteps } from './examHelper
 
 const IELTSSettings = lazy(() => import('@/shared/components/IELTSSettings'));
 
-const EXAM_DRAFT_VERSION = 1;
+const EXAM_DRAFT_VERSION = 2;
 const EXAM_DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
+const LISTENING_AUDIO_REWIND_SECONDS = 5;
+const LISTENING_TIMER_REWIND_SECONDS = 10;
+const LISTENING_RESUME_NOTICE_MS = 3800;
 
 export default function Exam() {
   const { id } = useParams();
@@ -32,6 +35,8 @@ export default function Exam() {
   const [showScoreChoice, setShowScoreChoice] = useState(false);
   const [fontSize, setFontSize] = useState(100); // 100% = default
   const [startTime, setStartTime] = useState(null); // Track when exam actually started (after loading)
+  const [listeningAudioInitialTimeSec, setListeningAudioInitialTimeSec] = useState(0);
+  const [listeningResumeNotice, setListeningResumeNotice] = useState('');
 
   // IELTS Theme & Settings
   const [theme, setTheme] = useState('light');
@@ -43,6 +48,7 @@ export default function Exam() {
   const submitInFlightRef = useRef(false);
   const answersRef = useRef([]);
   const writingAnswersRef = useRef([]);
+  const listeningAudioProgressRef = useRef({ index: 0, timeSec: 0 });
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -55,6 +61,7 @@ export default function Exam() {
     const mode = searchParams.get('mode') ?? 'full';
     return `exam-draft:${id}:${mode}:${part}`;
   }, [id, location.search]);
+  const shouldPersistExamDraft = Boolean(exam?.is_real_test) && !isSingleMode;
 
   useEffect(() => {
     // Reset on mount so StrictMode's dev double-invocation does not leave it false.
@@ -69,77 +76,131 @@ export default function Exam() {
   }, []);
 
   useEffect(() => {
+    if (!listeningResumeNotice) return undefined;
+    const timeoutId = window.setTimeout(() => {
+      setListeningResumeNotice('');
+    }, LISTENING_RESUME_NOTICE_MS);
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [listeningResumeNotice]);
+
+  useEffect(() => {
     if (!id) return;
     api
       .getExam(id)
       .then((res) => {
-        // console.log("Exam Data Received:", res.data); // Debug log
-        setExam(res.data);
+        const examData = res.data;
+        setExam(examData);
         setLoadError(null);
         setSubmitError(null);
         setPassageState({});
-        const slots = buildQuestionSlots(res.data);
-        const steps = buildSteps(res.data);
+        const slots = buildQuestionSlots(examData);
+        const steps = buildSteps(examData);
+        const allowDraftResume = Boolean(examData?.is_real_test) && !isSingleMode;
+        const listeningQueue = !isSingleMode && examData?.type === 'listening'
+          ? (examData.full_audio
+              ? [examData.full_audio]
+              : (examData.listening || []).map((section) => section.audio_url).filter(Boolean))
+          : [];
         // console.log("Built Steps:", steps); // Debug log
         const initialAnswers = Array(slots.length).fill('');
         setAnswers(initialAnswers);
         answersRef.current = initialAnswers;
         // Initialize writing answers array
-        const writingCount = (res.data.writing || []).length;
+        const writingCount = (examData.writing || []).length;
         const initialWritingAnswers = Array(writingCount).fill('');
         setWritingAnswers(initialWritingAnswers);
         writingAnswersRef.current = initialWritingAnswers;
+        setListeningAudioIndex(0);
+        setListeningAudioInitialTimeSec(0);
+        listeningAudioProgressRef.current = { index: 0, timeSec: 0 };
+        setListeningResumeNotice('');
 
-        const duration = res.data.duration || 60;
+        const duration = examData.duration || 60;
         const defaultTimeRemaining = duration * 60;
         let restoredFromDraft = false;
 
         try {
-          const rawDraft = localStorage.getItem(draftKey);
-          if (rawDraft) {
-            const draft = JSON.parse(rawDraft);
-            const isFresh = (Date.now() - Number(draft?.updatedAt || 0)) <= EXAM_DRAFT_TTL_MS;
-            const sameMode = Boolean(draft?.isSingleMode) === Boolean(isSingleMode);
+          if (!allowDraftResume) {
+            localStorage.removeItem(draftKey);
+            setTimeRemaining(defaultTimeRemaining);
+          } else {
+            const rawDraft = localStorage.getItem(draftKey);
+            if (rawDraft) {
+              const draft = JSON.parse(rawDraft);
+              const isFresh = (Date.now() - Number(draft?.updatedAt || 0)) <= EXAM_DRAFT_TTL_MS;
+              const sameMode = Boolean(draft?.isSingleMode) === Boolean(isSingleMode);
 
-            if (isFresh && sameMode && Number(draft?.version) === EXAM_DRAFT_VERSION) {
-              if (Array.isArray(draft.answers) && draft.answers.length === slots.length) {
-                setAnswers(draft.answers);
-                answersRef.current = draft.answers;
-              }
+              if (isFresh && sameMode && Number(draft?.version) === EXAM_DRAFT_VERSION) {
+                if (Array.isArray(draft.answers) && draft.answers.length === slots.length) {
+                  setAnswers(draft.answers);
+                  answersRef.current = draft.answers;
+                }
 
-              if (Array.isArray(draft.writingAnswers) && draft.writingAnswers.length === writingCount) {
-                setWritingAnswers(draft.writingAnswers);
-                writingAnswersRef.current = draft.writingAnswers;
-              }
+                if (Array.isArray(draft.writingAnswers) && draft.writingAnswers.length === writingCount) {
+                  setWritingAnswers(draft.writingAnswers);
+                  writingAnswersRef.current = draft.writingAnswers;
+                }
 
-              if (draft.passageStates && typeof draft.passageStates === 'object') {
-                setPassageState(draft.passageStates);
-              }
+                if (draft.passageStates && typeof draft.passageStates === 'object') {
+                  setPassageState(draft.passageStates);
+                }
 
-              if (typeof draft.timeRemaining === 'number' && Number.isFinite(draft.timeRemaining) && draft.timeRemaining > 0) {
-                setTimeRemaining(Math.min(defaultTimeRemaining, Math.floor(draft.timeRemaining)));
+                if (typeof draft.timeRemaining === 'number' && Number.isFinite(draft.timeRemaining) && draft.timeRemaining > 0) {
+                  let restoredTimeRemaining = Math.min(defaultTimeRemaining, Math.floor(draft.timeRemaining));
+                  if (examData.type === 'listening') {
+                    restoredTimeRemaining = Math.min(defaultTimeRemaining, restoredTimeRemaining + LISTENING_TIMER_REWIND_SECONDS);
+                  }
+                  setTimeRemaining(restoredTimeRemaining);
+                } else {
+                  setTimeRemaining(defaultTimeRemaining);
+                }
+
+                if (typeof draft.currentStep === 'number' && Number.isFinite(draft.currentStep) && steps.length > 0) {
+                  const maxStep = steps.length - 1;
+                  const restoredStep = Math.max(0, Math.min(maxStep, Math.floor(draft.currentStep)));
+                  setCurrentStep(restoredStep);
+                  restoredFromDraft = true;
+                }
+
+                if (typeof draft.startTime === 'number' && Number.isFinite(draft.startTime)) {
+                  setStartTime(draft.startTime);
+                } else {
+                  setStartTime(Date.now());
+                }
+
+                if (examData.type === 'listening' && listeningQueue.length > 0) {
+                  const maxAudioIndex = listeningQueue.length - 1;
+                  const listeningStepIndices = steps
+                    .map((stepItem, stepIndex) => (stepItem?.type === 'listening' ? stepIndex : -1))
+                    .filter((stepIndex) => stepIndex >= 0);
+                  const draftStepIndex =
+                    typeof draft.currentStep === 'number' && Number.isFinite(draft.currentStep)
+                      ? Math.max(0, Math.min(steps.length - 1, Math.floor(draft.currentStep)))
+                      : null;
+                  const fallbackAudioIndexFromStep =
+                    draftStepIndex !== null ? Math.max(0, listeningStepIndices.indexOf(draftStepIndex)) : 0;
+                  const restoredAudioIndex = typeof draft.listeningAudioIndex === 'number' && Number.isFinite(draft.listeningAudioIndex)
+                    ? Math.max(0, Math.min(maxAudioIndex, Math.floor(draft.listeningAudioIndex)))
+                    : Math.min(maxAudioIndex, fallbackAudioIndexFromStep);
+                  const savedAudioPosition = typeof draft.listeningAudioPositionSec === 'number' && Number.isFinite(draft.listeningAudioPositionSec)
+                    ? Math.max(0, draft.listeningAudioPositionSec)
+                    : 0;
+                  const rewoundAudioPosition = Math.max(0, savedAudioPosition - LISTENING_AUDIO_REWIND_SECONDS);
+
+                  setListeningAudioIndex(restoredAudioIndex);
+                  setListeningAudioInitialTimeSec(rewoundAudioPosition);
+                  listeningAudioProgressRef.current = { index: restoredAudioIndex, timeSec: rewoundAudioPosition };
+                  setListeningResumeNotice('\u0110\u00E3 ti\u1EBFp t\u1EE5c b\u00E0i nghe: audio l\u00F9i 5 gi\u00E2y, \u0111\u1ED3ng h\u1ED3 l\u00F9i 10 gi\u00E2y.');
+                }
               } else {
+                localStorage.removeItem(draftKey);
                 setTimeRemaining(defaultTimeRemaining);
               }
-
-              if (typeof draft.currentStep === 'number' && Number.isFinite(draft.currentStep) && steps.length > 0) {
-                const maxStep = steps.length - 1;
-                const restoredStep = Math.max(0, Math.min(maxStep, Math.floor(draft.currentStep)));
-                setCurrentStep(restoredStep);
-                restoredFromDraft = true;
-              }
-
-              if (typeof draft.startTime === 'number' && Number.isFinite(draft.startTime)) {
-                setStartTime(draft.startTime);
-              } else {
-                setStartTime(Date.now());
-              }
             } else {
-              localStorage.removeItem(draftKey);
               setTimeRemaining(defaultTimeRemaining);
             }
-          } else {
-            setTimeRemaining(defaultTimeRemaining);
           }
         } catch {
           setTimeRemaining(defaultTimeRemaining);
@@ -214,7 +275,13 @@ export default function Exam() {
   }, [submitted, timeRemaining]);
 
   useEffect(() => {
-    if (!exam || loading || submitted) return;
+    if (!exam || loading || submitted || !shouldPersistExamDraft) return;
+
+    const listeningProgress = listeningAudioProgressRef.current;
+    const listeningAudioPositionSec =
+      listeningProgress && listeningProgress.index === listeningAudioIndex
+        ? Math.max(0, listeningProgress.timeSec || 0)
+        : 0;
 
     const draftPayload = {
       version: EXAM_DRAFT_VERSION,
@@ -226,6 +293,8 @@ export default function Exam() {
       passageStates,
       timeRemaining,
       startTime,
+      listeningAudioIndex,
+      listeningAudioPositionSec,
     };
 
     try {
@@ -237,18 +306,20 @@ export default function Exam() {
     exam,
     loading,
     submitted,
+    shouldPersistExamDraft,
     isSingleMode,
     currentStep,
     passageStates,
     timeRemaining,
     startTime,
+    listeningAudioIndex,
     answers,
     writingAnswers,
     draftKey,
   ]);
 
   useEffect(() => {
-    if (!exam || loading || submitted) return undefined;
+    if (!exam || loading || submitted || !shouldPersistExamDraft) return undefined;
 
     const handleBeforeUnload = (event) => {
       event.preventDefault();
@@ -259,7 +330,7 @@ export default function Exam() {
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [exam, loading, submitted]);
+  }, [exam, loading, submitted, shouldPersistExamDraft]);
 
   const performSubmit = (returnOnly = false) => {
     if (submitLoading || submitted || submitInFlightRef.current) return Promise.resolve(null);
@@ -449,15 +520,33 @@ export default function Exam() {
   }, [exam, isSingleMode]);
 
   useEffect(() => {
-    setListeningAudioIndex(0);
-  }, [listeningAudioQueue.join('|')]);
+    if (listeningAudioQueue.length === 0) return;
+    if (listeningAudioIndex < listeningAudioQueue.length) return;
+    const safeIndex = Math.max(0, listeningAudioQueue.length - 1);
+    setListeningAudioIndex(safeIndex);
+    setListeningAudioInitialTimeSec(0);
+    listeningAudioProgressRef.current = { index: safeIndex, timeSec: 0 };
+  }, [listeningAudioQueue.length, listeningAudioIndex]);
 
   const handleListeningAudioEnded = useCallback(() => {
     setListeningAudioIndex((prev) => {
-      if (prev + 1 < listeningAudioQueue.length) return prev + 1;
+      if (prev + 1 < listeningAudioQueue.length) {
+        const nextIndex = prev + 1;
+        setListeningAudioInitialTimeSec(0);
+        listeningAudioProgressRef.current = { index: nextIndex, timeSec: 0 };
+        return nextIndex;
+      }
+      listeningAudioProgressRef.current = { index: prev, timeSec: 0 };
       return prev;
     });
   }, [listeningAudioQueue.length]);
+
+  const handleListeningAudioTimeUpdate = useCallback((timeSec) => {
+    listeningAudioProgressRef.current = {
+      index: listeningAudioIndex,
+      timeSec: Math.max(0, Number(timeSec) || 0),
+    };
+  }, [listeningAudioIndex]);
 
   const listeningAudioUrl = listeningAudioQueue[listeningAudioIndex] || null;
   const step = steps[currentStep];
@@ -692,6 +781,11 @@ export default function Exam() {
         filter: `brightness(${brightness}%)`
       }}
     >
+      {listeningResumeNotice && (
+        <div className="listening-resume-toast" role="status" aria-live="polite">
+          {listeningResumeNotice}
+        </div>
+      )}
       <header className="exam-header">
         <div className="exam-header-left">
           <h1 className="exam-title">{exam.title}</h1>
@@ -800,6 +894,8 @@ export default function Exam() {
             setPassageState={setPassageState}
             listeningAudioUrl={listeningAudioUrl}
             onListeningAudioEnded={handleListeningAudioEnded}
+            listeningAudioInitialTimeSec={listeningAudioInitialTimeSec}
+            onListeningAudioTimeUpdate={handleListeningAudioTimeUpdate}
           />
         )}
       </form>

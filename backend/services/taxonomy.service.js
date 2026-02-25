@@ -5,6 +5,7 @@ import {
     getFallbackErrorCode,
     isValidErrorCodeForSkill,
     listErrorCodesForSkill,
+    listErrorCodesForSkillAndQuestionType,
     normalizeQuestionType,
     normalizeSkillDomain,
 } from "./taxonomy.registry.js";
@@ -31,6 +32,45 @@ const pluralCandidates = (word) => {
 };
 
 const normalizeAnswer = (value) => String(value || "").trim().toLowerCase();
+const normalizeQuestionNumberKey = (value) => {
+    const num = Number(value);
+    return Number.isFinite(num) ? String(num) : "";
+};
+
+const buildAttemptQuestionTypeLookup = (attempt) => {
+    const lookup = new Map();
+    const detailedAnswers = Array.isArray(attempt?.detailed_answers) ? attempt.detailed_answers : [];
+
+    detailedAnswers.forEach((answer) => {
+        const key = normalizeQuestionNumberKey(answer?.question_number);
+        if (!key) return;
+
+        const rawType = String(answer?.question_type || "").trim();
+        if (!rawType) return;
+
+        lookup.set(key, rawType);
+    });
+
+    return lookup;
+};
+
+const mergeQuestionTypeContext = (reviewList = [], questionTypeLookup = new Map()) =>
+    reviewList.map((question) => {
+        const key = normalizeQuestionNumberKey(question?.question_number);
+        const rawAttemptType = key ? String(questionTypeLookup.get(key) || "").trim() : "";
+        const rawPayloadType = String(question?.type || "").trim();
+        const effectiveType = rawAttemptType || rawPayloadType;
+
+        return {
+            ...question,
+            attempt_question_type: rawAttemptType,
+            payload_question_type: rawPayloadType,
+            type: effectiveType || "unknown",
+        };
+    });
+
+const resolveQuestionTypeForTaxonomy = (question = {}) =>
+    question?.attempt_question_type || question?.type || question?.payload_question_type || "unknown";
 
 const defaultExplanation = (uAns, cAns) =>
     `Automatic classification: expected '${cAns || "N/A"}' but got '${uAns || "N/A"}'.`;
@@ -69,10 +109,11 @@ const buildErrorLog = ({
     confidence,
     secondaryErrorCodes = [],
 }) => {
+    const questionType = resolveQuestionTypeForTaxonomy(question);
     return createTaxonomyErrorLog({
         skillDomain,
-        taskType: question?.type || "unknown",
-        questionType: normalizeQuestionType(question?.type || "unknown"),
+        taskType: questionType,
+        questionType: normalizeQuestionType(questionType),
         errorCode,
         questionNumber: question?.question_number,
         userAnswer: question?.your_answer,
@@ -175,11 +216,13 @@ export async function evaluateObjectiveErrorsAsync(attemptId, questionReviewList
             console.error(`[TAXONOMY] Attempt not found in DB: ${attemptId}`);
             return;
         }
+        const questionTypeLookup = buildAttemptQuestionTypeLookup(attempt);
+        const contextualReviewList = mergeQuestionTypeContext(reviewList, questionTypeLookup);
 
         const errorLogs = [];
         const unclassifiedErrorsForLLM = [];
 
-        for (const q of reviewList) {
+        for (const q of contextualReviewList) {
             if (q.is_correct) continue;
 
             const heuristic = classifyObjectiveHeuristic({ question: q, skillDomain });
@@ -227,8 +270,23 @@ async function runLLMTaxonomyClassification(questionsList, skill, studentHighlig
 
     const skillDomain = normalizeSkillDomain(skill);
     const fallbackCode = getFallbackErrorCode(skillDomain);
-    const availableCodes = listErrorCodesForSkill(skillDomain).filter((code) => !code.endsWith("UNCLASSIFIED"));
-    const allowedCodesText = availableCodes.join(", ");
+    const questionAllowedCodes = new Map();
+    const aggregateAllowedCodes = new Set();
+
+    questionsList.forEach((q) => {
+        const questionNumber = String(q?.question_number || "");
+        const effectiveType = resolveQuestionTypeForTaxonomy(q);
+        const byType = listErrorCodesForSkillAndQuestionType(skillDomain, effectiveType)
+            .filter((code) => !code.endsWith("UNCLASSIFIED"));
+        const fallbackAllowed = listErrorCodesForSkill(skillDomain)
+            .filter((code) => !code.endsWith("UNCLASSIFIED"));
+        const allowedCodes = byType.length > 0 ? byType : fallbackAllowed;
+
+        questionAllowedCodes.set(questionNumber, allowedCodes);
+        allowedCodes.forEach((code) => aggregateAllowedCodes.add(code));
+    });
+
+    const allowedCodesText = [...aggregateAllowedCodes].join(", ");
 
     const prompt = `
 You are an IELTS taxonomy expert evaluating incorrect answers for a ${skillDomain} test.
@@ -250,7 +308,7 @@ Return strict JSON with this schema:
 
 Questions:
 ${questionsList.map((q) =>
-        `Q${q.question_number}: Type="${normalizeQuestionType(q.type)}", Text="${q.question_text}", User Answer="${q.your_answer}", Correct Answer="${q.correct_answer}", Options=${JSON.stringify(q.options)}`,
+        `Q${q.question_number}: EffectiveType="${normalizeQuestionType(resolveQuestionTypeForTaxonomy(q))}", AttemptType="${normalizeQuestionType(q.attempt_question_type || "") || "unknown"}", PayloadType="${normalizeQuestionType(q.payload_question_type || q.type || "") || "unknown"}", Allowed=[${(questionAllowedCodes.get(String(q.question_number)) || []).join(", ")}], Text="${q.question_text}", User Answer="${q.your_answer}", Correct Answer="${q.correct_answer}", Options=${JSON.stringify(q.options)}`,
     ).join("\n")}
 
 ${studentHighlights && studentHighlights.length > 0
@@ -277,7 +335,13 @@ ${studentHighlights && studentHighlights.length > 0
             if (!originalQ) return null;
 
             const rawCode = String(c.error_code || "").trim().toUpperCase();
-            const resolvedCode = isValidErrorCodeForSkill(rawCode, skillDomain) ? rawCode : fallbackCode;
+            const allowedCodes = questionAllowedCodes.get(String(originalQ.question_number)) || [];
+            const isAllowedByType = allowedCodes.length === 0 || allowedCodes.includes(rawCode);
+            const resolvedCode = (
+                isValidErrorCodeForSkill(rawCode, skillDomain) && isAllowedByType
+            )
+                ? rawCode
+                : fallbackCode;
 
             return buildErrorLog({
                 question: originalQ,

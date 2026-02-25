@@ -1,6 +1,7 @@
 import TestAttempt from "../models/TestAttempt.model.js";
 import WritingSubmission from "../models/WritingSubmission.model.js";
 import SpeakingSession from "../models/SpeakingSession.js";
+import Test from "../models/Test.model.js";
 import mongoose from "mongoose";
 import OpenAI from "openai";
 import dotenv from "dotenv";
@@ -21,6 +22,239 @@ const ANALYTICS_RANGE_DAYS = {
 const AI_INSIGHTS_CACHE_TTL_MS = 30 * 60 * 1000;
 const AI_INSIGHTS_CACHE_MAX_ENTRIES = 200;
 const aiInsightsCache = new Map();
+
+const CATEGORY_LABELS_VI = Object.freeze({
+  FORM: "Lỗi hình thức",
+  LEXICAL: "Lỗi từ vựng",
+  INFERENCE: "Lỗi suy luận",
+  DISCOURSE: "Lỗi diễn ngôn",
+  STRATEGY: "Lỗi chiến lược",
+  ATTENTION: "Lỗi tập trung",
+  MEMORY: "Lỗi bộ nhớ",
+  TASK: "Lỗi đáp ứng đề bài",
+  COHESION: "Lỗi liên kết",
+  GRAMMAR: "Lỗi ngữ pháp",
+  FLUENCY: "Lỗi độ trôi chảy",
+  COHERENCE: "Lỗi mạch lạc",
+  PRONUNCIATION: "Lỗi phát âm",
+  "Z. Unclassified": "Chưa phân loại",
+  "Legacy (Deprecated)": "Mã cũ (đã ngưng dùng)",
+});
+
+const COGNITIVE_LABELS_VI = Object.freeze({
+  Retrieval: "Truy xuất thông tin",
+  "Semantic Mapping": "Ánh xạ ngữ nghĩa",
+  Inference: "Suy luận",
+  "Discourse Tracking": "Theo dõi diễn ngôn",
+  "Scope Monitoring": "Kiểm soát phạm vi",
+  "Exec Control": "Kiểm soát điều hành",
+  Acoustic: "Phân biệt âm thanh",
+  Segmentation: "Phân tách đơn vị nghe",
+  Prediction: "Dự đoán",
+  Attention: "Tập trung chú ý",
+  "Working Memory": "Bộ nhớ làm việc",
+  "Idea Generation": "Tạo ý tưởng",
+  Planning: "Lập ý",
+  "Lexical Retrieval": "Truy xuất từ vựng",
+  "Syntax Construction": "Xây dựng cấu trúc câu",
+  "Monitoring Revision": "Giám sát và chỉnh sửa",
+  "Real-time Planning": "Lập ý thời gian thực",
+  "Lexical Access": "Truy cập từ vựng",
+  "Grammatical Encoding": "Mã hóa ngữ pháp",
+  "Phonological Encoding": "Mã hóa âm vị",
+  Monitoring: "Tự giám sát",
+  General: "Tổng quát",
+  "R1. Literal Comprehension": "Hiểu thông tin trực tiếp",
+  "R2. Paraphrase Recognition": "Nhận diện diễn đạt lại",
+  "R3. Inference": "Suy luận",
+  "R4. Logical Relationship": "Quan hệ logic",
+  "R5. Skimming / Scanning": "Đọc lướt và quét thông tin",
+  "L1. Sound Discrimination": "Phân biệt âm",
+  "L2. Word Boundary Detection": "Nhận diện ranh giới từ",
+  "L3. Connected Speech Recognition": "Nhận diện nối âm",
+  "L4. Number & Spelling Accuracy": "Độ chính xác số và chính tả",
+  "L5. Attention Tracking": "Theo dõi chú ý",
+  "W-TR. Task Response / Achievement": "Đáp ứng yêu cầu đề bài",
+  "W-CC. Coherence & Cohesion": "Mạch lạc và liên kết",
+  "W-LR. Lexical Resource": "Nguồn từ vựng",
+  "W-GRA. Grammatical Range & Accuracy": "Độ phong phú và chính xác ngữ pháp",
+  "S-FC. Fluency & Coherence": "Độ trôi chảy và mạch lạc",
+  "S-LR. Lexical Resource": "Nguồn từ vựng",
+  "S-GRA. Grammatical Range & Accuracy": "Độ phong phú và chính xác ngữ pháp",
+  "S-PR. Pronunciation": "Phát âm",
+});
+
+const DIMENSION_LABELS_VI = Object.freeze({
+  "R.A.EXPLICIT": "Thông tin hiển ngôn",
+  "R.A.INFERENCE": "Ý nghĩa hàm ẩn",
+  "R.A.WRITER_VIEW": "Quan điểm tác giả",
+  "R.A.LOGIC": "Theo dõi lập luận",
+  "R.A.MAIN_IDEA": "Ý chính và chức năng đoạn",
+  "R.A.PARAPHRASE": "Ánh xạ diễn đạt lại",
+  "R.A.FORM": "Tuân thủ hình thức",
+  "R.A.TIME_STRATEGY": "Quản lý thời gian và chiến lược",
+  "L.A.PHONO_LEXICAL": "Nhận diện âm-thành từ vựng",
+  "L.A.CONNECTED_SPEECH": "Giải mã nối âm",
+  "L.A.DISTRACTOR": "Xử lý thông tin gây nhiễu",
+  "L.A.FORM": "Tuân thủ hình thức",
+  "L.A.PREDICTIVE": "Nghe dự đoán",
+  "L.A.WORKING_MEMORY": "Bộ nhớ làm việc",
+  "W.A.TASK_RESPONSE": "Đáp ứng đề bài",
+  "W.A.COHERENCE": "Mạch lạc và liên kết",
+  "W.A.LEXICAL": "Nguồn từ vựng",
+  "W.A.GRAMMAR": "Ngữ pháp",
+  "S.A.FLUENCY_COHERENCE": "Độ trôi chảy và mạch lạc",
+  "S.A.LEXICAL": "Nguồn từ vựng",
+  "S.A.GRAMMAR": "Ngữ pháp",
+  "S.A.PRONUNCIATION": "Phát âm",
+  unclassified: "Chưa phân loại",
+  deprecated_legacy: "Mã cũ (đã ngưng dùng)",
+});
+
+const SUBTYPE_OVERRIDES_VI = Object.freeze({
+  SPELLING: "Lỗi chính tả",
+  PLURAL_S: "Sai số ít/số nhiều",
+  WORD_FORM: "Sai dạng từ",
+  NUMBER_FORMAT: "Sai định dạng số",
+  PROPER_NOUN_FORMAT: "Sai danh từ riêng",
+  WORD_LIMIT: "Vượt giới hạn số từ",
+  PARAPHRASE_MISS: "Bỏ lỡ paraphrase",
+  NEGATION_TRAP: "Bẫy phủ định",
+  QUANTIFIER_SCOPE: "Sai phạm vi từ chỉ lượng",
+  WRITER_ATTITUDE: "Nhận diện sai thái độ tác giả",
+  WRITING_MISSING_OVERVIEW: "Thiếu overview",
+  WRITING_KEY_FEATURE_SELECTION: "Chọn sai đặc điểm chính",
+  WRITING_INSUFFICIENT_DEVELOPMENT: "Phát triển ý chưa đủ",
+  WRITING_WORD_CHOICE: "Chọn từ chưa chính xác",
+  SPEAKING_FLUENCY_BREAKDOWN: "Gián đoạn độ trôi chảy",
+  SPEAKING_LEX_RANGE_LIMITED: "Vốn từ hạn chế",
+  SPEAKING_PRON_INTELLIGIBILITY: "Độ rõ tiếng phát âm thấp",
+});
+
+const TOKEN_VI = Object.freeze({
+  MCQ: "trắc nghiệm",
+  TFNG: "true/false/not given",
+  YNNG: "yes/no/not given",
+  SPELL: "chính tả",
+  SPELLING: "chính tả",
+  PLUR: "số ít-số nhiều",
+  WFORM: "dạng từ",
+  WORD: "từ",
+  FORM: "hình thức",
+  NUM: "số",
+  NUMBER: "số",
+  PN: "danh từ riêng",
+  WLIM: "giới hạn số từ",
+  KEY: "từ khóa",
+  SCOPE: "phạm vi",
+  DIST: "gây nhiễu",
+  DISTRACTOR: "gây nhiễu",
+  NEG: "phủ định",
+  PART: "một phần",
+  OVER: "quá mức",
+  QNT: "chỉ lượng",
+  OPF: "ý kiến-và-sự thật",
+  PARA: "paraphrase",
+  STEM: "yêu cầu câu hỏi",
+  TIME: "trình tự thời gian",
+  QUAL: "từ hạn định",
+  EXT: "từ cực đoan",
+  NGF: "not given va false/no",
+  MID: "ý chính-và-chi tiết",
+  PFN: "chức năng đoạn",
+  SIG: "tín hiệu liên kết",
+  BND: "ranh giới đoạn",
+  ENT: "thực thể-thuộc tính",
+  PRO: "tham chiếu đại từ",
+  TYPE: "loại nhãn",
+  SPAT: "quan hệ không gian",
+  LAND: "mốc địa điểm",
+  ORI: "định hướng bản đồ",
+  ROUTE: "tuyến đường",
+  SEQ: "thứ tự bước",
+  VIEW: "đổi góc nhìn",
+  PREP: "giới từ vị trí",
+  LINK: "liên kết",
+  LINKO: "lạm dụng từ nối",
+  LINKM: "nối câu máy móc",
+  PARA_BLOCK: "đoạn văn",
+  PROG: "tiến trình ý",
+  RNG: "độ phong phú",
+  CMPX: "cấu trúc phức",
+  SVA: "hòa hợp chủ vị",
+  TENSE: "thì",
+  TEN: "thì",
+  AP: "mạo từ và giới từ",
+  CL: "ranh giới mệnh đề",
+  INTEL: "độ rõ tiếng",
+  WST: "nhấn âm từ",
+  SST: "nhấn âm câu",
+  RHY: "nhịp điệu",
+  CS: "nối âm",
+  INTN: "ngữ điệu",
+  VC: "nguyên âm-phụ âm",
+  CHUNK: "ngắt cụm từ",
+});
+
+const humanizeTokenizedLabel = (value = "") => {
+  const normalized = String(value || "").trim();
+  if (!normalized) return "";
+
+  if (SUBTYPE_OVERRIDES_VI[normalized]) return SUBTYPE_OVERRIDES_VI[normalized];
+  if (CATEGORY_LABELS_VI[normalized]) return CATEGORY_LABELS_VI[normalized];
+  if (COGNITIVE_LABELS_VI[normalized]) return COGNITIVE_LABELS_VI[normalized];
+  if (DIMENSION_LABELS_VI[normalized]) return DIMENSION_LABELS_VI[normalized];
+
+  const compact = normalized
+    .replace(/[.\-/]+/g, "_")
+    .replace(/\s+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+  if (!compact) return normalized;
+  const tokens = compact
+    .split("_")
+    .filter(Boolean)
+    .map((token) => TOKEN_VI[token.toUpperCase()] || token.toLowerCase());
+
+  return tokens.join(" ");
+};
+
+const translateCategoryToVi = (value = "") => {
+  const normalized = String(value || "").trim();
+  if (!normalized) return "";
+  return CATEGORY_LABELS_VI[normalized] || humanizeTokenizedLabel(normalized);
+};
+
+const translateCognitiveSkillToVi = (value = "") => {
+  const normalized = String(value || "").trim();
+  if (!normalized) return "";
+  return COGNITIVE_LABELS_VI[normalized] || humanizeTokenizedLabel(normalized);
+};
+
+const translateDimensionToVi = (value = "") => {
+  const normalized = String(value || "").trim();
+  if (!normalized) return "";
+  return DIMENSION_LABELS_VI[normalized] || humanizeTokenizedLabel(normalized);
+};
+
+const resolveTaxonomyDisplay = (log = {}) => {
+  const normalizedCode = normalizeErrorCode(log?.error_code || "");
+  const meta = getErrorCodeMeta(normalizedCode);
+
+  const rawLabel = String(log?.error_label || meta?.label || "").trim();
+  const rawCategory = String(log?.error_category || meta?.category || "").trim();
+  const rawCognitive = String(log?.cognitive_skill || meta?.cognitiveSkill || "").trim();
+  const rawDimension = String(log?.taxonomy_dimension || meta?.dimension || "").trim();
+
+  return {
+    code: normalizedCode || "",
+    meta,
+    errorLabel: humanizeTokenizedLabel(rawLabel),
+    errorCategory: translateCategoryToVi(rawCategory),
+    cognitiveSkill: translateCognitiveSkillToVi(rawCognitive),
+    taxonomyDimension: translateDimensionToVi(rawDimension),
+  };
+};
 
 const parseAnalyticsFilters = (query = {}) => {
   const rawRange = String(query.range || "all").toLowerCase();
@@ -84,28 +318,22 @@ const parseDetailsPagination = (query = {}) => {
 };
 
 const buildTaxonomyReason = (log = {}) => {
-  const normalizedCode = normalizeErrorCode(log?.error_code || "");
-  const meta = getErrorCodeMeta(normalizedCode);
-  const errorLabel = String(log?.error_label || meta?.label || "").trim();
+  const display = resolveTaxonomyDisplay(log);
   const parts = [
-    log?.error_code ? `Ma loi: ${log.error_code}` : null,
-    errorLabel ? `Loai loi: ${errorLabel}` : null,
-    log?.error_category ? `Nhom: ${log.error_category}` : null,
-    log?.cognitive_skill ? `Ky nang: ${log.cognitive_skill}` : null,
-    log?.taxonomy_dimension ? `Dimension: ${log.taxonomy_dimension}` : null,
+    display.code ? `Mã lỗi: ${display.code}` : null,
+    display.errorLabel ? `Loại lỗi: ${display.errorLabel}` : null,
+    display.errorCategory ? `Nhóm lỗi: ${display.errorCategory}` : null,
+    display.cognitiveSkill ? `Kỹ năng nhận thức: ${display.cognitiveSkill}` : null,
+    display.taxonomyDimension ? `Chiều đánh giá: ${display.taxonomyDimension}` : null,
   ].filter(Boolean);
 
-  if (parts.length === 0) return "Khong du du lieu de giai thich phan loai taxonomy.";
+  if (parts.length === 0) return "Không đủ dữ liệu để giải thích phân loại taxonomy.";
   return `${parts.join(" | ")}.`;
 };
 
 const getErrorLabel = (log = {}) => {
-  const normalizedCode = normalizeErrorCode(log?.error_code || "");
-  const meta = getErrorCodeMeta(normalizedCode);
-  const explicitLabel = String(log?.error_label || "").trim();
-  if (explicitLabel) return explicitLabel;
-  if (meta?.label) return meta.label;
-  return "";
+  const display = resolveTaxonomyDisplay(log);
+  return display.errorLabel || "";
 };
 
 const normalizeErrorDetailsFilters = (query = {}) => ({
@@ -136,6 +364,116 @@ const normalizeTaskTypeForDetails = (rawType = "") => {
   };
 
   return aliasMap[normalized] || normalized;
+};
+
+const MAX_DETAIL_SNIPPET_LENGTH = 500;
+
+const compactDetailText = (value = "", maxLength = MAX_DETAIL_SNIPPET_LENGTH) => {
+  const normalized = String(value || "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized) return "";
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, Math.max(0, maxLength - 3))}...`;
+};
+
+const formatQuestionOptionText = (option = {}) => {
+  const label = compactDetailText(option?.label || "", 24);
+  const text = compactDetailText(option?.text || "", 200);
+  if (label && text) return `${label}. ${text}`;
+  return label || text || "";
+};
+
+const resolveQuestionSnippetFromTest = (question = {}, group = {}) => {
+  const direct = [
+    question?.text,
+    question?.question_text,
+    group?.instructions,
+    group?.text,
+  ];
+
+  for (const candidate of direct) {
+    const normalized = compactDetailText(candidate);
+    if (normalized) return normalized;
+  }
+
+  const questionOptions = Array.isArray(question?.option) ? question.option : [];
+  const groupOptions = Array.isArray(group?.options) ? group.options : [];
+  const options = (questionOptions.length ? questionOptions : groupOptions)
+    .map((option) => formatQuestionOptionText(option))
+    .filter(Boolean);
+
+  if (options.length > 0) {
+    return compactDetailText(`Lua chon: ${options.slice(0, 4).join(" | ")}`);
+  }
+
+  return "";
+};
+
+const buildQuestionSnippetLookupForTest = (testDoc = {}) => {
+  const lookup = new Map();
+  const items = [
+    ...(Array.isArray(testDoc?.reading_passages) ? testDoc.reading_passages : []),
+    ...(Array.isArray(testDoc?.listening_sections) ? testDoc.listening_sections : []),
+  ];
+
+  items.forEach((item) => {
+    const groups = Array.isArray(item?.question_groups) ? item.question_groups : [];
+    groups.forEach((group) => {
+      const questions = Array.isArray(group?.questions) ? group.questions : [];
+      questions.forEach((question) => {
+        const questionNumber = Number(question?.q_number);
+        if (!Number.isFinite(questionNumber)) return;
+
+        const key = String(questionNumber);
+        if (lookup.has(key)) return;
+
+        const snippet = resolveQuestionSnippetFromTest(question, group);
+        if (!snippet) return;
+        lookup.set(key, snippet);
+      });
+    });
+  });
+
+  return lookup;
+};
+
+const buildAttemptQuestionSnippetLookup = async (attempts = []) => {
+  const testIds = [...new Set(
+    attempts
+      .map((attempt) => String(attempt?.test_id || "").trim())
+      .filter(Boolean),
+  )];
+
+  if (testIds.length === 0) return new Map();
+
+  const tests = await Test.find({ _id: { $in: testIds } })
+    .populate("reading_passages")
+    .populate("listening_sections")
+    .select("_id reading_passages listening_sections")
+    .lean();
+
+  const byTestId = new Map();
+  tests.forEach((testDoc) => {
+    byTestId.set(String(testDoc._id), buildQuestionSnippetLookupForTest(testDoc));
+  });
+  return byTestId;
+};
+
+const resolveDetailTextSnippet = (log = {}, fallbackSnippet = "") => {
+  const candidates = [
+    log?.text_snippet,
+    log?.question_text,
+    log?.question_prompt,
+    fallbackSnippet,
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = compactDetailText(candidate);
+    if (normalized) return normalized;
+  }
+
+  return "";
 };
 
 const filterErrorDetails = (details = [], query = {}) => {
@@ -206,13 +544,20 @@ async function aggregateUserErrorDetails(userId) {
     .sort({ submitted_at: -1 })
     .select("_id type test_id submitted_at error_logs")
     .lean();
+  const questionSnippetByTestId = await buildAttemptQuestionSnippetLookup(attempts);
   attempts.forEach((attemptDoc) => {
+    const testId = String(attemptDoc.test_id || "").trim();
+    const questionSnippetLookup = testId ? questionSnippetByTestId.get(testId) : null;
+
     (attemptDoc.error_logs || []).forEach((log, index) => {
+      const taxonomyDisplay = resolveTaxonomyDisplay(log);
+      const fallbackSnippet = questionSnippetLookup?.get(String(log.question_number || "")) || "";
+
       details.push({
         id: `attempt:${attemptDoc._id}:${index}`,
         source_type: "test_attempt",
         source_id: String(attemptDoc._id),
-        source_label: "Test Attempt",
+        source_label: "Lan lam bai",
         source_ref: attemptDoc.test_id || null,
         skill: attemptDoc.type || "unknown",
         logged_at: attemptDoc.submitted_at,
@@ -221,13 +566,13 @@ async function aggregateUserErrorDetails(userId) {
         question_number: log.question_number || null,
         error_code: log.error_code || "UNCLASSIFIED",
         error_label: getErrorLabel(log),
-        error_category: log.error_category || "",
-        cognitive_skill: log.cognitive_skill || "",
-        taxonomy_dimension: log.taxonomy_dimension || "",
+        error_category: taxonomyDisplay.errorCategory || "",
+        cognitive_skill: taxonomyDisplay.cognitiveSkill || "",
+        taxonomy_dimension: taxonomyDisplay.taxonomyDimension || "",
         detection_method: log.detection_method || "",
         taxonomy_version: log.taxonomy_version || "",
         confidence: Number.isFinite(Number(log.confidence)) ? Number(log.confidence) : null,
-        text_snippet: log.text_snippet || "",
+        text_snippet: resolveDetailTextSnippet(log, fallbackSnippet),
         user_answer: log.user_answer || "",
         correct_answer: log.correct_answer || "",
         explanation: log.explanation || "",
@@ -243,11 +588,12 @@ async function aggregateUserErrorDetails(userId) {
   writings.forEach((writingDoc) => {
     const loggedAt = writingDoc.submitted_at || writingDoc.createdAt;
     (writingDoc.error_logs || []).forEach((log, index) => {
+      const taxonomyDisplay = resolveTaxonomyDisplay(log);
       details.push({
         id: `writing:${writingDoc._id}:${index}`,
         source_type: "writing_submission",
         source_id: String(writingDoc._id),
-        source_label: "Writing Submission",
+        source_label: "Bai viet",
         source_ref: writingDoc.test_id || null,
         skill: "writing",
         logged_at: loggedAt,
@@ -256,13 +602,13 @@ async function aggregateUserErrorDetails(userId) {
         question_number: log.question_number || null,
         error_code: log.error_code || "UNCLASSIFIED",
         error_label: getErrorLabel(log),
-        error_category: log.error_category || "",
-        cognitive_skill: log.cognitive_skill || "",
-        taxonomy_dimension: log.taxonomy_dimension || "",
+        error_category: taxonomyDisplay.errorCategory || "",
+        cognitive_skill: taxonomyDisplay.cognitiveSkill || "",
+        taxonomy_dimension: taxonomyDisplay.taxonomyDimension || "",
         detection_method: log.detection_method || "",
         taxonomy_version: log.taxonomy_version || "",
         confidence: Number.isFinite(Number(log.confidence)) ? Number(log.confidence) : null,
-        text_snippet: log.text_snippet || "",
+        text_snippet: resolveDetailTextSnippet(log),
         user_answer: log.user_answer || "",
         correct_answer: log.correct_answer || "",
         explanation: log.explanation || "",
@@ -278,11 +624,12 @@ async function aggregateUserErrorDetails(userId) {
   speakings.forEach((speakingDoc) => {
     const loggedAt = speakingDoc.timestamp || speakingDoc.createdAt;
     (speakingDoc.error_logs || []).forEach((log, index) => {
+      const taxonomyDisplay = resolveTaxonomyDisplay(log);
       details.push({
         id: `speaking:${speakingDoc._id}:${index}`,
         source_type: "speaking_session",
         source_id: String(speakingDoc._id),
-        source_label: "Speaking Session",
+        source_label: "Phien noi",
         source_ref: speakingDoc.questionId || null,
         skill: "speaking",
         logged_at: loggedAt,
@@ -291,13 +638,13 @@ async function aggregateUserErrorDetails(userId) {
         question_number: log.question_number || null,
         error_code: log.error_code || "UNCLASSIFIED",
         error_label: getErrorLabel(log),
-        error_category: log.error_category || "",
-        cognitive_skill: log.cognitive_skill || "",
-        taxonomy_dimension: log.taxonomy_dimension || "",
+        error_category: taxonomyDisplay.errorCategory || "",
+        cognitive_skill: taxonomyDisplay.cognitiveSkill || "",
+        taxonomy_dimension: taxonomyDisplay.taxonomyDimension || "",
         detection_method: log.detection_method || "",
         taxonomy_version: log.taxonomy_version || "",
         confidence: Number.isFinite(Number(log.confidence)) ? Number(log.confidence) : null,
-        text_snippet: log.text_snippet || "",
+        text_snippet: resolveDetailTextSnippet(log),
         user_answer: log.user_answer || "",
         correct_answer: log.correct_answer || "",
         explanation: log.explanation || "",
@@ -444,18 +791,30 @@ const canonicalQuestionType = (rawType = "") => {
 const formatQuestionType = (type = "") => {
   const canonicalType = canonicalQuestionType(type);
   const labels = {
-    tfng: "TRUE / FALSE / NOT GIVEN",
-    ynng: "YES / NO / NOT GIVEN",
+    tfng: "True / False / Not Given",
+    ynng: "Yes / No / Not Given",
     multiple_choice: "Multiple Choice",
     note_completion: "Note Completion",
+    summary_completion: "Summary Completion",
+    sentence_completion: "Sentence Completion",
+    table_completion: "Table Completion",
+    flow_chart_completion: "Flow-chart Completion",
+    form_completion: "Form Completion",
+    map_labeling: "Map Labeling",
+    diagram_labeling: "Diagram Labeling",
     matching_headings: "Matching Headings",
     matching_features: "Matching Features",
     matching_information: "Matching Information",
     matching_sentence_endings: "Matching Sentence Endings",
     matching: "Matching",
-    short_answer: "Short Answer Questions",
+    short_answer: "Short Answer",
     plan_map_diagram: "Plan / Map / Diagram Labeling",
     listening_map: "Listening Map Labeling",
+    task1: "Writing Task 1",
+    task2: "Writing Task 2",
+    part1: "Speaking Part 1",
+    part2: "Speaking Part 2",
+    part3: "Speaking Part 3",
   };
 
   if (labels[canonicalType]) return labels[canonicalType];
@@ -818,11 +1177,13 @@ export const getErrorAnalytics = async (req, res) => {
 
     // Grouping logic for Heatmap (Task Type vs Error Category) and Bar Charts (Cognitive Skill frequency)
     const taskTypeVsCategory = {}; // { 'TFNG': { 'R-C4': 5, 'R-C1': 2 } }
-    const cognitiveSkillCount = {}; // { 'Literal Comprehension': 10 }
+    const cognitiveSkillCount = {}; // { 'Truy xuat thong tin': 10 }
+    const codeLegend = {};
     const skillBreakdown = { reading: 0, listening: 0, writing: 0, speaking: 0 };
     const totalErrors = errorLogs.length;
 
     errorLogs.forEach(log => {
+      const taxonomyDisplay = resolveTaxonomyDisplay(log);
       if (log.skill && Object.prototype.hasOwnProperty.call(skillBreakdown, log.skill)) {
         skillBreakdown[log.skill]++;
       }
@@ -832,9 +1193,12 @@ export const getErrorAnalytics = async (req, res) => {
       const eCode = log.error_code || 'UNCLASSIFIED';
       if (!taskTypeVsCategory[tType]) taskTypeVsCategory[tType] = {};
       taskTypeVsCategory[tType][eCode] = (taskTypeVsCategory[tType][eCode] || 0) + 1;
+      if (!codeLegend[eCode]) {
+        codeLegend[eCode] = taxonomyDisplay.errorLabel || "Chưa phân loại";
+      }
 
       // Bar chart aggregation
-      const cogSkill = log.cognitive_skill || 'General';
+      const cogSkill = taxonomyDisplay.cognitiveSkill || "Tổng quát";
       cognitiveSkillCount[cogSkill] = (cognitiveSkillCount[cogSkill] || 0) + 1;
     });
 
@@ -862,7 +1226,8 @@ export const getErrorAnalytics = async (req, res) => {
         totalErrors,
         skillBreakdown,
         heatmapData,
-        cognitiveData
+        cognitiveData,
+        codeLegend,
       }
     });
 

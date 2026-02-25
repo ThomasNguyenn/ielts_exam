@@ -7,22 +7,22 @@ import './EnhancedAnalytics.css';
 import './ErrorAnalyticsDetailsPage.css';
 
 const RANGE_OPTIONS = [
-  { value: 'all', label: 'All time' },
-  { value: '7d', label: 'Last 7 days' },
-  { value: '30d', label: 'Last 30 days' },
-  { value: '90d', label: 'Last 90 days' },
+  { value: 'all', label: 'Toan bo thoi gian' },
+  { value: '7d', label: '7 ngay gan day' },
+  { value: '30d', label: '30 ngay gan day' },
+  { value: '90d', label: '90 ngay gan day' },
 ];
 
 const SKILL_OPTIONS = [
-  { value: 'all', label: 'All skills' },
-  { value: 'reading', label: 'Reading' },
-  { value: 'listening', label: 'Listening' },
-  { value: 'writing', label: 'Writing' },
-  { value: 'speaking', label: 'Speaking' },
+  { value: 'all', label: 'Tat ca ky nang' },
+  { value: 'reading', label: 'Đọc' },
+  { value: 'listening', label: 'Nghe' },
+  { value: 'writing', label: 'Viết' },
+  { value: 'speaking', label: 'Nói' },
 ];
 
 const TASK_TYPE_OPTIONS = [
-  { value: 'all', label: 'All task types' },
+  { value: 'all', label: 'Tat ca dang cau hoi' },
   { value: 'true_false_not_given', label: 'True / False / Not Given' },
   { value: 'yes_no_not_given', label: 'Yes / No / Not Given' },
   { value: 'multiple_choice', label: 'Multiple Choice' },
@@ -112,7 +112,7 @@ export default function ErrorAnalyticsDetailsPage() {
         setPayload(response?.data || null);
       } catch (err) {
         if (cancelled || requestVersionRef.current !== requestVersion) return;
-        setError(err?.message || 'Failed to load error details.');
+        setError(err?.message || 'Khong tai duoc chi tiet loi.');
       } finally {
         if (cancelled || requestVersionRef.current !== requestVersion) return;
         setIsListLoading(false);
@@ -131,7 +131,7 @@ export default function ErrorAnalyticsDetailsPage() {
   const totalPages = Math.max(1, Number(pagination.totalPages || 1));
 
   const title = useMemo(() => (
-    studentId ? 'Taxonomy Error Details (Student)' : 'Taxonomy Error Details'
+    studentId ? 'Chi tiet loi Taxonomy (Hoc vien)' : 'Chi tiet loi Taxonomy'
   ), [studentId]);
 
   const isInitialLoading = isListLoading && !payload;
@@ -162,7 +162,7 @@ export default function ErrorAnalyticsDetailsPage() {
 
       <div className="error-details-filter-row">
         <label className="enhanced-analytics-filter">
-          <span>Range</span>
+          <span>Khoang thoi gian</span>
           <select value={range} onChange={(e) => updateQuery({ range: e.target.value }, true)}>
             {RANGE_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
@@ -171,7 +171,7 @@ export default function ErrorAnalyticsDetailsPage() {
         </label>
 
         <label className="enhanced-analytics-filter">
-          <span>Skill</span>
+          <span>Ky nang</span>
           <select value={skill} onChange={(e) => updateQuery({ skill: e.target.value }, true)}>
             {SKILL_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
@@ -180,7 +180,7 @@ export default function ErrorAnalyticsDetailsPage() {
         </label>
 
         <label className="enhanced-analytics-filter">
-          <span>Task Type</span>
+          <span>Dang cau hoi</span>
           <select
             value={taskType || 'all'}
             onChange={(e) => updateQuery({ taskType: e.target.value }, true)}
@@ -193,9 +193,9 @@ export default function ErrorAnalyticsDetailsPage() {
       </div>
 
       <div className="error-details-meta">
-        <span>Total errors: <strong>{total}</strong></span>
-        <span>Page: <strong>{page}</strong> / {totalPages}</span>
-        {isListLoading ? <span className="error-details-updating">Updating...</span> : null}
+        <span>Tong loi: <strong>{total}</strong></span>
+        <span>Trang: <strong>{page}</strong> / {totalPages}</span>
+        {isListLoading ? <span className="error-details-updating">Dang cap nhat...</span> : null}
       </div>
 
       {error ? <div className="analytics-inline-error">{error}</div> : null}
@@ -214,9 +214,9 @@ export default function ErrorAnalyticsDetailsPage() {
                 <article key={item.id} className="error-details-card">
                   <header className="error-details-card-head">
                     <div className="error-details-badges">
-                      <span className="error-badge skill">{clean(item.skill) || 'unknown'}</span>
+                      <span className="error-badge skill">{clean(item.skill) || 'khong_xac_dinh'}</span>
                       <span className="error-badge code">{clean(item.error_code) || 'UNCLASSIFIED'}</span>
-                      <span className="error-badge task">{clean(item.task_type_label) || clean(item.task_type) || 'Unknown'}</span>
+                      <span className="error-badge task">{clean(item.task_type_label) || clean(item.task_type) || 'Khong xac dinh'}</span>
                     </div>
                     <div className="error-details-time">
                       <CalendarClock size={14} />
@@ -225,7 +225,7 @@ export default function ErrorAnalyticsDetailsPage() {
                   </header>
 
                   <div className="error-details-context">
-                    <p><FileText size={14} /> <strong>Bài:</strong> {clean(item.source_label) || '-'} | <strong>Ref:</strong> {clean(item.source_ref) || '-'} | <strong>Record:</strong> {clean(item.source_id) || '-'}</p>
+                    <p><FileText size={14} /> <strong>Bài:</strong> {clean(item.source_label) || '-'} | <strong>Ref:</strong> {clean(item.source_ref) || '-'} | <strong>Bản ghi:</strong> {clean(item.source_id) || '-'}</p>
                     <p><AlertTriangle size={14} /> <strong>Câu:</strong> {item.question_number ?? '-'} | <strong>Nhóm taxonomy:</strong> {clean(item.error_category) || '-'} | <strong>Kỹ năng:</strong> {clean(item.cognitive_skill) || '-'}</p>
                     <p><strong>Lỗi cụ thể:</strong> {clean(item.error_label) || '-'}</p>
                   </div>
@@ -240,11 +240,11 @@ export default function ErrorAnalyticsDetailsPage() {
                   {(userAnswer || correctAnswer) ? (
                     <div className="error-details-answer-grid">
                       <div>
-                        <p className="label">User answer</p>
+                        <p className="label">Dap an hoc vien</p>
                         <p>{userAnswer || '-'}</p>
                       </div>
                       <div>
-                        <p className="label">Correct answer</p>
+                        <p className="label">Dap an dung</p>
                         <p>{correctAnswer || '-'}</p>
                       </div>
                     </div>
@@ -270,14 +270,14 @@ export default function ErrorAnalyticsDetailsPage() {
           disabled={page <= 1 || isListLoading}
           onClick={() => updateQuery({ page: String(page - 1) })}
         >
-          <ChevronLeft size={16} /> Prev
+          <ChevronLeft size={16} /> Trang truoc
         </button>
         <button
           type="button"
           disabled={page >= totalPages || isListLoading}
           onClick={() => updateQuery({ page: String(page + 1) })}
         >
-          Next <ChevronRight size={16} />
+          Trang sau <ChevronRight size={16} />
         </button>
       </div>
     </div>

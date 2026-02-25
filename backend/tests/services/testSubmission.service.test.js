@@ -99,6 +99,36 @@ describe("testSubmission.service gradeExam", () => {
         expect(result.questionReview[0].is_correct).toBe(true);
     });
 
+    it("falls back to group instructions when mult_choice questions have no direct text", () => {
+        const test = {
+            type: "reading",
+            reading_passages: [
+                {
+                    question_groups: [
+                        {
+                            type: "mult_choice",
+                            instructions: "Choose TWO letters.",
+                            questions: [
+                                { q_number: 1, correct_answers: ["A"] },
+                                { q_number: 2, correct_answers: ["C"] },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            listening_sections: [],
+        };
+
+        const result = gradeExam({
+            test,
+            examType: "reading",
+            safeAnswers: ["A", "C"],
+        });
+
+        expect(result.questionReview[0].question_text).toBe("Choose TWO letters.");
+        expect(result.questionReview[1].question_text).toBe("Choose TWO letters.");
+    });
+
     it("tracks skipped and wrong answers separately", () => {
         const test = {
             type: "reading",

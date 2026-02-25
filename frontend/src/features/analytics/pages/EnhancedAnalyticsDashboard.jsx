@@ -47,22 +47,22 @@ const TAXONOMY_LEGEND = {
 };
 
 const RANGE_OPTIONS = [
-    { value: 'all', label: 'All time' },
-    { value: '7d', label: 'Last 7 days' },
-    { value: '30d', label: 'Last 30 days' },
-    { value: '90d', label: 'Last 90 days' },
+    { value: 'all', label: 'Toan bo thoi gian' },
+    { value: '7d', label: '7 ngay gan day' },
+    { value: '30d', label: '30 ngay gan day' },
+    { value: '90d', label: '90 ngay gan day' },
 ];
 
 const SKILL_OPTIONS = [
-    { value: 'all', label: 'All skills' },
-    { value: 'reading', label: 'Reading' },
-    { value: 'listening', label: 'Listening' },
-    { value: 'writing', label: 'Writing' },
-    { value: 'speaking', label: 'Speaking' },
+    { value: 'all', label: 'Tat ca ky nang' },
+    { value: 'reading', label: 'Đọc' },
+    { value: 'listening', label: 'Nghe' },
+    { value: 'writing', label: 'Viết' },
+    { value: 'speaking', label: 'Nói' },
 ];
 
 const TASK_TYPE_LABELS = {
-    unknown: 'Unknown',
+    unknown: 'Khong xac dinh',
     reading: 'Reading',
     listening: 'Listening',
     writing: 'Writing',
@@ -97,8 +97,28 @@ const normalizeTaskType = (value) => String(value || 'unknown')
     .toLowerCase()
     .replace(/[\s-]+/g, '_');
 
+const canonicalTaskType = (value) => {
+    const normalized = normalizeTaskType(value);
+    if (
+        normalized === 'multiple_choice' ||
+        normalized === 'mult_choice' ||
+        normalized === 'multiple_choice_single' ||
+        normalized === 'multiple_choice_multi' ||
+        normalized === 'mult_choice_multi'
+    ) {
+        return 'multiple_choice';
+    }
+    if (normalized === 'true_false_notgiven' || normalized === 'tfng') {
+        return 'true_false_not_given';
+    }
+    if (normalized === 'yes_no_notgiven' || normalized === 'ynng') {
+        return 'yes_no_not_given';
+    }
+    return normalized;
+};
+
 const formatTaskType = (taskType) => {
-    const normalized = normalizeTaskType(taskType);
+    const normalized = canonicalTaskType(taskType);
     if (TASK_TYPE_LABELS[normalized]) return TASK_TYPE_LABELS[normalized];
     return normalized
         .split('_')
@@ -144,7 +164,7 @@ export default function EnhancedAnalyticsDashboard() {
                 setDashboard(response?.data || null);
             } catch (err) {
                 if (cancelled || fetchVersionRef.current !== fetchVersion) return;
-                setError(err?.message || 'Failed to load error analytics.');
+                setError(err?.message || 'Khong tai duoc du lieu phan tich loi.');
             } finally {
                 if (cancelled || fetchVersionRef.current !== fetchVersion) return;
                 setLoading(false);
@@ -174,7 +194,7 @@ export default function EnhancedAnalyticsDashboard() {
         } catch (err) {
             if (aiFetchVersionRef.current !== aiVersion) return;
             console.error("AI Insight error", err);
-            setAiError(err?.message || 'Failed to generate AI insights.');
+            setAiError(err?.message || 'Khong tao duoc nhan xet AI.');
         } finally {
             if (aiFetchVersionRef.current !== aiVersion) return;
             setLoadingAi(false);
@@ -206,10 +226,25 @@ export default function EnhancedAnalyticsDashboard() {
         );
     }
 
-    const { totalErrors, heatmapData, cognitiveData } = dashboard || {};
+    const { totalErrors, heatmapData, cognitiveData, codeLegend } = dashboard || {};
     const heatmapRows = Array.isArray(heatmapData) ? heatmapData : [];
+    const canonicalHeatmapRows = heatmapRows.reduce((acc, row) => {
+        const canonicalType = canonicalTaskType(row?.taskType);
+        const current = acc.get(canonicalType) || { taskType: canonicalType };
 
-    const codeTotals = heatmapRows.reduce((acc, row) => {
+        Object.entries(row || {}).forEach(([key, value]) => {
+            if (key === 'taskType') return;
+            const count = Number(value || 0);
+            if (!Number.isFinite(count)) return;
+            current[key] = Number(current[key] || 0) + count;
+        });
+
+        acc.set(canonicalType, current);
+        return acc;
+    }, new Map());
+    const mergedHeatmapRows = Array.from(canonicalHeatmapRows.values());
+
+    const codeTotals = mergedHeatmapRows.reduce((acc, row) => {
         Object.entries(row || {}).forEach(([key, value]) => {
             if (key === 'taskType') return;
             const count = Number(value || 0);
@@ -224,9 +259,9 @@ export default function EnhancedAnalyticsDashboard() {
         .map(([code]) => code);
     const visibleCodes = sortedCodes.slice(0, 12);
 
-    const normalizedHeatmapRows = heatmapRows
+    const normalizedHeatmapRows = mergedHeatmapRows
         .map((row) => {
-            const taskType = String(row?.taskType || 'unknown');
+            const taskType = canonicalTaskType(row?.taskType);
             const values = visibleCodes.reduce((acc, code) => {
                 acc[code] = Number(row?.[code] || 0);
                 return acc;
@@ -268,6 +303,12 @@ export default function EnhancedAnalyticsDashboard() {
         return ratio >= 0.55 ? '#ffffff' : '#0f172a';
     };
 
+    const resolveCodeLabel = (code) => {
+        const dynamicLabel = codeLegend?.[code];
+        if (dynamicLabel) return dynamicLabel;
+        return TAXONOMY_LEGEND[code] || 'Chưa phân loại';
+    };
+
     return (
         <div className="analytics-dashboard">
             {studentId && (
@@ -283,7 +324,7 @@ export default function EnhancedAnalyticsDashboard() {
 
             <div className="enhanced-analytics-filters">
                 <label className="enhanced-analytics-filter">
-                    <span>Range</span>
+                    <span>Khoang thoi gian</span>
                     <select value={rangeFilter} onChange={(e) => setRangeFilter(e.target.value)}>
                         {RANGE_OPTIONS.map((option) => (
                             <option key={option.value} value={option.value}>{option.label}</option>
@@ -291,7 +332,7 @@ export default function EnhancedAnalyticsDashboard() {
                     </select>
                 </label>
                 <label className="enhanced-analytics-filter">
-                    <span>Skill</span>
+                    <span>Ky nang</span>
                     <select value={skillFilter} onChange={(e) => setSkillFilter(e.target.value)}>
                         {SKILL_OPTIONS.map((option) => (
                             <option key={option.value} value={option.value}>{option.label}</option>
@@ -389,25 +430,25 @@ export default function EnhancedAnalyticsDashboard() {
                         ) : (
                             <div className="heatmap-v2-shell">
                                 <div className="heatmap-v2-summary">
-                                    <span className="heatmap-v2-chip">Question types: <strong>{normalizedHeatmapRows.length}</strong></span>
-                                    <span className="heatmap-v2-chip">Visible codes: <strong>{visibleCodes.length}</strong> / {sortedCodes.length}</span>
-                                    <span className="heatmap-v2-chip">Peak cell: <strong>{maxCellValue}</strong></span>
+                                    <span className="heatmap-v2-chip">Dang cau hoi: <strong>{normalizedHeatmapRows.length}</strong></span>
+                                    <span className="heatmap-v2-chip">Ma loi hien thi: <strong>{visibleCodes.length}</strong> / {sortedCodes.length}</span>
+                                    <span className="heatmap-v2-chip">O cao nhat: <strong>{maxCellValue}</strong></span>
                                 </div>
 
                                 <div className="heatmap-v2-scroll">
                                     <div className="heatmap-v2-grid" style={{ gridTemplateColumns: `260px repeat(${visibleCodes.length}, minmax(88px, 1fr)) 90px` }}>
-                                        <div className="heatmap-v2-cell heatmap-v2-header heatmap-v2-corner">Question Type</div>
+                                        <div className="heatmap-v2-cell heatmap-v2-header heatmap-v2-corner">Dang cau hoi</div>
                                         {visibleCodes.map((code) => (
                                             <div
                                                 key={code}
                                                 className="heatmap-v2-cell heatmap-v2-header heatmap-v2-code"
-                                                title={`${code} - ${TAXONOMY_LEGEND[code] || 'Unclassified error'}`}
+                                                title={`${code} - ${resolveCodeLabel(code)}`}
                                             >
                                                 <span className="heatmap-v2-code-key">{code}</span>
-                                                <span className="heatmap-v2-code-label">{TAXONOMY_LEGEND[code] || 'Unclassified'}</span>
+                                                <span className="heatmap-v2-code-label">{resolveCodeLabel(code)}</span>
                                             </div>
                                         ))}
-                                        <div className="heatmap-v2-cell heatmap-v2-header heatmap-v2-total-head">Total</div>
+                                        <div className="heatmap-v2-cell heatmap-v2-header heatmap-v2-total-head">Tong</div>
 
                                         {normalizedHeatmapRows.map((row) => (
                                             <React.Fragment key={row.taskType}>
@@ -434,7 +475,7 @@ export default function EnhancedAnalyticsDashboard() {
                                             </React.Fragment>
                                         ))}
 
-                                        <div className="heatmap-v2-cell heatmap-v2-footer-label">Code total</div>
+                                        <div className="heatmap-v2-cell heatmap-v2-footer-label">Tong theo ma</div>
                                         {visibleCodes.map((code) => (
                                             <div key={`total-${code}`} className="heatmap-v2-cell heatmap-v2-footer-cell">
                                                 {visibleCodeTotals[code] || 0}
@@ -446,21 +487,21 @@ export default function EnhancedAnalyticsDashboard() {
 
                                 {sortedCodes.length > visibleCodes.length ? (
                                     <p className="heatmap-v2-note">
-                                        Showing top {visibleCodes.length} error codes by frequency for readability.
+                                        Dang hien thi top {visibleCodes.length} ma loi co tan suat cao nhat de de theo doi.
                                     </p>
                                 ) : null}
                             </div>
                         )}
                         <div className="heatmap-v2-legend">
                             <span><i style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }} /> 0</span>
-                            <span><i style={{ backgroundColor: 'hsl(208 92% 82%)' }} /> Low</span>
-                            <span><i style={{ backgroundColor: 'hsl(208 92% 62%)' }} /> Medium</span>
-                            <span><i style={{ backgroundColor: 'hsl(208 92% 38%)' }} /> High</span>
+                            <span><i style={{ backgroundColor: 'hsl(208 92% 82%)' }} /> Thap</span>
+                            <span><i style={{ backgroundColor: 'hsl(208 92% 62%)' }} /> Trung binh</span>
+                            <span><i style={{ backgroundColor: 'hsl(208 92% 38%)' }} /> Cao</span>
                         </div>
                     </div>
                 </div>
                 <div className="analytics-card analytics-card-wide">
-                    <h3><BarChart3 size={20} /> Phân bố theo Kỹ năng nhận thức (Cognitive Skill)</h3>
+                    <h3><BarChart3 size={20} /> Phân bố theo kỹ năng nhận thức</h3>
                     <p>Các rào cản nhận thức thường gặp nhất khi làm bài</p>
 
                     {(!cognitiveData || cognitiveData.length === 0) ? (

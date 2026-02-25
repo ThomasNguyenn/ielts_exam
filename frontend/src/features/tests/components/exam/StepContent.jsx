@@ -638,6 +638,8 @@ function StepContent({
   showResult,
   listeningAudioUrl,
   onListeningAudioEnded,
+  listeningAudioInitialTimeSec = 0,
+  onListeningAudioTimeUpdate,
   reviewMode = false,
   reviewLookup = {}
 }) {
@@ -1235,7 +1237,12 @@ function StepContent({
             <span className="audio-text">IELTS Listening Audio</span>
           </div> */}
           <Suspense fallback={null}>
-            <IELTSAudioPlayer audioUrl={audioUrl} onEnded={onListeningAudioEnded} />
+            <IELTSAudioPlayer
+              audioUrl={audioUrl}
+              onEnded={onListeningAudioEnded}
+              initialTimeSec={listeningAudioInitialTimeSec}
+              onTimeUpdate={onListeningAudioTimeUpdate}
+            />
           </Suspense>
           </div>
         )}

@@ -1,198 +1,20 @@
-export const TAXONOMY_VERSION = "ielts_taxonomy_v1";
+import { coreDimensions, errorTaxonomy, questionTypeMaps } from "../constants/ieltsErrorTaxonomy.js";
 
-const readingCoreSkills = [
-  "R1. Literal Comprehension",
-  "R2. Paraphrase Recognition",
-  "R3. Inference",
-  "R4. Logical Relationship",
-  "R5. Skimming / Scanning",
-];
+export const TAXONOMY_VERSION = "ielts_taxonomy_v2";
 
-const listeningCoreSkills = [
-  "L1. Sound Discrimination",
-  "L2. Word Boundary Detection",
-  "L3. Connected Speech Recognition",
-  "L4. Number & Spelling Accuracy",
-  "L5. Attention Tracking",
-];
+const SUPPORTED_SKILLS = new Set(["reading", "listening", "writing", "speaking"]);
 
-const writingCoreSkills = [
-  "W-TR. Task Response / Achievement",
-  "W-CC. Coherence & Cohesion",
-  "W-LR. Lexical Resource",
-  "W-GRA. Grammatical Range & Accuracy",
-];
+export const normalizeErrorCode = (errorCode) => String(errorCode || "").trim().toUpperCase();
 
-const speakingCoreSkills = [
-  "S-FC. Fluency & Coherence",
-  "S-LR. Lexical Resource",
-  "S-GRA. Grammatical Range & Accuracy",
-  "S-PR. Pronunciation",
-];
-
-const def = (skill, dimension, category, label, cognitiveSkill = null) => ({
-  skill,
-  dimension,
-  category,
-  label,
-  cognitiveSkill,
-});
-
-const READING_CODES = {
-  "R-A1": def("reading", "answer_level", "A. Answer-Level Errors", "Spelling Error", "R1. Literal Comprehension"),
-  "R-A2": def("reading", "answer_level", "A. Answer-Level Errors", "Plural / Singular Error", "R1. Literal Comprehension"),
-  "R-A3": def("reading", "answer_level", "A. Answer-Level Errors", "Word Form Error", "R2. Paraphrase Recognition"),
-  "R-A4": def("reading", "answer_level", "A. Answer-Level Errors", "Number Format Error", "R1. Literal Comprehension"),
-  "R-A5": def("reading", "answer_level", "A. Answer-Level Errors", "Exceed Word Limit", "R1. Literal Comprehension"),
-  "R-A6": def("reading", "answer_level", "A. Answer-Level Errors", "Incomplete Answer", "R1. Literal Comprehension"),
-  "R-C1": def("reading", "comprehension", "B. Comprehension Errors", "Wrong Keyword Selection", "R2. Paraphrase Recognition"),
-  "R-C2": def("reading", "comprehension", "B. Comprehension Errors", "Paraphrase Miss", "R2. Paraphrase Recognition"),
-  "R-C3": def("reading", "comprehension", "B. Comprehension Errors", "Main Idea Confusion", "R3. Inference"),
-  "R-C4": def("reading", "comprehension", "B. Comprehension Errors", "Detail Trap", "R3. Inference"),
-  "R-C5": def("reading", "comprehension", "B. Comprehension Errors", "Scope Error", "R5. Skimming / Scanning"),
-  "R-T1": def("reading", "tfng_specific", "C. TFNG Specific Errors", "FALSE vs NOT GIVEN Confusion", "R4. Logical Relationship"),
-  "R-T2": def("reading", "tfng_specific", "C. TFNG Specific Errors", "TRUE vs FALSE Opposite Trap", "R4. Logical Relationship"),
-  "R-T3": def("reading", "tfng_specific", "C. TFNG Specific Errors", "Over-Inference", "R3. Inference"),
-  "R-T4": def("reading", "tfng_specific", "C. TFNG Specific Errors", "Partial Information Trap", "R4. Logical Relationship"),
-  "R-M1": def("reading", "matching_heading", "D. Matching Heading Errors", "Similar Meaning Confusion", "R2. Paraphrase Recognition"),
-  "R-M2": def("reading", "matching_heading", "D. Matching Heading Errors", "Detail vs Main Idea", "R3. Inference"),
-  "R-M3": def("reading", "matching_heading", "D. Matching Heading Errors", "Tone Misinterpretation", "R3. Inference"),
-  "R-S1": def("reading", "strategy", "E. Strategy Errors", "Poor Time Management", "R5. Skimming / Scanning"),
-  "R-S2": def("reading", "strategy", "E. Strategy Errors", "Overthinking", "R3. Inference"),
-  "R-S3": def("reading", "strategy", "E. Strategy Errors", "Random Guessing", "R5. Skimming / Scanning"),
-  "R-S4": def("reading", "strategy", "E. Strategy Errors", "Highlight Irrelevant Text", "R2. Paraphrase Recognition"),
-  "R-UNCLASSIFIED": def("reading", "unclassified", "Z. Unclassified", "Unclassified reading error", "R1. Literal Comprehension"),
+export const normalizeSkillDomain = (skill) => {
+  const normalized = String(skill || "").trim().toLowerCase();
+  return SUPPORTED_SKILLS.has(normalized) ? normalized : null;
 };
-
-const LISTENING_CODES = {
-  "L-A1": def("listening", "surface", "A. Surface Errors", "Spelling Error", "L4. Number & Spelling Accuracy"),
-  "L-A2": def("listening", "surface", "A. Surface Errors", "Plural / Singular", "L4. Number & Spelling Accuracy"),
-  "L-A3": def("listening", "surface", "A. Surface Errors", "Hyphen Error", "L4. Number & Spelling Accuracy"),
-  "L-A4": def("listening", "surface", "A. Surface Errors", "Capitalization", "L4. Number & Spelling Accuracy"),
-  "L-A5": def("listening", "surface", "A. Surface Errors", "Article Omission", "L4. Number & Spelling Accuracy"),
-  "L-C1": def("listening", "listening_specific", "B. Listening-Specific Errors", "Missed Number", "L1. Sound Discrimination"),
-  "L-C2": def("listening", "listening_specific", "B. Listening-Specific Errors", "Missed Proper Noun", "L2. Word Boundary Detection"),
-  "L-C3": def("listening", "listening_specific", "B. Listening-Specific Errors", "Missed Date / Time", "L4. Number & Spelling Accuracy"),
-  "L-C4": def("listening", "listening_specific", "B. Listening-Specific Errors", "Confused Similar Sounds", "L1. Sound Discrimination"),
-  "L-C5": def("listening", "listening_specific", "B. Listening-Specific Errors", "Distractor Trap", "L5. Attention Tracking"),
-  "L-C6": def("listening", "listening_specific", "B. Listening-Specific Errors", "Synonym Miss", "L3. Connected Speech Recognition"),
-  "L-K1": def("listening", "cognitive", "C. Cognitive Errors", "Lost Focus", "L5. Attention Tracking"),
-  "L-K2": def("listening", "cognitive", "C. Cognitive Errors", "Late Writing", "L5. Attention Tracking"),
-  "L-K3": def("listening", "cognitive", "C. Cognitive Errors", "Working Memory Overload", "L5. Attention Tracking"),
-  // Legacy compatibility from old service.
-  "L-T1": def("listening", "legacy_tfng", "Legacy. TFNG Compatibility", "Legacy TFNG confusion", "L5. Attention Tracking"),
-  "L-T2": def("listening", "legacy_tfng", "Legacy. TFNG Compatibility", "Legacy TFNG confusion", "L5. Attention Tracking"),
-  "L-T3": def("listening", "legacy_tfng", "Legacy. TFNG Compatibility", "Legacy TFNG confusion", "L5. Attention Tracking"),
-  "L-T4": def("listening", "legacy_tfng", "Legacy. TFNG Compatibility", "Legacy TFNG confusion", "L5. Attention Tracking"),
-  "L-UNCLASSIFIED": def("listening", "unclassified", "Z. Unclassified", "Unclassified listening error", "L5. Attention Tracking"),
-};
-
-const WRITING_CODES = {
-  "W1-T1": def("writing", "task_achievement", "W1. Task Achievement Errors", "Missing Overview", "W-TR. Task Response / Achievement"),
-  "W1-T2": def("writing", "task_achievement", "W1. Task Achievement Errors", "No Key Feature", "W-TR. Task Response / Achievement"),
-  "W1-T3": def("writing", "task_achievement", "W1. Task Achievement Errors", "Wrong Data Comparison", "W-TR. Task Response / Achievement"),
-  "W1-T4": def("writing", "task_achievement", "W1. Task Achievement Errors", "Over-Detail", "W-TR. Task Response / Achievement"),
-  "W1-G1": def("writing", "grammar", "W1. Grammar Errors", "Tense Error", "W-GRA. Grammatical Range & Accuracy"),
-  "W1-G2": def("writing", "grammar", "W1. Grammar Errors", "Comparison Structure Error", "W-GRA. Grammatical Range & Accuracy"),
-  "W1-G3": def("writing", "grammar", "W1. Grammar Errors", "Preposition Error", "W-GRA. Grammatical Range & Accuracy"),
-  "W1-G4": def("writing", "grammar", "W1. Grammar Errors", "Agreement Error", "W-GRA. Grammatical Range & Accuracy"),
-  "W1-L1": def("writing", "lexical", "W1. Lexical Errors", "Repetition", "W-LR. Lexical Resource"),
-  "W1-L2": def("writing", "lexical", "W1. Lexical Errors", "Informal Vocabulary", "W-LR. Lexical Resource"),
-  "W1-L3": def("writing", "lexical", "W1. Lexical Errors", "Collocation Error", "W-LR. Lexical Resource"),
-  // Legacy compatibility: existing writing prompt can emit W1-C1..W1-C4
-  "W1-C1": def("writing", "coherence", "W1. Coherence", "Weak Sentence Linking", "W-CC. Coherence & Cohesion"),
-  "W1-C2": def("writing", "coherence", "W1. Coherence", "Incorrect Linking Word", "W-CC. Coherence & Cohesion"),
-  "W1-C3": def("writing", "coherence", "W1. Coherence", "Repetitive Cohesion Pattern", "W-CC. Coherence & Cohesion"),
-  "W1-C4": def("writing", "coherence", "W1. Coherence", "Paragraphing Issue", "W-CC. Coherence & Cohesion"),
-  "W2-T1": def("writing", "task_response", "W2. Task Response", "Not Answering Question", "W-TR. Task Response / Achievement"),
-  "W2-T2": def("writing", "task_response", "W2. Task Response", "Missing Position", "W-TR. Task Response / Achievement"),
-  "W2-T3": def("writing", "task_response", "W2. Task Response", "Weak Argument", "W-TR. Task Response / Achievement"),
-  "W2-T4": def("writing", "task_response", "W2. Task Response", "Off-topic", "W-TR. Task Response / Achievement"),
-  "W2-C1": def("writing", "coherence", "W2. Coherence", "Poor Paragraphing", "W-CC. Coherence & Cohesion"),
-  "W2-C2": def("writing", "coherence", "W2. Coherence", "Weak Linking", "W-CC. Coherence & Cohesion"),
-  "W2-C3": def("writing", "coherence", "W2. Coherence", "Idea Jump", "W-CC. Coherence & Cohesion"),
-  "W2-G1": def("writing", "grammar", "W2. Grammar", "Complex Sentence Error", "W-GRA. Grammatical Range & Accuracy"),
-  "W2-G2": def("writing", "grammar", "W2. Grammar", "Fragment Sentence", "W-GRA. Grammatical Range & Accuracy"),
-  "W2-G3": def("writing", "grammar", "W2. Grammar", "Run-on Sentence", "W-GRA. Grammatical Range & Accuracy"),
-  "W2-L1": def("writing", "lexical", "W2. Lexical", "Word Choice Inaccuracy", "W-LR. Lexical Resource"),
-  "W2-L2": def("writing", "lexical", "W2. Lexical", "Collocation Error", "W-LR. Lexical Resource"),
-  "W2-L3": def("writing", "lexical", "W2. Lexical", "Overgeneralization", "W-LR. Lexical Resource"),
-  "W-UNCLASSIFIED": def("writing", "unclassified", "Z. Unclassified", "Unclassified writing error", "W-TR. Task Response / Achievement"),
-};
-
-const SPEAKING_CODES = {
-  "S-F1": def("speaking", "fluency_coherence", "S. Fluency & Coherence", "Excessive Pause", "S-FC. Fluency & Coherence"),
-  "S-F2": def("speaking", "fluency_coherence", "S. Fluency & Coherence", "Filler Overuse", "S-FC. Fluency & Coherence"),
-  "S-F3": def("speaking", "fluency_coherence", "S. Fluency & Coherence", "Self-correction Overuse", "S-FC. Fluency & Coherence"),
-  "S-F4": def("speaking", "fluency_coherence", "S. Fluency & Coherence", "Disorganized Idea", "S-FC. Fluency & Coherence"),
-  "S-L1": def("speaking", "lexical", "S. Lexical Resource", "Repetition", "S-LR. Lexical Resource"),
-  "S-L2": def("speaking", "lexical", "S. Lexical Resource", "Incorrect Word Form", "S-LR. Lexical Resource"),
-  "S-L3": def("speaking", "lexical", "S. Lexical Resource", "Limited Vocabulary", "S-LR. Lexical Resource"),
-  "S-L4": def("speaking", "lexical", "S. Lexical Resource", "Misused Collocation", "S-LR. Lexical Resource"),
-  "S-G1": def("speaking", "grammar", "S. Grammar", "Tense Error", "S-GRA. Grammatical Range & Accuracy"),
-  "S-G2": def("speaking", "grammar", "S. Grammar", "Agreement Error", "S-GRA. Grammatical Range & Accuracy"),
-  "S-G3": def("speaking", "grammar", "S. Grammar", "Simple Sentence Overuse", "S-GRA. Grammatical Range & Accuracy"),
-  "S-G4": def("speaking", "grammar", "S. Grammar", "Structure Breakdown", "S-GRA. Grammatical Range & Accuracy"),
-  "S-P1": def("speaking", "pronunciation", "S. Pronunciation", "Word Stress Error", "S-PR. Pronunciation"),
-  "S-P2": def("speaking", "pronunciation", "S. Pronunciation", "Sentence Stress Error", "S-PR. Pronunciation"),
-  "S-P3": def("speaking", "pronunciation", "S. Pronunciation", "Sound Substitution", "S-PR. Pronunciation"),
-  "S-P4": def("speaking", "pronunciation", "S. Pronunciation", "Intonation Flat", "S-PR. Pronunciation"),
-  "S-UNCLASSIFIED": def("speaking", "unclassified", "Z. Unclassified", "Unclassified speaking error", "S-FC. Fluency & Coherence"),
-};
-
-export const ERROR_CODE_DEFINITIONS = Object.freeze({
-  ...READING_CODES,
-  ...LISTENING_CODES,
-  ...WRITING_CODES,
-  ...SPEAKING_CODES,
-});
-
-export const TAXONOMY = Object.freeze({
-  reading: Object.freeze({
-    core_cognitive_skills: readingCoreSkills,
-    question_types: [
-      "note_completion",
-      "summary_completion",
-      "sentence_completion",
-      "table_completion",
-      "flow_chart_completion",
-      "matching_headings",
-      "matching_information",
-      "matching_features",
-      "true_false_not_given",
-      "yes_no_not_given",
-      "multiple_choice",
-      "short_answer",
-    ],
-  }),
-  listening: Object.freeze({
-    core_cognitive_skills: listeningCoreSkills,
-    question_types: [
-      "note_completion",
-      "form_completion",
-      "table_completion",
-      "flow_chart_completion",
-      "map_labeling",
-      "multiple_choice",
-      "short_answer",
-      "sentence_completion",
-      "summary_completion",
-    ],
-  }),
-  writing: Object.freeze({
-    core_cognitive_skills: writingCoreSkills,
-    question_types: ["task1", "task2"],
-  }),
-  speaking: Object.freeze({
-    core_cognitive_skills: speakingCoreSkills,
-    question_types: ["part1", "part2", "part3"],
-  }),
-});
 
 const QUESTION_TYPE_ALIASES = {
   true_false_notgiven: "true_false_not_given",
-  yes_no_notgiven: "yes_no_not_given",
   tfng: "true_false_not_given",
+  yes_no_notgiven: "yes_no_not_given",
   ynng: "yes_no_not_given",
   summary: "summary_completion",
   sentence: "sentence_completion",
@@ -200,53 +22,217 @@ const QUESTION_TYPE_ALIASES = {
   table: "table_completion",
   flowchart_completion: "flow_chart_completion",
   flow_chart: "flow_chart_completion",
+  plan_map_diagram: "map_labeling",
+  listening_map: "map_labeling",
   map_labelling: "map_labeling",
   map_labeling: "map_labeling",
-  diagram_label_completion: "diagram_completion",
+  diagram_label_completion: "diagram_labeling",
+  diagram_completion: "diagram_labeling",
   matching_info: "matching_information",
   matching_heading: "matching_headings",
   multiple_choice_single: "multiple_choice",
   multiple_choice_multi: "multiple_choice",
   mult_choice: "multiple_choice",
   mult_choice_multi: "multiple_choice",
+  task1: "task1",
+  task2: "task2",
+  part1: "part1",
+  part2: "part2",
+  part3: "part3",
 };
 
-const DEFAULT_COGNITIVE_BY_QUESTION_TYPE = {
-  reading: {
-    true_false_not_given: "R4. Logical Relationship",
-    yes_no_not_given: "R4. Logical Relationship",
-    matching_headings: "R3. Inference",
-    matching_information: "R5. Skimming / Scanning",
-    matching_features: "R2. Paraphrase Recognition",
-    multiple_choice: "R3. Inference",
-    note_completion: "R1. Literal Comprehension",
-    sentence_completion: "R1. Literal Comprehension",
-    summary_completion: "R2. Paraphrase Recognition",
-    table_completion: "R1. Literal Comprehension",
-    flow_chart_completion: "R4. Logical Relationship",
-    short_answer: "R5. Skimming / Scanning",
-    diagram_completion: "R5. Skimming / Scanning",
+export const normalizeQuestionType = (questionType) => {
+  const raw = String(questionType || "unknown").trim().toLowerCase();
+  const base = raw.replace(/[\s-]+/g, "_");
+  return QUESTION_TYPE_ALIASES[base] || base;
+};
+
+const QUESTION_TYPE_TO_TAXONOMY = {
+  true_false_not_given: "tfng",
+  yes_no_not_given: "ynng",
+  flow_chart_completion: "flowchart_completion",
+  diagram_labeling: "diagram_labeling",
+  map_labeling: "map_labeling",
+  task1: "task1_academic",
+  task2: "task2_essay",
+  part1: "speaking_part_1",
+  part2: "speaking_part_2",
+  part3: "speaking_part_3",
+};
+
+const toTaxonomyQuestionType = (questionType = "unknown") => {
+  const normalized = normalizeQuestionType(questionType);
+  return QUESTION_TYPE_TO_TAXONOMY[normalized] || normalized;
+};
+
+const toMeta = (entry) => ({
+  skill: entry.skill,
+  dimension: entry.assessment?.code || "unclassified",
+  category: entry.errorCategory || "Z. Unclassified",
+  label: entry.errorSubtype || entry.code,
+  cognitiveSkill: entry.cognitive?.label || "General",
+  questionType: entry.questionType,
+  assessmentLabel: entry.assessment?.label || "",
+  cognitiveCode: entry.cognitive?.code || "",
+});
+
+const TAXONOMY_META_BY_CODE = Object.freeze(
+  Object.fromEntries(
+    Object.entries(errorTaxonomy).map(([code, entry]) => [code, toMeta(entry)]),
+  ),
+);
+
+const FALLBACK_META_BY_CODE = Object.freeze({
+  "R-UNCLASSIFIED": {
+    skill: "reading",
+    dimension: "unclassified",
+    category: "Z. Unclassified",
+    label: "Unclassified reading error",
+    cognitiveSkill: "General",
   },
-  listening: {
-    note_completion: "L4. Number & Spelling Accuracy",
-    sentence_completion: "L3. Connected Speech Recognition",
-    summary_completion: "L3. Connected Speech Recognition",
-    table_completion: "L4. Number & Spelling Accuracy",
-    flow_chart_completion: "L5. Attention Tracking",
-    map_labeling: "L2. Word Boundary Detection",
-    short_answer: "L4. Number & Spelling Accuracy",
-    multiple_choice: "L5. Attention Tracking",
+  "L-UNCLASSIFIED": {
+    skill: "listening",
+    dimension: "unclassified",
+    category: "Z. Unclassified",
+    label: "Unclassified listening error",
+    cognitiveSkill: "General",
   },
-  writing: {
-    task1: "W-TR. Task Response / Achievement",
-    task2: "W-TR. Task Response / Achievement",
+  "W-UNCLASSIFIED": {
+    skill: "writing",
+    dimension: "unclassified",
+    category: "Z. Unclassified",
+    label: "Unclassified writing error",
+    cognitiveSkill: "General",
   },
-  speaking: {
-    part1: "S-FC. Fluency & Coherence",
-    part2: "S-FC. Fluency & Coherence",
-    part3: "S-FC. Fluency & Coherence",
-    speaking: "S-FC. Fluency & Coherence",
+  "S-UNCLASSIFIED": {
+    skill: "speaking",
+    dimension: "unclassified",
+    category: "Z. Unclassified",
+    label: "Unclassified speaking error",
+    cognitiveSkill: "General",
   },
+});
+
+const LEGACY_DEPRECATED_META_BY_CODE = Object.freeze({
+  "L-T1": {
+    skill: "listening",
+    dimension: "deprecated_legacy",
+    category: "Legacy (Deprecated)",
+    label: "Legacy TFNG compatibility code",
+    cognitiveSkill: "General",
+  },
+  "L-T2": {
+    skill: "listening",
+    dimension: "deprecated_legacy",
+    category: "Legacy (Deprecated)",
+    label: "Legacy TFNG compatibility code",
+    cognitiveSkill: "General",
+  },
+  "L-T3": {
+    skill: "listening",
+    dimension: "deprecated_legacy",
+    category: "Legacy (Deprecated)",
+    label: "Legacy TFNG compatibility code",
+    cognitiveSkill: "General",
+  },
+  "L-T4": {
+    skill: "listening",
+    dimension: "deprecated_legacy",
+    category: "Legacy (Deprecated)",
+    label: "Legacy TFNG compatibility code",
+    cognitiveSkill: "General",
+  },
+});
+
+const LEGACY_TO_CANONICAL = Object.freeze({
+  "R-A1": "R.NC.SPELL",
+  "R-A2": "R.NC.PLUR",
+  "R-A3": "R.NC.WFORM",
+  "R-A4": "R.NC.NUM",
+  "R-A5": "R.NC.WLIM",
+  "R-A6": "R.NC.WLIM",
+  "R-C1": "R.NC.KEY",
+  "R-C2": "R.MH.PARA",
+  "R-C3": "R.MH.MID",
+  "R-C4": "R.MCQ.DIST",
+  "R-C5": "R.NC.SCOPE",
+  "R-T1": "R.TFNG.NGF",
+  "R-T2": "R.TFNG.NEG",
+  "R-T3": "R.TFNG.OVER",
+  "R-T4": "R.TFNG.PART",
+  "R-M1": "R.MH.PARA",
+  "R-M2": "R.MH.MID",
+  "R-M3": "R.MH.PFN",
+  "R-S1": "R.MCQ.STEM",
+  "R-S2": "R.TFNG.OVER",
+  "R-S3": "R.MCQ.DIST",
+  "R-S4": "R.NC.KEY",
+
+  "L-A1": "L.NC.SPELL",
+  "L-A2": "L.NC.SPELL",
+  "L-A3": "L.NC.SPELL",
+  "L-A4": "L.NC.SPELL",
+  "L-A5": "L.SEN.SEG",
+  "L-C1": "L.NC.NUM",
+  "L-C2": "L.NC.PN",
+  "L-C3": "L.NC.NUM",
+  "L-C4": "L.NC.SIM",
+  "L-C5": "L.NC.DIST",
+  "L-C6": "L.MCQ.SYN",
+  "L-K1": "L.NC.HEAR",
+  "L-K2": "L.NC.LATE",
+  "L-K3": "L.MCQ.LAST",
+
+  "W1-T1": "W.T1.OVR",
+  "W1-T2": "W.T1.KEY",
+  "W1-T3": "W.T1.COMP",
+  "W1-T4": "W.T1.GRP",
+  "W1-G1": "W.GRA.TENSE",
+  "W1-G2": "W.GRA.CMPX",
+  "W1-G3": "W.GRA.AP",
+  "W1-G4": "W.GRA.SVA",
+  "W1-L1": "W.LR.REP",
+  "W1-L2": "W.LR.REG",
+  "W1-L3": "W.LR.COL",
+  "W1-C1": "W.CC.LINKM",
+  "W1-C2": "W.CC.LINKO",
+  "W1-C3": "W.CC.LINKO",
+  "W1-C4": "W.CC.PARA",
+  "W2-T1": "W.T2.PROM",
+  "W2-T2": "W.T2.POS",
+  "W2-T3": "W.T2.DEV",
+  "W2-T4": "W.T2.PROM",
+  "W2-C1": "W.CC.PARA",
+  "W2-C2": "W.CC.LINKM",
+  "W2-C3": "W.T2.PROG",
+  "W2-G1": "W.GRA.CMPX",
+  "W2-G2": "W.GRA.CL",
+  "W2-G3": "W.GRA.CL",
+  "W2-L1": "W.LR.WCH",
+  "W2-L2": "W.LR.COL",
+  "W2-L3": "W.LR.WCH",
+
+  "S-F1": "S.FC.FL",
+  "S-F2": "S.FC.FIL",
+  "S-F3": "S.FC.SC",
+  "S-F4": "S.FC.LOG",
+  "S-L1": "S.LR.RPT",
+  "S-L2": "S.LR.WCH",
+  "S-L3": "S.LR.RNG",
+  "S-L4": "S.LR.COL",
+  "S-G1": "S.GRA.TEN",
+  "S-G2": "S.GRA.SVA",
+  "S-G3": "S.GRA.SIM",
+  "S-G4": "S.GRA.CMPX",
+  "S-P1": "S.PRON.WST",
+  "S-P2": "S.PRON.SST",
+  "S-P3": "S.PRON.VC",
+  "S-P4": "S.PRON.INTN",
+});
+
+const resolveCanonicalErrorCode = (errorCode) => {
+  const normalized = normalizeErrorCode(errorCode);
+  return LEGACY_TO_CANONICAL[normalized] || normalized;
 };
 
 const FALLBACK_CODE_BY_SKILL = {
@@ -256,62 +242,110 @@ const FALLBACK_CODE_BY_SKILL = {
   speaking: "S-UNCLASSIFIED",
 };
 
-export const normalizeErrorCode = (errorCode) => String(errorCode || "").trim().toUpperCase();
+export const TAXONOMY = Object.freeze({
+  reading: Object.freeze({
+    core_cognitive_skills: coreDimensions.reading.cognitive.map((c) => c.label),
+    question_types: Object.keys(questionTypeMaps.reading),
+  }),
+  listening: Object.freeze({
+    core_cognitive_skills: coreDimensions.listening.cognitive.map((c) => c.label),
+    question_types: Object.keys(questionTypeMaps.listening),
+  }),
+  writing: Object.freeze({
+    core_cognitive_skills: coreDimensions.writing.cognitive.map((c) => c.label),
+    question_types: Object.keys(questionTypeMaps.writing),
+  }),
+  speaking: Object.freeze({
+    core_cognitive_skills: coreDimensions.speaking.cognitive.map((c) => c.label),
+    question_types: Object.keys(questionTypeMaps.speaking),
+  }),
+});
 
-export const normalizeSkillDomain = (skill) => {
-  const normalized = String(skill || "").trim().toLowerCase();
-  if (normalized === "reading" || normalized === "listening" || normalized === "writing" || normalized === "speaking") {
-    return normalized;
-  }
-  return null;
-};
+const CANONICAL_CODES_BY_SKILL = Object.freeze(
+  Object.keys(errorTaxonomy).reduce((acc, code) => {
+    const skill = errorTaxonomy[code].skill;
+    if (!acc[skill]) acc[skill] = [];
+    acc[skill].push(code);
+    return acc;
+  }, {}),
+);
 
-export const normalizeQuestionType = (questionType) => {
-  const raw = String(questionType || "unknown").trim().toLowerCase();
-  const base = raw.replace(/[\s-]+/g, "_");
-  return QUESTION_TYPE_ALIASES[base] || base;
-};
-
-export const getErrorCodeMeta = (errorCode) => ERROR_CODE_DEFINITIONS[normalizeErrorCode(errorCode)] || null;
-
-export const getFallbackErrorCode = (skillDomain) => FALLBACK_CODE_BY_SKILL[normalizeSkillDomain(skillDomain)] || "R-UNCLASSIFIED";
-
-export const isValidErrorCodeForSkill = (errorCode, skillDomain) => {
-  const meta = getErrorCodeMeta(errorCode);
-  return Boolean(meta && meta.skill === normalizeSkillDomain(skillDomain));
-};
-
-export const listErrorCodesForSkill = (skillDomain) => {
-  const normalizedSkill = normalizeSkillDomain(skillDomain);
-  if (!normalizedSkill) return [];
-  return Object.entries(ERROR_CODE_DEFINITIONS)
-    .filter(([, value]) => value.skill === normalizedSkill)
-    .map(([key]) => key)
-    .sort();
-};
-
-export const resolveCognitiveSkill = ({ skillDomain, questionType, errorCode }) => {
-  const normalizedSkill = normalizeSkillDomain(skillDomain);
-  const meta = getErrorCodeMeta(errorCode);
-  if (meta?.cognitiveSkill) return meta.cognitiveSkill;
-
-  const canonicalQuestionType = normalizeQuestionType(questionType);
-  const byQuestionType = DEFAULT_COGNITIVE_BY_QUESTION_TYPE[normalizedSkill];
-  if (byQuestionType?.[canonicalQuestionType]) return byQuestionType[canonicalQuestionType];
-
-  const skillConfig = TAXONOMY[normalizedSkill];
-  return skillConfig?.core_cognitive_skills?.[0] || "General";
-};
-
-const normalizeSecondaryCodes = ({ secondaryErrorCodes, primaryCode, skillDomain }) =>
-  (Array.isArray(secondaryErrorCodes) ? secondaryErrorCodes : [])
-    .map((code) => normalizeErrorCode(code))
-    .filter((code) => code && code !== primaryCode && isValidErrorCodeForSkill(code, skillDomain));
-
+export const ERROR_CODE_DEFINITIONS = Object.freeze({
+  ...TAXONOMY_META_BY_CODE,
+  ...FALLBACK_META_BY_CODE,
+  ...LEGACY_DEPRECATED_META_BY_CODE,
+});
 const clampConfidence = (value) => {
   const num = Number(value);
   if (!Number.isFinite(num)) return null;
   return Math.max(0, Math.min(1, num));
+};
+
+export const getErrorCodeMeta = (errorCode) => {
+  const normalized = normalizeErrorCode(errorCode);
+  if (ERROR_CODE_DEFINITIONS[normalized]) {
+    return ERROR_CODE_DEFINITIONS[normalized];
+  }
+  const canonical = resolveCanonicalErrorCode(normalized);
+  return ERROR_CODE_DEFINITIONS[canonical] || null;
+};
+
+export const getFallbackErrorCode = (skillDomain) =>
+  FALLBACK_CODE_BY_SKILL[normalizeSkillDomain(skillDomain)] || "R-UNCLASSIFIED";
+
+export const isValidErrorCodeForSkill = (errorCode, skillDomain) => {
+  const skill = normalizeSkillDomain(skillDomain);
+  if (!skill) return false;
+  const meta = getErrorCodeMeta(errorCode);
+  return Boolean(meta && meta.skill === skill);
+};
+
+export const listErrorCodesForSkill = (skillDomain) => {
+  const skill = normalizeSkillDomain(skillDomain);
+  if (!skill) return [];
+  return [...(CANONICAL_CODES_BY_SKILL[skill] || [])].sort();
+};
+
+export const listErrorCodesForSkillAndQuestionType = (skillDomain, questionType) => {
+  const skill = normalizeSkillDomain(skillDomain);
+  if (!skill) return [];
+
+  const normalizedType = normalizeQuestionType(questionType);
+  const taxonomyType = toTaxonomyQuestionType(normalizedType);
+  const map = questionTypeMaps[skill] || {};
+  const byType = map[taxonomyType];
+
+  if (Array.isArray(byType) && byType.length > 0) {
+    return [...byType].sort();
+  }
+
+  return listErrorCodesForSkill(skill);
+};
+
+export const resolveCognitiveSkill = ({ skillDomain, questionType, errorCode }) => {
+  const skill = normalizeSkillDomain(skillDomain);
+  const meta = getErrorCodeMeta(errorCode);
+  if (meta?.cognitiveSkill) return meta.cognitiveSkill;
+
+  if (!skill) return "General";
+
+  const normalizedType = normalizeQuestionType(questionType);
+  const taxonomyType = toTaxonomyQuestionType(normalizedType);
+  const codes = questionTypeMaps[skill]?.[taxonomyType] || [];
+  if (codes.length > 0) {
+    const firstMeta = getErrorCodeMeta(codes[0]);
+    if (firstMeta?.cognitiveSkill) return firstMeta.cognitiveSkill;
+  }
+
+  return coreDimensions[skill]?.cognitive?.[0]?.label || "General";
+};
+
+const normalizeSecondaryCodes = ({ secondaryErrorCodes, primaryCode, skillDomain }) => {
+  const list = Array.isArray(secondaryErrorCodes) ? secondaryErrorCodes : [];
+  return list
+    .map((code) => resolveCanonicalErrorCode(code))
+    .filter((code) => code && code !== primaryCode)
+    .filter((code) => isValidErrorCodeForSkill(code, skillDomain));
 };
 
 export const createTaxonomyErrorLog = ({
@@ -332,24 +366,29 @@ export const createTaxonomyErrorLog = ({
   cognitiveSkill,
   errorCategory,
 } = {}) => {
-  const normalizedSkill = normalizeSkillDomain(skillDomain)
-    || getErrorCodeMeta(errorCode)?.skill
-    || "reading";
-  const canonicalType = normalizeQuestionType(questionType || taskType || "unknown");
-  const normalizedCode = normalizeErrorCode(errorCode);
+  const inferredSkill = getErrorCodeMeta(errorCode)?.skill;
+  const normalizedSkill = normalizeSkillDomain(skillDomain) || inferredSkill || "reading";
+
+  const canonicalQuestionType = normalizeQuestionType(questionType || taskType || "unknown");
+
+  const normalizedCode = resolveCanonicalErrorCode(errorCode);
   const primaryCode = isValidErrorCodeForSkill(normalizedCode, normalizedSkill)
     ? normalizedCode
     : getFallbackErrorCode(normalizedSkill);
+
   const meta = getErrorCodeMeta(primaryCode);
 
   return {
-    task_type: canonicalType,
-    question_type: canonicalType,
-    cognitive_skill: cognitiveSkill || meta?.cognitiveSkill || resolveCognitiveSkill({
-      skillDomain: normalizedSkill,
-      questionType: canonicalType,
-      errorCode: primaryCode,
-    }),
+    task_type: canonicalQuestionType,
+    question_type: canonicalQuestionType,
+    cognitive_skill:
+      cognitiveSkill ||
+      meta?.cognitiveSkill ||
+      resolveCognitiveSkill({
+        skillDomain: normalizedSkill,
+        questionType: canonicalQuestionType,
+        errorCode: primaryCode,
+      }),
     error_category: errorCategory || meta?.category || "Z. Unclassified",
     error_code: primaryCode,
     question_number: questionNumber,

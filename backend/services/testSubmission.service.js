@@ -186,6 +186,12 @@ export function gradeExam({ test, examType, safeAnswers }) {
         let questionIndex = questionReview.length;
         for (const group of item.question_groups) {
             const groupQuestions = Array.isArray(group.questions) ? group.questions : [];
+            const groupPrompt = String(group?.instructions || group?.text || "").trim();
+            const resolveQuestionText = (question) => {
+                const directText = String(question?.text || "").trim();
+                if (directText) return directText;
+                return groupPrompt;
+            };
 
             if (group.type === "mult_choice" && groupQuestions.length > 1) {
                 const groupCorrectPool = groupQuestions.map((question) =>
@@ -212,7 +218,7 @@ export function gradeExam({ test, examType, safeAnswers }) {
                     questionReview.push({
                         question_number: question.q_number,
                         type: group.type,
-                        question_text: question.text,
+                        question_text: resolveQuestionText(question),
                         your_answer: safeAnswers[questionIndex] || "",
                         correct_answer: finalCorrectAnswer,
                         options:
@@ -275,7 +281,7 @@ export function gradeExam({ test, examType, safeAnswers }) {
                 questionReview.push({
                     question_number: question.q_number,
                     type: group.type,
-                    question_text: question.text,
+                    question_text: resolveQuestionText(question),
                     your_answer: safeAnswers[questionIndex] || "",
                     correct_answer: finalCorrectAnswer,
                     options:

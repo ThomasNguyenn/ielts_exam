@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   createTaxonomyErrorLog,
   getFallbackErrorCode,
+  getErrorCodeMeta,
   isValidErrorCodeForSkill,
+  listErrorCodesForSkill,
+  listErrorCodesForSkillAndQuestionType,
   normalizeQuestionType,
   normalizeSkillDomain,
   resolveCognitiveSkill,
@@ -15,6 +18,8 @@ describe("taxonomy.registry", () => {
     expect(normalizeQuestionType("TRUE_FALSE_NOTGIVEN")).toBe("true_false_not_given");
     expect(normalizeQuestionType("flowchart-completion")).toBe("flow_chart_completion");
     expect(normalizeQuestionType("multiple choice single")).toBe("multiple_choice");
+    expect(normalizeQuestionType("plan_map_diagram")).toBe("map_labeling");
+    expect(normalizeQuestionType("listening_map")).toBe("map_labeling");
   });
 
   it("validates error codes by skill and returns fallback codes", () => {
@@ -36,8 +41,8 @@ describe("taxonomy.registry", () => {
       errorCode: null,
     });
 
-    expect(fromCode).toBe("R1. Literal Comprehension");
-    expect(fromType).toBe("L2. Word Boundary Detection");
+    expect(fromCode).toBe("Retrieval");
+    expect(fromType).toBe("Attention");
   });
 
   it("creates normalized taxonomy log with metadata and validated code", () => {
@@ -52,14 +57,14 @@ describe("taxonomy.registry", () => {
       secondaryErrorCodes: ["W2-L1", "INVALID"],
     });
 
-    expect(log.error_code).toBe("W2-G1");
+    expect(log.error_code).toBe("W.GRA.CMPX");
     expect(log.skill_domain).toBe("writing");
     expect(log.question_type).toBe("task2");
-    expect(log.taxonomy_dimension).toBe("grammar");
+    expect(log.taxonomy_dimension).toBe("W.A.GRAMMAR");
     expect(log.detection_method).toBe("llm");
     expect(log.confidence).toBe(0.77);
-    expect(log.secondary_error_codes).toEqual(["W2-L1"]);
-    expect(log.taxonomy_version).toBe("ielts_taxonomy_v1");
+    expect(log.secondary_error_codes).toEqual(["W.LR.WCH"]);
+    expect(log.taxonomy_version).toBe("ielts_taxonomy_v2");
   });
 
   it("falls back to skill unclassified code when code is invalid", () => {
@@ -73,6 +78,26 @@ describe("taxonomy.registry", () => {
     expect(log.error_code).toBe("S-UNCLASSIFIED");
     expect(log.skill_domain).toBe("speaking");
     expect(log.question_type).toBe("part2");
+  });
+
+  it("restricts listening codes by question type for map/multiple-choice", () => {
+    const mcqCodes = listErrorCodesForSkillAndQuestionType("listening", "multiple_choice");
+    const mapCodes = listErrorCodesForSkillAndQuestionType("listening", "listening_map");
+    const listeningCodes = listErrorCodesForSkill("listening");
+
+    expect(mcqCodes).not.toContain("L.NC.SPELL");
+    expect(mcqCodes).not.toContain("L.NC.NUM");
+    expect(mcqCodes).toContain("L.MCQ.DIST");
+
+    expect(mapCodes).not.toContain("L.NC.SPELL");
+    expect(mapCodes).not.toContain("L.NC.NUM");
+    expect(mapCodes).toContain("L.MAP.ORI");
+
+    // Legacy listening TFNG codes are deprecated from active lists.
+    expect(listeningCodes).not.toContain("L-T1");
+
+    // But historical records can still resolve metadata safely.
+    expect(getErrorCodeMeta("L-T1")?.dimension).toBe("deprecated_legacy");
   });
 });
 
