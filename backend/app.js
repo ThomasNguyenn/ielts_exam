@@ -148,29 +148,28 @@ export const createApp = ({ startBackgroundJobs = true } = {}) => {
   const allowedOrigins = resolveAllowedOrigins();
   const allowNoOriginCorsRequests = shouldAllowNoOriginCorsRequests();
 
-  const corsOptions = {
-    origin: (origin, callback) => {
-      if (!origin) {
-        if (allowNoOriginCorsRequests) {
-          return callback(null, true);
-        }
+  const buildCorsError = (message, code) => {
+    const error = new Error(message);
+    error.statusCode = 403;
+    error.code = code;
+    return error;
+  };
 
-        const corsError = new Error("CORS origin header is required");
-        corsError.statusCode = 403;
-        corsError.code = "CORS_ORIGIN_REQUIRED";
-        return callback(corsError);
-      }
+  const shouldAllowNoOriginForRequest = (req) => {
+    if (allowNoOriginCorsRequests) return true;
 
-      const normalizedOrigin = normalizeOrigin(origin);
-      if (normalizedOrigin && allowedOrigins.includes(normalizedOrigin)) {
-        return callback(null, true);
-      }
+    const secFetchSite = String(req.get("Sec-Fetch-Site") || "")
+      .trim()
+      .toLowerCase();
+    if (secFetchSite === "same-origin" || secFetchSite === "same-site") {
+      return true;
+    }
 
-      const corsError = new Error("CORS origin is not allowed");
-      corsError.statusCode = 403;
-      corsError.code = "CORS_ORIGIN_DENIED";
-      return callback(corsError);
-    },
+    const hasAuthorization = Boolean(String(req.get("Authorization") || "").trim());
+    return hasAuthorization;
+  };
+
+  const corsBaseOptions = {
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
@@ -210,7 +209,28 @@ export const createApp = ({ startBackgroundJobs = true } = {}) => {
   app.use(normalizeErrorResponse);
   app.use(attachRequestContext);
   app.use(requestLogger);
-  app.use(cors(corsOptions));
+  app.use((req, res, next) => {
+    const options = {
+      ...corsBaseOptions,
+      origin: (origin, callback) => {
+        if (!origin) {
+          if (shouldAllowNoOriginForRequest(req)) {
+            return callback(null, true);
+          }
+          return callback(buildCorsError("CORS origin header is required", "CORS_ORIGIN_REQUIRED"));
+        }
+
+        const normalizedOrigin = normalizeOrigin(origin);
+        if (normalizedOrigin && allowedOrigins.includes(normalizedOrigin)) {
+          return callback(null, true);
+        }
+
+        return callback(buildCorsError("CORS origin is not allowed", "CORS_ORIGIN_DENIED"));
+      },
+    };
+
+    return cors(options)(req, res, next);
+  });
   app.use(express.json({ limit: jsonBodyLimit }));
   app.use(express.urlencoded({ extended: true, limit: jsonBodyLimit }));
   app.use(validateWriteRequestBody);

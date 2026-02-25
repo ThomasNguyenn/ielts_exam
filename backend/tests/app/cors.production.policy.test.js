@@ -61,6 +61,15 @@ describe("production CORS policy", () => {
     expect(res.status).not.toBe(403);
   });
 
+  it("allows requests without Origin when Authorization header is present", async () => {
+    const app = await buildProductionApp();
+    const res = await request(app)
+      .get("/api/health")
+      .set("Authorization", "Bearer test.access.token");
+
+    expect(res.status).not.toBe(403);
+  });
+
   it("allows configured production origins", async () => {
     const app = await buildProductionApp();
     const res = await request(app)
