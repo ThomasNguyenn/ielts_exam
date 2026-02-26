@@ -563,8 +563,14 @@ export const submitSpeaking = async (req, res) => {
         session.provisional_source = fastScoreResult.provisionalSource || "formula_v1";
         session.provisional_ready_at = new Date();
         session.scoring_state = "provisional_ready";
-        if (!session.transcript && fastScoreResult.transcript) {
-          session.transcript = fastScoreResult.transcript;
+        const fastTranscript = String(fastScoreResult.transcript || "").trim();
+        const sttSource = String(fastScoreResult.sttSource || "").trim();
+        const isClientFallbackSource = sttSource === "client_transcript_fallback";
+
+        // Prefer backend STT transcript as canonical transcript.
+        // Only avoid overwrite when fast pipeline itself fell back to client transcript.
+        if (fastTranscript && (!isClientFallbackSource || !String(session.transcript || "").trim())) {
+          session.transcript = fastTranscript;
         }
         await session.save();
 

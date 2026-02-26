@@ -210,13 +210,13 @@ export default function App() {
           <Route path="grading/:id" element={
             <ManageRoute>{withSuspense(<GradingInterface />)}</ManageRoute>
           } />
+          <Route path="scores" element={
+            <ManageRoute>{withSuspense(<ScoreDashboard />)}</ManageRoute>
+          } />
+          <Route path="scores/:userId" element={
+            <ManageRoute>{withSuspense(<UserScoreDetail />)}</ManageRoute>
+          } />
         </Route>
-        <Route path="scores" element={
-          <ManageRoute>{withSuspense(<ScoreDashboard />)}</ManageRoute>
-        } />
-        <Route path="scores/:userId" element={
-          <ManageRoute>{withSuspense(<UserScoreDetail />)}</ManageRoute>
-        } />
         <Route path="analytics/student/:studentId" element={
           <ManageRoute>{withSuspense(<AnalyticsContainer />)}</ManageRoute>
         } />

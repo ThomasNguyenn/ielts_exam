@@ -26,11 +26,21 @@ const WritingSubmissionSchema = new mongoose.Schema({
   score: { type: Number }, // Overall band score
 
   // AI Grading results (stored as the full JSON from OpenAI)
+  ai_fast_result: { type: mongoose.Schema.Types.Mixed },
+  is_ai_fast_graded: { type: Boolean, default: false },
+  ai_fast_model: { type: String, default: null },
+  ai_fast_scored_at: { type: Date, default: null },
   ai_result: { type: mongoose.Schema.Types.Mixed },
   is_ai_graded: { type: Boolean, default: false },
+  scoring_state: {
+    type: String,
+    enum: ["none", "fast_ready", "detail_processing", "detail_ready", "failed"],
+    default: "none",
+  },
 
   // Metadata
   submitted_at: { type: Date, default: Date.now },
+  time_taken_ms: { type: Number, default: null },
   status: {
     type: String,
     enum: ['pending', 'processing', 'scored', 'reviewed', 'failed'],

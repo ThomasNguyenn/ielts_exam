@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>IELTS Writing Submission &amp; AI Score Estimate</title>
+    <link href="https://fonts.googleapis.com" rel="preconnect" />
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
+    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#1152d4",
+                        "secondary": "#2e7d32", // Adding a green for the success state/academic feel
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#101622",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+</head>
+
+<body
+    class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen flex flex-col overflow-x-hidden">
+    <!-- Top Navbar -->
+    <header
+        class="w-full bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-6 py-4 flex items-center justify-between sticky top-0 z-50">
+        <div class="flex items-center gap-3">
+            <div class="flex items-center justify-center text-primary">
+                <span class="material-symbols-outlined text-3xl">school</span>
+            </div>
+            <h1 class="text-xl font-bold tracking-tight text-slate-900 dark:text-white">IELTS AI Prep</h1>
+        </div>
+        <nav class="hidden md:flex items-center gap-8">
+            <a class="text-sm font-medium text-slate-600 hover:text-primary dark:text-slate-300 dark:hover:text-white transition-colors"
+                href="#">Dashboard</a>
+            <a class="text-sm font-medium text-slate-600 hover:text-primary dark:text-slate-300 dark:hover:text-white transition-colors"
+                href="#">Practice Tests</a>
+            <a class="text-sm font-medium text-slate-600 hover:text-primary dark:text-slate-300 dark:hover:text-white transition-colors"
+                href="#">My Progress</a>
+            <a class="text-sm font-medium text-slate-600 hover:text-primary dark:text-slate-300 dark:hover:text-white transition-colors"
+                href="#">Profile</a>
+        </nav>
+        <div class="flex items-center gap-4">
+            <button
+                class="hidden sm:flex items-center justify-center h-10 px-5 bg-primary hover:bg-blue-700 text-white text-sm font-bold rounded-lg transition-all shadow-sm">
+                Start New Test
+            </button>
+            <div class="h-10 w-10 rounded-full bg-gray-200 bg-center bg-cover border-2 border-white dark:border-gray-700 shadow-sm"
+                data-alt="User profile picture placeholder"
+                style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuD9M6Gb7SSgPHo1Kw_WsojXiS7WF-SqBUE76NfWWBohpE9I5L0g6WVY5OiHxrp11z0iEI4d5AVcWXNC1pcXGCjCBklow1tTWeqTvzMYT3r_vVe2Rl92qqFwlIj33b1WO3IHgbm-lv6HBp8KH5rOySl7BjVn5d3qPlmUeKcsjKAquzsJgBC6KISpPMr2F1T2Y9LUgddHIeJpnoz1iB5iagohL2fYHjlnX9FW7LdViWakzqewdj4wmkeyGcYI-OB48A03bn19ZS-smgE");'>
+            </div>
+        </div>
+    </header>
+    <!-- Main Content -->
+    <main class="flex-grow flex justify-center p-4 md:p-8">
+        <div class="w-full max-w-[960px] flex flex-col gap-8">
+            <!-- Success Banner -->
+            <div
+                class="w-full bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-8 flex flex-col items-center justify-center text-center animate-fade-in-up">
+                <div
+                    class="h-20 w-20 bg-green-50 dark:bg-green-900/20 rounded-full flex items-center justify-center mb-6">
+                    <span
+                        class="material-symbols-outlined text-5xl text-green-600 dark:text-green-400">check_circle</span>
+                </div>
+                <h2 class="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white mb-2">Assessment Submitted
+                    Successfully!</h2>
+                <p class="text-slate-600 dark:text-slate-300 max-w-lg">Your writing task has been received and analyzed
+                    by our AI. Below is your preliminary band score estimation and feedback.</p>
+            </div>
+            <!-- Score & Breakdown Section -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <!-- Left Column: Overall Score & Summary -->
+                <div class="lg:col-span-5 flex flex-col gap-6">
+                    <div
+                        class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 flex flex-col items-center">
+                        <h3 class="text-lg font-bold text-slate-800 dark:text-white mb-6 w-full text-center">Estimated
+                            Band Score</h3>
+                        <!-- Circular Gauge Representation -->
+                        <div class="relative h-48 w-48 mb-6">
+                            <svg class="h-full w-full transform -rotate-90" viewbox="0 0 100 100">
+                                <!-- Background Circle -->
+                                <circle class="dark:stroke-gray-700" cx="50" cy="50" fill="none" r="45" stroke="#e2e8f0"
+                                    stroke-width="8"></circle>
+                                <!-- Progress Circle (78% for 7.0/9.0 roughly) -->
+                                <circle cx="50" cy="50" fill="none" r="45" stroke="#1152d4" stroke-dasharray="283"
+                                    stroke-dashoffset="62" stroke-linecap="round" stroke-width="8"></circle>
+                            </svg>
+                            <div class="absolute inset-0 flex flex-col items-center justify-center">
+                                <span class="text-5xl font-bold text-primary dark:text-blue-400">7.0</span>
+                                <span
+                                    class="text-xs font-medium text-slate-400 uppercase tracking-wide mt-1">Overall</span>
+                            </div>
+                        </div>
+                        <div class="px-4 py-2 bg-green-50 dark:bg-green-900/20 rounded-full mb-4">
+                            <p class="text-green-700 dark:text-green-300 text-sm font-semibold flex items-center gap-2">
+                                <span class="material-symbols-outlined text-lg">trending_up</span>
+                                Performance: Strong
+                            </p>
+                        </div>
+                        <p class="text-center text-sm text-slate-500 dark:text-slate-400">Calculated based on IELTS
+                            assessment criteria.</p>
+                    </div>
+                    <!-- Summary Insights -->
+                    <div
+                        class="bg-primary/5 dark:bg-primary/10 border border-primary/10 dark:border-primary/20 rounded-xl p-6">
+                        <div class="flex items-start gap-3 mb-3">
+                            <span class="material-symbols-outlined text-primary mt-1">auto_awesome</span>
+                            <h4 class="text-lg font-bold text-slate-900 dark:text-white">AI Summary</h4>
+                        </div>
+                        <p class="text-slate-700 dark:text-slate-300 leading-relaxed text-sm">
+                            Your essay demonstrates a clear position throughout the response. You have managed
+                            paragraphing sufficiently, though some logical transitions could be smoother. Your
+                            vocabulary is varied, but occasional errors in word choice persist. Focus on using more
+                            complex sentence structures to boost your grammatical range score.
+                        </p>
+                    </div>
+                </div>
+                <!-- Right Column: Criteria Breakdown -->
+                <div class="lg:col-span-7 flex flex-col h-full">
+                    <div
+                        class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 md:p-8 flex-1">
+                        <div class="flex items-center justify-between mb-8">
+                            <h3 class="text-xl font-bold text-slate-900 dark:text-white">Criteria Breakdown</h3>
+                            <button class="text-primary text-sm font-medium hover:underline">How is this
+                                calculated?</button>
+                        </div>
+                        <div class="space-y-8">
+                            <!-- Task Response -->
+                            <div>
+                                <div class="flex justify-between items-end mb-2">
+                                    <div class="flex items-center gap-2">
+                                        <span
+                                            class="material-symbols-outlined text-slate-400 text-xl">assignment_turned_in</span>
+                                        <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">Task
+                                            Response</span>
+                                    </div>
+                                    <span class="text-lg font-bold text-slate-900 dark:text-white">7.5</span>
+                                </div>
+                                <div class="h-3 w-full bg-slate-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                                    <div class="h-full bg-primary rounded-full" style="width: 83%"></div>
+                                </div>
+                                <p class="text-xs text-slate-500 mt-2">Addresses all parts of the task effectively.</p>
+                            </div>
+                            <!-- Coherence & Cohesion -->
+                            <div>
+                                <div class="flex justify-between items-end mb-2">
+                                    <div class="flex items-center gap-2">
+                                        <span class="material-symbols-outlined text-slate-400 text-xl">link</span>
+                                        <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">Coherence
+                                            &amp; Cohesion</span>
+                                    </div>
+                                    <span class="text-lg font-bold text-slate-900 dark:text-white">6.5</span>
+                                </div>
+                                <div class="h-3 w-full bg-slate-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                                    <div class="h-full bg-yellow-500 rounded-full" style="width: 72%"></div>
+                                </div>
+                                <p class="text-xs text-slate-500 mt-2">Logical sequencing could be improved in body
+                                    paragraph 2.</p>
+                            </div>
+                            <!-- Lexical Resource -->
+                            <div>
+                                <div class="flex justify-between items-end mb-2">
+                                    <div class="flex items-center gap-2">
+                                        <span class="material-symbols-outlined text-slate-400 text-xl">menu_book</span>
+                                        <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">Lexical
+                                            Resource</span>
+                                    </div>
+                                    <span class="text-lg font-bold text-slate-900 dark:text-white">7.0</span>
+                                </div>
+                                <div class="h-3 w-full bg-slate-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                                    <div class="h-full bg-primary rounded-full" style="width: 77%"></div>
+                                </div>
+                                <p class="text-xs text-slate-500 mt-2">Good range of vocabulary used with some
+                                    flexibility.</p>
+                            </div>
+                            <!-- Grammatical Range -->
+                            <div>
+                                <div class="flex justify-between items-end mb-2">
+                                    <div class="flex items-center gap-2">
+                                        <span class="material-symbols-outlined text-slate-400 text-xl">spellcheck</span>
+                                        <span
+                                            class="text-sm font-semibold text-slate-700 dark:text-slate-200">Grammatical
+                                            Range &amp; Accuracy</span>
+                                    </div>
+                                    <span class="text-lg font-bold text-slate-900 dark:text-white">7.0</span>
+                                </div>
+                                <div class="h-3 w-full bg-slate-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                                    <div class="h-full bg-primary rounded-full" style="width: 77%"></div>
+                                </div>
+                                <p class="text-xs text-slate-500 mt-2">Frequent error-free sentences produced.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Test Info Footer -->
+            <div
+                class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-100 dark:border-gray-700">
+                <div class="flex items-center justify-center md:justify-start gap-3 p-2">
+                    <div class="bg-slate-100 dark:bg-gray-700 p-2 rounded-lg text-slate-500 dark:text-slate-300">
+                        <span class="material-symbols-outlined text-xl">calendar_today</span>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-500 uppercase font-semibold">Submitted On</p>
+                        <p class="text-sm font-medium text-slate-900 dark:text-white">Oct 24, 2023</p>
+                    </div>
+                </div>
+                <div
+                    class="flex items-center justify-center md:justify-start gap-3 p-2 border-t md:border-t-0 md:border-l border-gray-100 dark:border-gray-700">
+                    <div class="bg-slate-100 dark:bg-gray-700 p-2 rounded-lg text-slate-500 dark:text-slate-300">
+                        <span class="material-symbols-outlined text-xl">timer</span>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-500 uppercase font-semibold">Time Spent</p>
+                        <p class="text-sm font-medium text-slate-900 dark:text-white">38m 15s</p>
+                    </div>
+                </div>
+                <div
+                    class="flex items-center justify-center md:justify-start gap-3 p-2 border-t md:border-t-0 md:border-l border-gray-100 dark:border-gray-700">
+                    <div class="bg-slate-100 dark:bg-gray-700 p-2 rounded-lg text-slate-500 dark:text-slate-300">
+                        <span class="material-symbols-outlined text-xl">description</span>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-500 uppercase font-semibold">Word Count</p>
+                        <p class="text-sm font-medium text-slate-900 dark:text-white">286 Words</p>
+                    </div>
+                </div>
+            </div>
+            <!-- Action Buttons -->
+            <div class="flex flex-col sm:flex-row gap-4 justify-center pt-4 pb-12">
+                <button
+                    class="flex-1 sm:flex-none sm:min-w-[240px] h-12 rounded-lg border-2 border-slate-200 dark:border-gray-600 text-slate-700 dark:text-slate-200 font-bold text-sm hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2">
+                    <span class="material-symbols-outlined">arrow_back</span>
+                    Back to Dashboard
+                </button>
+                <button
+                    class="flex-1 sm:flex-none sm:min-w-[240px] h-12 rounded-lg bg-[#101622] dark:bg-primary text-white font-bold text-sm hover:opacity-90 transition-opacity flex items-center justify-center gap-2 shadow-lg shadow-blue-900/10">
+                    <span class="material-symbols-outlined">visibility</span>
+                    View Detailed AI Feedback
+                </button>
+            </div>
+        </div>
+    </main>
+</body>
+
+</html>

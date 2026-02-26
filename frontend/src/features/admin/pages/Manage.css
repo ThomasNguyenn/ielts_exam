@@ -26,6 +26,21 @@
     --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
     --transition-base: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     --transition-slow: 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    --manage-global-header-height: 70px;
+    --manage-global-header-height-tablet: 64px;
+    --manage-global-header-height-mobile: 60px;
+}
+
+@media (max-width: 1280px) {
+    :root {
+        --manage-global-header-height: var(--manage-global-header-height-tablet);
+    }
+}
+
+@media (max-width: 768px) {
+    :root {
+        --manage-global-header-height: var(--manage-global-header-height-mobile);
+    }
 }
 
 /* ============================================
@@ -56,7 +71,7 @@
     padding: 2rem 1.25rem;
     height: fit-content;
     position: sticky;
-    top: 90px;
+    top: calc(var(--manage-global-header-height) + 20px);
     box-shadow: var(--shadow-md);
     transition: box-shadow var(--transition-base);
 }
@@ -1133,7 +1148,7 @@ h4 {
     flex-shrink: 0;
     align-self: flex-start;
     position: sticky;
-    top: 88px;
+    top: calc(var(--manage-global-header-height) + 18px);
     background: #ffffff;
     border: 1px solid #e2e8f0;
     border-radius: 1rem;
@@ -1700,7 +1715,7 @@ h4 {
     border-bottom: 1px solid #E2E8F0;
     background: #F1F5F9;
     position: sticky;
-    top: 0;
+    top: var(--manage-global-header-height);
     z-index: 30;
 }
 
@@ -1799,7 +1814,7 @@ input:checked+.slider:before {
     background: #F1F5F9;
     border-bottom: 1px solid #E2E8F0;
     position: sticky;
-    top: 64px;
+    top: var(--manage-global-header-height);
     z-index: 40;
 }
 
@@ -1891,11 +1906,11 @@ input:checked+.slider:before {
     box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 1280px) {
     .manage-editor-topbar {
         margin: -1.5rem -1.5rem 1.25rem -1.5rem;
         padding: 0.875rem 1.5rem;
-        top: 56px;
+        top: var(--manage-global-header-height);
         flex-wrap: wrap;
     }
 }
@@ -1904,7 +1919,7 @@ input:checked+.slider:before {
     .manage-editor-topbar {
         margin: -1rem -1rem 1rem -1rem;
         padding: 0.75rem 1rem;
-        top: 52px;
+        top: var(--manage-global-header-height);
     }
 
     .manage-header-actions {

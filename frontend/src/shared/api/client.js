@@ -432,6 +432,7 @@ export const api = {
   getSubmissionById: (id) => request(`/api/writings/submissions/${id}`),
   getSubmissionStatus: (id) => request(`/api/writings/submissions/${id}/status`),
   scoreSubmission: (id, body) => request(`/api/writings/submissions/${id}/score`, { method: 'POST', body: JSON.stringify(body) }),
+  scoreSubmissionAIFast: (id, body = {}) => request(`/api/writings/submissions/${id}/ai-fast-score`, { method: 'POST', body: JSON.stringify(body) }),
   scoreSubmissionAI: (id) => request(`/api/writings/submissions/${id}/ai-score`, { method: 'POST' }),
 
   // Practice Flow

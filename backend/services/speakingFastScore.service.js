@@ -4,6 +4,14 @@ import { toFile } from "openai/uploads";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.OPEN_API_KEY;
 const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
 const DEFAULT_SPEAKING_STT_MODEL = "gpt-4o-mini-transcribe";
+const DEFAULT_SPEAKING_STT_LANGUAGE = "en";
+const DEFAULT_SPEAKING_STT_PROMPT = [
+  "Verbatim transcript only.",
+  "Do not correct grammar, tense, plurality, or word choice.",
+  "Preserve spoken mistakes exactly as heard.",
+  "Pay close attention to final sounds and endings: -s, -es, -ed, final consonants.",
+  "Keep fillers, repetitions, false starts, and disfluencies when present.",
+].join(" ");
 
 const DEFAULT_FILLER_WORDS = [
   "um",
@@ -45,6 +53,12 @@ const resolveAudioFilename = (mimeType = "audio/webm") => {
 const safeNumber = (value, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const is4oTranscribeModel = (modelName = "") => {
+  const normalized = String(modelName || "").trim().toLowerCase();
+  if (!normalized) return false;
+  return normalized.includes("gpt-4o") && normalized.includes("transcribe") && !normalized.includes("diarize");
 };
 
 const tokenizeWords = (text = "") =>
@@ -124,6 +138,15 @@ const extractAsrConfidence = (sttMeta = {}) => {
     return clamp(confidence, 0, 1);
   }
 
+  const tokenLogProbValues = (Array.isArray(sttMeta?.logprobs) ? sttMeta.logprobs : [])
+    .map((item) => safeNumber(item?.logprob, NaN))
+    .filter((value) => Number.isFinite(value));
+  if (tokenLogProbValues.length > 0) {
+    const avgLogProb = tokenLogProbValues.reduce((sum, value) => sum + value, 0) / tokenLogProbValues.length;
+    const confidence = Math.exp(avgLogProb);
+    return clamp(confidence, 0, 1);
+  }
+
   return null;
 };
 
@@ -180,24 +203,42 @@ export const transcribeWithWhisper = async ({ audioBuffer, mimeType }) => {
   }
 
   const sttModel = String(process.env.SPEAKING_STT_MODEL || DEFAULT_SPEAKING_STT_MODEL).trim() || DEFAULT_SPEAKING_STT_MODEL;
+  const sttLanguage = String(process.env.SPEAKING_STT_LANGUAGE || DEFAULT_SPEAKING_STT_LANGUAGE).trim() || DEFAULT_SPEAKING_STT_LANGUAGE;
+  const sttPrompt = String(process.env.SPEAKING_STT_PROMPT || DEFAULT_SPEAKING_STT_PROMPT).trim() || DEFAULT_SPEAKING_STT_PROMPT;
+  const use4oTranscribeJson = is4oTranscribeModel(sttModel);
   const uploadable = await toFile(audioBuffer, resolveAudioFilename(mimeType), {
     type: String(mimeType || "audio/webm"),
   });
 
-  const response = await openai.audio.transcriptions.create({
+  const requestPayload = {
     file: uploadable,
     model: sttModel,
-    response_format: "verbose_json",
+    language: sttLanguage,
+    prompt: sttPrompt,
     temperature: 0,
-  });
+    ...(use4oTranscribeJson
+      ? {
+        response_format: "json",
+        include: ["logprobs"],
+      }
+      : {
+        response_format: "verbose_json",
+        timestamp_granularities: ["segment", "word"],
+      }),
+  };
+
+  const response = await openai.audio.transcriptions.create(requestPayload);
+  const usageDuration = safeNumber(response?.usage?.seconds, 0);
+  const resolvedDuration = safeNumber(response?.duration, usageDuration);
 
   return {
     transcript: String(response?.text || "").trim(),
     sttMeta: {
       language: response?.language || null,
-      duration: safeNumber(response?.duration, 0),
+      duration: resolvedDuration,
       segments: Array.isArray(response?.segments) ? response.segments : [],
       words: Array.isArray(response?.words) ? response.words : [],
+      logprobs: Array.isArray(response?.logprobs) ? response.logprobs : [],
     },
     source: `openai:${sttModel}`,
   };

@@ -1,4 +1,4 @@
-import { getAllWritings, createWriting, updateWriting, deleteWriting, getWritingById, getWritingExam, submitWriting, getSubmissions, getSubmissionById, getSubmissionStatus, scoreSubmission, regenerateWritingId, scoreSubmissionAI, uploadImage } from '../controllers/writing.controller.js';
+import { getAllWritings, createWriting, updateWriting, deleteWriting, getWritingById, getWritingExam, submitWriting, getSubmissions, getSubmissionById, getSubmissionStatus, scoreSubmission, regenerateWritingId, scoreSubmissionAIFast, scoreSubmissionAI, uploadImage } from '../controllers/writing.controller.js';
 import { verifyToken, optionalVerifyToken, isTeacherOrAdmin } from '../middleware/auth.middleware.js';
 import express from 'express';
 import multer from 'multer';
@@ -36,6 +36,7 @@ router.get("/:id", optionalVerifyToken, getWritingById);
 router.get("/:id/exam", optionalVerifyToken, getWritingExam);
 router.post("/:id/submit", verifyToken, submitWriting);
 router.post("/submissions/:id/score", verifyToken, isTeacherOrAdmin, scoreSubmission);
+router.post("/submissions/:id/ai-fast-score", verifyToken, scoreSubmissionAIFast);
 router.post("/submissions/:id/ai-score", verifyToken, scoreSubmissionAI);
 router.post("/:id/regenerate-id", verifyToken, isTeacherOrAdmin, regenerateWritingId);
 router.put("/:id", verifyToken, isTeacherOrAdmin, updateWriting);

@@ -452,6 +452,10 @@ const buildFallbackAnalysis = (
   pauseCount,
 });
 
+const hasUsableAnalysisPayload = (analysis) => (
+  Boolean(analysis) && typeof analysis === "object" && Object.keys(analysis).length > 0
+);
+
 const cleanupSessionAudioFromCloudinary = async (session) => {
   const publicId = String(session?.audioPublicId || "").trim();
   if (!publicId) return;
@@ -828,12 +832,25 @@ export const scoreSpeakingSessionById = async ({ sessionId, force = false } = {}
       mimeType: usedMimeType,
       audioBytes,
     });
-    analysis = buildFallbackAnalysis(clientTranscript, {
-      topicPart: topic.part,
-      topicPrompt: topic.prompt,
-      fallbackWpm: clientWPM,
-      pauseCount: parsedMetrics.pauseCount || 0,
-    });
+    if (hasUsableAnalysisPayload(session?.provisional_analysis)) {
+      analysis = normalizeAnalysisPayload(session.provisional_analysis, {
+        topicPart: topic.part,
+        topicPrompt: topic.prompt,
+        transcriptFallback: clientTranscript,
+        fallbackWpm: clientWPM,
+        pauseCount: parsedMetrics.pauseCount || 0,
+      });
+      aiSource = session?.provisional_source
+        ? `provisional:${session.provisional_source}`
+        : "provisional_fallback";
+    } else {
+      analysis = buildFallbackAnalysis(clientTranscript, {
+        topicPart: topic.part,
+        topicPrompt: topic.prompt,
+        fallbackWpm: clientWPM,
+        pauseCount: parsedMetrics.pauseCount || 0,
+      });
+    }
   }
 
   // Keep the canonical session transcript if it already exists (typically from STT),

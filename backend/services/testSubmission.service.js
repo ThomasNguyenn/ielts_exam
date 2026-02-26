@@ -150,6 +150,7 @@ export async function handleWritingSubmissions({
     shouldSave,
     studentName,
     studentEmail,
+    timeTaken,
 }) {
     if (examType !== "writing" || safeWriting.length === 0) {
         return null;
@@ -164,10 +165,14 @@ export async function handleWritingSubmissions({
         test_id: testId,
         writing_answers: writingAnswers,
         status: "pending",
+        scoring_state: "none",
         user_id: userId,
         attempt_id: shouldSave ? attemptId : null,
         student_name: studentName,
         student_email: studentEmail,
+        time_taken_ms: Number.isFinite(Number(timeTaken))
+            ? Math.max(0, Math.floor(Number(timeTaken)))
+            : null,
     });
 
     return submission._id;
@@ -493,6 +498,7 @@ export async function submitExamFlow({ testId, userId, body = {} }) {
         shouldSave,
         studentName,
         studentEmail,
+        timeTaken,
     });
 
     const gradeResult = gradeExam({ test, examType, safeAnswers });

@@ -29,6 +29,10 @@ export const scoreWritingSubmissionById = async ({ submissionId, force = false }
   }
 
   if (submission.status === "scored" && submission.is_ai_graded && !force) {
+    if (submission.scoring_state !== "detail_ready") {
+      submission.scoring_state = "detail_ready";
+      await submission.save();
+    }
     return {
       submission,
       aiResult: submission.ai_result || null,
@@ -154,6 +158,7 @@ export const scoreWritingSubmissionById = async ({ submissionId, force = false }
   submission.is_ai_graded = true;
   submission.score = overallBand;
   submission.status = "scored";
+  submission.scoring_state = "detail_ready";
   await submission.save();
 
   return {

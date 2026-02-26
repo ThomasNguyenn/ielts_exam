@@ -6,6 +6,7 @@ import User from "../models/User.model.js";
 import { isAiAsyncModeEnabled } from "../config/queue.config.js";
 import { enqueueWritingAiScoreJob, isAiQueueReady } from "../queues/ai.queue.js";
 import { scoreWritingSubmissionById } from "../services/writingSubmissionScoring.service.js";
+import { scoreWritingSubmissionFastById } from "../services/writingFastScoring.service.js";
 import { parsePagination, buildPaginationMeta } from "../utils/pagination.js";
 import { handleControllerError, sendControllerError } from '../utils/controllerError.js';
 
@@ -189,7 +190,7 @@ export const getWritingExam = async (req, res) => {
 /** Submit writing answer */
 export const submitWriting = async (req, res) => {
     const { id } = req.params; // Writing Task ID
-    const { answer, student_name, student_email, test_id, gradingMode = "standard" } = req.body || {};
+    const { answer, student_name, student_email, test_id, gradingMode = "standard", time_taken_ms } = req.body || {};
     const userId = req.user?.userId; // Get user ID if authenticated
 
     if (!answer) {
@@ -210,6 +211,9 @@ export const submitWriting = async (req, res) => {
 
         // Calculate word count
         const wordCount = trimmedAnswer.split(/\s+/).filter(w => w.length > 0).length;
+        const normalizedTimeTakenMs = Number.isFinite(Number(time_taken_ms))
+            ? Math.max(0, Math.floor(Number(time_taken_ms)))
+            : null;
         const newSubmission = await WritingSubmission.create({
             test_id: test_id || undefined,
             user_id: userId,
@@ -221,7 +225,9 @@ export const submitWriting = async (req, res) => {
                 answer_text: trimmedAnswer,
                 word_count: wordCount
             }],
-            status: gradingMode === "ai" ? "processing" : "pending"
+            status: gradingMode === "ai" ? "processing" : "pending",
+            scoring_state: "none",
+            time_taken_ms: normalizedTimeTakenMs,
         });
 
         let xpResult = null;
@@ -247,43 +253,20 @@ export const submitWriting = async (req, res) => {
             });
         }
 
-        const shouldQueue = isAiAsyncModeEnabled() && isAiQueueReady();
-        if (shouldQueue) {
-            try {
-                const queueResult = await enqueueWritingAiScoreJob({
-                    submissionId: String(newSubmission._id),
-                    force: true,
-                });
-
-                if (queueResult.queued) {
-                    return res.status(202).json({
-                        success: true,
-                        data: {
-                            submissionId: newSubmission._id,
-                            status: "processing",
-                            queued: true,
-                            jobId: queueResult.jobId,
-                            xpResult,
-                            achievements: newlyUnlocked
-                        },
-                    });
-                }
-            } catch (queueError) {
-                console.warn("Writing enqueue failed, falling back to sync scoring:", queueError.message);
-            }
-        }
-
-        const scored = await scoreWritingSubmissionById({
+        const fastScored = await scoreWritingSubmissionFastById({
             submissionId: String(newSubmission._id),
-            force: true,
+            force: false,
         });
 
         return res.status(200).json({
             success: true,
             data: {
                 submissionId: newSubmission._id,
-                ...(scored.aiResult || {}),
-                queued: false,
+                status: fastScored.submission?.status || "processing",
+                scoring_state: fastScored.submission?.scoring_state || "fast_ready",
+                ai_fast_result: fastScored.fastResult || null,
+                is_ai_fast_graded: !!fastScored.submission?.is_ai_fast_graded,
+                queued: false, // fast stage is always sync
                 xpResult,
                 achievements: newlyUnlocked
             },
@@ -390,8 +373,16 @@ export const getSubmissionStatus = async (req, res) => {
                 score: submission.score ?? null,
                 is_ai_graded: !!submission.is_ai_graded,
                 ai_result: submission.ai_result || null,
+                is_ai_fast_graded: !!submission.is_ai_fast_graded,
+                ai_fast_result: submission.ai_fast_result || null,
+                ai_fast_model: submission.ai_fast_model || null,
+                ai_fast_scored_at: submission.ai_fast_scored_at || null,
+                scoring_state: submission.scoring_state || (submission.is_ai_graded ? "detail_ready" : "none"),
                 writing_answers: submission.writing_answers || [],
                 submitted_at: submission.submitted_at,
+                time_taken_ms: Number.isFinite(Number(submission.time_taken_ms))
+                    ? Number(submission.time_taken_ms)
+                    : null,
                 updatedAt: submission.updatedAt,
             },
         });
@@ -563,6 +554,40 @@ export const regenerateWritingId = async (req, res) => {
 };
 
 /** AI Score a submission (Single Task Focus) */
+export const scoreSubmissionAIFast = async (req, res) => {
+    const { id } = req.params;
+    const force = req.body?.force === true;
+
+    try {
+        const submission = await WritingSubmission.findById(id);
+        if (!submission) {
+            return sendControllerError(req, res, { statusCode: 404, message: "Submission not found"  });
+        }
+
+        if (!canAccessSubmission(submission, req.user)) {
+            return sendControllerError(req, res, { statusCode: 403, message: "Forbidden"  });
+        }
+
+        if (!submission.writing_answers || submission.writing_answers.length === 0) {
+            return sendControllerError(req, res, { statusCode: 400, message: "No writing answers found in submission"  });
+        }
+
+        const scored = await scoreWritingSubmissionFastById({
+            submissionId: String(id),
+            force,
+        });
+
+        return res.status(200).json({ success: true, data: scored.submission });
+    } catch (error) {
+        await WritingSubmission.findByIdAndUpdate(id, {
+            status: "failed",
+            scoring_state: "failed",
+        }).catch(() => { });
+        return handleControllerError(req, res, error);
+    }
+};
+
+/** AI Score a submission (detail stage on-demand) */
 export const scoreSubmissionAI = async (req, res) => {
     const { id } = req.params; // Submission ID
     try {
@@ -580,13 +605,26 @@ export const scoreSubmissionAI = async (req, res) => {
             return sendControllerError(req, res, { statusCode: 400, message: "No writing answers found in submission"  });
         }
 
+        if (submission.is_ai_graded && submission.ai_result) {
+            if (submission.scoring_state !== "detail_ready" || submission.status !== "scored") {
+                submission.scoring_state = "detail_ready";
+                submission.status = "scored";
+                await submission.save();
+            }
+            return res.status(200).json({ success: true, data: submission });
+        }
+
+        await WritingSubmission.findByIdAndUpdate(id, {
+            status: "processing",
+            scoring_state: "detail_processing",
+        });
+
         const shouldQueue = isAiAsyncModeEnabled() && isAiQueueReady();
         if (shouldQueue) {
             try {
-                await WritingSubmission.findByIdAndUpdate(id, { status: "processing" });
                 const queueResult = await enqueueWritingAiScoreJob({
                     submissionId: String(id),
-                    force: true,
+                    force: false,
                 });
 
                 if (queueResult.queued) {
@@ -595,6 +633,7 @@ export const scoreSubmissionAI = async (req, res) => {
                         data: {
                             submissionId: id,
                             status: "processing",
+                            scoring_state: "detail_processing",
                             queued: true,
                             jobId: queueResult.jobId,
                         },
@@ -607,12 +646,16 @@ export const scoreSubmissionAI = async (req, res) => {
 
         const scored = await scoreWritingSubmissionById({
             submissionId: String(id),
-            force: true,
+            force: false,
         });
 
         return res.status(200).json({ success: true, data: scored.submission });
 
     } catch (error) {
+        await WritingSubmission.findByIdAndUpdate(id, {
+            status: "failed",
+            scoring_state: "failed",
+        }).catch(() => { });
         return handleControllerError(req, res, error);
     }
 };

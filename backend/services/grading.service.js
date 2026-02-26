@@ -376,3 +376,185 @@ OUTPUT: CHỈ TRẢ JSON HỢP LỆ
     };
   }
 };
+
+const FAST_WRITING_MODELS = [
+  process.env.WRITING_FAST_MODEL || "gpt-4o-mini",
+  process.env.OPENAI_FALLBACK_MODEL || "gpt-4o-mini",
+  process.env.OPENAI_PRIMARY_MODEL || "gpt-4o",
+].filter(Boolean);
+
+const toBandHalfStep = (value, fallback = 0) => {
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue)) return fallback;
+  const clamped = Math.min(9, Math.max(0, numberValue));
+  return Math.round(clamped * 2) / 2;
+};
+
+const normalizeCriteriaScores = (rawScores = {}, fallbackBand = 0) => {
+  const safeBand = toBandHalfStep(fallbackBand, 0);
+  return {
+    task_response: toBandHalfStep(rawScores.task_response, safeBand),
+    coherence_cohesion: toBandHalfStep(rawScores.coherence_cohesion, safeBand),
+    lexical_resource: toBandHalfStep(rawScores.lexical_resource, safeBand),
+    grammatical_range_accuracy: toBandHalfStep(rawScores.grammatical_range_accuracy, safeBand),
+  };
+};
+
+const normalizeCriteriaNotes = (rawNotes = {}) => ({
+  task_response: String(rawNotes.task_response || "").trim(),
+  coherence_cohesion: String(rawNotes.coherence_cohesion || "").trim(),
+  lexical_resource: String(rawNotes.lexical_resource || "").trim(),
+  grammatical_range_accuracy: String(rawNotes.grammatical_range_accuracy || "").trim(),
+});
+
+const toPerformanceLabel = (bandScore) => {
+  const score = Number(bandScore || 0);
+  if (score >= 7) return "Strong";
+  if (score >= 6) return "Developing";
+  return "Needs Improvement";
+};
+
+const normalizeFastEssayResult = (raw = {}, fallbackModel = null) => {
+  const rawCriteria = normalizeCriteriaScores(raw.criteria_scores || {}, raw.band_score || 0);
+  const criteriaAvg = (
+    rawCriteria.task_response +
+    rawCriteria.coherence_cohesion +
+    rawCriteria.lexical_resource +
+    rawCriteria.grammatical_range_accuracy
+  ) / 4;
+
+  const bandScore = toBandHalfStep(raw.band_score, toBandHalfStep(criteriaAvg, 0));
+  const summary = String(raw.summary || "").trim();
+  const normalized = {
+    band_score: bandScore,
+    criteria_scores: rawCriteria,
+    summary,
+    criteria_notes: normalizeCriteriaNotes(raw.criteria_notes || {}),
+    performance_label: String(raw.performance_label || "").trim() || toPerformanceLabel(bandScore),
+    feedback: Array.isArray(raw.feedback)
+      ? raw.feedback.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 3)
+      : [],
+    model: fallbackModel || null,
+  };
+
+  if (normalized.feedback.length === 0 && summary) {
+    normalized.feedback = [summary];
+  }
+
+  return normalized;
+};
+
+export const gradeEssayFast = async (promptText, essayText, taskType = 'task2', imageUrl = null) => {
+  const trimmedPrompt = String(promptText || "").trim();
+  const trimmedEssay = String(essayText || "").trim();
+
+  if (!trimmedEssay) {
+    return normalizeFastEssayResult({
+      band_score: 0,
+      criteria_scores: {
+        task_response: 0,
+        coherence_cohesion: 0,
+        lexical_resource: 0,
+        grammatical_range_accuracy: 0,
+      },
+      summary: "Essay content is empty.",
+      criteria_notes: {
+        task_response: "No response content found.",
+        coherence_cohesion: "No response content found.",
+        lexical_resource: "No response content found.",
+        grammatical_range_accuracy: "No response content found.",
+      },
+      performance_label: "Needs Improvement",
+      feedback: ["Essay content is empty."],
+    }, process.env.WRITING_FAST_MODEL || "gpt-4o-mini");
+  }
+
+  const taskLabel = taskType === "task1" ? "IELTS Writing Task 1" : "IELTS Writing Task 2";
+  const fastPrompt = `
+You are an IELTS writing examiner. Provide a quick, low-token estimate only.
+
+Task Type: ${taskLabel}
+Prompt:
+${trimmedPrompt}
+
+Student Essay:
+${trimmedEssay}
+
+Rules:
+- Return compact JSON only.
+- Scores must be in 0.5 band steps from 0 to 9.
+- Keep feedback concise (fast estimate, not full diagnosis).
+- For Task 1, use task_response key to represent Task Achievement.
+
+Required JSON schema:
+{
+  "band_score": number,
+  "criteria_scores": {
+    "task_response": number,
+    "coherence_cohesion": number,
+    "lexical_resource": number,
+    "grammatical_range_accuracy": number
+  },
+  "summary": "string (2-4 sentences)",
+  "criteria_notes": {
+    "task_response": "string",
+    "coherence_cohesion": "string",
+    "lexical_resource": "string",
+    "grammatical_range_accuracy": "string"
+  },
+  "performance_label": "Strong|Developing|Needs Improvement",
+  "feedback": ["string", "string"]
+}
+`;
+
+  const userMessageContent = [{ type: "text", text: fastPrompt }];
+  if (imageUrl && taskType === "task1") {
+    userMessageContent.push({
+      type: "image_url",
+      image_url: {
+        url: imageUrl,
+      },
+    });
+  }
+
+  try {
+    if (!hasOpenAiCredentials) {
+      throw new Error("OpenAI API key is not configured");
+    }
+
+    const aiResponse = await requestOpenAIJsonWithFallback({
+      openai,
+      models: FAST_WRITING_MODELS,
+      createPayload: (model) => ({
+        model,
+        messages: [{ role: "user", content: userMessageContent }],
+        max_tokens: 900,
+        response_format: { type: "json_object" },
+      }),
+      timeoutMs: Number(process.env.WRITING_FAST_TIMEOUT_MS || process.env.OPENAI_TIMEOUT_MS || 25000),
+      maxAttempts: Number(process.env.WRITING_FAST_MAX_ATTEMPTS || process.env.OPENAI_MAX_ATTEMPTS || 2),
+    });
+
+    return normalizeFastEssayResult(aiResponse.data, aiResponse.model);
+  } catch (error) {
+    console.error("gradeEssayFast fallback triggered:", error.message);
+    return normalizeFastEssayResult({
+      band_score: 0,
+      criteria_scores: {
+        task_response: 0,
+        coherence_cohesion: 0,
+        lexical_resource: 0,
+        grammatical_range_accuracy: 0,
+      },
+      summary: "AI fast scoring is temporarily unavailable.",
+      criteria_notes: {
+        task_response: "",
+        coherence_cohesion: "",
+        lexical_resource: "",
+        grammatical_range_accuracy: "",
+      },
+      performance_label: "Needs Improvement",
+      feedback: ["AI fast scoring is temporarily unavailable."],
+    }, process.env.WRITING_FAST_MODEL || "gpt-4o-mini");
+  }
+};
