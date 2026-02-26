@@ -10,9 +10,207 @@ const OPENAI_MODELS = [
   process.env.OPENAI_FALLBACK_MODEL || "gpt-4o-mini",
 ];
 
+const DETAIL_AUGMENT_MODELS = [
+  process.env.OPENAI_DETAIL_AUGMENT_MODEL || "gpt-4o-mini",
+  process.env.OPENAI_FALLBACK_MODEL || "gpt-4o-mini",
+].filter(Boolean);
+
+const countWords = (text = "") =>
+  String(text || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length;
+
+const getDetailErrorTargets = (taskType = "task2", essayText = "") => {
+  const words = countWords(essayText);
+
+  if (taskType === "task1") {
+    if (words >= 190) return { gra: 12, lexical: 10 };
+    if (words >= 160) return { gra: 10, lexical: 8 };
+    if (words >= 130) return { gra: 8, lexical: 6 };
+    return { gra: 6, lexical: 5 };
+  }
+
+  if (words >= 280) return { gra: 24, lexical: 20 };
+  if (words >= 240) return { gra: 20, lexical: 16 };
+  if (words >= 200) return { gra: 18, lexical: 14 };
+  if (words >= 160) return { gra: 14, lexical: 11 };
+  return { gra: 10, lexical: 8 };
+};
+
+const toArray = (value) => (Array.isArray(value) ? value : []);
+
+const isErrorIssue = (issue) => String(issue?.type || "error").toLowerCase() === "error";
+
+const countErrorIssues = (items) => toArray(items).filter(isErrorIssue).length;
+
+const issueIdentity = (issue = {}) => [
+  String(issue?.error_code || "").trim().toLowerCase(),
+  String(issue?.text_snippet || "").trim().toLowerCase(),
+  String(issue?.improved || "").trim().toLowerCase(),
+  String(issue?.explanation || "").trim().toLowerCase(),
+].join("::");
+
+const dedupeIssues = (items) => {
+  const seen = new Set();
+  const output = [];
+
+  for (const item of toArray(items)) {
+    const key = issueIdentity(item);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    output.push(item);
+  }
+
+  return output;
+};
+
+const ensureDetailResultArrays = (result = {}) => ({
+  ...result,
+  task_response: toArray(result?.task_response),
+  coherence_cohesion: toArray(result?.coherence_cohesion),
+  lexical_resource: toArray(result?.lexical_resource),
+  grammatical_range_accuracy: toArray(result?.grammatical_range_accuracy),
+});
+
+const maybeAugmentGrammarAndLexicalIssues = async ({
+  promptText,
+  essayText,
+  taskType = "task2",
+  baseResult,
+  targets,
+}) => {
+  const normalized = ensureDetailResultArrays(baseResult || {});
+  const graCount = countErrorIssues(normalized.grammatical_range_accuracy);
+  const lexicalCount = countErrorIssues(normalized.lexical_resource);
+
+  if (graCount >= targets.gra && lexicalCount >= targets.lexical) {
+    return normalized;
+  }
+
+  const existingGraSnippets = normalized.grammatical_range_accuracy
+    .map((item) => String(item?.text_snippet || "").trim())
+    .filter(Boolean)
+    .slice(0, 120);
+
+  const existingLexicalSnippets = normalized.lexical_resource
+    .map((item) => String(item?.text_snippet || "").trim())
+    .filter(Boolean)
+    .slice(0, 120);
+
+  const grammarCodes = taskType === "task1"
+    ? "W1-G1, W1-G2, W1-G3, W1-G4"
+    : "W2-G1, W2-G2, W2-G3";
+  const lexicalCodes = taskType === "task1"
+    ? "W1-L1, W1-L2, W1-L3"
+    : "W2-L1, W2-L2, W2-L3";
+
+  const augmentPrompt = `
+You are a strict IELTS writing error extractor.
+Return ONLY additional issues that are missing, in valid JSON.
+
+Task type: ${taskType}
+Prompt:
+${String(promptText || "").trim()}
+
+Student essay:
+${String(essayText || "").trim()}
+
+Current issue counts:
+- grammatical_range_accuracy: ${graCount}
+- lexical_resource: ${lexicalCount}
+
+Minimum required after augmentation:
+- grammatical_range_accuracy >= ${targets.gra}
+- lexical_resource >= ${targets.lexical}
+
+Hard rules:
+- Do not duplicate existing snippets.
+- One issue = one error only.
+- Prioritize grammatical accuracy gaps and spelling/word-form/collocation mistakes.
+- If many misspelled words exist, list them separately (one misspelled token per item).
+- For lexical suggestions, prioritize A2/B1 -> B2/C1 replacements when appropriate.
+- Use grammar codes only from: ${grammarCodes}
+- Use lexical codes only from: ${lexicalCodes}
+- Keep "type" as "error" for detected mistakes.
+
+Existing GRA snippets (do not duplicate):
+${JSON.stringify(existingGraSnippets)}
+
+Existing LR snippets (do not duplicate):
+${JSON.stringify(existingLexicalSnippets)}
+
+Return JSON:
+{
+  "grammatical_range_accuracy": [
+    {
+      "text_snippet": "string",
+      "type": "error",
+      "error_code": "string",
+      "explanation": "string (Vietnamese)",
+      "improved": "string",
+      "band_impact": "string"
+    }
+  ],
+  "lexical_resource": [
+    {
+      "text_snippet": "string",
+      "type": "error",
+      "error_code": "string",
+      "explanation": "string (Vietnamese)",
+      "improved": "string",
+      "lexical_unit": "word|collocation",
+      "source_level": "A2|B1|B2|C1|C2|UNKNOWN",
+      "target_level": "B2|C1|C2|UNKNOWN",
+      "b2_replacement": "string",
+      "c1_replacement": "string",
+      "band6_replacement": "string",
+      "band65_replacement": "string",
+      "band_impact": "string"
+    }
+  ]
+}
+`;
+
+  try {
+    const augmentResponse = await requestOpenAIJsonWithFallback({
+      openai,
+      models: DETAIL_AUGMENT_MODELS,
+      createPayload: (model) => ({
+        model,
+        messages: [{ role: "user", content: augmentPrompt }],
+        max_tokens: 2800,
+        response_format: { type: "json_object" },
+      }),
+      timeoutMs: Number(process.env.OPENAI_TIMEOUT_MS || 60000),
+      maxAttempts: 2,
+    });
+
+    const extra = augmentResponse?.data || {};
+    const mergedGra = dedupeIssues([
+      ...normalized.grammatical_range_accuracy,
+      ...toArray(extra.grammatical_range_accuracy),
+    ]);
+    const mergedLexical = dedupeIssues([
+      ...normalized.lexical_resource,
+      ...toArray(extra.lexical_resource),
+    ]);
+
+    return {
+      ...normalized,
+      grammatical_range_accuracy: mergedGra,
+      lexical_resource: mergedLexical,
+    };
+  } catch (augmentError) {
+    console.error("gradeEssay augmentation skipped:", augmentError.message);
+    return normalized;
+  }
+};
+
 export const gradeEssay = async (promptText, essayText, taskType = 'task2', imageUrl = null) => {
   let systemPrompt = '';
   let userMessageContent = [];
+  const detailTargets = getDetailErrorTargets(taskType, essayText);
 
   if (taskType === 'task1') {
     systemPrompt = `Hãy đóng vai một giám khảo IELTS Writing Task 1 (Band 8.0+), có ít nhất 10 năm kinh nghiệm,
@@ -37,6 +235,7 @@ YÊU CẦU RẤT QUAN TRỌNG (BẮT BUỘC)
 A) Mỗi tiêu chí phải trả về là MỘT ARRAY riêng.
 B) Mỗi tiêu chí phải cố gắng tìm ÍT NHẤT 5-7 lỗi/điểm cần cải thiện (Task 1 ngắn hơn Task 2).
    - Nếu không đủ lỗi, hãy đưa ra gợi ý nâng cao (suggestion).
+   - Với Grammatical Range & Accuracy, ưu tiên ít nhất ${detailTargets.gra} mục lỗi khi bài có đủ dữ liệu.
 C) SOI KỸ Task Achievement (TA):
    - Bài viết có overview rõ ràng không?
    - Có highlight key features không?
@@ -47,6 +246,7 @@ D) Với Lexical Resource (LR):
      + "b2_replacement": từ/cụm thay thế mức B2
      + "c1_replacement": từ/cụm thay thế mức C1
    - Đồng thời giữ "band6_replacement"/"band65_replacement" để tương thích hệ thống cũ.
+   - Phải bắt lỗi chính tả (spelling), word form, collocation sai; mỗi lỗi chính tả là một item riêng.
 E) KHÔNG trộn tiêu chí.
    - Task Achievement: nói về việc tóm tắt, so sánh, không đưa ý kiến cá nhân.
 F) Mỗi mục phải:
@@ -250,13 +450,14 @@ YÊU CẦU RẤT QUAN TRỌNG (BẮT BUỘC)
 ━━━━━━━━━━━━━━━━━━━━━━
 
 A) Mỗi tiêu chí phải trả về là MỘT ARRAY riêng (không lồng trong object issues).
-B) Mỗi tiêu chí phải cố gắng tìm ÍT NHẤT 10 lỗi/điểm cần cải thiện. 
-   - Nếu một tiêu chí không đủ 10 mục, bắt buộc ghi rõ trong explanation: 
-     "Không đủ 10 vì bài không có thêm ví dụ/đoạn liên quan tiêu chí này.
-      Và đặc biệt lỗi về Grammar và Accuracy và Lexical Resource thì phải tìm thật kỹ ít nhất 20 lỗi"
+B) Mỗi tiêu chí phải cố gắng tìm ÍT NHẤT 10 lỗi/điểm cần cải thiện.
+   - Nếu một tiêu chí không đủ 10 mục, bắt buộc ghi rõ lý do trong explanation.
+   - Với GRA cần đạt tối thiểu ${detailTargets.gra} lỗi nếu bài có đủ dữ liệu.
+   - Với LR cần đạt tối thiểu ${detailTargets.lexical} lỗi nếu bài có đủ dữ liệu.
 C) SOI KỸ NHẤT tiêu chí GRA: 
    - Ưu tiên phát hiện lỗi ngữ pháp cơ bản + lỗi lặp lại + lỗi gây khó hiểu.
    - Cố gắng tách lỗi nhỏ thành từng mục (ví dụ: 1 câu có 3 lỗi → tách 3 mục).
+   - Không bỏ sót lỗi chia động từ, mạo từ, giới từ, dấu câu, và lỗi chính tả của từ chức năng nếu làm sai ngữ pháp.
 D) Với Lexical Resource (LR):
    - Mỗi mục lỗi từ vựng/collocation phải đưa:
           + "source_level": nhận diện trình độ CEFR của từ/cụm gốc (ưu tiên A2/B1)
@@ -268,6 +469,7 @@ D) Với Lexical Resource (LR):
      + "band65_replacement": từ/cụm thay thế phù hợp khoảng Band 6.5
    - Prioritize upgrading A2/B1 words or collocations to B2/C1 when context allows.
    - Only suggest replacements that preserve the original meaning in context.
+   - Bắt buộc liệt kê lỗi chính tả/word form/collocation sai thành từng item riêng, không gộp nhiều lỗi vào một dòng.
 
 E) KHÔNG trộn tiêu chí:
    - Task Response: chỉ nói về trả lời đề, lập trường, phát triển ý (không sửa grammar).
@@ -379,7 +581,15 @@ OUTPUT: CHỈ TRẢ JSON HỢP LỆ
       timeoutMs: Number(process.env.OPENAI_TIMEOUT_MS || 60000),
       maxAttempts: Number(process.env.OPENAI_MAX_ATTEMPTS || 3),
     });
-    return aiResult.data;
+    const normalizedBase = ensureDetailResultArrays(aiResult.data || {});
+    const enriched = await maybeAugmentGrammarAndLexicalIssues({
+      promptText,
+      essayText,
+      taskType,
+      baseResult: normalizedBase,
+      targets: detailTargets,
+    });
+    return enriched;
   } catch (error) {
     console.error("gradeEssay AI fallback triggered:", error.message);
     return {

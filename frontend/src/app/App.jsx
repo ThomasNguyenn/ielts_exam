@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import { api } from '@/shared/api/client';
 import { NotificationProvider } from '@/shared/context/NotificationContext';
 import AchievementToast from '@/features/achievements/components/AchievementToast';
@@ -42,7 +42,6 @@ const SkillWorkshopPage = lazy(() => import('@/features/practice/pages/SkillWork
 const StudyPlanSetup = lazy(() => import('@/features/study-plan/pages/StudyPlanSetup'));
 const StudyPlanFullView = lazy(() => import('@/features/study-plan/pages/StudyPlanFullView'));
 const AnalyticsContainer = lazy(() => import('@/features/analytics/pages/AnalyticsContainer'));
-const ErrorAnalyticsDetailsPage = lazy(() => import('@/features/analytics/pages/ErrorAnalyticsDetailsPage'));
 const AchievementsPage = lazy(() => import('@/features/achievements/pages/AchievementsPage'));
 const WaitForConfirmation = lazy(() => import('@/features/system/pages/WaitForConfirmation'));
 const StudentRequests = lazy(() => import('@/features/admin/pages/StudentRequests'));
@@ -107,6 +106,13 @@ function PublicRoute({ children }) {
   return children;
 }
 
+function AnalyticsLegacyRedirect() {
+  const location = useLocation();
+  const { studentId } = useParams();
+  const basePath = studentId ? `/analytics/student/${studentId}` : '/analytics';
+  return <Navigate to={`${basePath}${location.search || ''}`} replace />;
+}
+
 export default function App() {
   const [authBootstrapReady, setAuthBootstrapReady] = useState(false);
 
@@ -166,7 +172,7 @@ export default function App() {
 
           <Route path="profile" element={<ProtectedRoute>{withSuspense(<Profile />)}</ProtectedRoute>} />
           <Route path="analytics" element={<ProtectedRoute>{withSuspense(<AnalyticsContainer />)}</ProtectedRoute>} />
-          <Route path="analytics/errors" element={<ProtectedRoute>{withSuspense(<ErrorAnalyticsDetailsPage />)}</ProtectedRoute>} />
+          <Route path="analytics/errors" element={<ProtectedRoute><AnalyticsLegacyRedirect /></ProtectedRoute>} />
           <Route path="achievements" element={<ProtectedRoute>{withSuspense(<AchievementsPage />)}</ProtectedRoute>} />
 
           {/* Auth Routes */}
@@ -221,7 +227,7 @@ export default function App() {
           <ManageRoute>{withSuspense(<AnalyticsContainer />)}</ManageRoute>
         } />
         <Route path="analytics/student/:studentId/errors" element={
-          <ManageRoute>{withSuspense(<ErrorAnalyticsDetailsPage />)}</ManageRoute>
+          <ManageRoute><AnalyticsLegacyRedirect /></ManageRoute>
         } />
         <Route path="*" element={withSuspense(<NotFound />)} />
       </Routes>

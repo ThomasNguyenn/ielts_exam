@@ -140,6 +140,8 @@ const SUBTYPE_OVERRIDES_VI = Object.freeze({
   SPEAKING_FLUENCY_BREAKDOWN: "Gián đoạn độ trôi chảy",
   SPEAKING_LEX_RANGE_LIMITED: "Vốn từ hạn chế",
   SPEAKING_PRON_INTELLIGIBILITY: "Độ rõ tiếng phát âm thấp",
+  CROSS_SENTENCE_LINK_FAIL: "Lỗi liên kết giữa các câu",
+  REFERENCE_CHAIN_MISS: "Bỏ sót chuỗi tham chiếu",
 });
 
 const TOKEN_VI = Object.freeze({
@@ -212,6 +214,13 @@ const humanizeTokenizedLabel = (value = "") => {
   const normalized = String(value || "").trim();
   if (!normalized) return "";
 
+  const normalizedSubtypeKey = normalized
+    .replace(/[.\-/]+/g, "_")
+    .replace(/\s+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toUpperCase();
+
+  if (SUBTYPE_OVERRIDES_VI[normalizedSubtypeKey]) return SUBTYPE_OVERRIDES_VI[normalizedSubtypeKey];
   if (SUBTYPE_OVERRIDES_VI[normalized]) return SUBTYPE_OVERRIDES_VI[normalized];
   if (CATEGORY_LABELS_VI[normalized]) return CATEGORY_LABELS_VI[normalized];
   if (COGNITIVE_LABELS_VI[normalized]) return COGNITIVE_LABELS_VI[normalized];
