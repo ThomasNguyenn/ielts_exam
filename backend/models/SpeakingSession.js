@@ -17,7 +17,7 @@ const SpeakingSessionSchema = new mongoose.Schema({
   audioPublicId: { type: String, default: null },
   audioDeletedAt: { type: Date, default: null },
   audioMimeType: { type: String },
-  transcript: { type: String }, // Transcription from Groq Whisper
+  transcript: { type: String }, // Canonical STT transcript (OpenAI transcription model)
   ai_source: { type: String, default: null },
   scoring_state: {
     type: String,

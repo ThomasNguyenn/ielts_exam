@@ -3,6 +3,7 @@ import { toFile } from "openai/uploads";
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.OPEN_API_KEY;
 const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
+const DEFAULT_SPEAKING_STT_MODEL = "gpt-4o-mini-transcribe";
 
 const DEFAULT_FILLER_WORDS = [
   "um",
@@ -175,10 +176,10 @@ export const transcribeWithWhisper = async ({ audioBuffer, mimeType }) => {
     throw new Error("OpenAI API key is not configured");
   }
   if (!audioBuffer || !Buffer.isBuffer(audioBuffer)) {
-    throw new Error("audioBuffer is required for Whisper transcription");
+    throw new Error("audioBuffer is required for speaking transcription");
   }
 
-  const sttModel = String(process.env.SPEAKING_STT_MODEL || "whisper-1").trim() || "whisper-1";
+  const sttModel = String(process.env.SPEAKING_STT_MODEL || DEFAULT_SPEAKING_STT_MODEL).trim() || DEFAULT_SPEAKING_STT_MODEL;
   const uploadable = await toFile(audioBuffer, resolveAudioFilename(mimeType), {
     type: String(mimeType || "audio/webm"),
   });
@@ -369,6 +370,6 @@ export const evaluateSpeakingProvisionalScore = async ({
     features,
     provisionalAnalysis,
     provisionalSource: String(process.env.SPEAKING_PROVISIONAL_FORMULA_VERSION || "formula_v1"),
-    sttSource: whisperResult?.source || "openai:whisper-1",
+    sttSource: whisperResult?.source || `openai:${DEFAULT_SPEAKING_STT_MODEL}`,
   };
 };

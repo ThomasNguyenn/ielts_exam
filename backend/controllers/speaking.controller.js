@@ -629,7 +629,7 @@ export const submitSpeaking = async (req, res) => {
       session_id: grading.session._id,
       status: grading.session.status,
       scoring_state: deriveScoringState(grading.session),
-      transcript: grading.analysis?.transcript || "",
+      transcript: grading.session?.transcript || grading.analysis?.transcript || "",
       analysis: grading.analysis || null,
       ai_source: grading.aiSource,
       provisional_analysis: grading.session?.provisional_analysis || null,

@@ -385,7 +385,7 @@ export const scoreSpeakingSessionById = async ({ sessionId, force = false } = {}
     throw error;
   }
 
-  const clientTranscript = session.transcript || "";
+  const clientTranscript = String(session.transcript || "").trim();
   const clientWPM = Number(session?.metrics?.wpm || 0);
   const parsedMetrics = session?.metrics?.pauses || {};
   const prompt = buildStrictSpeakingPrompt({
@@ -433,7 +433,10 @@ export const scoreSpeakingSessionById = async ({ sessionId, force = false } = {}
     analysis = buildFallbackAnalysis(clientTranscript);
   }
 
-  session.transcript = analysis.transcript || clientTranscript || "";
+  // Keep the canonical session transcript if it already exists (typically from STT),
+  // and only fall back to model-returned transcript when no transcript is available.
+  const modelTranscript = String(analysis?.transcript || "").trim();
+  session.transcript = clientTranscript || modelTranscript || "";
   session.analysis = analysis;
 
   // Extract Error Taxonomy Logs

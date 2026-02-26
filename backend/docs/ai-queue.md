@@ -29,7 +29,7 @@ This project supports asynchronous AI grading for `writing` and `speaking`.
 ### Fast provisional pipeline (feature-flagged)
 - `SPEAKING_FAST_PIPELINE=true` (enable provisional fast-score pipeline)
 - `SPEAKING_FAST_SCORE_TIMEOUT_MS=3500`
-- `SPEAKING_STT_MODEL=whisper-1`
+- `SPEAKING_STT_MODEL=gpt-4o-mini-transcribe`
 - `SPEAKING_PROVISIONAL_FORMULA_VERSION=formula_v1`
 
 ### Optional tuning
