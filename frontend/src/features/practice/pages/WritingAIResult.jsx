@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '@/shared/api/client';
 import WritingAnalysisLoading from './WritingAnalysisLoading';
@@ -6,21 +6,7 @@ import WritingFastResultView from './WritingFastResultView';
 import WritingDetailResultView from './WritingDetailResultView';
 import './WritingAIResult.css';
 
-const WRITING_AI_TIMER_KEY_PREFIX = 'writing-ai-start:';
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const formatElapsed = (totalSeconds) => {
-  const safe = Number.isFinite(totalSeconds) ? Math.max(0, Math.floor(totalSeconds)) : 0;
-  const hours = Math.floor(safe / 3600);
-  const minutes = Math.floor((safe % 3600) / 60);
-  const seconds = safe % 60;
-
-  if (hours > 0) {
-    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-  }
-
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-};
 
 const hasDetailResult = (submission) =>
   Boolean(
@@ -82,40 +68,6 @@ export default function WritingAIResult() {
   const [analysisFinished, setAnalysisFinished] = useState(false);
   const [error, setError] = useState('');
   const [fastError, setFastError] = useState('');
-  const [waitStartedAt, setWaitStartedAt] = useState(null);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-
-  const timerKey = useMemo(() => (id ? `${WRITING_AI_TIMER_KEY_PREFIX}${id}` : null), [id]);
-
-  const updateTimerStart = useCallback(() => {
-    if (!timerKey) return;
-    const now = Date.now();
-    let startedAt = now;
-    try {
-      const stored = Number(sessionStorage.getItem(timerKey));
-      if (Number.isFinite(stored) && stored > 0) {
-        startedAt = stored;
-      } else {
-        sessionStorage.setItem(timerKey, String(now));
-      }
-    } catch {
-      startedAt = now;
-    }
-    setWaitStartedAt(startedAt);
-    setElapsedSeconds(Math.max(0, Math.floor((now - startedAt) / 1000)));
-  }, [timerKey]);
-
-  useEffect(() => {
-    if (!waitStartedAt || !detailLoading) return undefined;
-
-    const tick = () => {
-      setElapsedSeconds(Math.max(0, Math.floor((Date.now() - waitStartedAt) / 1000)));
-    };
-
-    tick();
-    const interval = setInterval(tick, 1000);
-    return () => clearInterval(interval);
-  }, [waitStartedAt, detailLoading]);
 
   const fetchStatus = useCallback(async () => {
     const response = await api.getSubmissionStatus(id);
@@ -171,7 +123,6 @@ export default function WritingAIResult() {
     setError('');
     setAnalysisFinished(false);
     setDetailLoading(true);
-    updateTimerStart();
 
     try {
       const response = await api.scoreSubmissionAI(id);
@@ -196,7 +147,7 @@ export default function WritingAIResult() {
       setAnalysisFinished(false);
       setError(detailError?.message || 'Detailed scoring failed.');
     }
-  }, [applyDetailView, fetchStatus, id, pollUntilDetailReady, updateTimerStart]);
+  }, [applyDetailView, fetchStatus, id, pollUntilDetailReady]);
 
   useEffect(() => {
     if (!id) return;
@@ -216,7 +167,6 @@ export default function WritingAIResult() {
 
         if (current?.scoring_state === 'detail_processing') {
           setDetailLoading(true);
-          updateTimerStart();
           const doneSubmission = await pollUntilDetailReady();
           if (cancelled) return;
           applyDetailView(doneSubmission);
@@ -250,18 +200,11 @@ export default function WritingAIResult() {
     return () => {
       cancelled = true;
     };
-  }, [applyDetailView, applyFastView, fetchStatus, id, pollUntilDetailReady, triggerFastScoring, updateTimerStart]);
+  }, [applyDetailView, applyFastView, fetchStatus, id, pollUntilDetailReady, triggerFastScoring]);
 
   const handleDetailAnimationComplete = useCallback(() => {
     setDetailLoading(false);
-    if (timerKey) {
-      try {
-        sessionStorage.removeItem(timerKey);
-      } catch {
-        // ignore storage errors
-      }
-    }
-  }, [timerKey]);
+  }, []);
 
   if (loading) {
     return (
@@ -282,7 +225,7 @@ export default function WritingAIResult() {
         <div className="writing-ai-container">
           <section className="writing-fast-error">
             <p>{error}</p>
-            <button type="button" onClick={() => navigate('/tests')}>Back to Dashboard</button>
+            <button type="button" onClick={() => navigate('/tests')}>Back to Tests</button>
           </section>
         </div>
       </div>
@@ -323,7 +266,6 @@ export default function WritingAIResult() {
         <WritingAnalysisLoading
           isFinished={analysisFinished}
           onAnimationComplete={handleDetailAnimationComplete}
-          elapsedLabel={formatElapsed(elapsedSeconds)}
         />
       ) : null}
     </>

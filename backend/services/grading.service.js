@@ -1,4 +1,4 @@
-import OpenAI from 'openai';
+﻿import OpenAI from 'openai';
 import { requestOpenAIJsonWithFallback } from '../utils/aiClient.js';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.OPEN_API_KEY;
@@ -42,7 +42,11 @@ C) SOI KỸ Task Achievement (TA):
    - Có highlight key features không?
    - Số liệu có chính xác so với biểu đồ không (nếu có)?
 D) Với Lexical Resource (LR):
-   - Đưa ra từ vựng thay thế (band 6.0, 6.5) phù hợp ngữ cảnh báo cáo số liệu/biểu đồ.
+   - Ưu tiên chọn từ/cụm từ (word hoặc collocation) đang ở mức A2-B1 trong bài.
+   - Đưa ra nâng cấp đúng ngữ cảnh theo đích B2/C1:
+     + "b2_replacement": từ/cụm thay thế mức B2
+     + "c1_replacement": từ/cụm thay thế mức C1
+   - Đồng thời giữ "band6_replacement"/"band65_replacement" để tương thích hệ thống cũ.
 E) KHÔNG trộn tiêu chí.
    - Task Achievement: nói về việc tóm tắt, so sánh, không đưa ý kiến cá nhân.
 F) Mỗi mục phải:
@@ -97,6 +101,13 @@ Lưu ý: Vẫn dùng key "task_response" trong JSON để chứa nội dung "Tas
       "error_code": "string",
       "explanation": "string",
       "improved": "string",
+      "lexical_unit": "word|collocation",
+      "source_level": "A2|B1|B2|C1|C2|UNKNOWN",
+      "target_level": "B2|C1|C2|UNKNOWN",
+      "b2_replacement": "string",
+      "c1_replacement": "string",
+      "band6_replacement": "string",
+      "band65_replacement": "string",
       "band_impact": "string"
     }
   ],
@@ -248,9 +259,16 @@ C) SOI KỸ NHẤT tiêu chí GRA:
    - Cố gắng tách lỗi nhỏ thành từng mục (ví dụ: 1 câu có 3 lỗi → tách 3 mục).
 D) Với Lexical Resource (LR):
    - Mỗi mục lỗi từ vựng/collocation phải đưa:
+          + "source_level": nhận diện trình độ CEFR của từ/cụm gốc (ưu tiên A2/B1)
+     + "target_level": CEFR của gợi ý (ưu tiên B2/C1)
+     + "lexical_unit": "word" hoặc "collocation"
+     + "b2_replacement": từ/cụm thay thế phù hợp mức B2
+     + "c1_replacement": từ/cụm thay thế phù hợp mức C1
      + "band6_replacement": từ/cụm thay thế phù hợp khoảng Band 6.0
      + "band65_replacement": từ/cụm thay thế phù hợp khoảng Band 6.5
-   - Chỉ đưa replacement có nghĩa đúng theo ngữ cảnh, không thay bừa.
+   - Prioritize upgrading A2/B1 words or collocations to B2/C1 when context allows.
+   - Only suggest replacements that preserve the original meaning in context.
+
 E) KHÔNG trộn tiêu chí:
    - Task Response: chỉ nói về trả lời đề, lập trường, phát triển ý (không sửa grammar).
    - CC: chỉ nói về bố cục, liên kết, logic đoạn.
@@ -316,6 +334,11 @@ OUTPUT: CHỈ TRẢ JSON HỢP LỆ
       "error_code": "string",
       "explanation": "string (Vietnamese)",
       "improved": "string",
+      "lexical_unit": "word|collocation",
+      "source_level": "A2|B1|B2|C1|C2|UNKNOWN",
+      "target_level": "B2|C1|C2|UNKNOWN",
+      "b2_replacement": "string",
+      "c1_replacement": "string",
       "band6_replacement": "string",
       "band65_replacement": "string",
       "band_impact": "string"
@@ -558,3 +581,5 @@ Required JSON schema:
     }, process.env.WRITING_FAST_MODEL || "gpt-4o-mini");
   }
 };
+
+

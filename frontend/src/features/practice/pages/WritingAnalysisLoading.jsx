@@ -9,7 +9,7 @@ const ANALYSIS_STEPS = [
     "Đang phân tích phong cách viết..."
 ];
 
-const WritingAnalysisLoading = ({ isFinished, onAnimationComplete, elapsedLabel = '00:00' }) => {
+const WritingAnalysisLoading = ({ isFinished, onAnimationComplete }) => {
     const [progress, setProgress] = useState(0);
     const [activeStepIndex, setActiveStepIndex] = useState(0);
 
@@ -78,8 +78,7 @@ const WritingAnalysisLoading = ({ isFinished, onAnimationComplete, elapsedLabel 
 
                 {/* Text Content */}
                 <h2 className="text-2xl font-black text-slate-800 mb-2">Đang phân tích bài viết</h2>
-                <p className="text-slate-500 font-medium mb-3">Vui lòng chờ trong giây lát...</p>
-                <p className="text-slate-600 font-semibold mb-8">Thời gian chờ: {elapsedLabel}</p>
+                <p className="text-slate-500 font-medium mb-8">Vui lòng chờ trong giây lát...</p>
 
                 {/* Steps List */}
                 <div className="w-full space-y-3 mb-8 pl-4">

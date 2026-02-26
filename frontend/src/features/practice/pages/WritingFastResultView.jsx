@@ -177,7 +177,7 @@ export default function WritingFastResultView({
         <section className="writing-fast-actions">
           <button type="button" className="writing-fast-btn writing-fast-btn--secondary" onClick={onBack}>
             <span className="material-symbols-outlined">arrow_back</span>
-            Back to Dashboard
+            Back to Tests
           </button>
           <button
             type="button"
