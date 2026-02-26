@@ -1,4 +1,6 @@
-const API_BASE = import.meta.env?.VITE_API_URL || '';
+const API_BASE = import.meta.env?.DEV
+  ? ''
+  : (import.meta.env?.VITE_API_URL || '');
 const ACHIEVEMENT_EVENT_IGNORED_PATHS = new Set([
   '/api/auth/profile',
   '/api/achievements',

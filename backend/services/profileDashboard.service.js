@@ -5,6 +5,7 @@ import Test from "../models/Test.model.js";
 import TestAttempt from "../models/TestAttempt.model.js";
 import Vocabulary from "../models/Vocabulary.model.js";
 import WritingSubmission from "../models/WritingSubmission.model.js";
+import { buildAnalyticsHistoryRaw, buildAnalyticsSummary } from "./analyticsKpi.service.js";
 
 const SKILL_KEYS = Object.freeze(["reading", "listening", "writing", "speaking"]);
 const WRITING_COMPLETED_STATUS = new Set(["scored", "reviewed"]);
@@ -35,7 +36,6 @@ const toNumber = (value, fallback = 0) => {
 };
 
 const roundHalf = (value) => Math.round(toNumber(value, 0) * 2) / 2;
-const roundOne = (value) => Math.round(toNumber(value, 0) * 10) / 10;
 
 const clampBand = (value) => {
   const numeric = toNumber(value, 0);
@@ -264,51 +264,6 @@ const buildBadges = ({ writingCount, speakingCount, vocabularyCount, streakDays,
   ];
 };
 
-const buildSummary = ({ completedRecords, skills, trackedStudyHours }) => {
-  const nowMs = Date.now();
-  const weekStartMs = nowMs - 7 * DAY_MS;
-  const currentWindowStartMs = nowMs - 30 * DAY_MS;
-  const previousWindowStartMs = nowMs - 60 * DAY_MS;
-
-  const weeklyDelta = completedRecords.filter((item) => {
-    const date = toDate(item.date);
-    return date && date.getTime() >= weekStartMs;
-  }).length;
-
-  const currentScores = [];
-  const previousScores = [];
-  completedRecords.forEach((item) => {
-    const date = toDate(item.date);
-    if (!date) return;
-    const time = date.getTime();
-    if (time >= currentWindowStartMs) {
-      currentScores.push(item.score);
-      return;
-    }
-    if (time >= previousWindowStartMs && time < currentWindowStartMs) {
-      previousScores.push(item.score);
-    }
-  });
-
-  const skillBands = Object.values(skills).map((item) => item.band).filter((band) => band > 0);
-  const averageBandScore = roundHalf(
-    skillBands.length ? average(skillBands) : average(completedRecords.map((item) => item.score)),
-  );
-
-  const averageBandDelta = currentScores.length && previousScores.length
-    ? roundHalf(average(currentScores) - average(previousScores))
-    : 0;
-
-  return {
-    totalMockTests: completedRecords.length,
-    weeklyDelta,
-    averageBandScore,
-    averageBandDelta,
-    totalStudyHours: roundOne(trackedStudyHours),
-    remainingStudyHours: 0,
-  };
-};
-
 export const buildProfileDashboard = async (userId, { targets = {} } = {}) => {
   if (!mongoose.Types.ObjectId.isValid(userId)) {
     return createEmptyDashboard(targets);
@@ -368,7 +323,6 @@ export const buildProfileDashboard = async (userId, { targets = {} } = {}) => {
 
   const completedRecords = [];
   const activities = [];
-  let trackedStudyHours = 0;
 
   objectiveAttempts.forEach((attempt) => {
     const date = toDate(attempt?.submitted_at);
@@ -395,7 +349,6 @@ export const buildProfileDashboard = async (userId, { targets = {} } = {}) => {
       status: "completed",
     });
 
-    trackedStudyHours += toNumber(attempt?.time_taken_ms, 0) / 3600000;
   });
 
   const writingSubmissionAttemptIds = new Set(
@@ -437,7 +390,6 @@ export const buildProfileDashboard = async (userId, { targets = {} } = {}) => {
   writingAttempts.forEach((attempt) => {
     const attemptId = String(attempt?._id || "").trim();
     if (!attemptId || writingSubmissionAttemptIds.has(attemptId)) {
-      trackedStudyHours += toNumber(attempt?.time_taken_ms, 0) / 3600000;
       return;
     }
 
@@ -478,8 +430,6 @@ export const buildProfileDashboard = async (userId, { targets = {} } = {}) => {
         date,
       });
     }
-
-    trackedStudyHours += toNumber(attempt?.time_taken_ms, 0) / 3600000;
   });
 
   speakingSessions.forEach((session) => {
@@ -512,8 +462,34 @@ export const buildProfileDashboard = async (userId, { targets = {} } = {}) => {
     }
   });
 
+  const canonicalWritingSubmissions = writingSubmissions.filter((submission) => {
+    const rawStatus = String(submission?.status || "").toLowerCase();
+    return WRITING_COMPLETED_STATUS.has(rawStatus) && Number.isFinite(Number(submission?.score));
+  });
+  const canonicalSpeakingSessions = speakingSessions.filter((session) => {
+    const rawStatus = String(session?.status || "").toLowerCase();
+    return SPEAKING_COMPLETED_STATUS.has(rawStatus) && Number.isFinite(Number(session?.analysis?.band_score));
+  });
+  const { allHistoryRaw } = buildAnalyticsHistoryRaw({
+    attempts: objectiveAttempts,
+    writingSubmissions: canonicalWritingSubmissions,
+    speakingSessions: canonicalSpeakingSessions,
+  });
+  const analyticsSummary = buildAnalyticsSummary({
+    attempts: objectiveAttempts,
+    allHistoryRaw,
+    recentMonthCount: 7,
+  });
+
   const skills = computeLatestSkillAverages(completedRecords, targets);
-  const summary = buildSummary({ completedRecords, skills, trackedStudyHours });
+  const summary = {
+    totalMockTests: analyticsSummary.testsTaken,
+    weeklyDelta: analyticsSummary.thisMonthEvents,
+    averageBandScore: analyticsSummary.overallBand,
+    averageBandDelta: analyticsSummary.improvement,
+    totalStudyHours: analyticsSummary.studyHours,
+    remainingStudyHours: analyticsSummary.thisMonthStudyHours,
+  };
   const streakDays = computeConsecutiveDays(completedRecords);
   const writingCount = completedRecords.filter((item) => item.skill === "writing").length;
   const speakingCount = completedRecords.filter((item) => item.skill === "speaking").length;

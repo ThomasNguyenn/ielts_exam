@@ -57,6 +57,8 @@ function ProfilePage() {
   const [saveMessage, setSaveMessage] = useState("");
   const [saveError, setSaveError] = useState("");
   const [editForm, setEditForm] = useState(() => createEditForm(createInitialProfile()));
+  const [achievementDefinitions, setAchievementDefinitions] = useState([]);
+  const [userAchievements, setUserAchievements] = useState([]);
 
   useEffect(() => {
     ensureProfileFonts();
@@ -72,10 +74,14 @@ function ProfilePage() {
           return;
         }
 
-        const response = await api.getProfile();
-        if (!active || !response?.success || !response?.data) return;
+        const [profileResponse, achievementDefinitionsResponse, userAchievementsResponse] = await Promise.all([
+          api.getProfile(),
+          api.getAchievementDefinitions().catch(() => null),
+          api.getMyAchievements().catch(() => null),
+        ]);
+        if (!active || !profileResponse?.success || !profileResponse?.data) return;
 
-        const data = response.data;
+        const data = profileResponse.data;
         const targets = normalizeTargets(data.targets || DEFAULT_TARGETS);
         const avatarSeed = sanitizeAvatarSeed(data.avatarSeed, fallbackAvatarSeed(data));
         const dashboard = normalizeDashboard(data.dashboard, targets);
@@ -90,6 +96,18 @@ function ProfilePage() {
           targets,
           dashboard,
         });
+
+        if (achievementDefinitionsResponse?.success && Array.isArray(achievementDefinitionsResponse.data)) {
+          setAchievementDefinitions(achievementDefinitionsResponse.data);
+        } else {
+          setAchievementDefinitions([]);
+        }
+
+        if (userAchievementsResponse?.success && Array.isArray(userAchievementsResponse.data)) {
+          setUserAchievements(userAchievementsResponse.data);
+        } else {
+          setUserAchievements([]);
+        }
       } catch (error) {
         console.error("Failed to load profile", error);
       } finally {
@@ -106,7 +124,10 @@ function ProfilePage() {
   const summary = profile.dashboard.summary || DEFAULT_DASHBOARD.summary;
   const skills = profile.dashboard.skills || DEFAULT_DASHBOARD.skills;
 
-  const badges = useMemo(() => mergeBadges(profile.dashboard.badges), [profile.dashboard.badges]);
+  const badges = useMemo(
+    () => mergeBadges(achievementDefinitions, userAchievements, { limit: 10 }),
+    [achievementDefinitions, userAchievements],
+  );
 
   const activities = useMemo(
     () =>

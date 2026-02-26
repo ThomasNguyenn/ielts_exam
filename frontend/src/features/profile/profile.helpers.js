@@ -49,77 +49,55 @@ export const SKILL_META = Object.freeze({
   },
 });
 
-const BADGE_TEMPLATES = Object.freeze([
-  {
-    key: "writing_warrior",
-    title: "Writing Warrior",
-    subtitle: "Submitted 20 Essays",
-    icon: "military_tech",
-    unlocked: true,
-    level: 3,
+const TIER_LEVEL = Object.freeze({
+  bronze: 1,
+  silver: 2,
+  gold: 3,
+  diamond: 4,
+});
+
+const BADGE_STYLE_BY_TIER = Object.freeze({
+  bronze: {
+    iconClass: "text-amber-700",
+    shellClass:
+      "relative size-20 rounded-full bg-gradient-to-b from-amber-100 to-amber-50 flex items-center justify-center border-4 border-amber-200 shadow-sm group-hover:scale-105 transition-transform",
+    levelClass:
+      "absolute -bottom-1 bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full",
+    wrapperClass: "flex flex-col items-center text-center gap-3 group relative",
+  },
+  silver: {
+    iconClass: "text-slate-600",
+    shellClass:
+      "relative size-20 rounded-full bg-gradient-to-b from-slate-100 to-slate-50 flex items-center justify-center border-4 border-slate-300 shadow-sm group-hover:scale-105 transition-transform",
+    levelClass:
+      "absolute -bottom-1 bg-slate-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full",
+    wrapperClass: "flex flex-col items-center text-center gap-3 group relative",
+  },
+  gold: {
     iconClass: "text-yellow-600",
     shellClass:
       "relative size-20 rounded-full bg-gradient-to-b from-yellow-100 to-yellow-50 flex items-center justify-center border-4 border-yellow-200 shadow-sm group-hover:scale-105 transition-transform",
     levelClass:
       "absolute -bottom-1 bg-yellow-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full",
-    wrapperClass: "flex flex-col items-center text-center gap-3 group",
+    wrapperClass: "flex flex-col items-center text-center gap-3 group relative",
   },
-  {
-    key: "vocab_master",
-    title: "Vocab Master",
-    subtitle: "Learned 500 words",
-    icon: "psychology",
-    unlocked: true,
-    level: 2,
-    iconClass: "text-slate-500",
+  diamond: {
+    iconClass: "text-sky-600",
     shellClass:
-      "relative size-20 rounded-full bg-gradient-to-b from-slate-100 to-slate-50 flex items-center justify-center border-4 border-slate-300 shadow-sm group-hover:scale-105 transition-transform",
+      "relative size-20 rounded-full bg-gradient-to-b from-sky-100 to-indigo-50 flex items-center justify-center border-4 border-sky-200 shadow-sm group-hover:scale-105 transition-transform",
     levelClass:
-      "absolute -bottom-1 bg-slate-400 text-white text-[10px] font-bold px-2 py-0.5 rounded-full",
-    wrapperClass: "flex flex-col items-center text-center gap-3 group",
+      "absolute -bottom-1 bg-sky-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full",
+    wrapperClass: "flex flex-col items-center text-center gap-3 group relative",
   },
-  {
-    key: "streak_7_day",
-    title: "7-Day Streak",
-    subtitle: "Consistent learner",
-    icon: "local_fire_department",
-    unlocked: true,
-    level: 1,
-    iconClass: "text-orange-600",
-    shellClass:
-      "relative size-20 rounded-full bg-gradient-to-b from-orange-100 to-orange-50 flex items-center justify-center border-4 border-orange-200 shadow-sm group-hover:scale-105 transition-transform",
-    levelClass:
-      "absolute -bottom-1 bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full",
-    wrapperClass: "flex flex-col items-center text-center gap-3 group",
-  },
-  {
-    key: "speaking_pro",
-    title: "Speaking Pro",
-    subtitle: "Complete 5 mock interviews",
-    icon: "record_voice_over",
-    unlocked: false,
-    level: 0,
+  locked: {
     iconClass: "text-slate-400",
     shellClass:
       "relative size-20 rounded-full bg-slate-100 flex items-center justify-center border-4 border-slate-200 border-dashed",
-    wrapperClass:
-      "flex flex-col items-center text-center gap-3 group opacity-60 grayscale hover:grayscale-0 transition-all cursor-help relative",
-    tooltip: "Score Band 7.0+ in 3 consecutive speaking tests to unlock.",
-  },
-  {
-    key: "grammar_guru",
-    title: "Grammar Guru",
-    subtitle: "Score 100% in Grammar",
-    icon: "workspace_premium",
-    unlocked: false,
-    level: 0,
-    iconClass: "text-slate-400",
-    shellClass:
-      "relative size-20 rounded-full bg-slate-100 flex items-center justify-center border-4 border-slate-200 border-dashed",
+    levelClass: "",
     wrapperClass:
       "flex flex-col items-center text-center gap-3 group opacity-60 grayscale hover:grayscale-0 transition-all cursor-help relative",
   },
-]);
+});
 
 const ACTIVITY_VISUAL = Object.freeze({
   writing: {
@@ -145,6 +123,7 @@ const ACTIVITY_VISUAL = Object.freeze({
 });
 
 const roundHalf = (value) => Math.round(Number(value || 0) * 2) / 2;
+const roundOne = (value) => Math.round(Number(value || 0) * 10) / 10;
 
 export const toNumber = (value, fallback = 0) => {
   const numeric = Number(value);
@@ -254,7 +233,7 @@ export const normalizeDashboard = (dashboard, targets) => {
       totalMockTests: Math.max(0, Math.round(toNumber(sourceSummary.totalMockTests, 0))),
       weeklyDelta: Math.max(0, Math.round(toNumber(sourceSummary.weeklyDelta, 0))),
       averageBandScore: clampTarget(sourceSummary.averageBandScore),
-      averageBandDelta: roundHalf(toNumber(sourceSummary.averageBandDelta, 0)),
+      averageBandDelta: roundOne(toNumber(sourceSummary.averageBandDelta, 0)),
       totalStudyHours: Math.max(0, toNumber(sourceSummary.totalStudyHours, 0)),
       remainingStudyHours: Math.max(0, toNumber(sourceSummary.remainingStudyHours, 0)),
     },
@@ -264,21 +243,91 @@ export const normalizeDashboard = (dashboard, targets) => {
   };
 };
 
-export const mergeBadges = (apiBadges) => {
-  const sourceBadges = Array.isArray(apiBadges) ? apiBadges : [];
-  return BADGE_TEMPLATES.map((template, index) => {
-    const fromKey = sourceBadges.find((item) => String(item?.key || "") === template.key);
-    const source = fromKey || sourceBadges[index] || {};
-    const unlocked = source.unlocked ?? template.unlocked;
-    const level = unlocked ? Math.max(1, Math.min(9, Math.round(toNumber(source.level, template.level)))) : 0;
+const toTimestamp = (value) => {
+  const date = new Date(value || 0);
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+};
+
+const formatUnlockDate = (value) => {
+  const date = new Date(value || 0);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+};
+
+const isEmojiLikeIcon = (value = "") => /[^\x00-\x7F]/.test(String(value || "").trim());
+
+const fallbackIconByTier = (tier) => {
+  if (tier === "diamond") return "diamond";
+  if (tier === "gold") return "workspace_premium";
+  if (tier === "silver") return "military_tech";
+  return "emoji_events";
+};
+
+export const mergeBadges = (achievementDefinitions, userAchievements, options = {}) => {
+  const limit = Math.max(0, Math.round(toNumber(options.limit, 10)));
+  const definitions = Array.isArray(achievementDefinitions) ? achievementDefinitions : [];
+  const unlockedItems = Array.isArray(userAchievements) ? userAchievements : [];
+
+  const unlockedByKey = new Map();
+  for (const item of unlockedItems) {
+    const key = String(item?.achievementKey || item?.key || "").trim();
+    if (!key || unlockedByKey.has(key)) continue;
+    unlockedByKey.set(key, item);
+  }
+
+  const sorted = definitions
+    .filter((item) => item && typeof item === "object")
+    .slice()
+    .sort((a, b) => {
+      const aKey = String(a?.key || "");
+      const bKey = String(b?.key || "");
+      const aUnlocked = unlockedByKey.has(aKey) ? 0 : 1;
+      const bUnlocked = unlockedByKey.has(bKey) ? 0 : 1;
+      if (aUnlocked !== bUnlocked) return aUnlocked - bUnlocked;
+
+      if (aUnlocked === 0 && bUnlocked === 0) {
+        const aDate = toTimestamp(unlockedByKey.get(aKey)?.unlockedAt);
+        const bDate = toTimestamp(unlockedByKey.get(bKey)?.unlockedAt);
+        if (aDate !== bDate) return bDate - aDate;
+      }
+
+      const aOrder = toNumber(a?.order, Number.MAX_SAFE_INTEGER);
+      const bOrder = toNumber(b?.order, Number.MAX_SAFE_INTEGER);
+      if (aOrder !== bOrder) return aOrder - bOrder;
+
+      return String(a?.title || "").localeCompare(String(b?.title || ""));
+    })
+    .slice(0, limit);
+
+  return sorted.map((achievement, index) => {
+    const key = String(achievement?.key || `achievement-${index + 1}`);
+    const unlockedEntry = unlockedByKey.get(key);
+    const unlocked = Boolean(unlockedEntry);
+    const tier = String(achievement?.tier || "").trim().toLowerCase();
+    const style = unlocked
+      ? (BADGE_STYLE_BY_TIER[tier] || BADGE_STYLE_BY_TIER.bronze)
+      : BADGE_STYLE_BY_TIER.locked;
+    const rawIcon = String(achievement?.icon || "").trim();
+    const iconType = isEmojiLikeIcon(rawIcon) ? "emoji" : "symbol";
+    const icon = rawIcon || fallbackIconByTier(tier);
+    const unlockDate = formatUnlockDate(unlockedEntry?.unlockedAt);
+    const subtitle = unlocked
+      ? (unlockDate ? `Unlocked ${unlockDate}` : "Unlocked")
+      : (String(achievement?.description || "").trim() || "Not unlocked yet.");
 
     return {
-      ...template,
-      title: String(source.title || template.title),
-      subtitle: String(source.subtitle || template.subtitle),
-      tooltip: source.tooltip ? String(source.tooltip) : template.tooltip,
-      unlocked: Boolean(unlocked),
-      level,
+      key,
+      title: String(achievement?.title || "Achievement"),
+      subtitle,
+      icon,
+      iconType,
+      unlocked,
+      level: unlocked ? (TIER_LEVEL[tier] || 1) : 0,
+      iconClass: style.iconClass,
+      shellClass: style.shellClass,
+      levelClass: style.levelClass,
+      wrapperClass: style.wrapperClass,
+      tooltip: unlocked ? "" : String(achievement?.description || "").trim(),
     };
   });
 };
