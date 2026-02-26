@@ -140,12 +140,16 @@ const SUBTYPE_OVERRIDES_VI = Object.freeze({
   SPEAKING_FLUENCY_BREAKDOWN: "Gián đoạn độ trôi chảy",
   SPEAKING_LEX_RANGE_LIMITED: "Vốn từ hạn chế",
   SPEAKING_PRON_INTELLIGIBILITY: "Độ rõ tiếng phát âm thấp",
+  MCQ_INFERENCE_EXPLICIT: "Suy luận từ thông tin hiển ngôn (trắc nghiệm)",
+  SPEAKING_PRON_VOWEL_CONSONANT: "Lỗi phát âm nguyên âm/phụ âm",
   CROSS_SENTENCE_LINK_FAIL: "Lỗi liên kết giữa các câu",
   REFERENCE_CHAIN_MISS: "Bỏ sót chuỗi tham chiếu",
 });
 
 const TOKEN_VI = Object.freeze({
   MCQ: "trắc nghiệm",
+  INFERENCE: "suy luận",
+  EXPLICIT: "hiển ngôn",
   TFNG: "true/false/not given",
   YNNG: "yes/no/not given",
   SPELL: "chính tả",
@@ -201,6 +205,10 @@ const TOKEN_VI = Object.freeze({
   AP: "mạo từ và giới từ",
   CL: "ranh giới mệnh đề",
   INTEL: "độ rõ tiếng",
+  PRON: "phát âm",
+  VOWEL: "nguyên âm",
+  CONSONANT: "phụ âm",
+  SPEAKING: "nói",
   WST: "nhấn âm từ",
   SST: "nhấn âm câu",
   RHY: "nhịp điệu",

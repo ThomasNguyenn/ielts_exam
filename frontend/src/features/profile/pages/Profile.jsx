@@ -67,6 +67,33 @@ function ProfilePage() {
   useEffect(() => {
     let active = true;
 
+    const fetchAchievements = async () => {
+      try {
+        const [achievementDefinitionsResponse, userAchievementsResponse] = await Promise.all([
+          api.getAchievementDefinitions().catch(() => null),
+          api.getMyAchievements().catch(() => null),
+        ]);
+
+        if (!active) return;
+
+        if (achievementDefinitionsResponse?.success && Array.isArray(achievementDefinitionsResponse.data)) {
+          setAchievementDefinitions(achievementDefinitionsResponse.data);
+        } else {
+          setAchievementDefinitions([]);
+        }
+
+        if (userAchievementsResponse?.success && Array.isArray(userAchievementsResponse.data)) {
+          setUserAchievements(userAchievementsResponse.data);
+        } else {
+          setUserAchievements([]);
+        }
+      } catch {
+        if (!active) return;
+        setAchievementDefinitions([]);
+        setUserAchievements([]);
+      }
+    };
+
     const fetchProfile = async () => {
       try {
         if (!api.isAuthenticated()) {
@@ -74,11 +101,10 @@ function ProfilePage() {
           return;
         }
 
-        const [profileResponse, achievementDefinitionsResponse, userAchievementsResponse] = await Promise.all([
-          api.getProfile(),
-          api.getAchievementDefinitions().catch(() => null),
-          api.getMyAchievements().catch(() => null),
-        ]);
+        // Load achievements in the background so profile UI is not blocked by extra API calls.
+        void fetchAchievements();
+
+        const profileResponse = await api.getProfile();
         if (!active || !profileResponse?.success || !profileResponse?.data) return;
 
         const data = profileResponse.data;
@@ -96,18 +122,6 @@ function ProfilePage() {
           targets,
           dashboard,
         });
-
-        if (achievementDefinitionsResponse?.success && Array.isArray(achievementDefinitionsResponse.data)) {
-          setAchievementDefinitions(achievementDefinitionsResponse.data);
-        } else {
-          setAchievementDefinitions([]);
-        }
-
-        if (userAchievementsResponse?.success && Array.isArray(userAchievementsResponse.data)) {
-          setUserAchievements(userAchievementsResponse.data);
-        } else {
-          setUserAchievements([]);
-        }
       } catch (error) {
         console.error("Failed to load profile", error);
       } finally {

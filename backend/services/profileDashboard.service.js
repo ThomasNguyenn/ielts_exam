@@ -281,7 +281,7 @@ export const buildProfileDashboard = async (userId, { targets = {} } = {}) => {
         .select("_id test_id type score total percentage submitted_at time_taken_ms")
         .lean(),
       WritingSubmission.find({ user_id: objectId })
-        .select("_id test_id attempt_id writing_answers score submitted_at status")
+        .select("_id test_id attempt_id writing_answers.task_title score submitted_at status")
         .lean(),
       TestAttempt.find({
         user_id: objectId,
@@ -294,32 +294,6 @@ export const buildProfileDashboard = async (userId, { targets = {} } = {}) => {
         .lean(),
       Vocabulary.countDocuments({ user_id: String(userId) }),
     ]);
-
-  const testIdSet = new Set([
-    ...objectiveAttempts.map((item) => String(item?.test_id || "").trim()).filter(Boolean),
-    ...writingSubmissions.map((item) => String(item?.test_id || "").trim()).filter(Boolean),
-    ...writingAttempts.map((item) => String(item?.test_id || "").trim()).filter(Boolean),
-  ]);
-
-  const speakingQuestionIdSet = new Set(
-    speakingSessions.map((item) => String(item?.questionId || "").trim()).filter(Boolean),
-  );
-
-  const [tests, speakingQuestions] = await Promise.all([
-    testIdSet.size
-      ? Test.find({ _id: { $in: [...testIdSet] } }).select("_id title").lean()
-      : [],
-    speakingQuestionIdSet.size
-      ? Speaking.find({ _id: { $in: [...speakingQuestionIdSet] } }).select("_id title part").lean()
-      : [],
-  ]);
-
-  const testTitleMap = new Map(
-    tests.map((item) => [String(item?._id || "").trim(), String(item?.title || "").trim()]),
-  );
-  const speakingQuestionMap = new Map(
-    speakingQuestions.map((item) => [String(item?._id || "").trim(), item]),
-  );
 
   const completedRecords = [];
   const activities = [];
@@ -336,13 +310,15 @@ export const buildProfileDashboard = async (userId, { targets = {} } = {}) => {
       percentage: attempt?.percentage,
       skill,
     });
-    const testTitle = testTitleMap.get(String(attempt?.test_id || "").trim()) || `${skill[0].toUpperCase()}${skill.slice(1)} Test`;
+    const testIdRef = String(attempt?.test_id || "").trim();
+    const fallbackTitle = `${skill[0].toUpperCase()}${skill.slice(1)} Test`;
     const id = `attempt:${String(attempt?._id || "")}`;
 
     completedRecords.push({ id, skill, score, date });
     activities.push({
       id,
-      taskName: testTitle,
+      taskName: fallbackTitle,
+      testIdRef,
       type: skill,
       date,
       score,
@@ -364,13 +340,14 @@ export const buildProfileDashboard = async (userId, { targets = {} } = {}) => {
     const rawStatus = String(submission?.status || "").toLowerCase();
     const score = clampBand(submission?.score);
     const completed = WRITING_COMPLETED_STATUS.has(rawStatus) && Number.isFinite(Number(submission?.score));
-    const testTitle = testTitleMap.get(String(submission?.test_id || "").trim());
-    const taskName = resolveWritingTaskName(submission, testTitle);
+    const taskName = resolveWritingTaskName(submission, "");
+    const testIdRef = String(submission?.test_id || "").trim();
     const id = `writing_submission:${String(submission?._id || "")}`;
 
     activities.push({
       id,
       taskName,
+      testIdRef,
       type: "writing",
       date,
       score: completed ? score : null,
@@ -410,12 +387,13 @@ export const buildProfileDashboard = async (userId, { targets = {} } = {}) => {
           : numericScore,
       )
       : null;
-    const testTitle = testTitleMap.get(String(attempt?.test_id || "").trim()) || "Writing Practice";
+    const testIdRef = String(attempt?.test_id || "").trim();
     const id = `writing_attempt:${attemptId}`;
 
     activities.push({
       id,
-      taskName: testTitle,
+      taskName: "Writing Practice",
+      testIdRef,
       type: "writing",
       date,
       score,
@@ -439,13 +417,14 @@ export const buildProfileDashboard = async (userId, { targets = {} } = {}) => {
     const rawStatus = String(session?.status || "").toLowerCase();
     const score = clampBand(session?.analysis?.band_score);
     const completed = SPEAKING_COMPLETED_STATUS.has(rawStatus) && Number.isFinite(Number(session?.analysis?.band_score));
-    const speakingInfo = speakingQuestionMap.get(String(session?.questionId || "").trim()) || null;
-    const taskName = resolveSpeakingTaskName(session, speakingInfo);
+    const questionIdRef = String(session?.questionId || "").trim();
+    const taskName = resolveSpeakingTaskName(session, null);
     const id = `speaking_session:${String(session?._id || "")}`;
 
     activities.push({
       id,
       taskName,
+      questionIdRef,
       type: "speaking",
       date,
       score: completed ? score : null,
@@ -502,13 +481,58 @@ export const buildProfileDashboard = async (userId, { targets = {} } = {}) => {
     writingBand,
   });
 
-  const recentActivities = activities
+  const recentActivityCandidates = activities
     .filter((item) => toDate(item.date))
     .sort((a, b) => toDate(b.date).getTime() - toDate(a.date).getTime())
-    .slice(0, 10)
+    .slice(0, 10);
+
+  const recentTestIdSet = new Set(
+    recentActivityCandidates.map((item) => String(item?.testIdRef || "").trim()).filter(Boolean),
+  );
+  const recentSpeakingQuestionIdSet = new Set(
+    recentActivityCandidates.map((item) => String(item?.questionIdRef || "").trim()).filter(Boolean),
+  );
+
+  const [recentTests, recentSpeakingQuestions] = await Promise.all([
+    recentTestIdSet.size
+      ? Test.find({ _id: { $in: [...recentTestIdSet] } }).select("_id title").lean()
+      : [],
+    recentSpeakingQuestionIdSet.size
+      ? Speaking.find({ _id: { $in: [...recentSpeakingQuestionIdSet] } }).select("_id title part").lean()
+      : [],
+  ]);
+
+  const recentTestTitleMap = new Map(
+    recentTests.map((item) => [String(item?._id || "").trim(), String(item?.title || "").trim()]),
+  );
+  const recentSpeakingQuestionMap = new Map(
+    recentSpeakingQuestions.map((item) => [String(item?._id || "").trim(), item]),
+  );
+
+  const recentActivities = recentActivityCandidates
     .map((item) => ({
       id: item.id,
-      taskName: item.taskName,
+      taskName: (() => {
+        const questionIdRef = String(item?.questionIdRef || "").trim();
+        if (questionIdRef) {
+          const speakingInfo = recentSpeakingQuestionMap.get(questionIdRef) || null;
+          if (speakingInfo) {
+            return resolveSpeakingTaskName({ questionId: questionIdRef }, speakingInfo);
+          }
+        }
+
+        const testIdRef = String(item?.testIdRef || "").trim();
+        const testTitle = testIdRef ? recentTestTitleMap.get(testIdRef) : "";
+        if (!testTitle) return item.taskName;
+
+        if (item.type === "reading" || item.type === "listening") {
+          return testTitle;
+        }
+        if (item.type === "writing" && item.taskName === "Writing Practice") {
+          return testTitle;
+        }
+        return item.taskName;
+      })(),
       type: item.type,
       date: item.date,
       score: item.score,

@@ -152,6 +152,11 @@ const SKILL_BADGE_CLASS = {
 };
 
 const cleanText = (value) => String(value || '').trim();
+const capitalizeFirst = (value) => {
+  const text = cleanText(value);
+  if (!text) return '';
+  return `${text.charAt(0).toLocaleUpperCase('vi-VN')}${text.slice(1)}`;
+};
 
 const clamp = (value, min, max) => Math.min(Math.max(Number(value || 0), min), max);
 
@@ -717,7 +722,7 @@ export default function ErrorTaxonomyUnifiedPage() {
       const skillFromDetails = pickDominantSkill(codeSkillVotesFromDetails[code]);
       const skillFromHeatmap = pickDominantSkill(codeSkillVotesFromHeatmap[code]);
       const skill = skillFromDetails || skillFromHeatmap || getSkillFromErrorCode(code);
-      const label = cleanText(codeLegend?.[code] || codeLegend?.[entry.code]) || entry.code;
+      const label = capitalizeFirst(cleanText(codeLegend?.[code] || codeLegend?.[entry.code]) || entry.code);
       const share = totalErrors > 0 ? entry.count / totalErrors : 0;
       return {
         code,
@@ -759,7 +764,7 @@ export default function ErrorTaxonomyUnifiedPage() {
     const legend = errorsData?.codeLegend || {};
     return codeRanking.map((entry) => ({
       value: entry.code,
-      label: `${entry.code} - ${cleanText(legend?.[entry.code]) || entry.code}`,
+      label: `${entry.code} - ${capitalizeFirst(cleanText(legend?.[entry.code]) || entry.code)}`,
     }));
   }, [errorsData, codeRanking]);
 
@@ -773,7 +778,7 @@ export default function ErrorTaxonomyUnifiedPage() {
     const modalPayload = {
       id: cleanText(item.id),
       errorCode: cleanText(item.error_code) || 'UNCLASSIFIED',
-      errorLabel: cleanText(item.error_label),
+      errorLabel: capitalizeFirst(cleanText(item.error_label)),
       section: mapSectionFromSkill(item.skill),
       taskType: cleanText(item.task_type_label) || cleanText(item.task_type) || 'Unknown',
       taxonomyReason: cleanText(item.taxonomy_reason),
@@ -1033,7 +1038,7 @@ export default function ErrorTaxonomyUnifiedPage() {
                           testId: cleanText(item.source_ref) || cleanText(item.source_id) || '-',
                           section: mapSectionFromSkill(item.skill),
                           questionType: cleanText(item.task_type_label) || cleanText(item.task_type) || 'Unknown',
-                          errorCategory: cleanText(item.error_label) || cleanText(item.error_code) || 'Unclassified',
+                          errorCategory: capitalizeFirst(cleanText(item.error_label) || cleanText(item.error_code) || 'Unclassified'),
                         };
 
                         return (

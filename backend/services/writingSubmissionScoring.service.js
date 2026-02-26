@@ -4,6 +4,102 @@ import { gradeEssay } from "./grading.service.js";
 import { createTaxonomyErrorLog } from "./taxonomy.registry.js";
 
 const toBandHalfStep = (score) => Math.round(Number(score || 0) * 2) / 2;
+const TRACKED_CRITERIA_KEYS = new Set(["lexical_resource", "grammatical_range_accuracy"]);
+const MIN_CONFIDENCE_FOR_LOG = 0.55;
+
+const MINOR_MARKERS = [
+  "minor",
+  "nhe",
+  "khong dang ke",
+  "it anh huong",
+  "low impact",
+  "small impact",
+];
+
+const PRAISE_MARKERS = [
+  "well done",
+  "excellent",
+  "good job",
+  "strong point",
+  "diem manh",
+  "lam tot",
+  "rat tot",
+  "kha tot",
+  "very good",
+];
+
+const LEXICAL_MARKERS = [
+  "spelling",
+  "chinh ta",
+  "word choice",
+  "word form",
+  "collocation",
+  "vocabulary",
+  "tu vung",
+  "lexical",
+  "typo",
+  "misspell",
+  "dung tu",
+];
+
+const normalizeText = (value) => String(value || "")
+  .toLowerCase()
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .replace(/\s+/g, " ")
+  .trim();
+
+const includesAny = (value, markers) => {
+  const normalized = normalizeText(value);
+  if (!normalized) return false;
+  return markers.some((marker) => normalized.includes(marker));
+};
+
+const hasMeaningfulCorrection = (item = {}) => {
+  const snippet = normalizeText(item?.text_snippet);
+  const improved = normalizeText(item?.improved);
+  if (!snippet || !improved) return true;
+  return snippet !== improved;
+};
+
+const isMinorIssue = (item = {}) => {
+  const confidence = Number(item?.confidence);
+  if (Number.isFinite(confidence) && confidence > 0 && confidence < MIN_CONFIDENCE_FOR_LOG) {
+    return true;
+  }
+  return includesAny(item?.band_impact, MINOR_MARKERS) || includesAny(item?.explanation, MINOR_MARKERS);
+};
+
+const isPraiseLikeIssue = (item = {}) => {
+  const type = normalizeText(item?.type);
+  if (type && type !== "error") return true;
+
+  const errorCode = normalizeText(item?.error_code);
+  if (!errorCode || errorCode === "none") return true;
+
+  return includesAny(item?.explanation, PRAISE_MARKERS) || includesAny(item?.band_impact, PRAISE_MARKERS);
+};
+
+const isLexicalOrSpellingIssue = (item = {}) => {
+  const lexicalUnit = normalizeText(item?.lexical_unit);
+  if (lexicalUnit === "word" || lexicalUnit === "collocation") return true;
+
+  const combined = `${normalizeText(item?.explanation)} ${normalizeText(item?.text_snippet)} ${normalizeText(item?.improved)}`;
+  return LEXICAL_MARKERS.some((marker) => combined.includes(marker));
+};
+
+const shouldPersistWritingIssue = ({ criterionKey, item }) => {
+  if (!TRACKED_CRITERIA_KEYS.has(criterionKey)) return false;
+  if (isPraiseLikeIssue(item)) return false;
+  if (isMinorIssue(item)) return false;
+  if (!hasMeaningfulCorrection(item)) return false;
+
+  if (criterionKey === "lexical_resource") {
+    return isLexicalOrSpellingIssue(item);
+  }
+
+  return true;
+};
 
 const computeOverallBand = (taskResults) => {
   if (!Array.isArray(taskResults) || taskResults.length === 0) return 0;
@@ -90,36 +186,11 @@ export const scoreWritingSubmissionById = async ({ submissionId, force = false }
 
   // Extract Error Taxonomy Logs
   const errorLogs = [];
-  const criteriaFallbacks = {
-    task_response: {
-      cognitiveSkill: "W-TR. Task Response / Achievement",
-      errorCategory: "Task Response / Achievement",
-      taxonomyDimension: "task_response",
-    },
-    coherence_cohesion: {
-      cognitiveSkill: "W-CC. Coherence & Cohesion",
-      errorCategory: "Coherence & Cohesion",
-      taxonomyDimension: "coherence",
-    },
-    lexical_resource: {
-      cognitiveSkill: "W-LR. Lexical Resource",
-      errorCategory: "Lexical Resource",
-      taxonomyDimension: "lexical",
-    },
-    grammatical_range_accuracy: {
-      cognitiveSkill: "W-GRA. Grammatical Range & Accuracy",
-      errorCategory: "Grammatical Range & Accuracy",
-      taxonomyDimension: "grammar",
-    },
-  };
-
   for (const tr of taskResults) {
     const aiRes = tr.result;
     if (!aiRes) continue;
 
     const criteriaList = [
-      { key: "task_response" },
-      { key: "coherence_cohesion" },
       { key: "lexical_resource" },
       { key: "grammatical_range_accuracy" },
     ];
@@ -127,28 +198,23 @@ export const scoreWritingSubmissionById = async ({ submissionId, force = false }
     for (const { key } of criteriaList) {
       const items = Array.isArray(aiRes[key]) ? aiRes[key] : [];
       for (const item of items) {
-        if (item.type === "error" && item.error_code && item.error_code !== "NONE") {
-          const normalizedLog = createTaxonomyErrorLog({
-            skillDomain: "writing",
-            taskType: tr.task_type,
-            questionType: tr.task_type,
-            errorCode: item.error_code,
-            textSnippet: item.text_snippet || "",
-            explanation: item.explanation || "",
-            detectionMethod: "llm",
-            confidence: item.confidence,
-            secondaryErrorCodes: item.secondary_error_codes,
-          });
+        if (!shouldPersistWritingIssue({ criterionKey: key, item })) continue;
 
-          if (normalizedLog.error_code === "W-UNCLASSIFIED") {
-            const fallback = criteriaFallbacks[key];
-            normalizedLog.cognitive_skill = fallback?.cognitiveSkill || normalizedLog.cognitive_skill;
-            normalizedLog.error_category = fallback?.errorCategory || normalizedLog.error_category;
-            normalizedLog.taxonomy_dimension = fallback?.taxonomyDimension || normalizedLog.taxonomy_dimension;
-          }
+        const normalizedLog = createTaxonomyErrorLog({
+          skillDomain: "writing",
+          taskType: tr.task_type,
+          questionType: tr.task_type,
+          errorCode: item.error_code,
+          textSnippet: item.text_snippet || "",
+          explanation: item.explanation || "",
+          detectionMethod: "llm",
+          confidence: item.confidence,
+          secondaryErrorCodes: item.secondary_error_codes,
+        });
 
-          errorLogs.push(normalizedLog);
-        }
+        // Only keep precise taxonomy codes. Skip ambiguous fallback entries.
+        if (normalizedLog.error_code === "W-UNCLASSIFIED") continue;
+        errorLogs.push(normalizedLog);
       }
     }
   }
