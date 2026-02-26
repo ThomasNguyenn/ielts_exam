@@ -1,221 +1,434 @@
 import React from 'react';
-
-const CircularProgress = ({ score, maxScore = 9, size = 120, strokeWidth = 8 }) => {
-    const radius = (size - strokeWidth) / 2;
-    const circumference = radius * 2 * Math.PI;
-    const progress = (score / maxScore) * circumference;
-
-    let strokeColor = '#ef4444';
-    if (score >= 4) strokeColor = '#f59e0b';
-    if (score >= 6) strokeColor = '#6366F1';
-    if (score >= 7.5) strokeColor = '#10b981';
-
-    return (
-        <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
-            <svg width={size} height={size} className="transform -rotate-90">
-                <circle
-                    cx={size / 2}
-                    cy={size / 2}
-                    r={radius}
-                    stroke="#e5e7eb"
-                    strokeWidth={strokeWidth}
-                    fill="transparent"
-                />
-                <circle
-                    cx={size / 2}
-                    cy={size / 2}
-                    r={radius}
-                    stroke={strokeColor}
-                    strokeWidth={strokeWidth}
-                    fill="transparent"
-                    strokeDasharray={circumference}
-                    strokeDashoffset={circumference - progress}
-                    strokeLinecap="round"
-                    className="transition-all duration-1000 ease-out"
-                />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-3xl font-bold" style={{ color: strokeColor }}>{score}</span>
-                <span className="text-xs text-gray-400 font-medium">BAND</span>
-            </div>
-        </div>
-    );
-};
+import './SpeakingResultPhase.css';
 
 const parseAnalysisPayload = (value) => {
-    if (!value) return null;
-    if (typeof value === 'object') return value;
+  if (!value) return null;
+  if (typeof value === 'object') return value;
 
-    if (typeof value === 'string') {
-        try {
-            const parsed = JSON.parse(value);
-            return parsed && typeof parsed === 'object' ? parsed : null;
-        } catch {
-            return null;
-        }
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch {
+      return null;
     }
+  }
 
-    return null;
+  return null;
 };
 
 const hasAnalysisPayload = (value) => (
-    Boolean(value) && typeof value === 'object' && Object.keys(value).length > 0
+  Boolean(value) && typeof value === 'object' && Object.keys(value).length > 0
 );
 
 const toScoreNumber = (value, fallback = null) => {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const clampPercent = (value) => Math.min(100, Math.max(0, Math.round((Number(value) / 9) * 100)));
+
 const formatBandDelta = (value) => {
-    if (!Number.isFinite(value)) return null;
-    if (value === 0) return '0.0';
-    return value > 0 ? `+${value.toFixed(1)}` : value.toFixed(1);
+  if (!Number.isFinite(value)) return null;
+  if (value === 0) return '0.0';
+  return value > 0 ? `+${value.toFixed(1)}` : value.toFixed(1);
+};
+
+const formatReportTimestamp = (value) => {
+  if (!value) return 'N/A';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'N/A';
+
+  return date.toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+const normalizeHeatStatus = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (['excellent', 'needs_work', 'error', 'neutral'].includes(normalized)) return normalized;
+  return 'neutral';
+};
+
+const buildFallbackHeatmap = (transcript = '') => (
+  String(transcript || '')
+    .match(/[A-Za-z0-9']+/g)
+    ?.slice(0, 160)
+    .map((word) => ({ word, status: 'neutral', note: '' })) || []
+);
+
+const normalizePriority = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (['high', 'medium', 'low'].includes(normalized)) return normalized;
+  return 'medium';
+};
+
+const buildDefaultFocusAreas = (pronunciationFeedback = '') => {
+  const feedback = String(pronunciationFeedback || '').trim();
+  if (!feedback) {
+    return [{
+      title: 'Pronunciation Focus',
+      priority: 'medium',
+      description: 'Review stress, ending sounds, and rhythm before retrying this topic.',
+    }];
+  }
+
+  return [{
+    title: 'Pronunciation Focus',
+    priority: 'high',
+    description: feedback,
+  }];
+};
+
+const CircularBand = ({ score }) => {
+  const safeScore = Number.isFinite(Number(score)) ? Number(score) : 0;
+  const radius = 52;
+  const circumference = radius * 2 * Math.PI;
+  const progress = Math.max(0, Math.min(9, safeScore));
+  const dash = (progress / 9) * circumference;
+
+  return (
+    <div className="speaking-report-band-circle-wrap">
+      <svg className="speaking-report-band-circle" viewBox="0 0 120 120" role="img" aria-label={`Band ${safeScore.toFixed(1)}`}>
+        <circle className="speaking-report-band-circle__bg" cx="60" cy="60" r={radius} />
+        <circle
+          className="speaking-report-band-circle__progress"
+          cx="60"
+          cy="60"
+          r={radius}
+          strokeDasharray={`${dash} ${circumference}`}
+        />
+      </svg>
+      <div className="speaking-report-band-circle__value">{safeScore.toFixed(1)}</div>
+    </div>
+  );
+};
+
+const criteriaConfig = {
+  fluency_coherence: {
+    label: 'Fluency',
+    color: 'blue',
+    feedbackFallback: 'No fluency feedback.',
+  },
+  lexical_resource: {
+    label: 'Lexical Resource',
+    color: 'purple',
+    feedbackFallback: 'No lexical feedback.',
+  },
+  grammatical_range: {
+    label: 'Grammar',
+    color: 'orange',
+    feedbackFallback: 'No grammar feedback.',
+  },
+  pronunciation: {
+    label: 'Pronunciation',
+    color: 'teal',
+    feedbackFallback: 'No pronunciation feedback.',
+  },
 };
 
 export default function SpeakingResultPhase({ result, topic, onRetry }) {
-    if (!result) return null;
+  if (!result) return null;
 
-    const transcript = String(result?.transcript || '').trim();
-    const scoringState = String(result?.scoring_state || '').trim().toLowerCase();
+  const transcript = String(result?.transcript || '').trim();
+  const scoringState = String(result?.scoring_state || '').trim().toLowerCase();
+  const topicPart = Number(topic?.part);
+  const normalizedPart = [1, 2, 3].includes(topicPart) ? topicPart : null;
 
-    const finalAnalysis = parseAnalysisPayload(result?.analysis);
-    const provisionalAnalysis = parseAnalysisPayload(result?.provisional_analysis);
+  const finalAnalysis = parseAnalysisPayload(result?.analysis);
+  const provisionalAnalysis = parseAnalysisPayload(result?.provisional_analysis);
 
-    const hasFinal = hasAnalysisPayload(finalAnalysis);
-    const hasProvisional = hasAnalysisPayload(provisionalAnalysis);
-    const usingProvisional = !hasFinal && hasProvisional;
-    const activeAnalysis = usingProvisional ? provisionalAnalysis : finalAnalysis;
-    const isCompleted = scoringState === 'completed' || hasFinal;
+  const hasFinal = hasAnalysisPayload(finalAnalysis);
+  const hasProvisional = hasAnalysisPayload(provisionalAnalysis);
+  const usingProvisional = !hasFinal && hasProvisional;
+  const activeAnalysis = usingProvisional ? provisionalAnalysis : finalAnalysis;
+  const isCompleted = scoringState === 'completed' || hasFinal;
 
-    const finalBand = toScoreNumber(finalAnalysis?.band_score);
-    const provisionalBand = toScoreNumber(provisionalAnalysis?.band_score);
-    const bandDelta = (
-        Number.isFinite(finalBand) && Number.isFinite(provisionalBand)
-            ? finalBand - provisionalBand
-            : null
-    );
+  const finalBand = toScoreNumber(finalAnalysis?.band_score);
+  const provisionalBand = toScoreNumber(provisionalAnalysis?.band_score);
+  const bandDelta = (
+    Number.isFinite(finalBand) && Number.isFinite(provisionalBand)
+      ? finalBand - provisionalBand
+      : null
+  );
 
-    const safeAnalysis = {
-        band_score: toScoreNumber(activeAnalysis?.band_score, 0),
-        general_feedback: activeAnalysis?.general_feedback || 'No overall feedback.',
-        sample_answer: activeAnalysis?.sample_answer || 'No model answer yet.',
-        criteria: {
-            fluency_coherence: activeAnalysis?.fluency_coherence || { score: 0, feedback: 'N/A' },
-            lexical_resource: activeAnalysis?.lexical_resource || { score: 0, feedback: 'N/A' },
-            grammatical_range: activeAnalysis?.grammatical_range || { score: 0, feedback: 'N/A' },
-            pronunciation: activeAnalysis?.pronunciation || { score: 0, feedback: 'N/A' },
-        }
-    };
+  const safeAnalysis = {
+    band_score: toScoreNumber(activeAnalysis?.band_score, 0),
+    general_feedback: String(activeAnalysis?.general_feedback || 'No overall feedback.').trim(),
+    sample_answer: String(activeAnalysis?.sample_answer || 'No model answer yet.').trim(),
+    criteria: {
+      fluency_coherence: activeAnalysis?.fluency_coherence || { score: 0, feedback: criteriaConfig.fluency_coherence.feedbackFallback },
+      lexical_resource: activeAnalysis?.lexical_resource || { score: 0, feedback: criteriaConfig.lexical_resource.feedbackFallback },
+      grammatical_range: activeAnalysis?.grammatical_range || { score: 0, feedback: criteriaConfig.grammatical_range.feedbackFallback },
+      pronunciation: activeAnalysis?.pronunciation || { score: 0, feedback: criteriaConfig.pronunciation.feedbackFallback },
+    },
+    pronunciation_heatmap: Array.isArray(activeAnalysis?.pronunciation_heatmap)
+      ? activeAnalysis.pronunciation_heatmap
+      : [],
+    focus_areas: Array.isArray(activeAnalysis?.focus_areas)
+      ? activeAnalysis.focus_areas
+      : [],
+    intonation_pacing: activeAnalysis?.intonation_pacing || {},
+    vocabulary_upgrades: Array.isArray(activeAnalysis?.vocabulary_upgrades)
+      ? activeAnalysis.vocabulary_upgrades
+      : [],
+    grammar_corrections: Array.isArray(activeAnalysis?.grammar_corrections)
+      ? activeAnalysis.grammar_corrections
+      : [],
+    next_step: String(activeAnalysis?.next_step || '').trim(),
+  };
 
-    const criteriaConfig = {
-        fluency_coherence: { label: 'Fluency & Coherence', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100' },
-        lexical_resource: { label: 'Lexical Resource', color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-100' },
-        grammatical_range: { label: 'Grammatical Range', color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100' },
-        pronunciation: { label: 'Pronunciation', color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100' }
-    };
+  const heatmapTokens = safeAnalysis.pronunciation_heatmap
+    .map((item) => ({
+      word: String(item?.word || '').trim(),
+      status: normalizeHeatStatus(item?.status),
+      note: String(item?.note || '').trim(),
+    }))
+    .filter((item) => item.word)
+    .slice(0, 180);
 
-    return (
-        <div className="max-w-4xl mx-auto space-y-8 animate-fade-in pb-12">
-            <div className="bg-white rounded-2xl p-8 shadow-sm border border-slate-100 flex flex-col md:flex-row items-center gap-8">
-                <div className="flex-shrink-0">
-                    <CircularProgress score={safeAnalysis.band_score} />
-                </div>
-                <div className="flex-1 text-center md:text-left">
-                    <div className="flex flex-wrap items-center gap-2 mb-2">
-                        <h2 className="text-xl font-bold text-slate-800">Overall Feedback</h2>
-                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${usingProvisional ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                            {usingProvisional ? 'Provisional estimate' : 'Final official score'}
-                        </span>
-                        {usingProvisional && result?.provisional_source && (
-                            <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
-                                {result.provisional_source}
-                            </span>
-                        )}
-                        {!usingProvisional && result?.ai_source && (
-                            <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
-                                {result.ai_source}
-                            </span>
-                        )}
-                    </div>
-                    <p className="text-slate-600 leading-relaxed">{safeAnalysis.general_feedback}</p>
+  const fallbackHeatmap = buildFallbackHeatmap(transcript);
+  const visibleHeatmapTokens = heatmapTokens.length > 0 ? heatmapTokens : fallbackHeatmap;
 
-                    {Number.isFinite(finalBand) && Number.isFinite(provisionalBand) && (
-                        <p className="text-sm text-slate-500 mt-3">
-                            Provisional: {provisionalBand.toFixed(1)} | Final: {finalBand.toFixed(1)} | Delta: {formatBandDelta(bandDelta)}
-                        </p>
-                    )}
+  const focusAreas = safeAnalysis.focus_areas
+    .map((item) => ({
+      title: String(item?.title || '').trim() || 'Focus Area',
+      priority: normalizePriority(item?.priority),
+      description: String(item?.description || '').trim(),
+    }))
+    .filter((item) => item.title || item.description)
+    .slice(0, 5);
+  const visibleFocusAreas = focusAreas.length > 0
+    ? focusAreas
+    : buildDefaultFocusAreas(safeAnalysis.criteria.pronunciation?.feedback);
 
-                    {!isCompleted && (
-                        <p className="text-sm text-blue-600 mt-3">
-                            Final AI grading is still running in background.
-                        </p>
-                    )}
-                </div>
-            </div>
+  const vocabularyUpgrades = safeAnalysis.vocabulary_upgrades
+    .map((item) => ({
+      original: String(item?.original || '').trim(),
+      suggestion: String(item?.suggestion || '').trim(),
+      reason: String(item?.reason || '').trim(),
+    }))
+    .filter((item) => item.original || item.suggestion)
+    .slice(0, 6);
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {Object.entries(safeAnalysis.criteria).map(([key, data]) => {
-                    const config = criteriaConfig[key] || { label: key, color: 'text-gray-600', bg: 'bg-gray-50', border: 'border-gray-100' };
-                    return (
-                        <div key={key} className={`p-6 rounded-xl border ${config.bg} ${config.border} transition-all hover:shadow-md`}>
-                            <div className="flex justify-between items-start mb-3">
-                                <h3 className={`font-bold text-sm uppercase tracking-wide ${config.color}`}>
-                                    {config.label}
-                                </h3>
-                                <div className={`px-3 py-1 rounded-full bg-white font-bold text-sm shadow-sm ${config.color}`}>
-                                    {toScoreNumber(data?.score, 0)}
-                                </div>
-                            </div>
-                            <p className="text-sm text-slate-600 leading-relaxed">
-                                {data?.feedback || 'N/A'}
-                            </p>
-                        </div>
-                    );
-                })}
-            </div>
+  const grammarCorrections = safeAnalysis.grammar_corrections
+    .map((item) => ({
+      original: String(item?.original || '').trim(),
+      corrected: String(item?.corrected || '').trim(),
+      reason: String(item?.reason || '').trim(),
+    }))
+    .filter((item) => item.original || item.corrected)
+    .slice(0, 6);
 
-            <div className="grid grid-cols-1 gap-8">
-                <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-                    <h3 className="text-lg font-bold text-slate-800 border-b border-slate-100 pb-3 mb-4">
-                        Your Transcript
-                    </h3>
-                    <div className="p-4 bg-slate-50 rounded-xl text-slate-600 italic leading-relaxed text-sm">
-                        "{transcript || 'No transcript available.'}"
-                    </div>
-                </div>
+  const paceWpm = Math.max(0, Math.round(toScoreNumber(safeAnalysis.intonation_pacing?.pace_wpm, result?.metrics?.wpm || 0)));
+  const pitchVariation = String(
+    safeAnalysis.intonation_pacing?.pitch_variation
+      || (toScoreNumber(safeAnalysis.criteria.pronunciation?.score, 0) >= 7 ? 'Good' : 'Needs Work'),
+  ).trim();
+  const nextStep = safeAnalysis.next_step || visibleFocusAreas[0]?.description || 'Practice this topic again and focus on your weakest speaking area.';
 
-                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-8 border border-emerald-100 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-4 opacity-10">
-                        <svg className="w-24 h-24 text-emerald-600" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M12 2L1 21h22L12 2zm0 3.516L20.297 19H3.703L12 5.516z" />
-                        </svg>
-                    </div>
-                    <h3 className="text-lg font-bold text-emerald-800 mb-4 flex items-center gap-2 relative z-10">
-                        <span className="bg-emerald-200 text-emerald-800 text-xs px-2 py-1 rounded uppercase tracking-wider font-extrabold">
-                            {isCompleted ? 'Band 7.0+' : 'Pending Final'}
-                        </span>
-                        {isCompleted ? 'Model Answer' : 'Model Answer (provisional view)'}
-                    </h3>
-                    <p className="text-emerald-900 leading-7 font-serif text-lg relative z-10 whitespace-pre-wrap">
-                        {safeAnalysis.sample_answer}
-                    </p>
-                </div>
-            </div>
+  const reportTimestamp = result?.timestamp || result?.provisional_ready_at || null;
+  const reportTimestampLabel = formatReportTimestamp(reportTimestamp);
+  const topicTitle = String(topic?.title || topic?.prompt || 'Speaking Topic').trim();
+  const topicLabel = normalizedPart ? `Part ${normalizedPart}` : 'Speaking';
+  const statusLabel = usingProvisional ? 'Provisional' : (isCompleted ? 'Completed' : 'Processing');
+  const statusClassName = usingProvisional
+    ? 'speaking-report-badge speaking-report-badge--provisional'
+    : (isCompleted ? 'speaking-report-badge speaking-report-badge--completed' : 'speaking-report-badge speaking-report-badge--processing');
+  const modelAnswerTitle = normalizedPart ? `Model Answer (Part ${normalizedPart})` : 'Model Answer';
 
-            <div className="flex justify-center pt-4">
-                <button
-                    onClick={onRetry}
-                    className="group relative px-8 py-3 bg-slate-900 text-white font-semibold rounded-full shadow-lg hover:bg-slate-800 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
-                >
-                    <span className="flex items-center gap-2">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                        Practice This Topic Again
-                    </span>
-                </button>
-            </div>
+  return (
+    <div className="speaking-report">
+      <section className="speaking-report-header-card">
+        <div className="speaking-report-header-card__meta">
+          <div className="speaking-report-header-card__row">
+            <span className={statusClassName}>{statusLabel}</span>
+            <span className="speaking-report-header-card__time">{reportTimestampLabel}</span>
+          </div>
+          <h2 className="speaking-report-header-card__title">Speaking Performance Report</h2>
+          <p className="speaking-report-header-card__subtitle">
+            Topic: {topicTitle} · {topicLabel}
+          </p>
+          {Number.isFinite(finalBand) && Number.isFinite(provisionalBand) && (
+            <p className="speaking-report-header-card__delta">
+              Provisional {provisionalBand.toFixed(1)} · Final {finalBand.toFixed(1)} · Delta {formatBandDelta(bandDelta)}
+            </p>
+          )}
         </div>
-    );
+      </section>
+
+      <section className="speaking-report-score-grid">
+        <article className="speaking-report-overall-card">
+          <h3 className="speaking-report-overall-card__label">Overall Band Score</h3>
+          <CircularBand score={safeAnalysis.band_score} />
+          <p className="speaking-report-overall-card__feedback">{safeAnalysis.general_feedback}</p>
+        </article>
+
+        <div className="speaking-report-metrics-grid">
+          {Object.entries(safeAnalysis.criteria).map(([key, metric]) => {
+            const config = criteriaConfig[key] || {
+              label: key,
+              color: 'slate',
+              feedbackFallback: 'No feedback.',
+            };
+            const score = toScoreNumber(metric?.score, 0);
+            return (
+              <article key={key} className={`speaking-report-metric speaking-report-metric--${config.color}`}>
+                <div className="speaking-report-metric__head">
+                  <span className="speaking-report-metric__label">{config.label}</span>
+                  <span className="speaking-report-metric__score">{score.toFixed(1)}</span>
+                </div>
+                <div className="speaking-report-progress">
+                  <div className="speaking-report-progress__bar" style={{ width: `${clampPercent(score)}%` }} />
+                </div>
+                <p className="speaking-report-metric__feedback">{String(metric?.feedback || config.feedbackFallback)}</p>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="speaking-report-analysis-grid">
+        <article className="speaking-report-heatmap-card">
+          <header className="speaking-report-section-head">
+            <div>
+              <h3>Pronunciation Heatmap</h3>
+              <p>Highlighted words are extracted from AI pronunciation analysis.</p>
+            </div>
+            <div className="speaking-report-legend">
+              <span><i className="dot dot--excellent" /> Excellent</span>
+              <span><i className="dot dot--needs-work" /> Needs Work</span>
+              <span><i className="dot dot--error" /> Error</span>
+            </div>
+          </header>
+          <div className="speaking-report-heatmap-body">
+            {visibleHeatmapTokens.length > 0 ? (
+              visibleHeatmapTokens.map((token, index) => (
+                <span
+                  key={`${token.word}-${index}`}
+                  className={`heat-token heat-token--${token.status}`}
+                  title={token.note || token.status}
+                >
+                  {token.word}
+                </span>
+              ))
+            ) : (
+              <p className="speaking-report-empty">No transcript available.</p>
+            )}
+          </div>
+          {transcript && (
+            <div className="speaking-report-transcript-note">
+              Transcript: "{transcript}"
+            </div>
+          )}
+        </article>
+
+        <aside className="speaking-report-focus-card">
+          <header className="speaking-report-section-head">
+            <div>
+              <h3>Focus Areas</h3>
+              <p>Priority pronunciation and delivery targets.</p>
+            </div>
+          </header>
+          <div className="speaking-report-focus-list">
+            {visibleFocusAreas.map((item, index) => (
+              <article key={`${item.title}-${index}`} className={`focus-item focus-item--${item.priority}`}>
+                <div className="focus-item__head">
+                  <h4>{item.title}</h4>
+                  <span>{item.priority}</span>
+                </div>
+                <p>{item.description || 'No detail available.'}</p>
+              </article>
+            ))}
+          </div>
+        </aside>
+      </section>
+
+      <section className="speaking-report-intonation-card">
+        <header className="speaking-report-section-head">
+          <div>
+            <h3>Intonation &amp; Pacing Analysis</h3>
+            <p>Your speaking rhythm profile from the grading pipeline.</p>
+          </div>
+        </header>
+        <div className="speaking-report-intonation-chart">
+          <div className="speaking-report-intonation-chart__native" />
+          <div className="speaking-report-intonation-chart__you" />
+          <div className="speaking-report-intonation-stats">
+            <div>
+              <small>Pace</small>
+              <strong>{paceWpm} wpm</strong>
+            </div>
+            <div>
+              <small>Pitch Var.</small>
+              <strong>{pitchVariation}</strong>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="speaking-report-suggestions-grid">
+        <article className="speaking-report-suggestion-card">
+          <header className="speaking-report-suggestion-card__head speaking-report-suggestion-card__head--vocab">
+            <h3>Vocabulary Upgrades</h3>
+          </header>
+          <div className="speaking-report-suggestion-card__body">
+            {vocabularyUpgrades.length > 0 ? vocabularyUpgrades.map((item, index) => (
+              <div key={`${item.original}-${index}`} className="suggestion-row">
+                <div>
+                  <small>You said</small>
+                  <p className="suggestion-row__original">{item.original}</p>
+                </div>
+                <div>
+                  <small>Suggestion</small>
+                  <p className="suggestion-row__improved">{item.suggestion}</p>
+                </div>
+                {item.reason && <p className="suggestion-row__reason">{item.reason}</p>}
+              </div>
+            )) : <p className="speaking-report-empty">No vocabulary upgrades detected yet.</p>}
+          </div>
+        </article>
+
+        <article className="speaking-report-suggestion-card">
+          <header className="speaking-report-suggestion-card__head speaking-report-suggestion-card__head--grammar">
+            <h3>Grammar Corrections</h3>
+          </header>
+          <div className="speaking-report-suggestion-card__body">
+            {grammarCorrections.length > 0 ? grammarCorrections.map((item, index) => (
+              <div key={`${item.original}-${index}`} className="suggestion-row">
+                <div>
+                  <small>Original</small>
+                  <p className="suggestion-row__original">{item.original}</p>
+                </div>
+                <div>
+                  <small>Corrected</small>
+                  <p className="suggestion-row__improved">{item.corrected}</p>
+                </div>
+                {item.reason && <p className="suggestion-row__reason">{item.reason}</p>}
+              </div>
+            )) : <p className="speaking-report-empty">No grammar corrections detected yet.</p>}
+          </div>
+        </article>
+      </section>
+
+      <section className="speaking-report-model-answer">
+        <h3>{modelAnswerTitle}</h3>
+        <p>{safeAnalysis.sample_answer}</p>
+      </section>
+
+      <section className="speaking-report-action-bar">
+        <div className="speaking-report-action-bar__hint">
+          <strong>Next Step</strong>
+          <span>{nextStep}</span>
+        </div>
+        <button type="button" className="speaking-report-action-bar__retry" onClick={onRetry}>
+          Practice This Topic Again
+        </button>
+      </section>
+    </div>
+  );
 }

@@ -47,7 +47,41 @@ const SpeakingSessionSchema = new mongoose.Schema({
       feedback: String
     },
     general_feedback: { type: String },
-    sample_answer: { type: String }
+    sample_answer: { type: String },
+    pronunciation_heatmap: [{
+      word: { type: String },
+      status: {
+        type: String,
+        enum: ['excellent', 'needs_work', 'error', 'neutral'],
+        default: 'neutral',
+      },
+      note: { type: String },
+    }],
+    focus_areas: [{
+      title: { type: String },
+      priority: {
+        type: String,
+        enum: ['high', 'medium', 'low'],
+        default: 'medium',
+      },
+      description: { type: String },
+    }],
+    intonation_pacing: {
+      pace_wpm: { type: Number },
+      pitch_variation: { type: String },
+      feedback: { type: String },
+    },
+    vocabulary_upgrades: [{
+      original: { type: String },
+      suggestion: { type: String },
+      reason: { type: String },
+    }],
+    grammar_corrections: [{
+      original: { type: String },
+      corrected: { type: String },
+      reason: { type: String },
+    }],
+    next_step: { type: String },
   },
   provisional_analysis: {
     band_score: { type: Number },
@@ -68,7 +102,41 @@ const SpeakingSessionSchema = new mongoose.Schema({
       feedback: String
     },
     general_feedback: { type: String },
-    sample_answer: { type: String }
+    sample_answer: { type: String },
+    pronunciation_heatmap: [{
+      word: { type: String },
+      status: {
+        type: String,
+        enum: ['excellent', 'needs_work', 'error', 'neutral'],
+        default: 'neutral',
+      },
+      note: { type: String },
+    }],
+    focus_areas: [{
+      title: { type: String },
+      priority: {
+        type: String,
+        enum: ['high', 'medium', 'low'],
+        default: 'medium',
+      },
+      description: { type: String },
+    }],
+    intonation_pacing: {
+      pace_wpm: { type: Number },
+      pitch_variation: { type: String },
+      feedback: { type: String },
+    },
+    vocabulary_upgrades: [{
+      original: { type: String },
+      suggestion: { type: String },
+      reason: { type: String },
+    }],
+    grammar_corrections: [{
+      original: { type: String },
+      corrected: { type: String },
+      reason: { type: String },
+    }],
+    next_step: { type: String },
   },
 
   metrics: {

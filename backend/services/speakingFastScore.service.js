@@ -292,6 +292,85 @@ export const computeProvisionalBandV1 = (features = {}) => {
   };
 };
 
+const buildProvisionalHeatmap = (transcript = "") =>
+  tokenizeWords(transcript)
+    .slice(0, 140)
+    .map((word) => ({ word, status: "neutral", note: "" }));
+
+const buildProvisionalFocusAreas = (features = {}, provisional = {}) => {
+  const focus = [];
+  const fillerDensity = safeNumber(features.filler_density, 0);
+  const pausePer100Words = safeNumber(features.pause_per_100_words, 0);
+  const pronunciation = safeNumber(provisional.pronunciation, 0);
+  const grammarRate = safeNumber(features.grammar_proxy_error_rate, 0);
+
+  if (fillerDensity > 0.05 || pausePer100Words > 14) {
+    focus.push({
+      title: "Fluency Control",
+      priority: "high",
+      description: "Reduce fillers and maintain steady pacing with shorter, controlled pauses.",
+    });
+  }
+
+  if (pronunciation < 6.0) {
+    focus.push({
+      title: "Pronunciation Clarity",
+      priority: "high",
+      description: "Speak more clearly on stressed syllables and final consonants.",
+    });
+  }
+
+  if (grammarRate > 0.55) {
+    focus.push({
+      title: "Grammar Accuracy",
+      priority: "medium",
+      description: "Recheck subject-verb agreement and tense consistency in longer sentences.",
+    });
+  }
+
+  if (focus.length === 0) {
+    focus.push({
+      title: "Consistency",
+      priority: "medium",
+      description: "Keep your current pace and clarity stable across the full answer.",
+    });
+  }
+
+  return focus.slice(0, 4);
+};
+
+const buildProvisionalVocabUpgrades = (transcript = "") => {
+  const words = tokenizeWords(transcript);
+  const frequencies = words.reduce((acc, word) => {
+    if (word.length < 4) return acc;
+    acc[word] = (acc[word] || 0) + 1;
+    return acc;
+  }, {});
+
+  return Object.entries(frequencies)
+    .filter(([, count]) => count >= 3)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4)
+    .map(([word]) => ({
+      original: word,
+      suggestion: "Use a more specific synonym for higher lexical range.",
+      reason: "This word appears repeatedly in your answer.",
+    }));
+};
+
+const buildProvisionalGrammarCorrections = (features = {}) => {
+  const grammarRate = safeNumber(features.grammar_proxy_error_rate, 0);
+  if (grammarRate <= 0.4) return [];
+
+  return [
+    {
+      original: "Sentence-level grammar inconsistency detected.",
+      corrected: "Use consistent tense and subject-verb agreement.",
+      reason: "Fast pipeline detected frequent grammar-proxy issues.",
+    },
+  ];
+};
+
 export const buildProvisionalAnalysis = (features = {}, provisional = {}) => {
   const hasConfidenceValue =
     features.asr_confidence !== null &&
@@ -300,6 +379,11 @@ export const buildProvisionalAnalysis = (features = {}, provisional = {}) => {
   const confidenceText = hasConfidenceValue
     ? `${Math.round(Number(features.asr_confidence) * 100)}%`
     : "N/A";
+  const transcript = String(features.transcript || "").trim();
+  const pitchVariation = safeNumber(provisional.pronunciation, 0) >= 7
+    ? "Good"
+    : (safeNumber(provisional.pronunciation, 0) >= 6 ? "Acceptable" : "Needs Work");
+  const focusAreas = buildProvisionalFocusAreas(features, provisional);
 
   return {
     band_score: safeNumber(provisional.band_score, 0),
@@ -321,6 +405,16 @@ export const buildProvisionalAnalysis = (features = {}, provisional = {}) => {
     },
     general_feedback: "This is a provisional score from the fast pipeline (STT + heuristics). The official score will be updated after full AI grading.",
     sample_answer: "Waiting for the final AI-generated model answer.",
+    pronunciation_heatmap: buildProvisionalHeatmap(transcript),
+    focus_areas: focusAreas,
+    intonation_pacing: {
+      pace_wpm: Math.round(safeNumber(features.wpm, 0)),
+      pitch_variation: pitchVariation,
+      feedback: "Preliminary pacing estimate from fast pipeline.",
+    },
+    vocabulary_upgrades: buildProvisionalVocabUpgrades(transcript),
+    grammar_corrections: buildProvisionalGrammarCorrections(features),
+    next_step: focusAreas[0]?.description || "Practice once more while keeping pace steady and pronunciation clear.",
   };
 };
 
@@ -362,6 +456,7 @@ export const evaluateSpeakingProvisionalScore = async ({
     wpm,
     sttMeta: whisperResult?.sttMeta || {},
   });
+  features.transcript = transcript;
   const provisional = computeProvisionalBandV1(features);
   const provisionalAnalysis = buildProvisionalAnalysis(features, provisional);
 

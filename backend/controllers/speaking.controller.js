@@ -325,6 +325,7 @@ export const getSpeakingSession = async (req, res) => {
       success: true,
       data: {
         session_id: session._id,
+        question_id: session.questionId || null,
         status: session.status,
         scoring_state: deriveScoringState(session),
         transcript: session.transcript || "",
@@ -333,6 +334,9 @@ export const getSpeakingSession = async (req, res) => {
         provisional_analysis: session.provisional_analysis || null,
         provisional_source: session.provisional_source || null,
         provisional_ready_at: session.provisional_ready_at || null,
+        metrics: session.metrics || { wpm: 0, pauses: {} },
+        timestamp: session.timestamp || session.createdAt || null,
+        audio_deleted_at: session.audioDeletedAt || null,
         mock_examiner_turns: session.mockExaminerTurns || [],
         mock_examiner_meta: session.mockExaminerMeta || {
           ai_source: null,
@@ -607,13 +611,17 @@ export const submitSpeaking = async (req, res) => {
           return res.status(202).json({
             success: true,
             session_id: session._id,
+            question_id: session.questionId || null,
             status: "processing",
             scoring_state: deriveScoringState(session),
             queued: true,
             job_id: queueResult.jobId,
+            transcript: session.transcript || "",
             provisional_analysis: session.provisional_analysis || null,
             provisional_source: session.provisional_source || null,
             provisional_ready_at: session.provisional_ready_at || null,
+            metrics: session.metrics || { wpm: 0, pauses: {} },
+            timestamp: session.timestamp || session.createdAt || null,
             xpResult,
             achievements: newlyUnlocked
           });
@@ -627,6 +635,7 @@ export const submitSpeaking = async (req, res) => {
     return res.json({
       success: true,
       session_id: grading.session._id,
+      question_id: grading.session.questionId || null,
       status: grading.session.status,
       scoring_state: deriveScoringState(grading.session),
       transcript: grading.session?.transcript || grading.analysis?.transcript || "",
@@ -635,6 +644,8 @@ export const submitSpeaking = async (req, res) => {
       provisional_analysis: grading.session?.provisional_analysis || null,
       provisional_source: grading.session?.provisional_source || null,
       provisional_ready_at: grading.session?.provisional_ready_at || null,
+      metrics: grading.session?.metrics || { wpm: 0, pauses: {} },
+      timestamp: grading.session?.timestamp || grading.session?.createdAt || null,
       queued: false,
       xpResult,
       achievements: newlyUnlocked

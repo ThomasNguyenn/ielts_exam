@@ -87,6 +87,12 @@ const buildFallbackAnalysis = () => ({
     lexical_resource: { score: 0, feedback: 'N/A' },
     grammatical_range: { score: 0, feedback: 'N/A' },
     pronunciation: { score: 0, feedback: 'N/A' },
+    pronunciation_heatmap: [],
+    focus_areas: [],
+    intonation_pacing: { pace_wpm: 0, pitch_variation: 'Needs Work', feedback: '' },
+    vocabulary_upgrades: [],
+    grammar_corrections: [],
+    next_step: 'Practice this topic again to generate a detailed report.',
 });
 
 const buildSpeakingResultPayload = (payload = {}, fallbackSessionId = null) => {
