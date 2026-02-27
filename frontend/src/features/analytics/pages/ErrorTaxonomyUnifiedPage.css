@@ -210,6 +210,34 @@
   cursor: not-allowed;
 }
 
+.error-taxonomy-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid #dbe3ee;
+  border-radius: 0.75rem;
+  background: #ffffff;
+  color: #0f172a;
+  height: 42px;
+  padding: 0 0.95rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.15s ease;
+}
+
+.error-taxonomy-back-btn:hover {
+  border-color: #b9c7dc;
+  background: #f8fbff;
+}
+
+.error-taxonomy-back-btn:focus-visible {
+  outline: none;
+  border-color: #0f49bd;
+  box-shadow: 0 0 0 3px rgba(15, 73, 189, 0.16);
+}
+
 .error-taxonomy-section {
   display: flex;
   flex-direction: column;
@@ -1066,6 +1094,7 @@
   }
 
   .taxonomy-dropdown.is-range,
+  .error-taxonomy-back-btn,
   .error-taxonomy-export-btn {
     flex: 1;
     justify-content: center;

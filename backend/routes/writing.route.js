@@ -1,4 +1,5 @@
 import {
+  closeLiveRoom,
   createSubmissionLiveRoom,
   createWriting,
   deleteWriting,
@@ -52,6 +53,7 @@ router.get("/submissions/:id/status", verifyToken, getSubmissionStatus);
 router.post("/submissions/:id/live-room", verifyToken, isTeacherOrAdmin, createSubmissionLiveRoom);
 router.post("/live-room/resolve", verifyToken, resolveLiveRoom);
 router.get("/live-room/:roomCode/context", verifyToken, getLiveRoomSharedContext);
+router.post("/live-room/:roomCode/close", verifyToken, isTeacherOrAdmin, closeLiveRoom);
 router.post("/", verifyToken, isTeacherOrAdmin, createWriting);
 router.post("/upload-image", verifyToken, isTeacherOrAdmin, upload.single('image'), uploadImage);
 router.get("/:id", optionalVerifyToken, getWritingById);

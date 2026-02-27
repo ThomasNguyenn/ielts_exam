@@ -473,9 +473,11 @@ export const api = {
     request('/api/writings/live-room/resolve', { method: 'POST', body: JSON.stringify({ code }) }),
   getWritingLiveRoomContext: (roomCode) =>
     request(`/api/writings/live-room/${encodeURIComponent(roomCode)}/context`),
-  getWritingLiveSocketUrl: (roomCode, tokenOverride) => {
+  closeWritingLiveRoom: (roomCode) =>
+    request(`/api/writings/live-room/${encodeURIComponent(roomCode)}/close`, { method: 'POST' }),
+  getWritingLiveSocketUrl: (roomCode, tokenOverride, pathOverride = '/ws/writing-live') => {
     const token = tokenOverride || getToken();
-    return buildWebSocketUrl('/ws/writing-live', {
+    return buildWebSocketUrl(pathOverride, {
       roomCode,
       token,
     });

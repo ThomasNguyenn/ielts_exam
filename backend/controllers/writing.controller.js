@@ -8,6 +8,7 @@ import { enqueueWritingAiScoreJob, isAiQueueReady } from "../queues/ai.queue.js"
 import { scoreWritingSubmissionById } from "../services/writingSubmissionScoring.service.js";
 import { scoreWritingSubmissionFastById } from "../services/writingFastScoring.service.js";
 import {
+    closeWritingLiveRoom,
     createWritingLiveRoom,
     getWritingLiveRoomContext,
     getWritingLiveRoomState,
@@ -532,6 +533,37 @@ export const getLiveRoomSharedContext = async (req, res) => {
                     highlights,
                     teacher_disconnect_grace_ms: context.room?.teacher_disconnect_grace_ms || 60_000,
                 },
+            },
+        });
+    } catch (error) {
+        if (error?.statusCode) {
+            return sendControllerError(req, res, {
+                statusCode: error.statusCode,
+                code: error.code,
+                message: error.message,
+            });
+        }
+        return handleControllerError(req, res, error);
+    }
+};
+
+export const closeLiveRoom = async (req, res) => {
+    const roomCode = String(req.params?.roomCode || "").trim();
+    if (!roomCode) {
+        return sendControllerError(req, res, { statusCode: 400, message: "roomCode is required" });
+    }
+
+    try {
+        await closeWritingLiveRoom(roomCode, {
+            reason: "teacher_ended",
+            initiatedBy: String(req.user?.userId || "teacher"),
+        });
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                roomCode: roomCode.toUpperCase(),
+                closed: true,
             },
         });
     } catch (error) {

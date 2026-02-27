@@ -34,6 +34,8 @@ const normalizeCode = (value = '') =>
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, '');
 
+const LIVE_SOCKET_PATHS = ['/ws/writing-live', '/api/ws/writing-live'];
+
 const uniqueById = (items = []) => {
   const map = new Map();
   (Array.isArray(items) ? items : []).forEach((item) => {
@@ -150,6 +152,7 @@ export default function WritingLiveRoom() {
   const essayRef = useRef(null);
   const socketRef = useRef(null);
   const reconnectTimerRef = useRef(null);
+  const socketPathIndexRef = useRef(0);
   const endedByServerRef = useRef(false);
 
   const [loading, setLoading] = useState(true);
@@ -256,10 +259,14 @@ export default function WritingLiveRoom() {
     if (!roomCode || !submission) return undefined;
 
     let disposed = false;
+    socketPathIndexRef.current = 0;
 
     const connectSocket = () => {
       if (disposed || endedByServerRef.current) return;
-      const socketUrl = api.getWritingLiveSocketUrl(roomCode);
+      const socketPath = LIVE_SOCKET_PATHS[
+        Math.min(socketPathIndexRef.current, LIVE_SOCKET_PATHS.length - 1)
+      ];
+      const socketUrl = api.getWritingLiveSocketUrl(roomCode, undefined, socketPath);
       if (!socketUrl) {
         setWsState('error');
         setError('Unable to initialize websocket connection.');
@@ -267,11 +274,14 @@ export default function WritingLiveRoom() {
       }
 
       setWsState('connecting');
+      let hasOpened = false;
       const socket = new WebSocket(socketUrl);
       socketRef.current = socket;
 
       socket.onopen = () => {
         if (disposed) return;
+        hasOpened = true;
+        setStatus('');
         setWsState('connected');
         sendSocketEvent('request_snapshot', {});
       };
@@ -341,10 +351,23 @@ export default function WritingLiveRoom() {
         }
       };
 
-      socket.onclose = () => {
+      socket.onclose = (event) => {
         if (disposed) return;
         setWsState('disconnected');
         if (endedByServerRef.current) return;
+
+        if (!hasOpened && socketPathIndexRef.current < LIVE_SOCKET_PATHS.length - 1) {
+          socketPathIndexRef.current += 1;
+          reconnectTimerRef.current = setTimeout(() => {
+            connectSocket();
+          }, 150);
+          return;
+        }
+
+        if (!hasOpened) {
+          const reason = String(event?.reason || '').trim();
+          setStatus(reason || 'Realtime connection failed before handshake.');
+        }
 
         reconnectTimerRef.current = setTimeout(() => {
           connectSocket();
@@ -423,8 +446,38 @@ export default function WritingLiveRoom() {
     sendSocketEvent('clear_task_highlights', { task_id: currentTaskId });
   };
 
-  const handleEndRoom = () => {
-    sendSocketEvent('end_room', {});
+  const closeRoomByTeacher = useCallback(async () => {
+    if (!isTeacher || !roomCode) return;
+
+    try {
+      await api.closeWritingLiveRoom(roomCode);
+      return;
+    } catch {
+      const sent = sendSocketEvent('end_room', {});
+      if (!sent) {
+        throw new Error('Unable to close live room.');
+      }
+    }
+  }, [isTeacher, roomCode, sendSocketEvent]);
+
+  const handleEndRoom = async () => {
+    setStatus('');
+    try {
+      await closeRoomByTeacher();
+    } catch (closeError) {
+      setStatus(closeError?.message || 'Failed to close room.');
+    }
+  };
+
+  const handleLeaveRoom = async () => {
+    if (isTeacher) {
+      try {
+        await closeRoomByTeacher();
+      } catch {
+        // Continue navigation even if close request fails.
+      }
+    }
+    navigate('/grading');
   };
 
   const handleSubmitScore = async (event) => {
@@ -479,7 +532,7 @@ export default function WritingLiveRoom() {
           </p>
         </div>
         <div className="writing-live__header-actions">
-          <button type="button" className="btn btn-ghost" onClick={() => navigate('/grading')}>Back</button>
+          <button type="button" className="btn btn-ghost" onClick={handleLeaveRoom}>Back</button>
           {isTeacher ? (
             <button type="button" className="btn btn-primary" onClick={handleEndRoom}>End Room</button>
           ) : null}

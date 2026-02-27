@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useRef, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowRight,
   Bot,
@@ -495,6 +495,7 @@ function SectionSkeleton({ className }) {
 }
 
 export default function ErrorTaxonomyUnifiedPage() {
+  const navigate = useNavigate();
   const { studentId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const filters = useMemo(() => getNormalizedFilters(searchParams), [searchParams]);
@@ -815,6 +816,16 @@ export default function ErrorTaxonomyUnifiedPage() {
             <p>Identify patterns in your mistakes to surgically improve your band score.</p>
           </div>
           <div className="error-taxonomy-actions">
+            {studentId ? (
+              <button
+                type="button"
+                className="error-taxonomy-back-btn"
+                onClick={() => navigate('/scores')}
+              >
+                <ChevronLeft size={16} />
+                Quay lại Scores
+              </button>
+            ) : null}
             <TaxonomyDropdown
               value={filters.range}
               options={RANGE_OPTIONS}

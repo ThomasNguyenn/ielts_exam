@@ -564,7 +564,7 @@ const unbindSocketFromRoom = (room, socket) => {
   room.sockets.delete(socket);
   room.teacherSockets.delete(socket);
 
-  if (room.teacherSockets.size === 0 && room.sockets.size > 0) {
+  if (room.teacherSockets.size === 0) {
     scheduleTeacherRoomClose(room);
   }
 };
@@ -826,7 +826,9 @@ export const attachWritingLiveWebSocketServer = (httpServer) => {
       return;
     }
 
-    if (parsedUrl.pathname !== WS_PATH) {
+    const incomingPath = String(parsedUrl.pathname || "").replace(/\/+$/, "");
+    const allowedPaths = new Set([WS_PATH, "/api/ws/writing-live"]);
+    if (!allowedPaths.has(incomingPath)) {
       socket.destroy();
       return;
     }

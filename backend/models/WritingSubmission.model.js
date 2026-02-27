@@ -56,6 +56,9 @@ const WritingSubmissionSchema = new mongoose.Schema({
     active_task_id: { type: String, default: null },
     updated_at: { type: Date, default: null },
     last_room_code: { type: String, default: null },
+    hidden_from_grading: { type: Boolean, default: false },
+    closed_reason: { type: String, default: null },
+    closed_at: { type: Date, default: null },
   },
   status: {
     type: String,
