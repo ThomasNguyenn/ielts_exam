@@ -59,6 +59,75 @@ const buildTestFilter = (query = {}, { includeCategory = true } = {}) => {
     return filter;
 };
 
+const normalizeReviewAnswer = (value) =>
+    String(value ?? "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, " ");
+
+const resolveQuestionText = (group = {}, question = {}) => {
+    const direct = String(question?.text || "").trim();
+    if (direct) return direct;
+    return String(group?.instructions || group?.text || "").trim();
+};
+
+const buildObjectiveQuestionReview = ({ attempt, test, examType }) => {
+    const detailedAnswers = Array.isArray(attempt?.detailed_answers) ? attempt.detailed_answers : [];
+    const detailedByQuestionNumber = new Map();
+    detailedAnswers.forEach((item) => {
+        const key = Number(item?.question_number);
+        if (!Number.isFinite(key)) return;
+        if (!detailedByQuestionNumber.has(key)) {
+            detailedByQuestionNumber.set(key, item);
+        }
+    });
+
+    const questionReview = [];
+    let runningIndex = 0;
+    const sourceItems = examType === "listening"
+        ? (test?.listening_sections || [])
+        : (test?.reading_passages || []);
+
+    sourceItems.forEach((item) => {
+        (item?.question_groups || []).forEach((group) => {
+            (group?.questions || []).forEach((question) => {
+                const fallbackQuestionNumber = runningIndex + 1;
+                const questionNumber = Number(question?.q_number) || fallbackQuestionNumber;
+                const detail = detailedByQuestionNumber.get(questionNumber) || detailedAnswers[runningIndex] || null;
+
+                const yourAnswerRaw = detail?.user_answer ?? "";
+                const yourAnswer = Array.isArray(yourAnswerRaw) ? String(yourAnswerRaw[0] || "") : String(yourAnswerRaw || "");
+                const correctAnswer = detail?.correct_answer
+                    ?? (Array.isArray(question?.correct_answers) ? question.correct_answers[0] : "")
+                    ?? "";
+                const isCorrect = typeof detail?.is_correct === "boolean"
+                    ? detail.is_correct
+                    : normalizeReviewAnswer(yourAnswer) !== "" &&
+                    normalizeReviewAnswer(yourAnswer) === normalizeReviewAnswer(correctAnswer);
+
+                questionReview.push({
+                    question_number: questionNumber,
+                    type: String(group?.type || detail?.question_type || "unknown"),
+                    question_text: resolveQuestionText(group, question),
+                    your_answer: yourAnswer,
+                    correct_answer: correctAnswer,
+                    options: Array.isArray(question?.option) && question.option.length > 0
+                        ? question.option
+                        : (group?.options || []),
+                    headings: group?.headings || [],
+                    is_correct: isCorrect,
+                    explanation: String(question?.explanation || ""),
+                    passage_reference: String(question?.passage_reference || ""),
+                    item_type: examType,
+                });
+                runningIndex += 1;
+            });
+        });
+    });
+
+    return questionReview;
+};
+
 export const getAllTests = async (req, res) => {
     try {
         const shouldPaginate = req.query.page !== undefined || req.query.limit !== undefined;
@@ -259,6 +328,93 @@ export const getMyTestAttempts = async (req, res) => {
             .sort({ submitted_at: -1 })
             .lean();
         res.status(200).json({ success: true, data: attempts });
+    } catch (error) {
+        return handleControllerError(req, res, error);
+    }
+};
+
+// Get a specific objective attempt result with question explanations for review mode.
+export const getMyAttemptResult = async (req, res) => {
+    try {
+        const userId = req.user?.userId;
+        const { attemptId } = req.params;
+        if (!userId) {
+            return sendControllerError(req, res, { statusCode: 401, message: "Unauthorized" });
+        }
+        if (!mongoose.Types.ObjectId.isValid(attemptId)) {
+            return sendControllerError(req, res, { statusCode: 404, message: "Attempt not found" });
+        }
+
+        const attempt = await TestAttempt.findOne({
+            _id: attemptId,
+            user_id: userId,
+        }).lean();
+        if (!attempt) {
+            return sendControllerError(req, res, { statusCode: 404, message: "Attempt not found" });
+        }
+
+        const examType = String(attempt?.type || "").toLowerCase();
+        if (examType !== "reading" && examType !== "listening") {
+            return sendControllerError(req, res, {
+                statusCode: 400,
+                message: "Only reading/listening attempts support detailed review",
+            });
+        }
+
+        const test = await Test.findById(attempt.test_id)
+            .populate("reading_passages")
+            .populate("listening_sections")
+            .lean();
+        if (!test) {
+            return sendControllerError(req, res, { statusCode: 404, message: "Test not found" });
+        }
+
+        const questionReview = buildObjectiveQuestionReview({ attempt, test, examType });
+        const total = Number.isFinite(Number(attempt?.total)) ? Number(attempt.total) : questionReview.length;
+        const score = Number.isFinite(Number(attempt?.score))
+            ? Number(attempt.score)
+            : questionReview.filter((item) => item?.is_correct).length;
+        const skipped = Number.isFinite(Number(attempt?.skipped))
+            ? Number(attempt.skipped)
+            : questionReview.filter((item) => !String(item?.your_answer || "").trim()).length;
+        const wrong = Number.isFinite(Number(attempt?.wrong))
+            ? Number(attempt.wrong)
+            : Math.max(0, total - score - skipped);
+        const percentage = Number.isFinite(Number(attempt?.percentage))
+            ? Number(attempt.percentage)
+            : (total > 0 ? Math.round((score / total) * 100) : null);
+
+        const exam = {
+            testId: test._id,
+            title: test.title,
+            type: examType,
+            is_real_test: Boolean(test.is_real_test),
+            duration: test.duration || (examType === "reading" ? 60 : 35),
+            full_audio: test.full_audio || null,
+            reading: examType === "reading" ? (test.reading_passages || []).map((p) => stripForExam(p)) : [],
+            listening: examType === "listening" ? (test.listening_sections || []).map((s) => stripForExam(s)) : [],
+            writing: [],
+        };
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                attempt: {
+                    _id: attempt._id,
+                    test_id: attempt.test_id,
+                    type: examType,
+                    score,
+                    total,
+                    wrong,
+                    skipped,
+                    percentage,
+                    time_taken_ms: Number.isFinite(Number(attempt?.time_taken_ms)) ? Number(attempt.time_taken_ms) : null,
+                    submitted_at: attempt.submitted_at || null,
+                },
+                exam,
+                question_review: questionReview,
+            },
+        });
     } catch (error) {
         return handleControllerError(req, res, error);
     }

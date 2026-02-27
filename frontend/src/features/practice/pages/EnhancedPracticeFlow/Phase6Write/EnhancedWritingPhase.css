@@ -326,6 +326,28 @@
     line-height: 1.5;
 }
 
+@media (max-width: 1440px) {
+    .writing-container {
+        grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+        max-width: 1380px;
+        gap: 1.25rem;
+        padding: 1.5rem;
+    }
+
+    .assistant-sidebar {
+        max-height: calc(100vh - 180px);
+    }
+
+    .editor-panel {
+        padding: 1.5rem;
+        min-height: 560px;
+    }
+
+    .assistant-card {
+        padding: 1rem;
+    }
+}
+
 @media (max-width: 1200px) {
     .writing-container {
         grid-template-columns: 1fr;

@@ -9,6 +9,36 @@ import {
 } from "../profile.helpers";
 
 export default function ProfileMainContent({ summary, badges, activities }) {
+  const resolveActivityAction = (activity) => {
+    const type = String(activity?.type || '').toLowerCase();
+    const testId = String(activity?.testId || '').trim();
+    const attemptId = String(activity?.attemptId || '').trim();
+    const submissionId = String(activity?.submissionId || '').trim();
+
+    if (type === 'writing' && submissionId) {
+      return {
+        to: `/tests/writing/submissions/${submissionId}`,
+        label: 'View Writing',
+      };
+    }
+
+    if ((type === 'reading' || type === 'listening') && testId && attemptId) {
+      return {
+        to: `/tests/${testId}/attempts/${attemptId}/result`,
+        label: 'View Result',
+      };
+    }
+
+    if (type === 'writing' && testId) {
+      return {
+        to: `/tests/${testId}/history`,
+        label: 'View History',
+      };
+    }
+
+    return null;
+  };
+
   return (
     <div className="lg:col-span-9 flex flex-col gap-6">
       <section>
@@ -120,6 +150,7 @@ export default function ProfileMainContent({ summary, badges, activities }) {
                 <th className="pb-3 font-medium">Type</th>
                 <th className="pb-3 font-medium">Date</th>
                 <th className="pb-3 font-medium">Score</th>
+                <th className="pb-3 font-medium">Action</th>
               </tr>
             </thead>
 
@@ -130,6 +161,7 @@ export default function ProfileMainContent({ summary, badges, activities }) {
                   const completed = String(activity?.status || "").toLowerCase() === "completed";
                   const score = Number(activity?.score);
                   const hasScore = completed && Number.isFinite(score);
+                  const action = resolveActivityAction(activity);
 
                   return (
                     <tr key={String(activity?.id || `activity-${index}`)} className="group hover:bg-slate-50 transition-colors">
@@ -146,12 +178,24 @@ export default function ProfileMainContent({ summary, badges, activities }) {
                           {hasScore ? `Band ${formatBand(score)}` : "Pending"}
                         </span>
                       </td>
+                      <td className="py-4">
+                        {action ? (
+                          <Link
+                            to={action.to}
+                            className="inline-flex items-center rounded-md border border-slate-200 px-2.5 py-1 text-xs font-semibold text-[#1152d4] hover:bg-slate-50"
+                          >
+                            {action.label}
+                          </Link>
+                        ) : (
+                          <span className="text-slate-400 text-xs">N/A</span>
+                        )}
+                      </td>
                     </tr>
                   );
                 })
               ) : (
                 <tr>
-                  <td colSpan={4} className="py-6 pl-2 text-slate-500">
+                  <td colSpan={5} className="py-6 pl-2 text-slate-500">
                     No recent activity yet.
                   </td>
                 </tr>

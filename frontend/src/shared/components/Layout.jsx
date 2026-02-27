@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, LogIn, LogOut, Menu, UserPlus, X } from 'lucide-react';
 import { api } from '@/shared/api/client';
@@ -121,9 +121,11 @@ const isItemVisible = (item, user) => {
 
 export default function Layout() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [user, setUser] = useState(() => api.getUser());
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(null);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const navContainerRef = useRef(null);
   const pathname = location.pathname;
 
@@ -209,6 +211,18 @@ export default function Layout() {
   const closeAllMenus = () => {
     setIsMobileMenuOpen(false);
     setOpenDropdown(null);
+  };
+
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    try {
+      await api.logout();
+    } finally {
+      closeAllMenus();
+      navigate('/login', { replace: true });
+      setIsLoggingOut(false);
+    }
   };
 
   const toggleDropdown = (menuKey) => {
@@ -372,11 +386,8 @@ export default function Layout() {
                   <button
                     type="button"
                     className="nav-item logout-btn"
-                    onClick={() => {
-                      api.removeToken();
-                      api.removeUser();
-                      window.location.href = '/login';
-                    }}
+                    onClick={handleLogout}
+                    disabled={isLoggingOut}
                   >
                     <LogOut className="nav-icon" />
                   </button>

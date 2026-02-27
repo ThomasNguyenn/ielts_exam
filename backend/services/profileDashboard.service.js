@@ -311,14 +311,16 @@ export const buildProfileDashboard = async (userId, { targets = {} } = {}) => {
       skill,
     });
     const testIdRef = String(attempt?.test_id || "").trim();
+    const attemptIdRef = String(attempt?._id || "").trim();
     const fallbackTitle = `${skill[0].toUpperCase()}${skill.slice(1)} Test`;
-    const id = `attempt:${String(attempt?._id || "")}`;
+    const id = `attempt:${attemptIdRef}`;
 
     completedRecords.push({ id, skill, score, date });
     activities.push({
       id,
       taskName: fallbackTitle,
       testIdRef,
+      attemptIdRef,
       type: skill,
       date,
       score,
@@ -342,12 +344,14 @@ export const buildProfileDashboard = async (userId, { targets = {} } = {}) => {
     const completed = WRITING_COMPLETED_STATUS.has(rawStatus) && Number.isFinite(Number(submission?.score));
     const taskName = resolveWritingTaskName(submission, "");
     const testIdRef = String(submission?.test_id || "").trim();
-    const id = `writing_submission:${String(submission?._id || "")}`;
+    const submissionIdRef = String(submission?._id || "").trim();
+    const id = `writing_submission:${submissionIdRef}`;
 
     activities.push({
       id,
       taskName,
       testIdRef,
+      submissionIdRef,
       type: "writing",
       date,
       score: completed ? score : null,
@@ -394,6 +398,7 @@ export const buildProfileDashboard = async (userId, { targets = {} } = {}) => {
       id,
       taskName: "Writing Practice",
       testIdRef,
+      attemptIdRef: attemptId,
       type: "writing",
       date,
       score,
@@ -537,6 +542,10 @@ export const buildProfileDashboard = async (userId, { targets = {} } = {}) => {
       date: item.date,
       score: item.score,
       status: item.status,
+      testId: String(item?.testIdRef || "").trim() || null,
+      questionId: String(item?.questionIdRef || "").trim() || null,
+      attemptId: String(item?.attemptIdRef || "").trim() || null,
+      submissionId: String(item?.submissionIdRef || "").trim() || null,
     }));
 
   return {

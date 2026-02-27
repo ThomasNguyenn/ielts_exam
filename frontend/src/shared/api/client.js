@@ -384,6 +384,7 @@ export const api = {
   },
   getMyLatestTestAttempts: () => request('/api/tests/my-latest-attempts'),
   getMyAttemptSummary: () => request('/api/tests/my-attempts-summary'),
+  getMyAttemptResult: (attemptId) => request(`/api/tests/attempts/${attemptId}/result`),
   getMyTestHistory: (id) => request(`/api/tests/${id}/attempts`),
   getTestById: (id) => request(`/api/tests/${id}`),
   getExam: (id) => request(`/api/tests/${id}/exam`),

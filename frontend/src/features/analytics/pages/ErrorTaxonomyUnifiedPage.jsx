@@ -252,7 +252,7 @@ const getSkillLabel = (skill) => {
   if (normalized === 'listening') return 'Listening';
   if (normalized === 'writing') return 'Writing';
   if (normalized === 'speaking') return 'Speaking';
-  return 'Reading';
+  return 'Unknown';
 };
 
 const getDeltaPercentBySkill = (history = [], skill) => {
@@ -659,8 +659,16 @@ export default function ErrorTaxonomyUnifiedPage() {
 
   const detailsItems = Array.isArray(detailsData?.items) ? detailsData.items : [];
 
+  const filteredHeatmapRows = useMemo(() => {
+    const rows = Array.isArray(errorsData?.heatmapData) ? errorsData.heatmapData : [];
+    const selectedSkill = cleanText(filters.skill || 'all').toLowerCase();
+    if (!selectedSkill || selectedSkill === 'all') return rows;
+
+    return rows.filter((row) => inferSkillFromTaskType(row?.taskType) === selectedSkill);
+  }, [errorsData, filters.skill]);
+
   const codeRanking = useMemo(() => {
-    const heatmapRows = Array.isArray(errorsData?.heatmapData) ? errorsData.heatmapData : [];
+    const heatmapRows = filteredHeatmapRows;
     const codeTotals = {};
 
     heatmapRows.forEach((row) => {
@@ -677,7 +685,7 @@ export default function ErrorTaxonomyUnifiedPage() {
     return Object.entries(codeTotals)
       .sort((a, b) => b[1] - a[1])
       .map(([code, count]) => ({ code, count: Number(count || 0) }));
-  }, [errorsData]);
+  }, [filteredHeatmapRows]);
 
   const codeSkillVotesFromDetails = useMemo(() => {
     const votes = {};
@@ -692,7 +700,7 @@ export default function ErrorTaxonomyUnifiedPage() {
   }, [detailsItems]);
 
   const codeSkillVotesFromHeatmap = useMemo(() => {
-    const rows = Array.isArray(errorsData?.heatmapData) ? errorsData.heatmapData : [];
+    const rows = filteredHeatmapRows;
     const votes = {};
 
     rows.forEach((row) => {
@@ -710,18 +718,21 @@ export default function ErrorTaxonomyUnifiedPage() {
     });
 
     return votes;
-  }, [errorsData]);
+  }, [filteredHeatmapRows]);
 
   const treemapTiles = useMemo(() => {
-    const totalErrors = Number(errorsData?.totalErrors || 0);
+    const totalErrors = codeRanking.reduce((sum, row) => sum + Number(row.count || 0), 0);
     const codeLegend = errorsData?.codeLegend || {};
+    const selectedSkill = cleanText(filters.skill || 'all').toLowerCase();
 
     return codeRanking.slice(0, 6).map((entry, index) => {
       const severity = getSeverityByRank(index);
       const code = cleanText(entry.code).toUpperCase();
       const skillFromDetails = pickDominantSkill(codeSkillVotesFromDetails[code]);
       const skillFromHeatmap = pickDominantSkill(codeSkillVotesFromHeatmap[code]);
-      const skill = skillFromDetails || skillFromHeatmap || getSkillFromErrorCode(code);
+      const skill = selectedSkill !== 'all'
+        ? selectedSkill
+        : (skillFromDetails || skillFromHeatmap || getSkillFromErrorCode(code));
       const label = capitalizeFirst(cleanText(codeLegend?.[code] || codeLegend?.[entry.code]) || entry.code);
       const share = totalErrors > 0 ? entry.count / totalErrors : 0;
       return {
@@ -733,7 +744,7 @@ export default function ErrorTaxonomyUnifiedPage() {
         share,
       };
     });
-  }, [errorsData, codeRanking, codeSkillVotesFromDetails, codeSkillVotesFromHeatmap]);
+  }, [errorsData, codeRanking, codeSkillVotesFromDetails, codeSkillVotesFromHeatmap, filters.skill]);
 
   const reasonByCode = useMemo(() => {
     const map = {};

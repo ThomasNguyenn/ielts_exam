@@ -15,6 +15,8 @@ const TestList = lazy(() => import('@/features/tests/pages/TestList'));
 const TestDetail = lazy(() => import('@/features/tests/pages/TestDetail'));
 const Exam = lazy(() => import('@/features/tests/pages/Exam'));
 const TestHistory = lazy(() => import('@/features/tests/pages/TestHistory'));
+const TestAttemptResult = lazy(() => import('@/features/tests/pages/TestAttemptResult'));
+const WritingSubmissionView = lazy(() => import('@/features/tests/pages/WritingSubmissionView'));
 const ManageLayout = lazy(() => import('@/features/admin/components/ManageLayout'));
 const ManagePassagesSinglePage = lazy(() => import('@/features/admin/pages/ManagePassagesSinglePage'));
 const ManageSectionsSinglePage = lazy(() => import('@/features/admin/pages/ManageSectionsSinglePage'));
@@ -148,6 +150,7 @@ export default function App() {
           <Route path="tests" element={withSuspense(<TestList />)} />
           <Route path="tests/:id" element={withSuspense(<TestDetail />)} />
           <Route path="tests/:id/history" element={<ProtectedRoute>{withSuspense(<TestHistory />)}</ProtectedRoute>} />
+          <Route path="tests/:testId/attempts/:attemptId/result" element={<ProtectedRoute>{withSuspense(<TestAttemptResult />)}</ProtectedRoute>} />
           <Route path="tests/:id/exam" element={<ProtectedRoute>{withSuspense(<Exam />)}</ProtectedRoute>} />
 
           {/* Writing Practice/Test Route */}
@@ -169,6 +172,7 @@ export default function App() {
 
           {/* AI Scoring Result Page */}
           <Route path="tests/writing/result-ai/:id" element={<ProtectedRoute>{withSuspense(<WritingAIResult />)}</ProtectedRoute>} />
+          <Route path="tests/writing/submissions/:id" element={<ProtectedRoute>{withSuspense(<WritingSubmissionView />)}</ProtectedRoute>} />
 
           <Route path="profile" element={<ProtectedRoute>{withSuspense(<Profile />)}</ProtectedRoute>} />
           <Route path="analytics" element={<ProtectedRoute>{withSuspense(<AnalyticsContainer />)}</ProtectedRoute>} />

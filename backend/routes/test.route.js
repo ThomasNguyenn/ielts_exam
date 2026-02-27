@@ -1,6 +1,6 @@
 import express from 'express';
 
-import { getAllTests, getTestCategories, createTest, updateTest, deleteTest, getTheTestById, getExamData, submitExam, getMyLatestAttempts, getMyAttemptSummary, getMyTestAttempts, renumberTestQuestions } from '../controllers/test.controller.js';
+import { getAllTests, getTestCategories, createTest, updateTest, deleteTest, getTheTestById, getExamData, submitExam, getMyLatestAttempts, getMyAttemptSummary, getMyTestAttempts, getMyAttemptResult, renumberTestQuestions } from '../controllers/test.controller.js';
 import { verifyToken, optionalVerifyToken, isTeacherOrAdmin } from '../middleware/auth.middleware.js';
 const router = express.Router();
 
@@ -9,6 +9,7 @@ router.get("/categories", getTestCategories);
 router.post("/", verifyToken, isTeacherOrAdmin, createTest);
 router.get("/my-attempts-summary", verifyToken, getMyAttemptSummary);
 router.get("/my-latest-attempts", verifyToken, getMyLatestAttempts);
+router.get("/attempts/:attemptId/result", verifyToken, getMyAttemptResult);
 router.get("/:id/exam", optionalVerifyToken, getExamData);
 router.post("/:id/submit", verifyToken, submitExam);
 router.get("/:id/attempts", verifyToken, getMyTestAttempts);

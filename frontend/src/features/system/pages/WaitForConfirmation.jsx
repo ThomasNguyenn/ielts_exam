@@ -19,9 +19,9 @@ export default function WaitForConfirmation() {
     return () => clearTimeout(timeoutId);
   }, [navigate, user?.isConfirmed]);
 
-  const handleLogout = () => {
-    api.logout();
-    navigate('/login');
+  const handleLogout = async () => {
+    await api.logout();
+    navigate('/login', { replace: true });
   };
 
   const handleCheckStatus = async () => {
