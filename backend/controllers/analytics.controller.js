@@ -1271,15 +1271,12 @@ export const getAIInsights = async (req, res) => {
 
 export const getAdminStudentErrorAnalytics = async (req, res) => {
   try {
-    const scopedReq = Object.assign(Object.create(req), req, {
-      query: req.query,
-      params: req.params,
-      user: {
-        ...req.user,
-        userId: req.params.studentId,
-      },
-    });
-    return await getErrorAnalytics(scopedReq, res);
+    const scopedReq = Object.create(req);
+    scopedReq.user = {
+      ...req.user,
+      userId: req.params.studentId,
+    };
+    return getErrorAnalytics(scopedReq, res);
   } catch (error) {
     return handleControllerError(req, res, error);
   }
@@ -1287,15 +1284,12 @@ export const getAdminStudentErrorAnalytics = async (req, res) => {
 
 export const getAdminStudentErrorAnalyticsDetails = async (req, res) => {
   try {
-    const scopedReq = Object.assign(Object.create(req), req, {
-      query: req.query,
-      params: req.params,
-      user: {
-        ...req.user,
-        userId: req.params.studentId,
-      },
-    });
-    return await getErrorAnalyticsDetails(scopedReq, res);
+    const scopedReq = Object.create(req);
+    scopedReq.user = {
+      ...req.user,
+      userId: req.params.studentId,
+    };
+    return getErrorAnalyticsDetails(scopedReq, res);
   } catch (error) {
     return handleControllerError(req, res, error);
   }
@@ -1303,15 +1297,12 @@ export const getAdminStudentErrorAnalyticsDetails = async (req, res) => {
 
 export const getAdminStudentAIInsights = async (req, res) => {
   try {
-    const scopedReq = Object.assign(Object.create(req), req, {
-      query: req.query,
-      params: req.params,
-      user: {
-        ...req.user,
-        userId: req.params.studentId,
-      },
-    });
-    return await getAIInsights(scopedReq, res);
+    const scopedReq = Object.create(req);
+    scopedReq.user = {
+      ...req.user,
+      userId: req.params.studentId,
+    };
+    return getAIInsights(scopedReq, res);
   } catch (error) {
     return handleControllerError(req, res, error);
   }
