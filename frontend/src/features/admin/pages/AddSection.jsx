@@ -569,14 +569,12 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
     showNotification('Section generated successfully.', 'success');
   };
 
-  const handleSaveDraft = () => {
-    showNotification('Draft saved.', 'success');
+  const handleSaveDraft = async () => {
+    await saveSection({ asDraft: true });
   };
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
+  const saveSection = async ({ asDraft = false } = {}) => {
     setError(null);
-
     if (!form._id.trim() || !form.title.trim() || !form.content.trim()) {
       showNotification('ID, title, and content are required.', 'error');
       return;
@@ -590,7 +588,7 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
         content: form.content.trim(),
         audio_url: form.audio_url?.trim() || undefined,
         source: form.source?.trim() || undefined,
-        is_active: form.isActive,
+        is_active: asDraft ? false : form.isActive,
         question_groups: form.question_groups.map((group) => ({
           type: canonicalizeQuestionType(group.type),
           group_layout: group.group_layout || 'default',
@@ -616,15 +614,18 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
 
       if (editId) {
         await api.updateSection(editId, payload);
-        showNotification('Section updated successfully.', 'success');
+        showNotification(asDraft ? 'Draft saved.' : 'Section updated successfully.', 'success');
       } else {
         await api.createSection(payload);
-        showNotification('Section created successfully.', 'success');
+        showNotification(asDraft ? 'Draft saved.' : 'Section created successfully.', 'success');
         if (!editIdOverride) {
           navigate(`/manage/sections/${form._id}`);
         }
       }
 
+      if (asDraft) {
+        setForm((prev) => ({ ...prev, isActive: false }));
+      }
       if (typeof onSaved === 'function') onSaved();
     } catch (submitErr) {
       setError(submitErr.message);
@@ -632,6 +633,11 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
     } finally {
       setSubmitLoading(false);
     }
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    await saveSection({ asDraft: false });
   };
 
   if (loading) return <div className="manage-container"><p className="muted">Loading...</p></div>;

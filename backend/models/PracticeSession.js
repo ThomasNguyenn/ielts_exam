@@ -150,6 +150,7 @@ const PracticeSessionSchema = new mongoose.Schema({
 PracticeSessionSchema.index({ userId: 1, timestamp: -1 });
 PracticeSessionSchema.index({ status: 1 });
 
-const PracticeSession = mongoose.model('PracticeSession', PracticeSessionSchema);
+const PracticeSession = mongoose.models.PracticeSession || mongoose.model('PracticeSession', PracticeSessionSchema);
 export default PracticeSession;
+
 

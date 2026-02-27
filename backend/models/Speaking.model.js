@@ -40,5 +40,6 @@ const SpeakingSchema = new mongoose.Schema({
   is_active: { type: Boolean, default: true },
 });
 
-const Speaking = mongoose.model('Speaking', SpeakingSchema);
+const Speaking = mongoose.models.Speaking || mongoose.model('Speaking', SpeakingSchema);
 export default Speaking;
+

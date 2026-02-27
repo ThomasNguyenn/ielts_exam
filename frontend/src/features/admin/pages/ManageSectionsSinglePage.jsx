@@ -22,6 +22,7 @@ const formatDate = (value) => {
 
 const countQuestions = (section) =>
   (section?.question_groups || []).reduce((sum, group) => sum + (group?.questions?.length || 0), 0);
+const getSortTimestamp = (item) => new Date(item?.updatedAt || item?.updated_at || item?.createdAt || item?.created_at || 0).getTime();
 
 export default function ManageSectionsSinglePage() {
   const { id: routeEditId } = useParams();
@@ -71,11 +72,13 @@ export default function ManageSectionsSinglePage() {
 
   const filteredSections = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return sections;
-    return sections.filter((item) =>
+    const matched = !query
+      ? sections
+      : sections.filter((item) =>
       String(item.title || '').toLowerCase().includes(query) ||
       String(item._id || '').toLowerCase().includes(query)
     );
+    return [...matched].sort((a, b) => getSortTimestamp(b) - getSortTimestamp(a));
   }, [sections, searchQuery]);
 
   const totalPages = Math.max(1, Math.ceil(filteredSections.length / ITEMS_PER_PAGE));
@@ -217,8 +220,8 @@ export default function ManageSectionsSinglePage() {
                     <td><span className="manage-pill skill-listening">Listening</span></td>
                     <td>{row.difficulty || 'Medium'}</td>
                     <td>{countQuestions(row)}</td>
-                    <td><span className="manage-pill status-published">Published</span></td>
-                    <td>{formatDate(row.updatedAt || row.createdAt)}</td>
+                    <td><span className={`manage-pill ${row.is_active === false ? 'status-archived' : 'status-published'}`}>{row.is_active === false ? 'Archived' : 'Published'}</span></td>
+                    <td>{formatDate(row.updatedAt || row.updated_at || row.createdAt || row.created_at)}</td>
                     <td>
                       <div className="manage-row-actions">
                         <button type="button" className="icon-btn" onClick={() => openEditTab(row._id)} title="Edit">

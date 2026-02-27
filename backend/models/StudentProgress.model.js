@@ -186,5 +186,6 @@ studentProgressSchema.methods.awardBadge = function (name, icon, description) {
     return false;
 };
 
-const StudentProgress = mongoose.model('StudentProgress', studentProgressSchema);
+const StudentProgress = mongoose.models.StudentProgress || mongoose.model('StudentProgress', studentProgressSchema);
 export default StudentProgress;
+

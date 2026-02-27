@@ -119,8 +119,7 @@ export default function AddWriting({ editIdOverride = null, embedded = false, on
     }
   };
 
-  const handleSubmit = async (event) => {
-    event?.preventDefault?.();
+  const saveWriting = async ({ asDraft = false } = {}) => {
     setError(null);
 
     if (!form._id.trim() || !form.title.trim() || !form.prompt.trim()) {
@@ -142,21 +141,24 @@ export default function AddWriting({ editIdOverride = null, embedded = false, on
         time_limit: Number(form.time_limit) || (form.task_type === 'task1' ? 20 : 40),
         sample_answer: form.sample_answer?.trim() || '',
         band_score: Number(form.band_score) || undefined,
-        is_active: form.isActive,
+        is_active: asDraft ? false : form.isActive,
         is_real_test: form.is_real_test,
       };
 
       if (editId) {
         await api.updateWriting(editId, payload);
-        showNotification('Writing task updated.', 'success');
+        showNotification(asDraft ? 'Draft saved.' : 'Writing task updated.', 'success');
       } else {
         await api.createWriting(payload);
-        showNotification('Writing task created.', 'success');
+        showNotification(asDraft ? 'Draft saved.' : 'Writing task created.', 'success');
         if (!editIdOverride) {
           navigate(`/manage/writings/${form._id}`);
         }
       }
 
+      if (asDraft) {
+        setForm((prev) => ({ ...prev, isActive: false }));
+      }
       if (typeof onSaved === 'function') onSaved();
     } catch (submitErr) {
       setError(submitErr.message);
@@ -166,8 +168,13 @@ export default function AddWriting({ editIdOverride = null, embedded = false, on
     }
   };
 
-  const handleSaveDraft = () => {
-    showNotification('Draft saved.', 'success');
+  const handleSubmit = async (event) => {
+    event?.preventDefault?.();
+    await saveWriting({ asDraft: false });
+  };
+
+  const handleSaveDraft = async () => {
+    await saveWriting({ asDraft: true });
   };
 
   if (loading) return <div className="manage-container"><p className="muted">Loading...</p></div>;

@@ -207,5 +207,6 @@ SpeakingSessionSchema.index({ questionId: 1, timestamp: -1 });
 SpeakingSessionSchema.index({ status: 1, timestamp: -1 });
 SpeakingSessionSchema.index({ userId: 1, "analysis.band_score": 1 });
 
-const SpeakingSession = mongoose.model('SpeakingSession', SpeakingSessionSchema);
+const SpeakingSession = mongoose.models.SpeakingSession || mongoose.model('SpeakingSession', SpeakingSessionSchema);
 export default SpeakingSession;
+

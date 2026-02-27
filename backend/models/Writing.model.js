@@ -23,5 +23,6 @@ const WritingSchema = new mongoose.Schema({
   is_real_test: { type: Boolean, default: false }, // Distinguish between Practice and "Real" Writing Tests
 });
 
-const Writing = mongoose.model('Writing', WritingSchema);
+const Writing = mongoose.models.Writing || mongoose.model('Writing', WritingSchema);
 export default Writing;
+

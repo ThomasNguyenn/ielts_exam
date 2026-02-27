@@ -2,17 +2,24 @@ import Section from "../models/Section.model.js";
 import { handleControllerError, sendControllerError } from '../utils/controllerError.js';
 
 const pickSectionPayload = (body = {}, { allowId = false } = {}) => {
-    const allowed = ["title", "content", "audio_url", "question_groups", "source"];
+    const allowed = ["title", "content", "audio_url", "question_groups", "source", "is_active"];
     if (allowId) {
         allowed.push("_id");
     }
 
-    return allowed.reduce((acc, key) => {
+    const payload = allowed.reduce((acc, key) => {
         if (Object.prototype.hasOwnProperty.call(body, key)) {
             acc[key] = body[key];
         }
         return acc;
     }, {});
+
+    // Backward-compatible alias from older frontend payloads
+    if (!Object.prototype.hasOwnProperty.call(payload, "is_active") && Object.prototype.hasOwnProperty.call(body, "isActive")) {
+        payload.is_active = body.isActive;
+    }
+
+    return payload;
 };
 
 export const getAllSections = async(req, res) => {

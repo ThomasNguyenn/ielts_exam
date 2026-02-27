@@ -41,4 +41,5 @@ const studyPlanSchema = new mongoose.Schema({
 
 studyPlanSchema.index({ userId: 1, isActive: 1 });
 
-export default mongoose.model('StudyPlan', studyPlanSchema);
+const StudyPlan = mongoose.models.StudyPlan || mongoose.model('StudyPlan', studyPlanSchema);
+export default StudyPlan;

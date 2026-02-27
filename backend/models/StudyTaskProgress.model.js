@@ -54,4 +54,5 @@ studyTaskProgressSchema.index({ userId: 1, planId: 1, taskKey: 1 }, { unique: tr
 studyTaskProgressSchema.index({ userId: 1, planId: 1, date: 1 });
 studyTaskProgressSchema.index({ userId: 1, status: 1, completedAt: -1 });
 
-export default mongoose.model('StudyTaskProgress', studyTaskProgressSchema);
+const StudyTaskProgress = mongoose.models.StudyTaskProgress || mongoose.model('StudyTaskProgress', studyTaskProgressSchema);
+export default StudyTaskProgress;

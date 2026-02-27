@@ -19,6 +19,7 @@ const formatDate = (value) => {
     year: 'numeric',
   });
 };
+const getSortTimestamp = (item) => new Date(item?.updatedAt || item?.updated_at || item?.createdAt || item?.created_at || 0).getTime();
 
 export default function ManageWritingsSinglePage() {
   const { id: routeEditId } = useParams();
@@ -68,11 +69,13 @@ export default function ManageWritingsSinglePage() {
 
   const filteredWritings = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return writings;
-    return writings.filter((item) =>
+    const matched = !query
+      ? writings
+      : writings.filter((item) =>
       String(item.title || '').toLowerCase().includes(query) ||
       String(item._id || '').toLowerCase().includes(query)
     );
+    return [...matched].sort((a, b) => getSortTimestamp(b) - getSortTimestamp(a));
   }, [writings, searchQuery]);
 
   const totalPages = Math.max(1, Math.ceil(filteredWritings.length / ITEMS_PER_PAGE));
@@ -214,8 +217,8 @@ export default function ManageWritingsSinglePage() {
                     <td><span className="manage-pill skill-writing">Writing</span></td>
                     <td>{String(row.task_type || 'task1').toUpperCase()}</td>
                     <td>{row.essay_word_limit || row.word_limit || 250}</td>
-                    <td><span className="manage-pill status-published">Published</span></td>
-                    <td>{formatDate(row.updatedAt || row.createdAt)}</td>
+                    <td><span className={`manage-pill ${row.is_active === false ? 'status-archived' : 'status-published'}`}>{row.is_active === false ? 'Archived' : 'Published'}</span></td>
+                    <td>{formatDate(row.updatedAt || row.updated_at || row.createdAt || row.created_at)}</td>
                     <td>
                       <div className="manage-row-actions">
                         <button type="button" className="icon-btn" onClick={() => openEditTab(row._id)} title="Edit">

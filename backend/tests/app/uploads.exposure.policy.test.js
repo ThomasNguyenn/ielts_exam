@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import request from "supertest";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const ORIGINAL_ENV = {
   NODE_ENV: process.env.NODE_ENV,
@@ -35,6 +35,7 @@ const buildApp = async (overrides = {}) => {
     process.env[key] = value;
   }
 
+  vi.resetModules();
   const { createApp } = await import("../../app.js");
   return createApp({ startBackgroundJobs: false });
 };

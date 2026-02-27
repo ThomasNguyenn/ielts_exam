@@ -58,5 +58,6 @@ TestAttemptSchema.index({ user_id: 1, test_id: 1, submitted_at: -1 });
 TestAttemptSchema.index({ user_id: 1, type: 1, submitted_at: -1 });
 TestAttemptSchema.index({ submitted_at: -1 });
 
-const TestAttempt = mongoose.model('TestAttempt', TestAttemptSchema);
+const TestAttempt = mongoose.models.TestAttempt || mongoose.model('TestAttempt', TestAttemptSchema);
 export default TestAttempt;
+

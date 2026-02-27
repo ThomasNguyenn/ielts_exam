@@ -144,5 +144,6 @@ modelEssaySchema.index({ difficulty: 1 });
 modelEssaySchema.index({ isActive: 1 });
 modelEssaySchema.index({ tags: 1 });
 
-const ModelEssay = mongoose.model('ModelEssay', modelEssaySchema);
+const ModelEssay = mongoose.models.ModelEssay || mongoose.model('ModelEssay', modelEssaySchema);
 export default ModelEssay;
+

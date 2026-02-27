@@ -73,4 +73,5 @@ userSchema.index({ role: 1, createdAt: -1 });
 userSchema.index({ role: 1, isConfirmed: 1, createdAt: -1 });
 userSchema.index({ role: 1, xp: -1 }); // Leaderboard
 
-export default mongoose.model('User', userSchema);
+const User = mongoose.models.User || mongoose.model('User', userSchema);
+export default User;

@@ -28,7 +28,7 @@ if (!REFRESH_COOKIE_PATH.startsWith("/")) {
   throw new Error("REFRESH_COOKIE_PATH must start with '/'");
 }
 
-const defaultSameSite = "lax";
+const defaultSameSite = IS_PRODUCTION ? "none" : "lax";
 export const REFRESH_COOKIE_SAMESITE = (process.env.REFRESH_COOKIE_SAMESITE || defaultSameSite)
   .trim()
   .toLowerCase();

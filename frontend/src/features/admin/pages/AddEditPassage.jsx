@@ -121,8 +121,8 @@ function passageToForm(p) {
     title: p.title || '',
     content: p.content || '',
     source: p.source || '',
-    isActive: p.isActive ?? true, // Mock field for UI
-    createdAt: p.createdAt,
+    isActive: p.is_active ?? p.isActive ?? true,
+    createdAt: p.createdAt || p.created_at,
     question_groups: groups,
   };
 }
@@ -578,8 +578,67 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
     });
   };
 
-  const handleSaveDraft = () => {
-    showNotification('Draft saved.', 'success');
+  const savePassage = async ({ asDraft = false } = {}) => {
+    if (!form._id.trim() || !form.title.trim() || !form.content.trim()) {
+      showNotification('ID, title and content are required.', 'error');
+      return;
+    }
+
+    setSubmitLoading(true);
+    try {
+      const payload = {
+        _id: form._id.trim(),
+        title: form.title.trim(),
+        content: form.content.trim(),
+        source: form.source.trim() || undefined,
+        is_active: asDraft ? false : form.isActive,
+        question_groups: form.question_groups.map((g) => ({
+          type: canonicalizeQuestionType(g.type),
+          group_layout: g.group_layout,
+          required_count: g.required_count ? Number(g.required_count) : undefined,
+          use_once: Boolean(g.use_once),
+          instructions: g.instructions || undefined,
+          text: g.text || undefined,
+          headings: (g.headings || []).filter((h) => h.id || h.text).length
+            ? (g.headings || []).filter((h) => h.id || h.text)
+            : undefined,
+          options: (g.options || []).filter((o) => o.id || o.text).length
+            ? (g.options || []).filter((o) => o.id || o.text)
+            : undefined,
+          questions: g.questions.map((q) => ({
+            q_number: q.q_number,
+            text: q.text,
+            option: q.option?.filter((o) => o.text) || [],
+            correct_answers: q.correct_answers?.filter(Boolean) || [],
+            explanation: q.explanation || undefined,
+            passage_reference: q.passage_reference || undefined,
+          })),
+        })),
+      };
+      if (editId) {
+        await api.updatePassage(editId, payload);
+        showNotification(asDraft ? 'Draft saved.' : 'Passage updated successfully.', 'success');
+      } else {
+        await api.createPassage(payload);
+        showNotification(asDraft ? 'Draft saved.' : 'Passage created successfully.', 'success');
+        if (!editIdOverride) {
+          navigate(`/manage/passages/${form._id}`);
+        }
+      }
+      if (asDraft) {
+        setForm((prev) => ({ ...prev, isActive: false }));
+      }
+      if (typeof onSaved === 'function') onSaved();
+    } catch (err) {
+      setError(err.message);
+      showNotification(err.message, 'error');
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    await savePassage({ asDraft: true });
   };
 
   const handleGenerateQuestionInsights = async () => {
@@ -662,59 +721,7 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form._id.trim() || !form.title.trim() || !form.content.trim()) {
-      showNotification('ID, title and content are required.', 'error');
-      return;
-    }
-
-    setSubmitLoading(true);
-    try {
-      const payload = {
-        _id: form._id.trim(),
-        title: form.title.trim(),
-        content: form.content.trim(),
-        source: form.source.trim() || undefined,
-        isActive: form.isActive, // Include in payload if backend accepts it
-        question_groups: form.question_groups.map((g) => ({
-          type: canonicalizeQuestionType(g.type),
-          group_layout: g.group_layout,
-          required_count: g.required_count ? Number(g.required_count) : undefined,
-          use_once: Boolean(g.use_once),
-          instructions: g.instructions || undefined,
-          text: g.text || undefined,
-          headings: (g.headings || []).filter((h) => h.id || h.text).length
-            ? (g.headings || []).filter((h) => h.id || h.text)
-            : undefined,
-          options: (g.options || []).filter((o) => o.id || o.text).length
-            ? (g.options || []).filter((o) => o.id || o.text)
-            : undefined,
-          questions: g.questions.map((q) => ({
-            q_number: q.q_number,
-            text: q.text,
-            option: q.option?.filter((o) => o.text) || [],
-            correct_answers: q.correct_answers?.filter(Boolean) || [],
-            explanation: q.explanation || undefined,
-            passage_reference: q.passage_reference || undefined,
-          })),
-        })),
-      };
-      if (editId) {
-        await api.updatePassage(editId, payload);
-        showNotification('Passage updated successfully.', 'success');
-      } else {
-        await api.createPassage(payload);
-        showNotification('Passage created successfully.', 'success');
-        if (!editIdOverride) {
-          navigate(`/manage/passages/${form._id}`);
-        }
-      }
-      if (typeof onSaved === 'function') onSaved();
-    } catch (err) {
-      setError(err.message);
-      showNotification(err.message, 'error');
-    } finally {
-      setSubmitLoading(false);
-    }
+    await savePassage({ asDraft: false });
   };
 
   if (editId && loading) return <div className="manage-container"><div className="loading-spinner"></div></div>;

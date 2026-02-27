@@ -49,9 +49,11 @@ const PassageSchema = new mongoose.Schema({
     title: { type: String, required: true }, // Tieu de doan van
     content: { type: String, required: true }, // Noi dung doan van
     question_groups: [QuestionGroupSchema],
-    source: { type: String } // Mang cac nhom cau hoi thuoc doan van nay
+    source: { type: String }, // Mang cac nhom cau hoi thuoc doan van nay
+    is_active: { type: Boolean, default: true }
 }, { timestamps: true });
 
 
-const Passage = mongoose.model('Passage', PassageSchema);
+const Passage = mongoose.models.Passage || mongoose.model('Passage', PassageSchema);
 export default Passage;
+

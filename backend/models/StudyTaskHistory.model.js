@@ -62,4 +62,5 @@ studyTaskHistorySchema.index({ userId: 1, completedAt: -1 });
 studyTaskHistorySchema.index({ userId: 1, sourcePlanId: 1 });
 studyTaskHistorySchema.index({ userId: 1, taskKey: 1 });
 
-export default mongoose.model('StudyTaskHistory', studyTaskHistorySchema);
+const StudyTaskHistory = mongoose.models.StudyTaskHistory || mongoose.model('StudyTaskHistory', studyTaskHistorySchema);
+export default StudyTaskHistory;

@@ -45,4 +45,5 @@ const studyTaskSchema = new mongoose.Schema({
 // Index for efficient querying of daily tasks
 studyTaskSchema.index({ userId: 1, date: 1 });
 
-export default mongoose.model('StudyTask', studyTaskSchema);
+const StudyTask = mongoose.models.StudyTask || mongoose.model('StudyTask', studyTaskSchema);
+export default StudyTask;

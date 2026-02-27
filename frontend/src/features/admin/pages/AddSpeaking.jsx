@@ -151,8 +151,7 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
     }
   };
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
+  const saveSpeaking = async ({ asDraft = false } = {}) => {
     setError(null);
 
     if (!form._id.trim() || !form.title.trim() || !form.prompt.trim()) {
@@ -170,7 +169,7 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
         sub_questions: form.sub_questions.filter(Boolean),
         keywords: form.keywords.filter(Boolean),
         sample_highlights: form.sample_highlights?.trim() || '',
-        is_active: form.isActive,
+        is_active: asDraft ? false : form.isActive,
         read_aloud: {
           provider: form.aiProvider || null,
           model: form.aiModel || null,
@@ -192,6 +191,9 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
         }
       }
 
+      if (asDraft) {
+        setForm((prev) => ({ ...prev, isActive: false }));
+      }
       if (typeof onSaved === 'function') onSaved();
     } catch (submitErr) {
       setError(submitErr.message);
@@ -201,8 +203,13 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
     }
   };
 
-  const handleSaveDraft = () => {
-    showNotification('Đã lưu bản nháp.', 'success');
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    await saveSpeaking({ asDraft: false });
+  };
+
+  const handleSaveDraft = async () => {
+    await saveSpeaking({ asDraft: true });
   };
 
   if (loading) return <div className="manage-container"><p className="muted">Đang tải...</p></div>;
@@ -491,3 +498,4 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
     </div>
   );
 }
+

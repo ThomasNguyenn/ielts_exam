@@ -19,6 +19,7 @@ const formatDate = (value) => {
     year: 'numeric',
   });
 };
+const getSortTimestamp = (item) => new Date(item?.updatedAt || item?.updated_at || item?.createdAt || item?.created_at || 0).getTime();
 
 export default function ManageSpeakingSinglePage() {
   const { id: routeEditId } = useParams();
@@ -68,12 +69,14 @@ export default function ManageSpeakingSinglePage() {
 
   const filteredSpeakings = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return speakings;
-    return speakings.filter((item) =>
+    const matched = !query
+      ? speakings
+      : speakings.filter((item) =>
       String(item.title || '').toLowerCase().includes(query) ||
       String(item._id || '').toLowerCase().includes(query) ||
       String(item.prompt || '').toLowerCase().includes(query)
     );
+    return [...matched].sort((a, b) => getSortTimestamp(b) - getSortTimestamp(a));
   }, [speakings, searchQuery]);
 
   const totalPages = Math.max(1, Math.ceil(filteredSpeakings.length / ITEMS_PER_PAGE));
@@ -216,7 +219,7 @@ export default function ManageSpeakingSinglePage() {
                     <td>Part {row.part || 1}</td>
                     <td>{Array.isArray(row.sub_questions) ? row.sub_questions.length : 0}</td>
                     <td><span className={`manage-pill ${row.is_active === false ? 'status-archived' : 'status-published'}`}>{row.is_active === false ? 'Archived' : 'Published'}</span></td>
-                    <td>{formatDate(row.updatedAt || row.createdAt)}</td>
+                    <td>{formatDate(row.updatedAt || row.updated_at || row.createdAt || row.created_at)}</td>
                     <td>
                       <div className="manage-row-actions">
                         <button type="button" className="icon-btn" onClick={() => openEditTab(row._id)} title="Edit">

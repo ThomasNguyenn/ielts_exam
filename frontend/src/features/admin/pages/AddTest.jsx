@@ -218,8 +218,7 @@ export default function AddTest({ editIdOverride = null, embedded = false, onSav
     setCurrentLinkedIds(next);
   };
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
+  const saveTest = async ({ asDraft = false } = {}) => {
     setError(null);
 
     if (!form._id.trim() || !form.title.trim() || !form.category.trim()) {
@@ -241,7 +240,7 @@ export default function AddTest({ editIdOverride = null, embedded = false, onSav
         type: form.type,
         duration: Number(form.duration) || 60,
         full_audio: form.type === 'listening' ? (form.full_audio?.trim() || null) : null,
-        is_active: form.is_active,
+        is_active: asDraft ? false : form.is_active,
         is_real_test: form.is_real_test,
         reading_passages: form.type === 'reading' ? form.reading_passages : [],
         listening_sections: form.type === 'listening' ? form.listening_sections : [],
@@ -249,7 +248,7 @@ export default function AddTest({ editIdOverride = null, embedded = false, onSav
       };
 
       let savedTestId = editId || payload._id;
-      const actionLabel = editId ? 'updated' : 'created';
+      const actionLabel = asDraft ? 'draft saved' : (editId ? 'updated' : 'created');
 
       if (editId) {
         const updateRes = await api.updateTest(editId, payload);
@@ -281,6 +280,9 @@ export default function AddTest({ editIdOverride = null, embedded = false, onSav
         showNotification(`Test ${actionLabel}.`, 'success');
       }
 
+      if (asDraft) {
+        updateForm('is_active', false);
+      }
       if (typeof onSaved === 'function') onSaved();
     } catch (submitErr) {
       setError(submitErr.message);
@@ -290,8 +292,13 @@ export default function AddTest({ editIdOverride = null, embedded = false, onSav
     }
   };
 
-  const handleSaveDraft = () => {
-    showNotification('Draft saved.', 'success');
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    await saveTest({ asDraft: false });
+  };
+
+  const handleSaveDraft = async () => {
+    await saveTest({ asDraft: true });
   };
 
   if (loading) return <div className="manage-container"><p className="muted">Loading...</p></div>;

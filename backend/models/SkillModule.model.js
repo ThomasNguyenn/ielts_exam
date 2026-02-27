@@ -106,5 +106,6 @@ const skillModuleSchema = new mongoose.Schema({
 skillModuleSchema.index({ moduleNumber: 1, order: 1 });
 skillModuleSchema.index({ isActive: 1 });
 
-const SkillModule = mongoose.model('SkillModule', skillModuleSchema);
+const SkillModule = mongoose.models.SkillModule || mongoose.model('SkillModule', skillModuleSchema);
 export default SkillModule;
+

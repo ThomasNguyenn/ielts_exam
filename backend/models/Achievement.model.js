@@ -26,4 +26,5 @@ const achievementSchema = new mongoose.Schema({
 
 achievementSchema.index({ category: 1, order: 1 });
 
-export default mongoose.model('Achievement', achievementSchema);
+const Achievement = mongoose.models.Achievement || mongoose.model('Achievement', achievementSchema);
+export default Achievement;

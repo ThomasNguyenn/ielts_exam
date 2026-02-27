@@ -50,9 +50,11 @@ const SectionSchema = new mongoose.Schema({
     content: { type: String, required: true }, // Noi dung doan van
     audio_url: { type: String }, // URL to MP3 audio file for listening section
     question_groups: [QuestionGroupSchema],
-    source: { type: String } // Mang cac nhom cau hoi thuoc doan van nay
+    source: { type: String }, // Mang cac nhom cau hoi thuoc doan van nay
+    is_active: { type: Boolean, default: true }
 }, { timestamps: true });
 
 
-const Section = mongoose.model('Section', SectionSchema);
+const Section = mongoose.models.Section || mongoose.model('Section', SectionSchema);
 export default Section;
+

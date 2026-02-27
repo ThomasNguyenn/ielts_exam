@@ -45,4 +45,5 @@ const invitationSchema = new mongoose.Schema({
 invitationSchema.index({ email: 1, status: 1 });
 invitationSchema.index({ expiresAt: 1 });
 
-export default mongoose.model("Invitation", invitationSchema);
+const Invitation = mongoose.models.Invitation || mongoose.model('Invitation', invitationSchema);
+export default Invitation;

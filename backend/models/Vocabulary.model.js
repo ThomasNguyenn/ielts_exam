@@ -90,5 +90,6 @@ VocabularySchema.methods.calculateNextReview = function (difficulty) {
     this.last_reviewed_at = new Date();
 };
 
-const Vocabulary = mongoose.model('Vocabulary', VocabularySchema);
+const Vocabulary = mongoose.models.Vocabulary || mongoose.model('Vocabulary', VocabularySchema);
 export default Vocabulary;
+
