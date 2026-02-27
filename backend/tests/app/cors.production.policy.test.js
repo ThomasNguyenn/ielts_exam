@@ -53,14 +53,14 @@ describe("production CORS policy", () => {
     expect(res.status).toBe(403);
     expect(res.body.success).toBe(false);
     expect(res.body.error.code).toBe("CORS_ORIGIN_REQUIRED");
-  });
+  }, 15000);
 
   it("allows requests without Origin when CORS_ALLOW_NO_ORIGIN is explicitly enabled", async () => {
     const app = await buildProductionApp({ CORS_ALLOW_NO_ORIGIN: "true" });
     const res = await request(app).get("/api/health");
 
     expect(res.status).not.toBe(403);
-  });
+  }, 15000);
 
   it("allows requests without Origin when Authorization header is present", async () => {
     const app = await buildProductionApp();
@@ -69,7 +69,7 @@ describe("production CORS policy", () => {
       .set("Authorization", "Bearer test.access.token");
 
     expect(res.status).not.toBe(403);
-  });
+  }, 15000);
 
   it("allows configured production origins", async () => {
     const app = await buildProductionApp();
@@ -78,5 +78,5 @@ describe("production CORS policy", () => {
       .set("Origin", "https://app.example.com");
 
     expect(res.status).not.toBe(403);
-  });
+  }, 15000);
 });

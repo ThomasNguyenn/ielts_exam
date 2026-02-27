@@ -9,4 +9,5 @@ const XpTransactionSchema = new mongoose.Schema({
 // Index for daily aggregation queries
 XpTransactionSchema.index({ userId: 1, createdAt: -1 });
 
-export default mongoose.model('XpTransaction', XpTransactionSchema);
+const XpTransaction = mongoose.models.XpTransaction || mongoose.model('XpTransaction', XpTransactionSchema);
+export default XpTransaction;

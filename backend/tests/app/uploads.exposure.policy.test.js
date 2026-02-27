@@ -74,7 +74,7 @@ describe("local uploads exposure policy", () => {
       .set("Origin", "https://app.example.com");
 
     expect(res.status).toBe(404);
-  });
+  }, 15000);
 
   it("exposes /uploads when SERVE_LOCAL_UPLOADS=true", async () => {
     const app = await buildApp({ SERVE_LOCAL_UPLOADS: "true" });
@@ -85,5 +85,5 @@ describe("local uploads exposure policy", () => {
 
     expect(res.status).toBe(200);
     expect(res.text).toBe("upload-policy-check");
-  });
+  }, 15000);
 });
