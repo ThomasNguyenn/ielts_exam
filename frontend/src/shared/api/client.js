@@ -119,11 +119,20 @@ function toWebSocketBaseUrl() {
   if (typeof window === 'undefined') return '';
 
   const fallbackOrigin = window.location.origin;
-  const baseCandidate = API_BASE || fallbackOrigin;
+  const envApiUrl = import.meta.env?.VITE_API_URL || '';
+  const preferredBase = envApiUrl || API_BASE || fallbackOrigin;
 
   try {
-    const parsed = new URL(baseCandidate, fallbackOrigin);
+    const parsed = new URL(preferredBase, fallbackOrigin);
     parsed.protocol = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
+
+    // Secure page cannot open insecure websocket (ws://).
+    if (window.location.protocol === 'https:' && parsed.protocol === 'ws:') {
+      const proxied = new URL(fallbackOrigin);
+      proxied.protocol = proxied.protocol === 'https:' ? 'wss:' : 'ws:';
+      return proxied.origin;
+    }
+
     return parsed.origin;
   } catch {
     return fallbackOrigin.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:');
@@ -134,7 +143,8 @@ function buildWebSocketUrl(path, params = {}) {
   const base = toWebSocketBaseUrl();
   if (!base) return '';
   const query = toQueryString(params);
-  return `${base}${path}${query ? `?${query}` : ''}`;
+  const normalizedPath = String(path || '').startsWith('/') ? path : `/${path}`;
+  return `${base}${normalizedPath}${query ? `?${query}` : ''}`;
 }
 
 function isTokenExpired(token) {
@@ -523,11 +533,11 @@ export const api = {
   deleteVocabulary: (id) => request(`/api/vocabulary/${id}`, { method: 'DELETE' }),
 
   getAdminUsersScores: (params = {}) => {
-    const query = toQueryString(params);
+    const query = toQueryString({ ...params, _t: Date.now() });
     return request(`/api/admin/scores${query ? `?${query}` : ''}`);
   },
   getAdminUserAttempts: (userId, params = {}) => {
-    const query = toQueryString(params);
+    const query = toQueryString({ ...params, _t: Date.now() });
     return request(`/api/admin/users/${userId}/attempts${query ? `?${query}` : ''}`);
   },
 

@@ -379,7 +379,14 @@ export default function Exam() {
         writing: writingAnswersRef.current,
         timeTaken,
         student_highlights: studentHighlights,
-        isPractice: isSingleMode
+        isPractice: isSingleMode,
+        singleModeMeta: isSingleMode && steps[currentStep]
+          ? {
+            stepIndex: currentStep,
+            startSlotIndex: Number(steps[currentStep].startSlotIndex),
+            endSlotIndex: Number(steps[currentStep].endSlotIndex),
+          }
+          : null,
       })
       .then((res) => {
         const payload = res?.data ?? res;
@@ -389,7 +396,12 @@ export default function Exam() {
         let resultData = payload;
 
         // If single mode, recalculate score based only on current part
-        if (isSingleMode && steps[currentStep] && Array.isArray(payload.question_review)) {
+        if (
+          isSingleMode
+          && steps[currentStep]
+          && Array.isArray(payload.question_review)
+          && payload.question_review.length > steps[currentStep].endSlotIndex
+        ) {
           const step = steps[currentStep];
           const start = step.startSlotIndex;
           const end = step.endSlotIndex;

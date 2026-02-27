@@ -62,10 +62,26 @@ const normalizeHighlights = (items = [], textLength = 0) =>
 
 const buildSegments = (text = '', highlights = []) => {
   const sourceText = String(text || '');
-  if (!sourceText) return [{ text: '', active: [] }];
+  if (!sourceText) {
+    return [{
+      key: '0:0',
+      text: '',
+      active: [],
+      start: 0,
+      end: 0,
+    }];
+  }
 
   const validHighlights = normalizeHighlights(highlights, sourceText.length);
-  if (validHighlights.length === 0) return [{ text: sourceText, active: [] }];
+  if (validHighlights.length === 0) {
+    return [{
+      key: `0:${sourceText.length}`,
+      text: sourceText,
+      active: [],
+      start: 0,
+      end: sourceText.length,
+    }];
+  }
 
   const boundaries = new Set([0, sourceText.length]);
   validHighlights.forEach((item) => {
@@ -458,8 +474,8 @@ export default function WritingLiveRoom() {
         <div>
           <h1>Writing Live Room {roomCode ? `(${roomCode})` : ''}</h1>
           <p className="muted">
-            Teacher: {teacherOnline ? 'Online' : 'Offline'} • Socket: {wsState}
-            {expiresAt ? ` • Code expires: ${new Date(expiresAt).toLocaleTimeString()}` : ''}
+            Teacher: {teacherOnline ? 'Online' : 'Offline'} | Socket: {wsState}
+            {expiresAt ? ` | Code expires: ${new Date(expiresAt).toLocaleTimeString()}` : ''}
           </p>
         </div>
         <div className="writing-live__header-actions">
@@ -508,9 +524,10 @@ export default function WritingLiveRoom() {
             className={`writing-live__essay-text ${isTeacher ? 'is-teacher' : 'is-student'}`}
             onMouseUp={handleTextSelection}
           >
-            {textSegments.map((segment) => {
+            {textSegments.map((segment, index) => {
+              const segmentKey = segment?.key ? `${segment.key}:${index}` : `segment:${index}`;
               if (!segment.active || segment.active.length === 0) {
-                return <span key={segment.key}>{segment.text}</span>;
+                return <span key={segmentKey}>{segment.text}</span>;
               }
               const primary = segment.active[segment.active.length - 1];
               const title = segment.active
@@ -519,7 +536,7 @@ export default function WritingLiveRoom() {
                 .join('\n');
               return (
                 <mark
-                  key={segment.key}
+                  key={segmentKey}
                   className={`writing-live-mark ${toCriterionClass(primary?.criterion)}`}
                   title={title}
                 >
@@ -659,7 +676,7 @@ export default function WritingLiveRoom() {
                 <div key={item.id} className="writing-live__highlight-row">
                   <div>
                     <p>{item.text || '(empty)'}</p>
-                    <small>{toCriterionLabel(item.criterion)} • {item.start}-{item.end}</small>
+                    <small>{toCriterionLabel(item.criterion)} | {item.start}-{item.end}</small>
                   </div>
                   {isTeacher ? (
                     <button
@@ -680,4 +697,3 @@ export default function WritingLiveRoom() {
     </div>
   );
 }
-

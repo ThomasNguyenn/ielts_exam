@@ -320,6 +320,40 @@ const setCachedInsights = (key, value) => {
   }
 };
 
+const buildHeuristicInsightsPayload = (errorLogs = [], filters = {}) => {
+  const frequencies = {};
+  errorLogs.forEach((log) => {
+    const code = String(log?.error_code || "UNCLASSIFIED").toUpperCase();
+    frequencies[code] = (frequencies[code] || 0) + 1;
+  });
+
+  const topCodes = Object.entries(frequencies)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([code, count]) => `${code} (${count})`);
+
+  return {
+    no_data: false,
+    feedback: null,
+    overview: topCodes.length > 0
+      ? `He thong tam thoi dung goi y co san. Loi xuat hien nhieu: ${topCodes.join(", ")}.`
+      : "He thong tam thoi dung goi y co san.",
+    actionable_advice: [
+      "Tap trung sua cac loi lap lai nhieu nhat truoc.",
+      "Luyen theo tung tieu chi va doi chieu dap an mau.",
+    ],
+    recommended_practice: [
+      "Lam them bai cung dang cau hoi ban hay sai.",
+      "Sau moi bai, tong hop 3 loi can tranh lap lai.",
+    ],
+    encouragement: "Tien do van duoc cap nhat, ban tiep tuc luyen tap de cai thien nhanh.",
+    filters: {
+      range: filters.range,
+      skill: filters.skill,
+    },
+  };
+};
+
 const filterErrorLogs = (errorLogs = [], filters = {}) => {
   const { since, skills } = filters;
   return errorLogs.filter((log) => {
@@ -331,6 +365,9 @@ const filterErrorLogs = (errorLogs = [], filters = {}) => {
     return true;
   });
 };
+
+const toSafeErrorLogArray = (value) =>
+  (Array.isArray(value) ? value : []).filter((item) => item && typeof item === "object");
 
 const parseDetailsPagination = (query = {}) => {
   const parsedPage = Number(query.page);
@@ -476,11 +513,17 @@ const buildAttemptQuestionSnippetLookup = async (attempts = []) => {
 
   if (testIds.length === 0) return new Map();
 
-  const tests = await Test.find({ _id: { $in: testIds } })
-    .populate("reading_passages")
-    .populate("listening_sections")
-    .select("_id reading_passages listening_sections")
-    .lean();
+  let tests = [];
+  try {
+    tests = await Test.find({ _id: { $in: testIds } })
+      .populate("reading_passages")
+      .populate("listening_sections")
+      .select("_id reading_passages listening_sections")
+      .lean();
+  } catch (error) {
+    console.warn("[analytics] Failed to build question snippet lookup:", error?.message || "Unknown error");
+    return new Map();
+  }
 
   const byTestId = new Map();
   tests.forEach((testDoc) => {
@@ -529,38 +572,34 @@ async function aggregateUserErrors(userId) {
     .sort({ submitted_at: -1 })
     .select("type error_logs submitted_at")
     .lean();
-  attempts.forEach(a => {
-    if (a.error_logs) {
-      a.error_logs.forEach(log => {
-        errorLogs.push({ ...log, skill: a.type, logged_at: a.submitted_at });
-      });
-    }
+  attempts.forEach((a) => {
+    toSafeErrorLogArray(a?.error_logs).forEach((log) => {
+      errorLogs.push({ ...log, skill: a?.type, logged_at: a?.submitted_at });
+    });
   });
 
   // Writing
   const writings = await WritingSubmission.find({ user_id: userId, "error_logs.0": { $exists: true } })
-    .sort({ created_at: -1 })
-    .select("error_logs created_at")
+    .sort({ submitted_at: -1, createdAt: -1 })
+    .select("error_logs submitted_at createdAt")
     .lean();
-  writings.forEach(w => {
-    if (w.error_logs) {
-      w.error_logs.forEach(log => {
-        errorLogs.push({ ...log, skill: "writing", logged_at: w.created_at });
-      });
-    }
+  writings.forEach((w) => {
+    const loggedAt = w?.submitted_at || w?.createdAt;
+    toSafeErrorLogArray(w?.error_logs).forEach((log) => {
+      errorLogs.push({ ...log, skill: "writing", logged_at: loggedAt });
+    });
   });
 
   // Speaking
   const speakings = await SpeakingSession.find({ userId: userId, "error_logs.0": { $exists: true } })
-    .sort({ createdAt: -1 })
-    .select("error_logs timestamp")
+    .sort({ timestamp: -1, createdAt: -1 })
+    .select("error_logs timestamp createdAt")
     .lean();
-  speakings.forEach(s => {
-    if (s.error_logs) {
-      s.error_logs.forEach(log => {
-        errorLogs.push({ ...log, skill: "speaking", logged_at: s.timestamp });
-      });
-    }
+  speakings.forEach((s) => {
+    const loggedAt = s?.timestamp || s?.createdAt;
+    toSafeErrorLogArray(s?.error_logs).forEach((log) => {
+      errorLogs.push({ ...log, skill: "speaking", logged_at: loggedAt });
+    });
   });
 
   return errorLogs;
@@ -578,7 +617,7 @@ async function aggregateUserErrorDetails(userId) {
     const testId = String(attemptDoc.test_id || "").trim();
     const questionSnippetLookup = testId ? questionSnippetByTestId.get(testId) : null;
 
-    (attemptDoc.error_logs || []).forEach((log, index) => {
+    toSafeErrorLogArray(attemptDoc?.error_logs).forEach((log, index) => {
       const taxonomyDisplay = resolveTaxonomyDisplay(log);
       const fallbackSnippet = questionSnippetLookup?.get(String(log.question_number || "")) || "";
 
@@ -616,7 +655,7 @@ async function aggregateUserErrorDetails(userId) {
     .lean();
   writings.forEach((writingDoc) => {
     const loggedAt = writingDoc.submitted_at || writingDoc.createdAt;
-    (writingDoc.error_logs || []).forEach((log, index) => {
+    toSafeErrorLogArray(writingDoc?.error_logs).forEach((log, index) => {
       const taxonomyDisplay = resolveTaxonomyDisplay(log);
       details.push({
         id: `writing:${writingDoc._id}:${index}`,
@@ -652,7 +691,7 @@ async function aggregateUserErrorDetails(userId) {
     .lean();
   speakings.forEach((speakingDoc) => {
     const loggedAt = speakingDoc.timestamp || speakingDoc.createdAt;
-    (speakingDoc.error_logs || []).forEach((log, index) => {
+    toSafeErrorLogArray(speakingDoc?.error_logs).forEach((log, index) => {
       const taxonomyDisplay = resolveTaxonomyDisplay(log);
       details.push({
         id: `speaking:${speakingDoc._id}:${index}`,
@@ -1182,33 +1221,43 @@ export const getAIInsights = async (req, res) => {
 
     const prompt = `Analyze the student's IELTS error taxonomy and return strict JSON in Vietnamese.\nTop errors:\n${topErrors.join("\n")}\n\nReturn exactly:\n{\n  \"overview\": \"string\",\n  \"actionable_advice\": [\"string\"],\n  \"recommended_practice\": [\"string\"],\n  \"encouragement\": \"string\"\n}`;
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: "Return valid JSON only. Use Vietnamese language." },
-        { role: "user", content: prompt },
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.2,
-    });
+    let normalizedPayload = null;
+    if (!process.env.OPENAI_API_KEY) {
+      normalizedPayload = buildHeuristicInsightsPayload(errorLogs, filters);
+    } else {
+      try {
+        const response = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            { role: "system", content: "Return valid JSON only. Use Vietnamese language." },
+            { role: "user", content: prompt },
+          ],
+          response_format: { type: "json_object" },
+          temperature: 0.2,
+        });
 
-    const parsedInsights = JSON.parse(response.choices[0].message.content);
-    const normalizedPayload = {
-      no_data: false,
-      feedback: parsedInsights.feedback || null,
-      overview: parsedInsights.overview || "",
-      actionable_advice: Array.isArray(parsedInsights.actionable_advice)
-        ? parsedInsights.actionable_advice
-        : [parsedInsights.actionable_advice].filter(Boolean),
-      recommended_practice: Array.isArray(parsedInsights.recommended_practice)
-        ? parsedInsights.recommended_practice
-        : [parsedInsights.recommended_practice].filter(Boolean),
-      encouragement: parsedInsights.encouragement || "",
-      filters: {
-        range: filters.range,
-        skill: filters.skill,
-      },
-    };
+        const parsedInsights = JSON.parse(response?.choices?.[0]?.message?.content || "{}");
+        normalizedPayload = {
+          no_data: false,
+          feedback: parsedInsights.feedback || null,
+          overview: parsedInsights.overview || "",
+          actionable_advice: Array.isArray(parsedInsights.actionable_advice)
+            ? parsedInsights.actionable_advice
+            : [parsedInsights.actionable_advice].filter(Boolean),
+          recommended_practice: Array.isArray(parsedInsights.recommended_practice)
+            ? parsedInsights.recommended_practice
+            : [parsedInsights.recommended_practice].filter(Boolean),
+          encouragement: parsedInsights.encouragement || "",
+          filters: {
+            range: filters.range,
+            skill: filters.skill,
+          },
+        };
+      } catch (aiError) {
+        console.warn("[analytics] AI insights fallback:", aiError?.message || "Unknown error");
+        normalizedPayload = buildHeuristicInsightsPayload(errorLogs, filters);
+      }
+    }
 
     setCachedInsights(cacheKey, normalizedPayload);
     return res.status(200).json({

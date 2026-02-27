@@ -15,8 +15,40 @@ import mongoose from "mongoose";
 import { parsePagination, buildPaginationMeta } from "../utils/pagination.js";
 import { handleControllerError, sendControllerError } from '../utils/controllerError.js';
 
+const toTimeValue = (value) => {
+    const parsed = new Date(value).getTime();
+    return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const mapWritingSubmissionToAttempt = (submission = {}) => {
+    const taskTitles = (Array.isArray(submission?.writing_answers) ? submission.writing_answers : [])
+        .map((item) => String(item?.task_title || "").trim())
+        .filter(Boolean);
+    const title = taskTitles.length > 0 ? taskTitles.join(" | ") : "Writing Submission";
+    const scoreValue = Number(submission?.score);
+    const hasScore = Number.isFinite(scoreValue);
+    const percentage = hasScore ? Math.round((scoreValue / 9) * 1000) / 10 : null;
+
+    return {
+        _id: `writing_submission:${String(submission?._id || "")}`,
+        source_id: String(submission?._id || ""),
+        source_type: "writing_submission",
+        type: "writing",
+        test_id: { title },
+        submitted_at: submission?.submitted_at || submission?.createdAt || null,
+        score: hasScore ? scoreValue : null,
+        total: hasScore ? 9 : null,
+        wrong: null,
+        skipped: null,
+        percentage,
+        time_taken_ms: Number.isFinite(Number(submission?.time_taken_ms)) ? Number(submission.time_taken_ms) : null,
+        status: submission?.status || "pending",
+    };
+};
+
 export const getAllUsersWithLatestScores = async (req, res) => {
     try {
+        res.set("Cache-Control", "no-store");
         const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 20, maxLimit: 100 });
         const totalItems = await User.countDocuments({});
 
@@ -39,7 +71,7 @@ export const getAllUsersWithLatestScores = async (req, res) => {
 
         // 2. Aggregate latest scores for each user in this page only
         const latestAttempts = await TestAttempt.aggregate([
-            { $match: { user_id: { $in: userIds } } },
+            { $match: { user_id: { $in: userIds }, score: { $ne: null } } },
             { $sort: { submitted_at: -1 } },
             {
                 $group: {
@@ -62,11 +94,39 @@ export const getAllUsersWithLatestScores = async (req, res) => {
                 }
             }
         ]);
+        const latestWritingSubmissions = await WritingSubmission.aggregate([
+            { $match: { user_id: { $in: userIds }, score: { $ne: null } } },
+            { $sort: { submitted_at: -1, createdAt: -1, updatedAt: -1 } },
+            {
+                $group: {
+                    _id: "$user_id",
+                    latest: { $first: "$$ROOT" },
+                },
+            },
+            {
+                $project: {
+                    _id: 1,
+                    score: "$latest.score",
+                    submitted_at: { $ifNull: ["$latest.submitted_at", "$latest.createdAt"] },
+                },
+            },
+        ]);
 
         // Map attempts back to users
         const userScoreMap = {};
         latestAttempts.forEach(item => {
             userScoreMap[item._id.toString()] = item.scores;
+        });
+        const writingScoreMap = {};
+        latestWritingSubmissions.forEach((item) => {
+            writingScoreMap[String(item?._id || "")] = {
+                score: Number(item?.score),
+                total: 9,
+                submitted_at: item?.submitted_at || null,
+                percentage: Number.isFinite(Number(item?.score))
+                    ? Math.round((Number(item.score) / 9) * 1000) / 10
+                    : null,
+            };
         });
 
         const result = users.map(user => {
@@ -80,6 +140,15 @@ export const getAllUsersWithLatestScores = async (req, res) => {
                     percentage: s.percentage
                 };
             });
+            const latestWriting = writingScoreMap[user._id.toString()];
+            if (latestWriting) {
+                const currentWriting = scoresObj.writing || null;
+                const incomingTs = toTimeValue(latestWriting.submitted_at);
+                const currentTs = toTimeValue(currentWriting?.submitted_at);
+                if (!currentWriting || incomingTs >= currentTs) {
+                    scoresObj.writing = latestWriting;
+                }
+            }
 
             return {
                 ...user,
@@ -99,21 +168,46 @@ export const getAllUsersWithLatestScores = async (req, res) => {
 
 export const getUserAttempts = async (req, res) => {
     try {
+        res.set("Cache-Control", "no-store");
         const { userId } = req.params;
         const { type } = req.query;
-        const filter = { user_id: userId };
-        if (type && type !== "all") {
-            filter.type = type;
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+            return sendControllerError(req, res, { statusCode: 400, message: "Invalid user id"  });
         }
+        const normalizedType = String(type || "all").toLowerCase();
         const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 20, maxLimit: 100 });
-        const totalItems = await TestAttempt.countDocuments(filter);
 
-        const attempts = await TestAttempt.find(filter)
-            .sort({ submitted_at: -1 })
-            .skip(skip)
-            .limit(limit)
-            .populate('test_id', 'title')
-            .lean();
+        const includeObjectiveAttempts = ["all", "reading", "listening", "writing"].includes(normalizedType);
+        const includeWritingSubmissions = normalizedType === "all" || normalizedType === "writing";
+
+        const objectiveFilter = { user_id: userId };
+        if (normalizedType !== "all") {
+            objectiveFilter.type = normalizedType;
+        }
+
+        const [objectiveAttempts, writingSubmissions] = await Promise.all([
+            includeObjectiveAttempts
+                ? TestAttempt.find(objectiveFilter)
+                    .sort({ submitted_at: -1 })
+                    .select("_id type test_id submitted_at score total wrong skipped percentage time_taken_ms")
+                    .populate("test_id", "title")
+                    .lean()
+                : Promise.resolve([]),
+            includeWritingSubmissions
+                ? WritingSubmission.find({ user_id: userId })
+                    .sort({ submitted_at: -1, createdAt: -1 })
+                    .select("_id writing_answers score status submitted_at createdAt time_taken_ms")
+                    .lean()
+                : Promise.resolve([]),
+        ]);
+
+        const merged = [
+            ...(Array.isArray(objectiveAttempts) ? objectiveAttempts : []),
+            ...(Array.isArray(writingSubmissions) ? writingSubmissions.map(mapWritingSubmissionToAttempt) : []),
+        ].sort((a, b) => toTimeValue(b?.submitted_at) - toTimeValue(a?.submitted_at));
+
+        const totalItems = merged.length;
+        const attempts = merged.slice(skip, skip + limit);
 
         res.json({
             success: true,

@@ -102,6 +102,49 @@ export function validateSubmissionPayload({ examType, answers, writing }) {
     return { safeAnswers, safeWriting };
 }
 
+export function normalizeSingleModeMeta(meta = null) {
+    if (!meta || typeof meta !== "object") return null;
+    const start = Number(meta.startSlotIndex);
+    const end = Number(meta.endSlotIndex);
+    if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+    const startIndex = Math.max(0, Math.floor(start));
+    const endIndex = Math.max(0, Math.floor(end));
+    if (endIndex <= startIndex) return null;
+    return {
+        startSlotIndex: startIndex,
+        endSlotIndex: endIndex,
+    };
+}
+
+export function sliceGradeResultForSingleMode(gradeResult, singleModeMeta) {
+    const review = Array.isArray(gradeResult?.questionReview) ? gradeResult.questionReview : [];
+    if (!singleModeMeta || review.length === 0) return gradeResult;
+
+    const start = Math.min(singleModeMeta.startSlotIndex, review.length);
+    const end = Math.min(singleModeMeta.endSlotIndex, review.length);
+    if (end <= start) return gradeResult;
+
+    const slicedReview = review.slice(start, end);
+    const total = slicedReview.length;
+    const score = slicedReview.reduce((sum, item) => sum + (item?.is_correct ? 1 : 0), 0);
+    const skipped = slicedReview.reduce(
+        (sum, item) => sum + (!String(item?.your_answer || "").trim() ? 1 : 0),
+        0,
+    );
+    const wrong = Math.max(0, total - score - skipped);
+    const percentage = total ? Math.round((score / total) * 100) : null;
+
+    return {
+        ...gradeResult,
+        score,
+        total,
+        wrong,
+        skipped,
+        percentage,
+        questionReview: slicedReview,
+    };
+}
+
 export async function resolveStudentIdentity(userId) {
     let studentName = "Anonymous";
     let studentEmail = "";
@@ -485,7 +528,9 @@ export async function submitExamFlow({ testId, userId, body = {} }) {
 
     const attemptId = userId ? new mongoose.Types.ObjectId() : null;
     const isPractice = body.isPractice === true;
-    const shouldSave = Boolean(userId && attemptId && !isPractice);
+    const singleModeMeta = normalizeSingleModeMeta(body.singleModeMeta);
+    const shouldPersistAttempt = Boolean(userId && attemptId && (!isPractice || !!singleModeMeta));
+    const shouldAwardGamificationPoints = Boolean(userId && attemptId && !isPractice);
 
     const { studentName, studentEmail } = await resolveStudentIdentity(userId);
     const writingSubmissionId = await handleWritingSubmissions({
@@ -495,16 +540,19 @@ export async function submitExamFlow({ testId, userId, body = {} }) {
         testId,
         userId,
         attemptId,
-        shouldSave,
+        shouldSave: shouldPersistAttempt,
         studentName,
         studentEmail,
         timeTaken,
     });
 
-    const gradeResult = gradeExam({ test, examType, safeAnswers });
+    let gradeResult = gradeExam({ test, examType, safeAnswers });
+    if (singleModeMeta && (examType === "reading" || examType === "listening")) {
+        gradeResult = sliceGradeResultForSingleMode(gradeResult, singleModeMeta);
+    }
 
     await persistAttempt({
-        shouldSave,
+        shouldSave: shouldPersistAttempt,
         attemptId,
         userId,
         testId,
@@ -519,10 +567,13 @@ export async function submitExamFlow({ testId, userId, body = {} }) {
         questionReview: gradeResult.questionReview,
     });
 
-    const { xpResult, newlyUnlocked } = await awardGamification({ shouldSave, userId });
+    const { xpResult, newlyUnlocked } = await awardGamification({
+        shouldSave: shouldAwardGamificationPoints,
+        userId,
+    });
 
     triggerTaxonomy({
-        shouldSave,
+        shouldSave: shouldPersistAttempt,
         examType,
         attemptId,
         questionReview: gradeResult.questionReview,

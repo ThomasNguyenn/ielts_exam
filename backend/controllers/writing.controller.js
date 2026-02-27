@@ -339,12 +339,28 @@ export const getSubmissions = async (req, res) => {
             };
         }
 
-        const totalItems = await WritingSubmission.countDocuments(filter);
+        // Keep list payload lean: dashboard only needs metadata, task titles and scoring summary.
+        const listProjection = {
+            student_name: 1,
+            student_email: 1,
+            submitted_at: 1,
+            status: 1,
+            is_ai_graded: 1,
+            score: 1,
+            scores: 1,
+            "writing_answers.task_id": 1,
+            "writing_answers.task_title": 1,
+        };
 
-        const submissions = await WritingSubmission.find(filter)
-            .sort({ submitted_at: -1 })
-            .skip(skip)
-            .limit(limit);
+        const [totalItems, submissions] = await Promise.all([
+            WritingSubmission.countDocuments(filter),
+            WritingSubmission.find(filter)
+                .select(listProjection)
+                .sort({ submitted_at: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+        ]);
 
         res.status(200).json({
             success: true,

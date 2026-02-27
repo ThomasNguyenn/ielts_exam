@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { api } from '@/shared/api/client';
 import './Manage.css';
 import { Link, useNavigate } from 'react-router-dom';
@@ -68,16 +68,12 @@ export default function GradingDashboard() {
     const [selectedDate, setSelectedDate] = useState('');
     const [exportingId, setExportingId] = useState(null);
     const [liveRoomLoadingId, setLiveRoomLoadingId] = useState(null);
+    const latestFetchIdRef = useRef(0);
+    const previousFiltersRef = useRef({ activeTab: 'pending', selectedDate: '' });
 
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [activeTab, selectedDate]);
-
-    useEffect(() => {
-        fetchSubmissions(activeTab, selectedDate, currentPage);
-    }, [activeTab, selectedDate, currentPage]);
-
-    const fetchSubmissions = async (status, date, page = 1) => {
+    const fetchSubmissions = useCallback(async (status, date, page = 1) => {
+        const requestId = latestFetchIdRef.current + 1;
+        latestFetchIdRef.current = requestId;
         setLoading(true);
         setError(null);
         try {
@@ -91,17 +87,35 @@ export default function GradingDashboard() {
             }
 
             const res = await api.getSubmissions(params);
+            if (latestFetchIdRef.current !== requestId) return;
             if (res.success) {
                 setSubmissions(res.data);
                 setPagination(res.pagination || null);
                 setError(null);
             }
         } catch (err) {
+            if (latestFetchIdRef.current !== requestId) return;
             setError('Failed to load submissions');
         } finally {
+            if (latestFetchIdRef.current !== requestId) return;
             setLoading(false);
         }
-    };
+    }, [PAGE_SIZE]);
+
+    useEffect(() => {
+        const filtersChanged =
+            previousFiltersRef.current.activeTab !== activeTab
+            || previousFiltersRef.current.selectedDate !== selectedDate;
+
+        if (filtersChanged && currentPage !== 1) {
+            previousFiltersRef.current = { activeTab, selectedDate };
+            setCurrentPage(1);
+            return;
+        }
+
+        previousFiltersRef.current = { activeTab, selectedDate };
+        fetchSubmissions(activeTab, selectedDate, currentPage);
+    }, [activeTab, selectedDate, currentPage, fetchSubmissions]);
 
     const formatDate = (value) => {
         if (!value) return 'N/A';
