@@ -1,8 +1,10 @@
 import dotenv from "dotenv";
+import http from "http";
 import mongoose from "mongoose";
 import { connectDB } from "./config/db.js";
 import { validateEnvironment } from "./config/env.validation.js";
 import { closeRateLimitRedisConnection } from "./middleware/rateLimit.middleware.js";
+import { attachWritingLiveWebSocketServer, closeWritingLiveResources } from "./services/writingLiveRoom.service.js";
 
 dotenv.config();
 validateEnvironment();
@@ -12,8 +14,10 @@ const startServer = async () => {
   const { createApp } = await import("./app.js");
   const app = createApp({ startBackgroundJobs: true });
   await connectDB();
+  const httpServer = http.createServer(app);
+  attachWritingLiveWebSocketServer(httpServer);
 
-  const server = app.listen(PORT, () => {
+  const server = httpServer.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
   });
 
@@ -24,6 +28,12 @@ const startServer = async () => {
         await closeRateLimitRedisConnection();
       } catch (err) {
         console.error("[shutdown] Error closing rate-limit Redis connection:", err.message);
+      }
+
+      try {
+        await closeWritingLiveResources();
+      } catch (err) {
+        console.error("[shutdown] Error closing writing-live resources:", err.message);
       }
 
       try {

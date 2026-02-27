@@ -115,6 +115,28 @@ function toQueryString(params = {}) {
   return new URLSearchParams(entries).toString();
 }
 
+function toWebSocketBaseUrl() {
+  if (typeof window === 'undefined') return '';
+
+  const fallbackOrigin = window.location.origin;
+  const baseCandidate = API_BASE || fallbackOrigin;
+
+  try {
+    const parsed = new URL(baseCandidate, fallbackOrigin);
+    parsed.protocol = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
+    return parsed.origin;
+  } catch {
+    return fallbackOrigin.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:');
+  }
+}
+
+function buildWebSocketUrl(path, params = {}) {
+  const base = toWebSocketBaseUrl();
+  if (!base) return '';
+  const query = toQueryString(params);
+  return `${base}${path}${query ? `?${query}` : ''}`;
+}
+
 function isTokenExpired(token) {
   try {
     const payloadPart = token.split('.')[1];
@@ -435,6 +457,19 @@ export const api = {
   scoreSubmission: (id, body) => request(`/api/writings/submissions/${id}/score`, { method: 'POST', body: JSON.stringify(body) }),
   scoreSubmissionAIFast: (id, body = {}) => request(`/api/writings/submissions/${id}/ai-fast-score`, { method: 'POST', body: JSON.stringify(body) }),
   scoreSubmissionAI: (id) => request(`/api/writings/submissions/${id}/ai-score`, { method: 'POST' }),
+  createWritingLiveRoom: (submissionId) =>
+    request(`/api/writings/submissions/${submissionId}/live-room`, { method: 'POST' }),
+  resolveWritingLiveRoom: (code) =>
+    request('/api/writings/live-room/resolve', { method: 'POST', body: JSON.stringify({ code }) }),
+  getWritingLiveRoomContext: (roomCode) =>
+    request(`/api/writings/live-room/${encodeURIComponent(roomCode)}/context`),
+  getWritingLiveSocketUrl: (roomCode, tokenOverride) => {
+    const token = tokenOverride || getToken();
+    return buildWebSocketUrl('/ws/writing-live', {
+      roomCode,
+      token,
+    });
+  },
 
   // Practice Flow
   getRandomQuestion: () => request('/api/practice/questions/random'),

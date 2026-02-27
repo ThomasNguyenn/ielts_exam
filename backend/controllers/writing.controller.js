@@ -7,6 +7,12 @@ import { isAiAsyncModeEnabled } from "../config/queue.config.js";
 import { enqueueWritingAiScoreJob, isAiQueueReady } from "../queues/ai.queue.js";
 import { scoreWritingSubmissionById } from "../services/writingSubmissionScoring.service.js";
 import { scoreWritingSubmissionFastById } from "../services/writingFastScoring.service.js";
+import {
+    createWritingLiveRoom,
+    getWritingLiveRoomContext,
+    getWritingLiveRoomState,
+    resolveWritingLiveRoom,
+} from "../services/writingLiveRoom.service.js";
 import { parsePagination, buildPaginationMeta } from "../utils/pagination.js";
 import { handleControllerError, sendControllerError } from '../utils/controllerError.js';
 
@@ -33,6 +39,46 @@ const canAccessSubmission = (submission, user) => {
     if (!submission?.user_id) return user.role === "admin" || user.role === "teacher";
     if (String(submission.user_id) === String(user.userId)) return true;
     return user.role === "admin" || user.role === "teacher";
+};
+
+const normalizeFastTopIssue = (item = {}) => ({
+    text_snippet: String(item?.text_snippet || "").trim(),
+    explanation: String(item?.explanation || "").trim(),
+    improved: String(item?.improved || "").trim(),
+    error_code: String(item?.error_code || "NONE").trim() || "NONE",
+});
+
+const normalizeFastTopIssues = (fastResult = {}) => {
+    const source = fastResult?.top_issues && typeof fastResult.top_issues === "object"
+        ? fastResult.top_issues
+        : {};
+    const grammar = Array.isArray(source?.grammatical_range_accuracy)
+        ? source.grammatical_range_accuracy.map(normalizeFastTopIssue).filter((item) => item.text_snippet).slice(0, 5)
+        : [];
+    const lexical = Array.isArray(source?.lexical_resource)
+        ? source.lexical_resource.map(normalizeFastTopIssue).filter((item) => item.text_snippet).slice(0, 5)
+        : [];
+
+    return {
+        grammatical_range_accuracy: grammar,
+        lexical_resource: lexical,
+    };
+};
+
+const enrichWritingAnswersWithTaskDetails = async (answers = []) => {
+    if (!Array.isArray(answers) || answers.length === 0) return [];
+
+    return Promise.all(
+        answers.map(async (answer) => {
+            const taskDetails = await Writing.findById(answer.task_id).select("title prompt image_url task_type").lean();
+            return {
+                ...(typeof answer?.toObject === "function" ? answer.toObject() : answer),
+                task_prompt: taskDetails?.prompt || "",
+                task_image: taskDetails?.image_url || null,
+                task_type: taskDetails?.task_type || "Task 1",
+            };
+        }),
+    );
 };
 
 const pickWritingPayload = (body = {}, { allowId = false } = {}) => {
@@ -324,18 +370,7 @@ export const getSubmissionById = async (req, res) => {
             return sendControllerError(req, res, { statusCode: 404, message: "Submission not found"  });
         }
 
-        // Populate task details (images, prompts) for each writing answer
-        const enrichedAnswers = await Promise.all(
-            submission.writing_answers.map(async (answer) => {
-                const taskDetails = await Writing.findById(answer.task_id).select('title prompt image_url task_type');
-                return {
-                    ...answer.toObject(),
-                    task_prompt: taskDetails?.prompt || '',
-                    task_image: taskDetails?.image_url || null,
-                    task_type: taskDetails?.task_type || 'Task 1'
-                };
-            })
-        );
+        const enrichedAnswers = await enrichWritingAnswersWithTaskDetails(submission.writing_answers || []);
 
         const enrichedSubmission = {
             ...submission.toObject(),
@@ -344,6 +379,153 @@ export const getSubmissionById = async (req, res) => {
 
         res.status(200).json({ success: true, data: enrichedSubmission });
     } catch (error) {
+        return handleControllerError(req, res, error);
+    }
+};
+
+export const createSubmissionLiveRoom = async (req, res) => {
+    const { id } = req.params;
+    try {
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return sendControllerError(req, res, { statusCode: 404, message: "Submission not found" });
+        }
+
+        const submission = await WritingSubmission.findById(id);
+        if (!submission) {
+            return sendControllerError(req, res, { statusCode: 404, message: "Submission not found" });
+        }
+
+        if (!Array.isArray(submission.writing_answers) || submission.writing_answers.length === 0) {
+            return sendControllerError(req, res, { statusCode: 400, message: "No writing answers found in submission" });
+        }
+
+        if (!submission.is_ai_fast_graded || !submission.ai_fast_result) {
+            await scoreWritingSubmissionFastById({
+                submissionId: String(submission._id),
+                force: false,
+            });
+        }
+
+        const room = await createWritingLiveRoom({
+            submissionId: String(submission._id),
+            createdBy: String(req.user?.userId || ""),
+        });
+
+        const latest = await WritingSubmission.findById(id).lean();
+        const fastResult = latest?.ai_fast_result || submission.ai_fast_result || null;
+
+        return res.status(201).json({
+            success: true,
+            data: {
+                roomCode: room.roomCode,
+                expiresAt: room.expiresAt,
+                ttlSec: room.ttlSec,
+                sharedRoute: `/writing-live/${room.roomCode}`,
+                ai_fast_result: fastResult,
+                top_issues: normalizeFastTopIssues(fastResult),
+            },
+        });
+    } catch (error) {
+        if (error?.statusCode) {
+            return sendControllerError(req, res, {
+                statusCode: error.statusCode,
+                code: error.code,
+                message: error.message,
+            });
+        }
+        return handleControllerError(req, res, error);
+    }
+};
+
+export const resolveLiveRoom = async (req, res) => {
+    const code = String(req.body?.code || "").trim();
+    if (!code) {
+        return sendControllerError(req, res, { statusCode: 400, message: "code is required" });
+    }
+
+    try {
+        const resolved = await resolveWritingLiveRoom(code);
+        if (!resolved) {
+            return sendControllerError(req, res, {
+                statusCode: 404,
+                code: "WRITING_LIVE_ROOM_NOT_FOUND",
+                message: "Room code expired or invalid",
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                roomCode: resolved.roomCode,
+                route: `/writing-live/${resolved.roomCode}`,
+                expiresAt: resolved.expiresAt,
+            },
+        });
+    } catch (error) {
+        if (error?.statusCode) {
+            return sendControllerError(req, res, {
+                statusCode: error.statusCode,
+                code: error.code,
+                message: error.message,
+            });
+        }
+        return handleControllerError(req, res, error);
+    }
+};
+
+export const getLiveRoomSharedContext = async (req, res) => {
+    const roomCode = String(req.params?.roomCode || "").trim();
+    if (!roomCode) {
+        return sendControllerError(req, res, { statusCode: 400, message: "roomCode is required" });
+    }
+
+    try {
+        const context = await getWritingLiveRoomContext(roomCode);
+        if (!context?.submission) {
+            return sendControllerError(req, res, {
+                statusCode: 404,
+                code: "WRITING_LIVE_ROOM_NOT_FOUND",
+                message: "Room code expired or invalid",
+            });
+        }
+
+        const enrichedAnswers = await enrichWritingAnswersWithTaskDetails(context.submission.writing_answers || []);
+        const transientState = getWritingLiveRoomState(context.roomCode);
+        const highlights = Array.isArray(transientState?.highlights)
+            ? transientState.highlights
+            : (context.room?.highlights || []);
+        const activeTaskId = transientState?.active_task_id || context.room?.active_task_id || null;
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                roomCode: context.roomCode,
+                expiresAt: context.expiresAt,
+                ttlMs: context.ttlMs,
+                role: req.user?.role || "student",
+                submission: {
+                    ...context.submission,
+                    writing_answers: enrichedAnswers,
+                },
+                ai_fast_result: context.submission.ai_fast_result || null,
+                top_issues: normalizeFastTopIssues(context.submission.ai_fast_result || {}),
+                room: {
+                    teacher_online: Boolean(context.room?.teacher_online),
+                    teacher_count: Number(context.room?.teacher_count || 0),
+                    active_task_id: activeTaskId,
+                    highlights,
+                    teacher_disconnect_grace_ms: context.room?.teacher_disconnect_grace_ms || 60_000,
+                },
+            },
+        });
+    } catch (error) {
+        if (error?.statusCode) {
+            return sendControllerError(req, res, {
+                statusCode: error.statusCode,
+                code: error.code,
+                message: error.message,
+            });
+        }
         return handleControllerError(req, res, error);
     }
 };

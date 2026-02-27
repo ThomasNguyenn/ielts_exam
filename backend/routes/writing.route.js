@@ -1,4 +1,23 @@
-import { getAllWritings, createWriting, updateWriting, deleteWriting, getWritingById, getWritingExam, submitWriting, getSubmissions, getSubmissionById, getSubmissionStatus, scoreSubmission, regenerateWritingId, scoreSubmissionAIFast, scoreSubmissionAI, uploadImage } from '../controllers/writing.controller.js';
+import {
+  createSubmissionLiveRoom,
+  createWriting,
+  deleteWriting,
+  getAllWritings,
+  getLiveRoomSharedContext,
+  getSubmissionById,
+  getSubmissionStatus,
+  getSubmissions,
+  getWritingById,
+  getWritingExam,
+  regenerateWritingId,
+  resolveLiveRoom,
+  scoreSubmission,
+  scoreSubmissionAIFast,
+  scoreSubmissionAI,
+  submitWriting,
+  updateWriting,
+  uploadImage,
+} from '../controllers/writing.controller.js';
 import { verifyToken, optionalVerifyToken, isTeacherOrAdmin } from '../middleware/auth.middleware.js';
 import express from 'express';
 import multer from 'multer';
@@ -30,6 +49,9 @@ router.get("/", optionalVerifyToken, getAllWritings);
 router.get("/submissions", verifyToken, isTeacherOrAdmin, getSubmissions);
 router.get("/submissions/:id", verifyToken, isTeacherOrAdmin, getSubmissionById);
 router.get("/submissions/:id/status", verifyToken, getSubmissionStatus);
+router.post("/submissions/:id/live-room", verifyToken, isTeacherOrAdmin, createSubmissionLiveRoom);
+router.post("/live-room/resolve", verifyToken, resolveLiveRoom);
+router.get("/live-room/:roomCode/context", verifyToken, getLiveRoomSharedContext);
 router.post("/", verifyToken, isTeacherOrAdmin, createWriting);
 router.post("/upload-image", verifyToken, isTeacherOrAdmin, upload.single('image'), uploadImage);
 router.get("/:id", optionalVerifyToken, getWritingById);

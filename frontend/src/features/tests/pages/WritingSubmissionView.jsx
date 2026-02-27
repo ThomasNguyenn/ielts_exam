@@ -79,6 +79,7 @@ export default function WritingSubmissionView() {
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <Link to="/profile" className="btn btn-ghost">Về hồ sơ</Link>
+          <Link to="/writing-live/join" className="btn btn-ghost">Nhập mã Live Room</Link>
           <Link to={`/tests/writing/result-ai/${submission._id}`} className="btn btn-primary">Xem AI Result</Link>
         </div>
       </div>

@@ -1,0 +1,264 @@
+.writing-live {
+  padding: 20px;
+  display: grid;
+  gap: 14px;
+}
+
+.writing-live__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.writing-live__header h1 {
+  margin: 0 0 4px;
+  font-size: 28px;
+}
+
+.writing-live__header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.writing-live__banner {
+  border: 1px solid #dbeafe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+.writing-live__banner--warn {
+  border-color: #fed7aa;
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.writing-live__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+
+.writing-live__essay,
+.writing-live__card {
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.05);
+}
+
+.writing-live__essay {
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.writing-live__essay-toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.writing-live__essay-toolbar select {
+  min-width: 180px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.writing-live__prompt {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: #334155;
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+.writing-live__essay-text {
+  min-height: 260px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px;
+  white-space: pre-wrap;
+  line-height: 1.8;
+  color: #0f172a;
+  background: #fff;
+}
+
+.writing-live__essay-text.is-teacher {
+  user-select: text;
+}
+
+.writing-live-mark {
+  padding: 1px 0;
+}
+
+.writing-live-mark--task {
+  background: rgba(34, 197, 94, 0.2);
+  border-bottom: 2px solid #22c55e;
+}
+
+.writing-live-mark--coherence {
+  background: rgba(59, 130, 246, 0.2);
+  border-bottom: 2px solid #3b82f6;
+}
+
+.writing-live-mark--vocab {
+  background: rgba(245, 158, 11, 0.2);
+  border-bottom: 2px solid #f59e0b;
+}
+
+.writing-live-mark--grammar {
+  background: rgba(239, 68, 68, 0.2);
+  border-bottom: 2px solid #ef4444;
+}
+
+.writing-live__selection {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.writing-live__selection h4 {
+  margin: 0;
+}
+
+.writing-live__selection-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.writing-live__selection-box p {
+  margin: 0 0 6px;
+}
+
+.writing-live__selection-text {
+  color: #334155;
+  font-style: italic;
+}
+
+.writing-live__selection-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.writing-live__selection-controls select,
+.writing-live__selection-controls input {
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.writing-live__selection-controls input {
+  min-width: 220px;
+  flex: 1;
+}
+
+.writing-live__side {
+  display: grid;
+  gap: 12px;
+}
+
+.writing-live__card {
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.writing-live__card h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.writing-live__score {
+  margin: 0;
+  color: #475569;
+}
+
+.writing-live__criteria {
+  display: grid;
+  gap: 6px;
+}
+
+.writing-live__criteria > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px dashed #e2e8f0;
+  padding-bottom: 4px;
+}
+
+.writing-live__issues {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+}
+
+.writing-live__issues li p {
+  margin: 4px 0 0;
+  color: #475569;
+}
+
+.writing-live__score-form {
+  display: grid;
+  gap: 10px;
+}
+
+.writing-live__score-item {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.writing-live__score-item input,
+.writing-live__score-item textarea {
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 8px 10px;
+  width: 100%;
+}
+
+.writing-live__highlight-list {
+  display: grid;
+  gap: 8px;
+}
+
+.writing-live__highlight-row {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.writing-live__highlight-row p {
+  margin: 0;
+}
+
+.writing-live__highlight-row small {
+  color: #64748b;
+}
+
+@media (min-width: 1100px) {
+  .writing-live__layout {
+    grid-template-columns: minmax(0, 1.2fr) minmax(360px, 0.8fr);
+    align-items: start;
+  }
+}
+

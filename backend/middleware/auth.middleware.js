@@ -2,7 +2,7 @@ import jwt from "jsonwebtoken";
 import { JWT_SECRET } from "../config/security.config.js";
 import User from "../models/User.model.js";
 
-const validateStudentSingleSession = async (decodedToken) => {
+export const validateStudentSingleSession = async (decodedToken) => {
   if (!decodedToken?.userId) {
     throw new Error("Invalid token payload");
   }
@@ -31,6 +31,19 @@ const validateStudentSingleSession = async (decodedToken) => {
   return decodedToken;
 };
 
+export const verifyAccessToken = async (token) => {
+  if (!token || !String(token).trim()) {
+    throw new Error("No token provided");
+  }
+
+  const decoded = jwt.verify(token, JWT_SECRET);
+  if (decoded?.tokenType && decoded.tokenType !== "access") {
+    throw new Error("Invalid token");
+  }
+
+  return validateStudentSingleSession(decoded);
+};
+
 export const verifyToken = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
@@ -40,11 +53,7 @@ export const verifyToken = async (req, res, next) => {
     }
 
     const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (decoded?.tokenType && decoded.tokenType !== "access") {
-      return res.status(401).json({ success: false, message: "Invalid token" });
-    }
-    const validated = await validateStudentSingleSession(decoded);
+    const validated = await verifyAccessToken(token);
 
     req.user = validated;
     next();
@@ -69,12 +78,11 @@ export const optionalVerifyToken = async (req, res, next) => {
 
   try {
     const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (decoded?.tokenType && decoded.tokenType !== "access") {
+    const decoded = await verifyAccessToken(token);
+    if (!decoded) {
       return next();
     }
-    const validated = await validateStudentSingleSession(decoded);
-    req.user = validated;
+    req.user = decoded;
   } catch (error) {
     // Ignore invalid token for optional auth
   }

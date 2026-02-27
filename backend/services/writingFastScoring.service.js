@@ -66,6 +66,25 @@ const buildFastResult = (taskResults) => {
   const summaries = taskResults
     .map((item) => String(item?.result?.summary || "").trim())
     .filter(Boolean);
+  const topIssuesByCriteria = {
+    grammatical_range_accuracy: [],
+    lexical_resource: [],
+  };
+
+  taskResults.forEach((item) => {
+    const topIssues = item?.result?.top_issues || {};
+    if (Array.isArray(topIssues?.grammatical_range_accuracy)) {
+      topIssuesByCriteria.grammatical_range_accuracy.push(...topIssues.grammatical_range_accuracy);
+    }
+    if (Array.isArray(topIssues?.lexical_resource)) {
+      topIssuesByCriteria.lexical_resource.push(...topIssues.lexical_resource);
+    }
+  });
+
+  const normalizedTopIssues = {
+    grammatical_range_accuracy: topIssuesByCriteria.grammatical_range_accuracy.slice(0, 5),
+    lexical_resource: topIssuesByCriteria.lexical_resource.slice(0, 5),
+  };
 
   if (taskResults.length === 1) {
     const single = taskResults[0];
@@ -78,6 +97,7 @@ const buildFastResult = (taskResults) => {
       task_title: single.task_title,
       performance_label: single.result?.performance_label || toPerformanceLabel(single.result?.band_score ?? overallBand),
       summary: single.result?.summary || summaries[0] || "",
+      top_issues: normalizedTopIssues,
       tasks: [
         {
           task_id: single.task_id,
@@ -97,6 +117,7 @@ const buildFastResult = (taskResults) => {
     criteria_scores,
     summary: summaries.join(" "),
     performance_label: toPerformanceLabel(overallBand),
+    top_issues: normalizedTopIssues,
     tasks: taskResults.map((item) => ({
       task_id: item.task_id,
       task_type: item.task_type,

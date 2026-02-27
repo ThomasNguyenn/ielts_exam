@@ -41,6 +41,22 @@ const WritingSubmissionSchema = new mongoose.Schema({
   // Metadata
   submitted_at: { type: Date, default: Date.now },
   time_taken_ms: { type: Number, default: null },
+  live_feedback: {
+    highlights: [{
+      id: { type: String, required: true },
+      task_id: { type: String, required: true },
+      start: { type: Number, required: true },
+      end: { type: Number, required: true },
+      text: { type: String, default: "" },
+      criterion: { type: String, default: "task_response" },
+      note: { type: String, default: "" },
+      created_at: { type: Date, default: Date.now },
+      created_by: { type: String, default: "" },
+    }],
+    active_task_id: { type: String, default: null },
+    updated_at: { type: Date, default: null },
+    last_room_code: { type: String, default: null },
+  },
   status: {
     type: String,
     enum: ['pending', 'processing', 'scored', 'reviewed', 'failed'],

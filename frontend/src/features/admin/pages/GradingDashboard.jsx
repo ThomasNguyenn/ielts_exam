@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '@/shared/api/client';
 import './Manage.css';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import PaginationControls from '@/shared/components/PaginationControls';
 
 const PDF_FONT_FAMILY = 'NotoSans';
@@ -55,6 +55,7 @@ const applyUnicodePdfFont = async (doc) => {
 };
 
 export default function GradingDashboard() {
+    const navigate = useNavigate();
     const PAGE_SIZE = 10;
     const [activeTab, setActiveTab] = useState('pending'); // 'pending' or 'scored'
     const [submissions, setSubmissions] = useState([]);
@@ -66,6 +67,7 @@ export default function GradingDashboard() {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedDate, setSelectedDate] = useState('');
     const [exportingId, setExportingId] = useState(null);
+    const [liveRoomLoadingId, setLiveRoomLoadingId] = useState(null);
 
     useEffect(() => {
         setCurrentPage(1);
@@ -337,6 +339,32 @@ export default function GradingDashboard() {
         }
     };
 
+    const handleCreateLiveRoom = async (sub) => {
+        if (!sub?._id || liveRoomLoadingId === sub._id) return;
+
+        setError(null);
+        setLiveRoomLoadingId(sub._id);
+        try {
+            const response = await api.createWritingLiveRoom(sub._id);
+            const sharedRoute = response?.data?.sharedRoute || '';
+            const roomCode = response?.data?.roomCode || '';
+            if (!sharedRoute) {
+                throw new Error('Failed to create live room');
+            }
+
+            if (typeof window !== 'undefined' && navigator?.clipboard?.writeText) {
+                const shareUrl = `${window.location.origin}${sharedRoute}`;
+                await navigator.clipboard.writeText(`${roomCode} | ${shareUrl}`);
+            }
+
+            navigate(sharedRoute);
+        } catch (liveError) {
+            setError(liveError?.message || 'Failed to create live room');
+        } finally {
+            setLiveRoomLoadingId(null);
+        }
+    };
+
     const filteredSubmissions = submissions.filter(sub => {
         if (!searchQuery.trim()) return true;
         const query = searchQuery.toLowerCase();
@@ -441,6 +469,14 @@ export default function GradingDashboard() {
                                             </div>
                                         </div>
                                         <div className="item-actions">
+                                            <button
+                                                className="btn btn-ghost btn-sm"
+                                                onClick={() => handleCreateLiveRoom(sub)}
+                                                disabled={liveRoomLoadingId === sub._id}
+                                                style={{ fontWeight: 700 }}
+                                            >
+                                                {liveRoomLoadingId === sub._id ? 'Creating...' : 'Live Room'}
+                                            </button>
                                             {activeTab === 'pending' ? (
                                                 <Link to={`/grading/${sub._id}`} className="btn-manage-add" style={{ padding: '0.5rem 1.25rem', fontSize: '0.85rem' }}>Chấm điểm</Link>
                                             ) : (

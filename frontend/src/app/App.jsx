@@ -17,6 +17,8 @@ const Exam = lazy(() => import('@/features/tests/pages/Exam'));
 const TestHistory = lazy(() => import('@/features/tests/pages/TestHistory'));
 const TestAttemptResult = lazy(() => import('@/features/tests/pages/TestAttemptResult'));
 const WritingSubmissionView = lazy(() => import('@/features/tests/pages/WritingSubmissionView'));
+const WritingLiveJoin = lazy(() => import('@/features/tests/pages/WritingLiveJoin'));
+const WritingLiveRoom = lazy(() => import('@/features/tests/pages/WritingLiveRoom'));
 const ManageLayout = lazy(() => import('@/features/admin/components/ManageLayout'));
 const ManagePassagesSinglePage = lazy(() => import('@/features/admin/pages/ManagePassagesSinglePage'));
 const ManageSectionsSinglePage = lazy(() => import('@/features/admin/pages/ManageSectionsSinglePage'));
@@ -173,6 +175,8 @@ export default function App() {
           {/* AI Scoring Result Page */}
           <Route path="tests/writing/result-ai/:id" element={<ProtectedRoute>{withSuspense(<WritingAIResult />)}</ProtectedRoute>} />
           <Route path="tests/writing/submissions/:id" element={<ProtectedRoute>{withSuspense(<WritingSubmissionView />)}</ProtectedRoute>} />
+          <Route path="writing-live/join" element={<ProtectedRoute>{withSuspense(<WritingLiveJoin />)}</ProtectedRoute>} />
+          <Route path="writing-live/:roomCode" element={<ProtectedRoute>{withSuspense(<WritingLiveRoom />)}</ProtectedRoute>} />
 
           <Route path="profile" element={<ProtectedRoute>{withSuspense(<Profile />)}</ProtectedRoute>} />
           <Route path="analytics" element={<ProtectedRoute>{withSuspense(<AnalyticsContainer />)}</ProtectedRoute>} />

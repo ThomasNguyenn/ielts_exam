@@ -1,4 +1,4 @@
-﻿import OpenAI from 'openai';
+import OpenAI from 'openai';
 import { requestOpenAIJsonWithFallback } from '../utils/aiClient.js';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.OPEN_API_KEY;
@@ -647,6 +647,24 @@ const toPerformanceLabel = (bandScore) => {
   return "Needs Improvement";
 };
 
+const normalizeFastTopIssues = (rawTopIssues = {}) => {
+  const toIssueArray = (items = []) =>
+    (Array.isArray(items) ? items : [])
+      .map((item) => ({
+        text_snippet: String(item?.text_snippet || "").trim(),
+        explanation: String(item?.explanation || "").trim(),
+        improved: String(item?.improved || "").trim(),
+        error_code: String(item?.error_code || "NONE").trim() || "NONE",
+      }))
+      .filter((item) => item.text_snippet)
+      .slice(0, 5);
+
+  return {
+    grammatical_range_accuracy: toIssueArray(rawTopIssues?.grammatical_range_accuracy || []),
+    lexical_resource: toIssueArray(rawTopIssues?.lexical_resource || []),
+  };
+};
+
 const normalizeFastEssayResult = (raw = {}, fallbackModel = null) => {
   const rawCriteria = normalizeCriteriaScores(raw.criteria_scores || {}, raw.band_score || 0);
   const criteriaAvg = (
@@ -663,6 +681,7 @@ const normalizeFastEssayResult = (raw = {}, fallbackModel = null) => {
     criteria_scores: rawCriteria,
     summary,
     criteria_notes: normalizeCriteriaNotes(raw.criteria_notes || {}),
+    top_issues: normalizeFastTopIssues(raw.top_issues || {}),
     performance_label: String(raw.performance_label || "").trim() || toPerformanceLabel(bandScore),
     feedback: Array.isArray(raw.feedback)
       ? raw.feedback.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 3)
@@ -696,6 +715,10 @@ export const gradeEssayFast = async (promptText, essayText, taskType = 'task2', 
         coherence_cohesion: "No response content found.",
         lexical_resource: "No response content found.",
         grammatical_range_accuracy: "No response content found.",
+      },
+      top_issues: {
+        grammatical_range_accuracy: [],
+        lexical_resource: [],
       },
       performance_label: "Needs Improvement",
       feedback: ["Essay content is empty."],
@@ -734,6 +757,24 @@ Required JSON schema:
     "coherence_cohesion": "string",
     "lexical_resource": "string",
     "grammatical_range_accuracy": "string"
+  },
+  "top_issues": {
+    "grammatical_range_accuracy": [
+      {
+        "text_snippet": "string",
+        "explanation": "string",
+        "improved": "string",
+        "error_code": "string"
+      }
+    ],
+    "lexical_resource": [
+      {
+        "text_snippet": "string",
+        "explanation": "string",
+        "improved": "string",
+        "error_code": "string"
+      }
+    ]
   },
   "performance_label": "Strong|Developing|Needs Improvement",
   "feedback": ["string", "string"]
@@ -785,6 +826,10 @@ Required JSON schema:
         coherence_cohesion: "",
         lexical_resource: "",
         grammatical_range_accuracy: "",
+      },
+      top_issues: {
+        grammatical_range_accuracy: [],
+        lexical_resource: [],
       },
       performance_label: "Needs Improvement",
       feedback: ["AI fast scoring is temporarily unavailable."],
