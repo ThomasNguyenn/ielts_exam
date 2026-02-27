@@ -18,6 +18,25 @@ const VALID_CRITERIA = new Set([
   "lexical_resource",
   "grammatical_range_accuracy",
 ]);
+const VALID_HIGHLIGHT_COLORS = new Set([
+  "highlight-yellow",
+  "highlight-pink",
+  "highlight-blue",
+]);
+const HIGHLIGHT_COLOR_ALIASES = new Map([
+  ["yellow", "highlight-yellow"],
+  ["pink", "highlight-pink"],
+  ["blue", "highlight-blue"],
+  ["highlight-yellow", "highlight-yellow"],
+  ["highlight-pink", "highlight-pink"],
+  ["highlight-blue", "highlight-blue"],
+]);
+const CRITERION_COLOR_FALLBACK = {
+  task_response: "highlight-yellow",
+  coherence_cohesion: "highlight-blue",
+  lexical_resource: "highlight-pink",
+  grammatical_range_accuracy: "highlight-blue",
+};
 const LIVE_CONTEXT_FIELDS = [
   "_id",
   "user_id",
@@ -61,6 +80,23 @@ const toNumber = (value, fallback = 0) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return parsed;
+};
+
+const toPositiveInteger = (value, fallback = null) => {
+  const parsed = Math.floor(toNumber(value, -1));
+  if (parsed < 1) return fallback;
+  return parsed;
+};
+
+const getFallbackColorFromCriterion = (criterion = "task_response") =>
+  CRITERION_COLOR_FALLBACK[String(criterion || "").trim()] || "highlight-yellow";
+
+const normalizeHighlightColor = (value, fallback = "highlight-yellow") => {
+  const normalized = String(value || "").trim().toLowerCase();
+  const mapped = HIGHLIGHT_COLOR_ALIASES.get(normalized);
+  if (mapped && VALID_HIGHLIGHT_COLORS.has(mapped)) return mapped;
+  if (VALID_HIGHLIGHT_COLORS.has(normalized)) return normalized;
+  return VALID_HIGHLIGHT_COLORS.has(fallback) ? fallback : "highlight-yellow";
 };
 
 const buildRoomCode = () => {
@@ -127,7 +163,14 @@ const sanitizeHighlightPayload = ({
 
   const criterion = String(highlight?.criterion || "task_response").trim();
   const safeCriterion = VALID_CRITERIA.has(criterion) ? criterion : "task_response";
+  const color = normalizeHighlightColor(
+    highlight?.color,
+    getFallbackColorFromCriterion(safeCriterion),
+  );
   const note = String(highlight?.note || "").trim().slice(0, 600);
+  const noteIndex = note
+    ? toPositiveInteger(highlight?.note_index, null)
+    : null;
   const explicitText = String(highlight?.text || "");
   const computedText = String(taskText || "").slice(start, end);
   const text = (explicitText || computedText).trim().slice(0, 1200);
@@ -139,7 +182,9 @@ const sanitizeHighlightPayload = ({
     end,
     text,
     criterion: safeCriterion,
+    color,
     note,
+    note_index: noteIndex,
     created_at: highlight?.created_at ? new Date(highlight.created_at).toISOString() : toNowIso(),
     created_by: String(highlight?.created_by || fallbackUserId || "").trim(),
   };
@@ -156,11 +201,27 @@ const cloneHighlights = (items = []) =>
       criterion: VALID_CRITERIA.has(String(item?.criterion || ""))
         ? String(item.criterion)
         : "task_response",
+      color: normalizeHighlightColor(
+        item?.color,
+        getFallbackColorFromCriterion(item?.criterion),
+      ),
       note: String(item?.note || ""),
+      note_index: String(item?.note || "").trim()
+        ? toPositiveInteger(item?.note_index, null)
+        : null,
       created_at: item?.created_at ? new Date(item.created_at).toISOString() : toNowIso(),
       created_by: String(item?.created_by || ""),
     }))
     .filter((item) => item.id && item.task_id && item.end > item.start);
+
+const deriveNextNoteIndex = (highlights = [], persistedCounter = null) => {
+  const maxNoteIndex = cloneHighlights(highlights).reduce(
+    (maxValue, item) => Math.max(maxValue, toPositiveInteger(item?.note_index, 0) || 0),
+    0,
+  );
+  const persisted = toPositiveInteger(persistedCounter, 1) || 1;
+  return Math.max(persisted, maxNoteIndex + 1, 1);
+};
 
 const readTaskTextById = (submission = {}, taskId = "") => {
   const answers = Array.isArray(submission?.writing_answers) ? submission.writing_answers : [];
@@ -200,6 +261,7 @@ const clearTeacherCloseTimer = (room) => {
 
 const toPersistPayload = (room) => ({
   highlights: cloneHighlights(room.highlights),
+  note_counter: toPositiveInteger(room.nextNoteIndex, 1) || 1,
   active_task_id: room.activeTaskId || null,
   updated_at: new Date(),
   last_room_code: room.roomCode,
@@ -259,6 +321,7 @@ const buildSnapshotPayload = (room, { expiresAt = null } = {}) => ({
     submissionId: room.submissionId,
     active_task_id: room.activeTaskId || null,
     highlights: cloneHighlights(room.highlights),
+    note_counter: toPositiveInteger(room.nextNoteIndex, 1) || 1,
     teacher_online: getTeacherOnline(room),
     teacher_count: room.teacherSockets.size,
     expires_at: expiresAt || null,
@@ -266,11 +329,18 @@ const buildSnapshotPayload = (room, { expiresAt = null } = {}) => ({
   },
 });
 
-const createRoomState = ({ roomCode, submissionId, initialHighlights, activeTaskId }) => ({
+const createRoomState = ({
+  roomCode,
+  submissionId,
+  initialHighlights,
+  activeTaskId,
+  nextNoteIndex = 1,
+}) => ({
   roomCode,
   submissionId: String(submissionId),
   highlights: cloneHighlights(initialHighlights),
   activeTaskId: activeTaskId || null,
+  nextNoteIndex: toPositiveInteger(nextNoteIndex, 1) || 1,
   sockets: new Map(),
   teacherSockets: new Set(),
   persistTimer: null,
@@ -292,6 +362,10 @@ const ensureRoomState = async ({ roomCode, submission }) => {
     submissionId: submission?._id,
     initialHighlights: persisted?.highlights || [],
     activeTaskId: persisted?.active_task_id || submission?.writing_answers?.[0]?.task_id || null,
+    nextNoteIndex: deriveNextNoteIndex(
+      persisted?.highlights || [],
+      persisted?.note_counter,
+    ),
   });
   rooms.set(code, room);
   return room;
@@ -521,6 +595,9 @@ export const getWritingLiveRoomContext = async (roomCode) => {
   const activeTaskId = inMemoryRoom
     ? (inMemoryRoom.activeTaskId || null)
     : (persistedFeedback.active_task_id || submission?.writing_answers?.[0]?.task_id || null);
+  const noteCounter = inMemoryRoom
+    ? (toPositiveInteger(inMemoryRoom.nextNoteIndex, 1) || 1)
+    : deriveNextNoteIndex(highlights, persistedFeedback?.note_counter);
 
   return {
     roomCode: resolved.roomCode,
@@ -532,6 +609,7 @@ export const getWritingLiveRoomContext = async (roomCode) => {
       teacher_count: inMemoryRoom ? inMemoryRoom.teacherSockets.size : 0,
       active_task_id: activeTaskId,
       highlights,
+      note_counter: noteCounter,
       teacher_disconnect_grace_ms: TEACHER_DISCONNECT_GRACE_MS,
     },
   };
@@ -611,6 +689,13 @@ const handleTeacherEvent = async ({ room, socket, user, submission, eventType, p
         taskText,
         fallbackUserId: String(user?.userId || ""),
       });
+      if (highlight.note) {
+        const assignedNoteIndex = toPositiveInteger(room.nextNoteIndex, 1) || 1;
+        highlight.note_index = assignedNoteIndex;
+        room.nextNoteIndex = assignedNoteIndex + 1;
+      } else {
+        highlight.note_index = null;
+      }
       room.highlights.push(highlight);
       room.activeTaskId = taskId;
       scheduleRoomPersist(room);
@@ -619,6 +704,7 @@ const handleTeacherEvent = async ({ room, socket, user, submission, eventType, p
         data: {
           roomCode: room.roomCode,
           active_task_id: room.activeTaskId || null,
+          note_counter: toPositiveInteger(room.nextNoteIndex, 1) || 1,
           highlight,
           at: toNowIso(),
         },
@@ -853,6 +939,7 @@ export const getWritingLiveRoomState = (roomCode) => {
     roomCode: room.roomCode,
     submissionId: room.submissionId,
     active_task_id: room.activeTaskId || null,
+    note_counter: toPositiveInteger(room.nextNoteIndex, 1) || 1,
     teacher_online: getTeacherOnline(room),
     teacher_count: room.teacherSockets.size,
     highlights: cloneHighlights(room.highlights),

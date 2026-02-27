@@ -179,6 +179,7 @@ export default function Layout() {
 
   // Use wide layout for AI result pages.
   const isResultAiPage = pathname.includes('/result-ai');
+  const isWritingLivePage = pathname.startsWith('/writing-live/');
 
   // Test detail pages (e.g. /tests/abc123 but not /tests or /tests/abc123/exam).
   const isTestDetailPage = /^\/tests\/[^/]+$/.test(pathname);
@@ -407,7 +408,7 @@ export default function Layout() {
           </div>
         </header>
       )}
-      <main className={`layout-main ${isExamPage ? 'layout-main--fullscreen' : ''} ${isPracticePage || isTestDetailPage ? 'layout-main--wide' : ''} ${isResultAiPage ? 'layout-main--result-ai' : ''} ${isManagePage ? 'layout-main--manage' : ''} ${pathname === '/' ? 'layout-main--home' : ''} ${isProfilePage ? 'layout-main--profile' : ''} ${isAnalyticsPage ? 'layout-main--analytics' : ''} ${isAchievementsPage ? 'layout-main--achievements' : ''}`}>
+      <main className={`layout-main ${isExamPage ? 'layout-main--fullscreen' : ''} ${isPracticePage || isTestDetailPage ? 'layout-main--wide' : ''} ${isResultAiPage ? 'layout-main--result-ai' : ''} ${isManagePage ? 'layout-main--manage' : ''} ${pathname === '/' ? 'layout-main--home' : ''} ${isProfilePage ? 'layout-main--profile' : ''} ${isAnalyticsPage ? 'layout-main--analytics' : ''} ${isAchievementsPage ? 'layout-main--achievements' : ''} ${isWritingLivePage ? 'layout-main--writing-live' : ''}`}>
         <Outlet />
       </main>
     </div>

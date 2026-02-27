@@ -97,27 +97,8 @@
 }
 
 .writing-live-mark {
-  padding: 1px 0;
-}
-
-.writing-live-mark--task {
-  background: rgba(34, 197, 94, 0.2);
-  border-bottom: 2px solid #22c55e;
-}
-
-.writing-live-mark--coherence {
-  background: rgba(59, 130, 246, 0.2);
-  border-bottom: 2px solid #3b82f6;
-}
-
-.writing-live-mark--vocab {
-  background: rgba(245, 158, 11, 0.2);
-  border-bottom: 2px solid #f59e0b;
-}
-
-.writing-live-mark--grammar {
-  background: rgba(239, 68, 68, 0.2);
-  border-bottom: 2px solid #ef4444;
+  padding: 1px 2px;
+  border-radius: 3px;
 }
 
 .writing-live__selection {
@@ -151,9 +132,9 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  align-items: center;
 }
 
-.writing-live__selection-controls select,
 .writing-live__selection-controls input {
   border: 1px solid #d1d5db;
   border-radius: 8px;
@@ -165,9 +146,91 @@
   flex: 1;
 }
 
+.writing-live__color-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.writing-live__color-chip {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 10px;
+  min-width: 88px;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  color: #0f172a;
+}
+
+.writing-live__color-chip span {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.writing-live__color-chip.is-active {
+  border-color: #0f172a;
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.1);
+}
+
 .writing-live__side {
   display: grid;
   gap: 12px;
+}
+
+.writing-live__chatbox {
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.05);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+  padding: 12px;
+  min-height: 420px;
+}
+
+.writing-live__chatbox-header {
+  display: grid;
+  gap: 4px;
+}
+
+.writing-live__chatbox-header h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.writing-live__chatbox-header p {
+  margin: 0;
+}
+
+.writing-live__chatbox-feed {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+  overflow-y: auto;
+  max-height: 540px;
+}
+
+.writing-live__chatbox-item {
+  border: 1px solid #dbeafe;
+  background: #eff6ff;
+  color: #1e3a8a;
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.writing-live__chatbox-item p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.writing-live__chatbox-empty {
+  padding: 8px;
 }
 
 .writing-live__card {
@@ -259,6 +322,16 @@
   .writing-live__layout {
     grid-template-columns: minmax(0, 1.2fr) minmax(360px, 0.8fr);
     align-items: start;
+  }
+}
+
+@media (max-width: 768px) {
+  .writing-live__chatbox {
+    min-height: 300px;
+  }
+
+  .writing-live__chatbox-feed {
+    max-height: 320px;
   }
 }
 

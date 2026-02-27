@@ -331,7 +331,14 @@ export const getSubmissions = async (req, res) => {
         const { status, startDate, endDate } = req.query;
         const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 20, maxLimit: 100 });
         const filter = {};
-        if (status) filter.status = status;
+        if (status === "pending") {
+            // "Pending" tab should still include AI-processing submissions that are not teacher-scored yet.
+            filter.status = { $in: ["pending", "processing"] };
+        } else if (status === "scored") {
+            filter.status = { $in: ["scored", "reviewed"] };
+        } else if (status) {
+            filter.status = status;
+        }
 
         if (startDate && endDate) {
             filter.submitted_at = {
@@ -416,20 +423,21 @@ export const createSubmissionLiveRoom = async (req, res) => {
             return sendControllerError(req, res, { statusCode: 400, message: "No writing answers found in submission" });
         }
 
-        if (!submission.is_ai_fast_graded || !submission.ai_fast_result) {
-            await scoreWritingSubmissionFastById({
-                submissionId: String(submission._id),
-                force: false,
-            });
-        }
-
         const room = await createWritingLiveRoom({
             submissionId: String(submission._id),
             createdBy: String(req.user?.userId || ""),
         });
+        const fastResult = submission.ai_fast_result || null;
+        const aiFastPending = !submission.is_ai_fast_graded || !fastResult;
 
-        const latest = await WritingSubmission.findById(id).lean();
-        const fastResult = latest?.ai_fast_result || submission.ai_fast_result || null;
+        if (aiFastPending) {
+            scoreWritingSubmissionFastById({
+                submissionId: String(submission._id),
+                force: false,
+            }).catch((error) => {
+                console.warn("Writing live room fast-score background run failed:", error?.message || "Unknown error");
+            });
+        }
 
         return res.status(201).json({
             success: true,
@@ -440,6 +448,7 @@ export const createSubmissionLiveRoom = async (req, res) => {
                 sharedRoute: `/writing-live/${room.roomCode}`,
                 ai_fast_result: fastResult,
                 top_issues: normalizeFastTopIssues(fastResult),
+                ai_fast_pending: aiFastPending,
             },
         });
     } catch (error) {

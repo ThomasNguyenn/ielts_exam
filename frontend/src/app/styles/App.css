@@ -302,3 +302,9 @@ a {
 .layout-main--analytics {
   max-width: none !important;
 }
+
+.layout-main--writing-live {
+  max-width: none !important;
+  margin: 0 !important;
+  width: 100%;
+}

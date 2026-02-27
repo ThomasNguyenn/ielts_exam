@@ -9,17 +9,32 @@ const CRITERION_OPTIONS = [
   { value: 'lexical_resource', label: 'Lexical Resource' },
   { value: 'grammatical_range_accuracy', label: 'Grammar' },
 ];
-
-const toCriterionLabel = (value = '') => {
-  const match = CRITERION_OPTIONS.find((item) => item.value === value);
-  return match?.label || 'Task Response';
+const HIGHLIGHT_COLOR_OPTIONS = [
+  { value: 'highlight-yellow', label: 'Yellow' },
+  { value: 'highlight-pink', label: 'Pink' },
+  { value: 'highlight-blue', label: 'Blue' },
+];
+const HIGHLIGHT_COLOR_SET = new Set(HIGHLIGHT_COLOR_OPTIONS.map((item) => item.value));
+const CRITERION_COLOR_FALLBACK = {
+  task_response: 'highlight-yellow',
+  coherence_cohesion: 'highlight-blue',
+  lexical_resource: 'highlight-pink',
+  grammatical_range_accuracy: 'highlight-blue',
 };
 
-const toCriterionClass = (value = '') => {
-  if (value === 'grammatical_range_accuracy') return 'writing-live-mark--grammar';
-  if (value === 'lexical_resource') return 'writing-live-mark--vocab';
-  if (value === 'coherence_cohesion') return 'writing-live-mark--coherence';
-  return 'writing-live-mark--task';
+const normalizeHighlightColor = (value = '', criterion = '') => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'yellow') return 'highlight-yellow';
+  if (normalized === 'pink') return 'highlight-pink';
+  if (normalized === 'blue') return 'highlight-blue';
+  if (HIGHLIGHT_COLOR_SET.has(normalized)) return normalized;
+  return CRITERION_COLOR_FALLBACK[String(criterion || '').trim()] || 'highlight-yellow';
+};
+
+const toHighlightColorLabel = (value = '') => {
+  if (value === 'highlight-pink') return 'Pink';
+  if (value === 'highlight-blue') return 'Blue';
+  return 'Yellow';
 };
 
 const toBand = (value) => {
@@ -46,12 +61,36 @@ const uniqueById = (items = []) => {
   return Array.from(map.values());
 };
 
+const normalizeTopIssueList = (items = []) =>
+  (Array.isArray(items) ? items : [])
+    .map((item) => ({
+      text_snippet: String(item?.text_snippet || '').trim(),
+      explanation: String(item?.explanation || '').trim(),
+      improved: String(item?.improved || '').trim(),
+      error_code: String(item?.error_code || '').trim(),
+    }))
+    .filter((item) => item.text_snippet || item.explanation)
+    .slice(0, 5);
+
+const buildTopIssuesFromFastResult = (fastResult = null) => {
+  const topIssues = fastResult?.top_issues && typeof fastResult.top_issues === 'object'
+    ? fastResult.top_issues
+    : {};
+  return {
+    grammatical_range_accuracy: normalizeTopIssueList(topIssues?.grammatical_range_accuracy),
+    lexical_resource: normalizeTopIssueList(topIssues?.lexical_resource),
+  };
+};
+
 const normalizeHighlights = (items = [], textLength = 0) =>
   uniqueById(items)
     .map((item) => ({
       ...item,
       start: Number(item?.start),
       end: Number(item?.end),
+      color: normalizeHighlightColor(item?.color, item?.criterion),
+      note: String(item?.note || ''),
+      note_index: Number(item?.note_index),
     }))
     .filter((item) =>
       Number.isFinite(item.start)
@@ -148,12 +187,14 @@ export default function WritingLiveRoom() {
 
   const user = api.getUser() || {};
   const isTeacher = user?.role === 'teacher' || user?.role === 'admin';
+  const roomEndRedirectPath = isTeacher ? '/scores' : '/profile';
 
   const essayRef = useRef(null);
   const socketRef = useRef(null);
   const reconnectTimerRef = useRef(null);
   const socketPathIndexRef = useRef(0);
   const endedByServerRef = useRef(false);
+  const chatFeedRef = useRef(null);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -163,6 +204,7 @@ export default function WritingLiveRoom() {
 
   const [submission, setSubmission] = useState(null);
   const [aiFastResult, setAiFastResult] = useState(null);
+  const [aiFastLoading, setAiFastLoading] = useState(false);
   const [topIssues, setTopIssues] = useState({
     grammatical_range_accuracy: [],
     lexical_resource: [],
@@ -174,7 +216,7 @@ export default function WritingLiveRoom() {
   const [expiresAt, setExpiresAt] = useState('');
 
   const [selectionDraft, setSelectionDraft] = useState(null);
-  const [criterion, setCriterion] = useState('task_response');
+  const [highlightColor, setHighlightColor] = useState('highlight-yellow');
   const [note, setNote] = useState('');
 
   const [grades, setGrades] = useState({});
@@ -199,6 +241,27 @@ export default function WritingLiveRoom() {
     [highlights, currentTaskId, currentText.length],
   );
   const textSegments = useMemo(() => buildSegments(currentText, taskHighlights), [currentText, taskHighlights]);
+  const studentChatMessages = useMemo(
+    () =>
+      taskHighlights
+        .filter((item) => {
+          const text = String(item?.note || '').trim();
+          const noteIndex = Number(item?.note_index);
+          return Boolean(text) && Number.isFinite(noteIndex) && noteIndex > 0;
+        })
+        .sort((a, b) => {
+          const noteDiff = Number(a.note_index) - Number(b.note_index);
+          if (noteDiff !== 0) return noteDiff;
+          return String(a?.id || '').localeCompare(String(b?.id || ''));
+        })
+        .map((item) => ({
+          id: String(item?.id || ''),
+          noteIndex: Number(item.note_index),
+          message: String(item?.note || '').trim(),
+          taskId: String(item?.task_id || ''),
+        })),
+    [taskHighlights],
+  );
 
   const sendSocketEvent = useCallback((type, payload = {}) => {
     const socket = socketRef.current;
@@ -232,13 +295,13 @@ export default function WritingLiveRoom() {
       const incomingRoom = payload?.room || {};
       const initialTaskId = incomingRoom?.active_task_id || incomingSubmission?.writing_answers?.[0]?.task_id || '';
       const incomingHighlights = Array.isArray(incomingRoom?.highlights) ? incomingRoom.highlights : [];
+      const fastResult = payload?.ai_fast_result || incomingSubmission?.ai_fast_result || null;
+      const fastTopIssues = payload?.top_issues || buildTopIssuesFromFastResult(fastResult);
 
       setSubmission(incomingSubmission);
-      setAiFastResult(payload?.ai_fast_result || null);
-      setTopIssues(payload?.top_issues || {
-        grammatical_range_accuracy: [],
-        lexical_resource: [],
-      });
+      setAiFastResult(fastResult);
+      setTopIssues(fastTopIssues);
+      setAiFastLoading(!fastResult);
       setActiveTaskId(String(initialTaskId || ''));
       setHighlights(incomingHighlights);
       setTeacherOnline(Boolean(incomingRoom?.teacher_online));
@@ -246,6 +309,7 @@ export default function WritingLiveRoom() {
       initGradesFromSubmission(incomingSubmission);
     } catch (contextError) {
       setError(contextError?.message || 'Failed to load writing live room.');
+      setAiFastLoading(false);
     } finally {
       setLoading(false);
     }
@@ -256,7 +320,7 @@ export default function WritingLiveRoom() {
   }, [loadContext]);
 
   useEffect(() => {
-    if (!roomCode || !submission) return undefined;
+    if (!roomCode) return undefined;
 
     let disposed = false;
     socketPathIndexRef.current = 0;
@@ -343,6 +407,7 @@ export default function WritingLiveRoom() {
           } catch {
             // ignore close error
           }
+          navigate(roomEndRedirectPath, { replace: true });
           return;
         }
 
@@ -396,7 +461,59 @@ export default function WritingLiveRoom() {
         }
       }
     };
-  }, [roomCode, submission, sendSocketEvent]);
+  }, [roomCode, sendSocketEvent, navigate, roomEndRedirectPath]);
+
+  useEffect(() => {
+    const submissionId = String(submission?._id || '').trim();
+    if (!submissionId || aiFastResult) {
+      if (aiFastResult) setAiFastLoading(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    let intervalId = null;
+    let attempts = 0;
+
+    setAiFastLoading(true);
+
+    const pollFastResult = async () => {
+      attempts += 1;
+      try {
+        const response = await api.getSubmissionStatus(submissionId);
+        if (cancelled) return;
+        const payload = response?.data || {};
+        if (payload?.is_ai_fast_graded && payload?.ai_fast_result) {
+          setAiFastResult(payload.ai_fast_result);
+          setTopIssues(buildTopIssuesFromFastResult(payload.ai_fast_result));
+          setAiFastLoading(false);
+          if (intervalId) clearInterval(intervalId);
+          return;
+        }
+      } catch {
+        // Ignore transient polling errors.
+      }
+
+      if (attempts >= 30) {
+        if (intervalId) clearInterval(intervalId);
+        if (!cancelled) setAiFastLoading(false);
+      }
+    };
+
+    pollFastResult();
+    intervalId = setInterval(pollFastResult, 4000);
+
+    return () => {
+      cancelled = true;
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [submission?._id, aiFastResult]);
+
+  useEffect(() => {
+    if (isTeacher) return;
+    const container = chatFeedRef.current;
+    if (!container) return;
+    container.scrollTop = container.scrollHeight;
+  }, [isTeacher, studentChatMessages]);
 
   const handleTextSelection = () => {
     if (!isTeacher || !currentTaskId) return;
@@ -412,7 +529,7 @@ export default function WritingLiveRoom() {
       start: selectionDraft.start,
       end: selectionDraft.end,
       text: selectionDraft.text,
-      criterion,
+      color: highlightColor,
       note,
     });
     if (!ok) {
@@ -464,6 +581,7 @@ export default function WritingLiveRoom() {
     setStatus('');
     try {
       await closeRoomByTeacher();
+      navigate('/scores', { replace: true });
     } catch (closeError) {
       setStatus(closeError?.message || 'Failed to close room.');
     }
@@ -477,7 +595,7 @@ export default function WritingLiveRoom() {
         // Continue navigation even if close request fails.
       }
     }
-    navigate('/grading');
+    navigate(isTeacher ? '/scores' : '/profile');
   };
 
   const handleSubmitScore = async (event) => {
@@ -584,13 +702,19 @@ export default function WritingLiveRoom() {
               }
               const primary = segment.active[segment.active.length - 1];
               const title = segment.active
-                .map((item) => `${toCriterionLabel(item.criterion)}: ${item.note || item.text || ''}`.trim())
+                .map((item) => {
+                  const colorLabel = toHighlightColorLabel(normalizeHighlightColor(item?.color, item?.criterion));
+                  const noteText = String(item?.note || item?.text || '').trim();
+                  const noteIndex = Number(item?.note_index);
+                  const notePrefix = Number.isFinite(noteIndex) && noteIndex > 0 ? `[${noteIndex}] ` : '';
+                  return `${colorLabel} ${notePrefix}${noteText}`.trim();
+                })
                 .filter(Boolean)
                 .join('\n');
               return (
                 <mark
                   key={segmentKey}
-                  className={`writing-live-mark ${toCriterionClass(primary?.criterion)}`}
+                  className={`writing-live-mark ielts-highlight ${normalizeHighlightColor(primary?.color, primary?.criterion)}`}
                   title={title}
                 >
                   {segment.text}
@@ -613,11 +737,20 @@ export default function WritingLiveRoom() {
                 <p className="muted">Select a text range in the essay to create highlight.</p>
               )}
               <div className="writing-live__selection-controls">
-                <select value={criterion} onChange={(event) => setCriterion(event.target.value)}>
-                  {CRITERION_OPTIONS.map((item) => (
-                    <option key={item.value} value={item.value}>{item.label}</option>
+                <div className="writing-live__color-palette" role="radiogroup" aria-label="Highlight color">
+                  {HIGHLIGHT_COLOR_OPTIONS.map((item) => (
+                    <button
+                      key={item.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={highlightColor === item.value}
+                      className={`writing-live__color-chip ${item.value} ${highlightColor === item.value ? 'is-active' : ''}`}
+                      onClick={() => setHighlightColor(item.value)}
+                    >
+                      <span>{item.label}</span>
+                    </button>
                   ))}
-                </select>
+                </div>
                 <input
                   type="text"
                   placeholder="Optional note..."
@@ -632,49 +765,54 @@ export default function WritingLiveRoom() {
           ) : null}
         </section>
 
-        <aside className="writing-live__side">
-          <section className="writing-live__card">
-            <h3>AI Fast Suggestion</h3>
-            <p className="writing-live__score">
-              Band: <strong>{toBand(aiFastResult?.band_score)}</strong>
-            </p>
-            <div className="writing-live__criteria">
-              {CRITERION_OPTIONS.map((item) => (
-                <div key={item.value}>
-                  <span>{item.label}</span>
-                  <strong>{toBand(aiFastResult?.criteria_scores?.[item.value])}</strong>
-                </div>
-              ))}
-            </div>
-          </section>
+        {isTeacher ? (
+          <aside className="writing-live__side">
+            <section className="writing-live__card">
+              <h3>AI Fast Suggestion</h3>
+              <p className="writing-live__score">
+                Band: <strong>{toBand(aiFastResult?.band_score)}</strong>
+              </p>
+              {aiFastLoading ? <p className="muted">AI is analyzing this essay...</p> : null}
+              <div className="writing-live__criteria">
+                {CRITERION_OPTIONS.map((item) => (
+                  <div key={item.value}>
+                    <span>{item.label}</span>
+                    <strong>{toBand(aiFastResult?.criteria_scores?.[item.value])}</strong>
+                  </div>
+                ))}
+              </div>
+            </section>
 
-          <section className="writing-live__card">
-            <h3>Top Grammar Issues</h3>
-            <ul className="writing-live__issues">
-              {(topIssues?.grammatical_range_accuracy || []).slice(0, 5).map((item, index) => (
-                <li key={`grammar-${index}`}>
-                  <strong>{item?.text_snippet}</strong>
-                  <p>{item?.explanation}</p>
-                </li>
-              ))}
-              {(topIssues?.grammatical_range_accuracy || []).length === 0 ? <li className="muted">No data</li> : null}
-            </ul>
-          </section>
+            <section className="writing-live__card">
+              <h3>Top Grammar Issues</h3>
+              <ul className="writing-live__issues">
+                {(topIssues?.grammatical_range_accuracy || []).slice(0, 5).map((item, index) => (
+                  <li key={`grammar-${index}`}>
+                    <strong>{item?.text_snippet}</strong>
+                    <p>{item?.explanation}</p>
+                  </li>
+                ))}
+                {(topIssues?.grammatical_range_accuracy || []).length === 0
+                  ? <li className="muted">{aiFastLoading ? 'Analyzing...' : 'No data'}</li>
+                  : null}
+              </ul>
+            </section>
 
-          <section className="writing-live__card">
-            <h3>Top Vocabulary Issues</h3>
-            <ul className="writing-live__issues">
-              {(topIssues?.lexical_resource || []).slice(0, 5).map((item, index) => (
-                <li key={`lexical-${index}`}>
-                  <strong>{item?.text_snippet}</strong>
-                  <p>{item?.explanation}</p>
-                </li>
-              ))}
-              {(topIssues?.lexical_resource || []).length === 0 ? <li className="muted">No data</li> : null}
-            </ul>
-          </section>
+            <section className="writing-live__card">
+              <h3>Top Vocabulary Issues</h3>
+              <ul className="writing-live__issues">
+                {(topIssues?.lexical_resource || []).slice(0, 5).map((item, index) => (
+                  <li key={`lexical-${index}`}>
+                    <strong>{item?.text_snippet}</strong>
+                    <p>{item?.explanation}</p>
+                  </li>
+                ))}
+                {(topIssues?.lexical_resource || []).length === 0
+                  ? <li className="muted">{aiFastLoading ? 'Analyzing...' : 'No data'}</li>
+                  : null}
+              </ul>
+            </section>
 
-          {isTeacher ? (
             <section className="writing-live__card">
               <h3>Teacher Scoring</h3>
               <form onSubmit={handleSubmitScore} className="writing-live__score-form">
@@ -720,32 +858,58 @@ export default function WritingLiveRoom() {
                 </button>
               </form>
             </section>
-          ) : null}
 
-          <section className="writing-live__card">
-            <h3>Highlights ({taskHighlights.length})</h3>
-            <div className="writing-live__highlight-list">
-              {taskHighlights.map((item) => (
-                <div key={item.id} className="writing-live__highlight-row">
-                  <div>
-                    <p>{item.text || '(empty)'}</p>
-                    <small>{toCriterionLabel(item.criterion)} | {item.start}-{item.end}</small>
-                  </div>
-                  {isTeacher ? (
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm"
-                      onClick={() => handleRemoveHighlight(item.id)}
-                    >
-                      Remove
-                    </button>
-                  ) : null}
+            <section className="writing-live__card">
+              <h3>Highlights ({taskHighlights.length})</h3>
+              <div className="writing-live__highlight-list">
+                {taskHighlights.map((item) => {
+                  const normalizedColor = normalizeHighlightColor(item?.color, item?.criterion);
+                  const noteIndex = Number(item?.note_index);
+                  return (
+                    <div key={item.id} className="writing-live__highlight-row">
+                      <div>
+                        <p>{item.text || '(empty)'}</p>
+                        <small>
+                          {toHighlightColorLabel(normalizedColor)}
+                          {Number.isFinite(noteIndex) && noteIndex > 0 ? ` [${noteIndex}]` : ''}
+                          {' | '}
+                          {item.start}-{item.end}
+                        </small>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => handleRemoveHighlight(item.id)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  );
+                })}
+                {taskHighlights.length === 0 ? <p className="muted">No highlights yet.</p> : null}
+              </div>
+            </section>
+          </aside>
+        ) : (
+          <aside className="writing-live__chatbox">
+            <div className="writing-live__chatbox-header">
+              <h3>Realtime Highlight Notes</h3>
+              <p className="muted">{currentTask?.task_title || 'Current task'}</p>
+            </div>
+            <div className="writing-live__chatbox-feed" ref={chatFeedRef}>
+              {studentChatMessages.map((item) => (
+                <div key={item.id} className="writing-live__chatbox-item">
+                  <p>
+                    <strong>[{item.noteIndex}] Highlight:</strong> {item.message}
+                  </p>
                 </div>
               ))}
-              {taskHighlights.length === 0 ? <p className="muted">No highlights yet.</p> : null}
+              {studentChatMessages.length === 0 ? (
+                <p className="muted writing-live__chatbox-empty">Chưa có nhận xét</p>
+              ) : null}
             </div>
-          </section>
-        </aside>
+          </aside>
+        )}
       </div>
     </div>
   );
