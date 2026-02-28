@@ -6,6 +6,11 @@ import {
   toBand,
 } from './useWritingLiveRoomSession';
 
+import EditNoteIcon from '@mui/icons-material/EditNote';
+import TuneIcon from '@mui/icons-material/Tune';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+
+
 const scrollToElement = (element) => {
   if (!element) return;
   element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
@@ -69,7 +74,7 @@ export default function WritingLiveRoomTeacherView({
       <header className="h-16 flex-none bg-white border-b border-slate-200 px-6 flex items-center justify-between z-10">
         <div className="flex items-center gap-4 min-w-0">
           <div className="flex items-center justify-center size-10 rounded-lg bg-primary/10 text-primary">
-            <span className="material-symbols-outlined">edit_note</span>
+            <EditNoteIcon />
           </div>
           <div className="min-w-0">
             <h1 className="text-lg font-bold leading-tight truncate">
@@ -86,24 +91,20 @@ export default function WritingLiveRoomTeacherView({
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg border border-slate-200">
-            <span className="material-symbols-outlined text-slate-500 text-[18px]">timer</span>
-            <span className="text-sm font-semibold font-mono">{session.remainingTimeLabel}</span>
-          </div>
           <button
             type="button"
             className="flex items-center justify-center size-9 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-primary hover:border-primary/30 transition-colors"
             onClick={() => setDrawerOpen(true)}
             aria-label="Open writing room tools"
           >
-            <span className="material-symbols-outlined text-[20px]">tune</span>
+            <TuneIcon className="text-[20px]" />
           </button>
           <button
             type="button"
             className="flex items-center justify-center gap-2 px-5 py-2 bg-primary hover:bg-primary/90 text-white text-sm font-bold rounded-xl transition-colors"
             onClick={onFinishAndGrade}
           >
-            <span className="material-symbols-outlined text-[20px]">check_circle</span>
+            <CheckCircleIcon className="text-[20px]" />
             <span>Finish &amp; Grade</span>
           </button>
           <div className="size-9 rounded-full bg-primary text-white text-sm font-semibold flex items-center justify-center border-2 border-white shadow-sm">
@@ -363,7 +364,6 @@ export default function WritingLiveRoomTeacherView({
           <h4>Realtime Status</h4>
           <p>Socket: <strong>{session.wsState}</strong></p>
           <p>Teacher Presence: <strong>{session.teacherOnline ? 'Online' : 'Offline'}</strong></p>
-          <p>Time Left: <strong>{session.remainingTimeLabel}</strong></p>
         </section>
 
         <section className="writing-live-ui__drawer-section">

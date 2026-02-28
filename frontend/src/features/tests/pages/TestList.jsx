@@ -6,6 +6,7 @@ import PaginationControls from '@/shared/components/PaginationControls';
 import { TestCard, PartCard } from '@/features/tests/components/TestCard';
 import TestSidebar from '@/features/tests/components/TestSidebar';
 import { canonicalizeQuestionGroupType, getQuestionGroupLabel } from '@/features/tests/utils/questionGroupLabels';
+import { getWritingTaskTypeLabel, getWritingTaskTypeOptions } from '@/shared/constants/writingTaskTypes';
 import './TestList.css';
 
 const PAGE_SIZE = 12;
@@ -20,6 +21,7 @@ export default function TestList() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedPartFilter, setSelectedPartFilter] = useState('all');
   const [selectedQuestionGroupFilter, setSelectedQuestionGroupFilter] = useState('all');
+  const [selectedTaskVariantFilter, setSelectedTaskVariantFilter] = useState('all');
   const [selectedType, setSelectedType] = useState('all');
   const [viewMode, setViewMode] = useState('full'); // 'full' | 'parts'
   const [searchInput, setSearchInput] = useState('');
@@ -46,12 +48,14 @@ export default function TestList() {
     setSelectedCategory('all');
     setSelectedPartFilter('all');
     setSelectedQuestionGroupFilter('all');
+    setSelectedTaskVariantFilter('all');
     setCurrentPage(1);
   }, [selectedType]);
 
   useEffect(() => {
     if (viewMode === 'parts') return;
     setSelectedQuestionGroupFilter('all');
+    setSelectedTaskVariantFilter('all');
   }, [viewMode]);
 
   useEffect(() => {
@@ -270,6 +274,7 @@ export default function TestList() {
   let groupedTests = {};
   let flattenedParts = [];
   let questionGroupOptions = [{ value: 'all', label: 'All Question Groups' }];
+  let taskVariantOptions = [{ value: 'all', label: 'All Task Variants' }];
   const canUseQuestionGroupFilter = viewMode === 'parts' && (selectedType === 'reading' || selectedType === 'listening');
 
   if (viewMode === 'full') {
@@ -348,6 +353,8 @@ export default function TestList() {
       // Writing Tasks
       if (test.type === 'writing' && test.writing_tasks) {
         test.writing_tasks.forEach((w, index) => {
+          const taskType = String(w?.task_type || '').toLowerCase();
+          const taskVariant = String(w?.writing_task_type || '').trim();
           flattenedParts.push({
             uniqueId: `${test._id}_w${index}`,
             testId: test._id,
@@ -357,6 +364,8 @@ export default function TestList() {
             type: 'writing',
             partIndex: index,
             label: `Task ${index + 1}`,
+            taskType,
+            taskVariant,
             questionGroupTypes: [],
           });
         });
@@ -382,6 +391,38 @@ export default function TestList() {
       if (selectedQuestionGroupFilter !== 'all') {
         flattenedParts = flattenedParts.filter((part) =>
           (part.questionGroupTypes || []).includes(selectedQuestionGroupFilter)
+        );
+      }
+    }
+
+    if (selectedType === 'writing') {
+      const selectedTaskType = selectedPartFilter === 'part2' ? 'task2' : 'task1';
+      const availableWritingVariants = Array.from(
+        new Set(
+          flattenedParts
+            .filter((part) => String(part.taskType || '') === selectedTaskType)
+            .map((part) => String(part.taskVariant || '').trim())
+            .filter(Boolean)
+        )
+      );
+
+      const orderedOptions = getWritingTaskTypeOptions(selectedTaskType)
+        .filter((opt) => availableWritingVariants.includes(opt.value))
+        .map((opt) => ({ value: opt.value, label: opt.label }));
+
+      const additionalUnknownOptions = availableWritingVariants
+        .filter((value) => !orderedOptions.some((opt) => opt.value === value))
+        .map((value) => ({ value, label: getWritingTaskTypeLabel(value) || value }));
+
+      taskVariantOptions = [
+        { value: 'all', label: 'All Task Variants' },
+        ...orderedOptions,
+        ...additionalUnknownOptions,
+      ];
+
+      if (selectedTaskVariantFilter !== 'all') {
+        flattenedParts = flattenedParts.filter(
+          (part) => String(part.taskVariant || '').trim() === selectedTaskVariantFilter
         );
       }
     }
@@ -478,6 +519,9 @@ export default function TestList() {
           selectedQuestionGroupFilter={selectedQuestionGroupFilter}
           onQuestionGroupFilterChange={setSelectedQuestionGroupFilter}
           questionGroupOptions={questionGroupOptions}
+          selectedTaskVariantFilter={selectedTaskVariantFilter}
+          onTaskVariantFilterChange={setSelectedTaskVariantFilter}
+          taskVariantOptions={taskVariantOptions}
           totalTests={statsTotalTests}
           completedTests={completedCount}
         />

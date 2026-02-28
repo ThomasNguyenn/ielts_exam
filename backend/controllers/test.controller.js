@@ -145,7 +145,7 @@ export const getAllTests = async (req, res) => {
         const baseQuery = Test.find(filter)
             .populate('reading_passages', readingSelect)
             .populate('listening_sections', listeningSelect)
-            .populate('writing_tasks', 'title')
+            .populate('writing_tasks', 'title task_type writing_task_type')
             .sort({ created_at: -1 });
 
         if (!shouldPaginate) {

@@ -112,17 +112,6 @@ export const toBand = (value) => {
   return numberValue.toFixed(1);
 };
 
-const formatClockTime = (value) => {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric) || numeric <= 0) return '00:00';
-  const totalSeconds = Math.max(0, Math.floor(numeric / 1000));
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  if (hours > 0) return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-};
-
 const normalizeCriterion = (value = '') => {
   const normalized = String(value || '').trim().toLowerCase();
   if (VALID_CRITERIA.has(normalized)) return normalized;
@@ -345,7 +334,6 @@ export function useWritingLiveRoomSession({
   const [activeTaskId, setActiveTaskId] = useState('');
   const [highlights, setHighlights] = useState([]);
   const [teacherOnline, setTeacherOnline] = useState(false);
-  const [expiresAt, setExpiresAt] = useState('');
 
   const [selectionDraft, setSelectionDraft] = useState(null);
   const [selectedCriterion, setSelectedCriterion] = useState('grammatical_range_accuracy');
@@ -353,7 +341,7 @@ export function useWritingLiveRoomSession({
 
   const [grades, setGrades] = useState({});
   const [submittingScore, setSubmittingScore] = useState(false);
-  const [clockTick, setClockTick] = useState(Date.now());
+
 
   const tasks = useMemo(
     () => (Array.isArray(submission?.writing_answers) ? submission.writing_answers : []),
@@ -386,17 +374,6 @@ export function useWritingLiveRoomSession({
     [taskHighlights, currentText],
   );
 
-  const remainingTimeLabel = useMemo(() => {
-    if (!expiresAt) return '--:--';
-    const deadline = Date.parse(expiresAt);
-    if (!Number.isFinite(deadline)) return '--:--';
-    return formatClockTime(Math.max(deadline - clockTick, 0));
-  }, [expiresAt, clockTick]);
-
-  useEffect(() => {
-    const timer = setInterval(() => setClockTick(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   const closeSocketConnection = useCallback((reason = 'room_closed') => {
     endedByServerRef.current = true;
@@ -467,7 +444,7 @@ export function useWritingLiveRoomSession({
       setActiveTaskId(String(initialTaskId || ''));
       setHighlights(incomingHighlights);
       setTeacherOnline(Boolean(incomingRoom?.teacher_online));
-      setExpiresAt(String(payload?.expiresAt || ''));
+
       initGradesFromSubmission(incomingSubmission);
     } catch (contextError) {
       setError(contextError?.message || 'Failed to load writing live room.');
@@ -792,8 +769,6 @@ export function useWritingLiveRoomSession({
     textSegments,
     activityItems,
     teacherOnline,
-    expiresAt,
-    remainingTimeLabel,
     aiFastResult,
     aiFastLoading,
     topIssues,

@@ -76,3 +76,24 @@ This document outlines potential future enhancements for the platform, categoriz
   - Writing Task 1: **20 minutes**
   - Writing Task 2: **40 minutes**
 - Frontend source updated: `frontend/src/features/tests/pages/Exam.jsx`
+
+### Writing Live Room UI Cleanup
+- Update: removed countdown display completely from Writing Live Room (teacher + student views).
+- Update: removed countdown logic from live room session hook (`remainingTimeLabel`, ticking interval, and related state).
+- Teacher header no longer shows timer icon or time badge.
+- Student header no longer shows timer icon or time badge.
+- Realtime status drawer no longer shows "Time Left".
+- Frontend sources updated:
+  - `frontend/src/features/tests/pages/writing-live/useWritingLiveRoomSession.js`
+  - `frontend/src/features/tests/pages/writing-live/WritingLiveRoomTeacherView.jsx`
+  - `frontend/src/features/tests/pages/writing-live/WritingLiveRoomStudentView.jsx`
+
+### Writing By-Parts Filter: Task Variant
+- Update: added **Task Variant** filter in Test Mode → By Parts for **Writing** skill.
+- Behavior:
+  - Shows variant options based on selected writing part (Task 1 or Task 2).
+  - Uses canonical labels from writing task type constants.
+  - Filters writing parts by `writing_task_type`.
+- Frontend sources updated:
+  - `frontend/src/features/tests/pages/TestList.jsx`
+  - `frontend/src/features/tests/components/TestSidebar.jsx`

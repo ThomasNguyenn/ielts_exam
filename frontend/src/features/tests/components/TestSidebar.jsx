@@ -59,6 +59,9 @@ export default function TestSidebar({
     selectedQuestionGroupFilter = 'all',
     onQuestionGroupFilterChange,
     questionGroupOptions = [],
+    selectedTaskVariantFilter = 'all',
+    onTaskVariantFilterChange,
+    taskVariantOptions = [],
     totalTests = 0,
     completedTests = 0,
 }) {
@@ -162,6 +165,23 @@ export default function TestSidebar({
                                     key={opt.value}
                                     className={`ts-part-option ${selectedQuestionGroupFilter === opt.value ? 'active' : ''}`}
                                     onClick={() => onQuestionGroupFilterChange?.(opt.value)}
+                                >
+                                    {opt.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {viewMode === 'parts' && selectedType === 'writing' && taskVariantOptions.length > 0 && (
+                    <div className="ts-card">
+                        <h3>Filter by Task Variant</h3>
+                        <div className="ts-btn-list">
+                            {taskVariantOptions.map((opt) => (
+                                <button
+                                    key={opt.value}
+                                    className={`ts-part-option ${selectedTaskVariantFilter === opt.value ? 'active' : ''}`}
+                                    onClick={() => onTaskVariantFilterChange?.(opt.value)}
                                 >
                                     {opt.label}
                                 </button>

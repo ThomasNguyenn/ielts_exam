@@ -71,10 +71,6 @@ export default function WritingLiveRoomStudentView({
           </div>
         </div>
         <div className="flex flex-1 justify-end gap-4 items-center min-w-0">
-          <div className="hidden md:flex items-center gap-2 text-sm text-slate-500">
-            <span className="material-symbols-outlined text-[18px]">timer</span>
-            <span className="font-mono font-semibold">{session.remainingTimeLabel}</span>
-          </div>
           <div className="h-6 w-px bg-slate-200" />
           <button
             type="button"
