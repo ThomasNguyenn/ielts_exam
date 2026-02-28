@@ -189,6 +189,135 @@
     color: white;
 }
 
+/* Custom Dropdown */
+.wr-variant-dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.wr-variant-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 50px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1.5px solid #E2E8F0;
+    background: white;
+    color: #64748B;
+    min-width: 140px;
+    justify-content: space-between;
+}
+
+.wr-variant-btn:hover {
+    border-color: #C7D2FE;
+    color: #6366F1;
+    background: #EEF2FF;
+}
+
+.wr-variant-btn--active {
+    border-color: #6366F1;
+    color: #6366F1;
+    background: #EEF2FF;
+}
+
+.wr-variant-btn-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 150px;
+}
+
+.wr-variant-btn-icon {
+    width: 16px;
+    height: 16px;
+    transition: transform 0.3s ease;
+}
+
+.wr-variant-btn-icon.open {
+    transform: rotate(180deg);
+}
+
+.wr-variant-menu {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    right: 0;
+    min-width: 220px;
+    background: white;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    z-index: 50;
+    padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    animation: wr-dropdown-fade 0.2s ease-out;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+/* Custom scrollbar for the menu */
+.wr-variant-menu::-webkit-scrollbar {
+    width: 6px;
+}
+.wr-variant-menu::-webkit-scrollbar-track {
+    background: transparent;
+}
+.wr-variant-menu::-webkit-scrollbar-thumb {
+    background: #CBD5E1;
+    border-radius: 10px;
+}
+.wr-variant-menu::-webkit-scrollbar-thumb:hover {
+    background: #94A3B8;
+}
+
+@keyframes wr-dropdown-fade {
+    from {
+        opacity: 0;
+        transform: translateY(-8px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.wr-variant-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0.625rem 0.875rem;
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    color: #334155;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.2s;
+}
+
+.wr-variant-option:hover {
+    background: #F1F5F9;
+    color: #0F172A;
+}
+
+.wr-variant-option.selected {
+    background: #EEF2FF;
+    color: #4F46E5;
+    font-weight: 600;
+}
+
+.wr-variant-check {
+    color: #4F46E5;
+}
+
 /* === Cards Grid === */
 .wr-cards-grid {
     display: grid;
@@ -304,6 +433,7 @@
     flex: 1;
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }

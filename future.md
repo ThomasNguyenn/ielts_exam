@@ -92,6 +92,7 @@ This document outlines potential future enhancements for the platform, categoriz
 - Update: added **Task Variant** filter in Test Mode → By Parts for **Writing** skill.
 - Behavior:
   - Shows variant options based on selected writing part (Task 1 or Task 2).
+  - Also supports `All Tasks` by combining Task 1 + Task 2 variant sets.
   - Uses canonical labels from writing task type constants.
   - Filters writing parts by `writing_task_type`.
 - Frontend sources updated:

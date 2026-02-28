@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '@/shared/api/client';
 import PracticeCardSkeleton from '@/shared/components/PracticeCardSkeleton';
-import { PenTool, Search, ArrowRight, FileText, Sparkles } from 'lucide-react';
+import { PenTool, Search, ArrowRight, FileText, Sparkles, ChevronDown, Check } from 'lucide-react';
+import { getWritingTaskTypeLabel, getWritingTaskTypeOptions } from '@/shared/constants/writingTaskTypes';
 import './PracticeList.css';
 
 export default function PracticeList() {
@@ -10,6 +11,57 @@ export default function PracticeList() {
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterType, setFilterType] = useState('all'); // all, task1, task2
+    const [selectedVariant, setSelectedVariant] = useState('all');
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const dropdownRef = useRef(null);
+
+    useEffect(() => {
+        function handleClickOutside(event) {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setIsDropdownOpen(false);
+            }
+        }
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    useEffect(() => {
+        setSelectedVariant('all');
+    }, [filterType]);
+
+    let variantOptions = [{ value: 'all', label: 'Tất cả dạng bài' }];
+    
+    const scopedTasks = tasks.filter(t => 
+       filterType === 'all' || t.task_type === filterType
+    );
+    const availableVariants = new Set(scopedTasks.map(t => t.writing_task_type).filter(Boolean));
+    
+    let baseOptions = [];
+    if (filterType === 'task1') {
+        baseOptions = getWritingTaskTypeOptions('task1');
+    } else if (filterType === 'task2') {
+        baseOptions = getWritingTaskTypeOptions('task2');
+    } else {
+        baseOptions = [
+            ...getWritingTaskTypeOptions('task1'),
+            ...getWritingTaskTypeOptions('task2')
+        ];
+        baseOptions = Array.from(new Map(baseOptions.map(o => [o.value, o])).values());
+    }
+
+    const availableOrderedOptions = baseOptions.filter(opt => availableVariants.has(opt.value));
+    
+    const additionalOptions = Array.from(availableVariants)
+        .filter(val => !baseOptions.some(opt => opt.value === val))
+        .map(val => ({ value: val, label: getWritingTaskTypeLabel(val) || val }));
+
+    if (availableOrderedOptions.length > 0 || additionalOptions.length > 0) {
+        variantOptions = [
+            ...variantOptions,
+            ...availableOrderedOptions,
+            ...additionalOptions
+        ];
+    }
 
     useEffect(() => {
         setLoading(true);
@@ -31,7 +83,9 @@ export default function PracticeList() {
             (filterType === 'task1' && t.task_type === 'task1') ||
             (filterType === 'task2' && t.task_type === 'task2');
 
-        return matchesSearch && matchesType;
+        const matchesVariant = selectedVariant === 'all' || t.writing_task_type === selectedVariant;
+
+        return matchesSearch && matchesType && matchesVariant;
     });
 
     const task1Count = tasks.filter(t => t.task_type === 'task1').length;
@@ -114,6 +168,38 @@ export default function PracticeList() {
                             {f.label} ({f.count})
                         </button>
                     ))}
+
+                    {variantOptions.length > 1 && (
+                        <div className="wr-variant-dropdown" ref={dropdownRef}>
+                            <button
+                                className={`wr-variant-btn ${selectedVariant !== 'all' ? 'wr-variant-btn--active' : ''}`}
+                                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                            >
+                                <span className="wr-variant-btn-text">
+                                    {variantOptions.find(opt => opt.value === selectedVariant)?.label || 'Dạng bài'}
+                                </span>
+                                <ChevronDown className={`wr-variant-btn-icon ${isDropdownOpen ? 'open' : ''}`} />
+                            </button>
+                            
+                            {isDropdownOpen && (
+                                <div className="wr-variant-menu">
+                                    {variantOptions.map(opt => (
+                                        <button
+                                            key={opt.value}
+                                            className={`wr-variant-option ${selectedVariant === opt.value ? 'selected' : ''}`}
+                                            onClick={() => {
+                                                setSelectedVariant(opt.value);
+                                                setIsDropdownOpen(false);
+                                            }}
+                                        >
+                                            {opt.label}
+                                            {selectedVariant === opt.value && <Check className="wr-variant-check" size={16} />}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 

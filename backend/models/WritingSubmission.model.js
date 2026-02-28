@@ -65,7 +65,7 @@ const WritingSubmissionSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'processing', 'scored', 'reviewed', 'failed'],
+    enum: ['pending', 'processing', 'scored', 'reviewed', 'failed', 'archived'],
     default: 'pending'
   },
 

@@ -471,6 +471,7 @@ export const api = {
   scoreSubmission: (id, body) => request(`/api/writings/submissions/${id}/score`, { method: 'POST', body: JSON.stringify(body) }),
   scoreSubmissionAIFast: (id, body = {}) => request(`/api/writings/submissions/${id}/ai-fast-score`, { method: 'POST', body: JSON.stringify(body) }),
   scoreSubmissionAI: (id) => request(`/api/writings/submissions/${id}/ai-score`, { method: 'POST' }),
+  archiveSubmission: (id) => request(`/api/writings/submissions/${id}/archive`, { method: 'PUT' }),
   createWritingLiveRoom: (submissionId) =>
     request(`/api/writings/submissions/${submissionId}/live-room`, { method: 'POST' }),
   resolveWritingLiveRoom: (code) =>

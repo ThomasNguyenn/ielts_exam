@@ -1,4 +1,5 @@
 import {
+  archiveSubmission,
   closeLiveRoom,
   createSubmissionLiveRoom,
   createWriting,
@@ -61,6 +62,7 @@ router.post("/upload-image", verifyToken, isTeacherOrAdmin, upload.single('image
 router.get("/:id", optionalVerifyToken, getWritingById);
 router.get("/:id/exam", optionalVerifyToken, getWritingExam);
 router.post("/:id/submit", verifyToken, submitWriting);
+router.put("/submissions/:id/archive", verifyToken, isTeacherOrAdmin, archiveSubmission);
 router.post("/submissions/:id/score", verifyToken, isTeacherOrAdmin, scoreSubmission);
 router.post("/submissions/:id/ai-fast-score", verifyToken, scoreSubmissionAIFast);
 router.post("/submissions/:id/ai-score", verifyToken, scoreSubmissionAI);

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+  Archive,
   ArrowRight,
   Bot,
   Cast,
@@ -185,7 +186,7 @@ export default function GradingDashboard() {
   const [activeTab, setActiveTab] = useState('pending');
   const [submissions, setSubmissions] = useState([]);
   const [pagination, setPagination] = useState(null);
-  const [tabTotals, setTabTotals] = useState({ pending: 0, scored: 0 });
+  const [tabTotals, setTabTotals] = useState({ pending: 0, scored: 0, archived: 0 });
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -201,6 +202,7 @@ export default function GradingDashboard() {
   const [recentlyGraded, setRecentlyGraded] = useState([]);
 
   const [exportingId, setExportingId] = useState(null);
+  const [archivingId, setArchivingId] = useState(null);
   const [liveRoomLoadingId, setLiveRoomLoadingId] = useState(null);
   const latestFetchIdRef = useRef(0);
   const datePanelRef = useRef(null);
@@ -310,11 +312,12 @@ export default function GradingDashboard() {
         baseParams.endDate = new Date(`${endDate}T23:59:59.999`).toISOString();
       }
 
-      const oppositeTab = activeTab === 'pending' ? 'scored' : 'pending';
+      const allTabs = ['pending', 'scored', 'archived'];
+      const otherTabs = allTabs.filter(t => t !== activeTab);
 
-      const [currentRes, oppositeRes] = await Promise.all([
+      const [currentRes, ...otherRes] = await Promise.all([
         api.getSubmissions({ ...baseParams, status: activeTab, page: currentPage, limit: PAGE_SIZE }),
-        api.getSubmissions({ ...baseParams, status: oppositeTab, page: 1, limit: 1 }),
+        ...otherTabs.map(t => api.getSubmissions({ ...baseParams, status: t, page: 1, limit: 1 }))
       ]);
 
       if (latestFetchIdRef.current !== requestId) return;
@@ -326,14 +329,14 @@ export default function GradingDashboard() {
       const currentData = Array.isArray(currentRes.data) ? currentRes.data : [];
       const currentPagination = currentRes.pagination || null;
       const currentTotal = Number(currentPagination?.totalItems || 0);
-      const oppositeTotal = Number(oppositeRes?.pagination?.totalItems || 0);
 
       setSubmissions(currentData);
       setPagination(currentPagination);
       setTabTotals((prev) => ({
         ...prev,
         [activeTab]: currentTotal,
-        [oppositeTab]: oppositeTotal,
+        [otherTabs[0]]: Number(otherRes[0]?.pagination?.totalItems || 0),
+        [otherTabs[1]]: Number(otherRes[1]?.pagination?.totalItems || 0),
       }));
     } catch (fetchError) {
       if (latestFetchIdRef.current !== requestId) return;
@@ -519,6 +522,26 @@ export default function GradingDashboard() {
     }
   };
 
+  const handleArchive = async (submissionId) => {
+    if (!submissionId || archivingId === submissionId) return;
+
+    setError(null);
+    setArchivingId(submissionId);
+
+    try {
+      const res = await api.archiveSubmission(submissionId);
+      if (res?.success) {
+        fetchSubmissions(); // refetch to update UI
+      } else {
+        throw new Error('Failed to archive submission');
+      }
+    } catch (err) {
+      setError(err?.message || 'Failed to archive submission. Please try again.');
+    } finally {
+      setArchivingId(null);
+    }
+  };
+
   const clearDateFilter = () => {
     setStartDate('');
     setEndDate('');
@@ -563,6 +586,22 @@ export default function GradingDashboard() {
                   : 'bg-slate-100 text-slate-600 group-hover:bg-slate-200'
                   }`}>
                   {tabTotals.scored}
+                </span>
+              </button>
+              <button
+                type="button"
+                className={`group flex items-center gap-2 border-b-[3px] bg-transparent pb-3 pt-2 ${activeTab === 'archived'
+                  ? 'border-[#0f49bd] text-[#0f49bd]'
+                  : 'border-transparent text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-700'
+                  }`}
+                onClick={() => setActiveTab('archived')}
+              >
+                <span className="text-sm font-bold">Archived</span>
+                <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${activeTab === 'archived'
+                  ? 'bg-[#0f49bd]/10 text-[#0f49bd]'
+                  : 'bg-slate-100 text-slate-600 group-hover:bg-slate-200'
+                  }`}>
+                  {tabTotals.archived}
                 </span>
               </button>
             </div>
@@ -669,7 +708,8 @@ export default function GradingDashboard() {
                 const fallbackBand = firstTask ? normalizeBand(getAiResultForTask(submission, firstTask.task_id)?.band_score) : null;
                 const aiPrelimBand = aiFastBand ?? fallbackBand;
                 const teacherBand = getOverallBand(submission);
-                const statusLabel = activeTab === 'pending' ? `Submitted ${formatRelativeTime(submission.submitted_at)}` : `Graded ${formatRelativeTime(submission.submitted_at)}`;
+                const statusLabel = activeTab === 'pending' ? `Submitted ${formatRelativeTime(submission.submitted_at)}` 
+                  : (activeTab === 'archived' ? `Archived ${formatRelativeTime(submission.submitted_at)}` : `Graded ${formatRelativeTime(submission.submitted_at)}`);
                 const dueLabel = activeTab === 'pending' ? getDueLabel(submission.submitted_at) : null;
 
                 return (
@@ -743,6 +783,18 @@ export default function GradingDashboard() {
                           >
                             <Download size={16} className="text-red-500" aria-hidden="true" />
                             <span>{exportingId === submission._id ? 'Exporting...' : 'PDF'}</span>
+                          </button>
+                        )}
+                        
+                        {activeTab === 'scored' && (
+                          <button
+                            type="button"
+                            onClick={() => handleArchive(submission._id)}
+                            disabled={archivingId === submission._id}
+                            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-50 sm:flex-none"
+                          >
+                            <Archive size={16} className="text-slate-500" aria-hidden="true" />
+                            <span>{archivingId === submission._id ? 'Archiving...' : 'Archive'}</span>
                           </button>
                         )}
 

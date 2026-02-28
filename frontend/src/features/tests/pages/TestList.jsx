@@ -21,7 +21,6 @@ export default function TestList() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedPartFilter, setSelectedPartFilter] = useState('all');
   const [selectedQuestionGroupFilter, setSelectedQuestionGroupFilter] = useState('all');
-  const [selectedTaskVariantFilter, setSelectedTaskVariantFilter] = useState('all');
   const [selectedType, setSelectedType] = useState('all');
   const [viewMode, setViewMode] = useState('full'); // 'full' | 'parts'
   const [searchInput, setSearchInput] = useState('');
@@ -48,14 +47,12 @@ export default function TestList() {
     setSelectedCategory('all');
     setSelectedPartFilter('all');
     setSelectedQuestionGroupFilter('all');
-    setSelectedTaskVariantFilter('all');
     setCurrentPage(1);
   }, [selectedType]);
 
   useEffect(() => {
     if (viewMode === 'parts') return;
     setSelectedQuestionGroupFilter('all');
-    setSelectedTaskVariantFilter('all');
   }, [viewMode]);
 
   useEffect(() => {
@@ -274,7 +271,6 @@ export default function TestList() {
   let groupedTests = {};
   let flattenedParts = [];
   let questionGroupOptions = [{ value: 'all', label: 'All Question Groups' }];
-  let taskVariantOptions = [{ value: 'all', label: 'All Task Variants' }];
   const canUseQuestionGroupFilter = viewMode === 'parts' && (selectedType === 'reading' || selectedType === 'listening');
 
   if (viewMode === 'full') {
@@ -353,7 +349,11 @@ export default function TestList() {
       // Writing Tasks
       if (test.type === 'writing' && test.writing_tasks) {
         test.writing_tasks.forEach((w, index) => {
-          const taskType = String(w?.task_type || '').toLowerCase();
+          const rawTaskType = String(w?.task_type || '').trim().toLowerCase();
+          const normalizedTaskType = rawTaskType.replace(/\s+/g, '');
+          const taskType = normalizedTaskType === 'task1' || normalizedTaskType === 'task2'
+            ? normalizedTaskType
+            : (index === 0 ? 'task1' : 'task2');
           const taskVariant = String(w?.writing_task_type || '').trim();
           flattenedParts.push({
             uniqueId: `${test._id}_w${index}`,
@@ -395,37 +395,7 @@ export default function TestList() {
       }
     }
 
-    if (selectedType === 'writing') {
-      const selectedTaskType = selectedPartFilter === 'part2' ? 'task2' : 'task1';
-      const availableWritingVariants = Array.from(
-        new Set(
-          flattenedParts
-            .filter((part) => String(part.taskType || '') === selectedTaskType)
-            .map((part) => String(part.taskVariant || '').trim())
-            .filter(Boolean)
-        )
-      );
 
-      const orderedOptions = getWritingTaskTypeOptions(selectedTaskType)
-        .filter((opt) => availableWritingVariants.includes(opt.value))
-        .map((opt) => ({ value: opt.value, label: opt.label }));
-
-      const additionalUnknownOptions = availableWritingVariants
-        .filter((value) => !orderedOptions.some((opt) => opt.value === value))
-        .map((value) => ({ value, label: getWritingTaskTypeLabel(value) || value }));
-
-      taskVariantOptions = [
-        { value: 'all', label: 'All Task Variants' },
-        ...orderedOptions,
-        ...additionalUnknownOptions,
-      ];
-
-      if (selectedTaskVariantFilter !== 'all') {
-        flattenedParts = flattenedParts.filter(
-          (part) => String(part.taskVariant || '').trim() === selectedTaskVariantFilter
-        );
-      }
-    }
 
     const pagePartCategoryCounts = flattenedParts.reduce((acc, part) => {
       acc[part.category] = (acc[part.category] || 0) + 1;
@@ -519,9 +489,6 @@ export default function TestList() {
           selectedQuestionGroupFilter={selectedQuestionGroupFilter}
           onQuestionGroupFilterChange={setSelectedQuestionGroupFilter}
           questionGroupOptions={questionGroupOptions}
-          selectedTaskVariantFilter={selectedTaskVariantFilter}
-          onTaskVariantFilterChange={setSelectedTaskVariantFilter}
-          taskVariantOptions={taskVariantOptions}
           totalTests={statsTotalTests}
           completedTests={completedCount}
         />
