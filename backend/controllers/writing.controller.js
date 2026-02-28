@@ -1076,3 +1076,26 @@ export const uploadImage = async (req, res) => {
 };
 
 
+
+
+/** Archive a submission */
+export const archiveSubmission = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const mongoose = (await import('mongoose')).default;
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return sendControllerError(req, res, { statusCode: 404, message: "Submission not found"  });
+        }
+        const WritingSubmission = (await import('../models/WritingSubmission.model.js')).default;
+        const submission = await WritingSubmission.findById(id);
+        if (!submission) {
+            return sendControllerError(req, res, { statusCode: 404, message: "Submission not found"  });
+        }
+        submission.status = 'archived';
+        await submission.save();
+        res.status(200).json({ success: true, data: submission });
+    } catch (error) {
+        return handleControllerError(req, res, error);
+    }
+};
+
