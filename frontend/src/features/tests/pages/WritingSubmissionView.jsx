@@ -26,6 +26,16 @@ const normalizeStatusLabel = (status) => {
   return normalized ? normalized : 'Chờ chấm';
 };
 
+const isTask1Answer = (answer, index) => {
+  const taskType = String(answer?.task_type || '').toLowerCase();
+  if (taskType === 'task1' || taskType === 'task 1') return true;
+
+  const title = String(answer?.task_title || '').toLowerCase();
+  if (title.includes('task 1')) return true;
+
+  return index === 0;
+};
+
 export default function WritingSubmissionView() {
   const { id } = useParams();
   const [loading, setLoading] = useState(true);
@@ -86,17 +96,34 @@ export default function WritingSubmissionView() {
 
       <div style={{ display: 'grid', gap: '1rem' }}>
         {writingAnswers.length ? (
-          writingAnswers.map((answer, index) => (
-            <section key={`writing-answer-${index}`} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1rem 1.25rem' }}>
-              <h2 style={{ margin: 0, fontSize: '1.05rem' }}>{answer?.task_title || `Task ${index + 1}`}</h2>
-              <p className="muted" style={{ marginTop: '0.35rem' }}>
-                {Number.isFinite(Number(answer?.word_count)) ? `${Number(answer.word_count)} words` : 'Word count unavailable'}
-              </p>
-              <div style={{ marginTop: '0.75rem', whiteSpace: 'pre-wrap', lineHeight: 1.7, color: '#0f172a' }}>
-                {String(answer?.answer_text || '').trim() || 'No answer text.'}
-              </div>
-            </section>
-          ))
+          writingAnswers.map((answer, index) => {
+            const taskImage = answer?.task_image || answer?.image_url || '';
+            const shouldShowTaskImage = isTask1Answer(answer, index) && String(taskImage).trim();
+
+            return (
+              <section key={`writing-answer-${index}`} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1rem 1.25rem' }}>
+                <h2 style={{ margin: 0, fontSize: '1.05rem' }}>{answer?.task_title || `Task ${index + 1}`}</h2>
+                <p className="muted" style={{ marginTop: '0.35rem' }}>
+                  {Number.isFinite(Number(answer?.word_count)) ? `${Number(answer.word_count)} words` : 'Word count unavailable'}
+                </p>
+
+                {shouldShowTaskImage ? (
+                  <div style={{ marginTop: '0.75rem' }}>
+                    <p className="muted" style={{ marginBottom: '0.5rem' }}>Task 1 Image</p>
+                    <img
+                      src={taskImage}
+                      alt="Task 1 visual"
+                      style={{ width: '100%', maxWidth: '720px', borderRadius: '10px', border: '1px solid #e2e8f0' }}
+                    />
+                  </div>
+                ) : null}
+
+                <div style={{ marginTop: '0.75rem', whiteSpace: 'pre-wrap', lineHeight: 1.7, color: '#0f172a' }}>
+                  {String(answer?.answer_text || '').trim() || 'No answer text.'}
+                </div>
+              </section>
+            );
+          })
         ) : (
           <div className="muted">No writing answers found.</div>
         )}

@@ -1,6 +1,6 @@
-
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
+import DOMPurify from 'dompurify';
 import { X, BookOpen, FileCode, Lightbulb, Link, CheckCircle2, PlayCircle } from 'lucide-react';
 import './LessonViewer.css';
 
@@ -8,6 +8,10 @@ const LessonViewer = ({ module, onClose, onStartQuiz, isCompleted }) => {
   const [activeTab, setActiveTab] = useState('lesson');
   const lessonContent = module.content?.lesson || '';
   const hasHtmlTags = /<[^>]+>/.test(lessonContent);
+  const sanitizedHtml = useMemo(
+    () => (hasHtmlTags ? DOMPurify.sanitize(lessonContent, { ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'a', 'blockquote', 'code', 'pre'] }) : ''),
+    [lessonContent, hasHtmlTags]
+  );
 
   return (
     <div className="lesson-viewer">
@@ -62,7 +66,7 @@ const LessonViewer = ({ module, onClose, onStartQuiz, isCompleted }) => {
         {activeTab === 'lesson' && (
           <div className="lesson-text">
             {hasHtmlTags ? (
-              <div dangerouslySetInnerHTML={{ __html: lessonContent }} />
+              <div dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />
             ) : (
               <ReactMarkdown>{lessonContent}</ReactMarkdown>
             )}

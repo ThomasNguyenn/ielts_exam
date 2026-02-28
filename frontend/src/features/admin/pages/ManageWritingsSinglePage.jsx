@@ -4,6 +4,7 @@ import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
 import ConfirmationModal from '@/shared/components/ConfirmationModal';
 import { useNavigate, useParams } from 'react-router-dom';
+import { getWritingTaskTypeLabel } from '@/shared/constants/writingTaskTypes';
 import AddWriting from './AddWriting';
 import './Manage.css';
 
@@ -198,6 +199,7 @@ export default function ManageWritingsSinglePage() {
                   <th>Title</th>
                   <th>Skill</th>
                   <th>Type</th>
+                  <th>Variant</th>
                   <th>Word Limit</th>
                   <th>Status</th>
                   <th>Date</th>
@@ -207,7 +209,7 @@ export default function ManageWritingsSinglePage() {
               <tbody>
                 {!loading && paginatedWritings.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="manage-main-empty">No writings found.</td>
+                    <td colSpan={8} className="manage-main-empty">No writings found.</td>
                   </tr>
                 )}
 
@@ -216,6 +218,7 @@ export default function ManageWritingsSinglePage() {
                     <td className="manage-cell-title">{row.title || row._id}</td>
                     <td><span className="manage-pill skill-writing">Writing</span></td>
                     <td>{String(row.task_type || 'task1').toUpperCase()}</td>
+                    <td>{getWritingTaskTypeLabel(row.writing_task_type) || '—'}</td>
                     <td>{row.essay_word_limit || row.word_limit || 250}</td>
                     <td><span className={`manage-pill ${row.is_active === false ? 'status-archived' : 'status-published'}`}>{row.is_active === false ? 'Archived' : 'Published'}</span></td>
                     <td>{formatDate(row.updatedAt || row.updated_at || row.createdAt || row.created_at)}</td>
