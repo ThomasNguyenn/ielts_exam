@@ -29,8 +29,8 @@ export const WRITING_TASK_TYPES = [
   WRITING_TASK_TYPE_OTHER,
 ];
 
-/** Enum values for Mongoose schema */
-export const WRITING_TASK_TYPE_VALUES = WRITING_TASK_TYPES.map((t) => t.value);
+/** Enum values for Mongoose schema (null allowed for optional/legacy documents) */
+export const WRITING_TASK_TYPE_VALUES = [...WRITING_TASK_TYPES.map((t) => t.value), null];
 
 /**
  * Get display label for a writing task type value

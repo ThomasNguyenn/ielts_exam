@@ -852,17 +852,6 @@ export default function GradingDashboard() {
               })}
             </div>
           </div>
-
-          <div className="relative overflow-hidden rounded-xl border border-[#0f49bd]/10 bg-[#0f49bd]/5 p-5">
-            <div className="absolute -right-5 -top-5 h-20 w-20 rounded-full bg-[#0f49bd]/10" />
-            <div className="relative z-10">
-              <h4 className="m-0 mb-1 text-sm font-bold text-[#0f49bd]">New Rubric Update</h4>
-              <p className="m-0 mb-3 text-xs text-slate-600">The IELTS writing evaluation criteria has been slightly updated for Task 1.</p>
-              <button type="button" className="inline-flex items-center gap-1 bg-transparent p-0 text-xs font-bold text-[#0f49bd] hover:text-[#0d3ea3]">
-                Read Guidelines <ArrowRight size={14} aria-hidden="true" />
-              </button>
-            </div>
-          </div>
         </aside>
       </main>
     </div>

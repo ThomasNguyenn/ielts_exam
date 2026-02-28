@@ -15,6 +15,38 @@ const LISTENING_AUDIO_REWIND_SECONDS = 5;
 const LISTENING_TIMER_REWIND_SECONDS = 10;
 const LISTENING_RESUME_NOTICE_MS = 3800;
 
+const resolveRequestedStepIndex = (search, steps) => {
+  const params = new URLSearchParams(search);
+  const partParam = params.get('part');
+  if (partParam === null || steps.length === 0) return 0;
+
+  const requestedPartIndex = Number.parseInt(partParam, 10);
+  if (!Number.isFinite(requestedPartIndex)) return 0;
+
+  const maxStep = steps.length - 1;
+  const normalizedPartIndex =
+    requestedPartIndex > maxStep && requestedPartIndex - 1 >= 0 && requestedPartIndex - 1 <= maxStep
+      ? requestedPartIndex - 1
+      : requestedPartIndex;
+
+  return Math.max(0, Math.min(maxStep, normalizedPartIndex));
+};
+
+const resolveSingleModeDurationMinutes = (step) => {
+  const stepType = String(step?.type || '').toLowerCase();
+  const stepLabel = String(step?.label || '').toLowerCase();
+
+  if (stepType === 'listening') return 10;
+  if (stepType === 'reading') return 20;
+
+  if (stepType === 'writing') {
+    if (stepLabel.includes('task 2')) return 40;
+    return 20;
+  }
+
+  return 60;
+};
+
 export default function Exam() {
   const { id } = useParams();
   const [exam, setExam] = useState(null);
@@ -118,7 +150,11 @@ export default function Exam() {
         setListeningResumeNotice('');
 
         const duration = examData.duration || 60;
-        const defaultTimeRemaining = duration * 60;
+        const initialStepIndex = isSingleMode ? resolveRequestedStepIndex(location.search, steps) : 0;
+        const singleModeDuration = isSingleMode
+          ? resolveSingleModeDurationMinutes(steps[initialStepIndex])
+          : null;
+        const defaultTimeRemaining = (singleModeDuration ?? duration) * 60;
         let restoredFromDraft = false;
 
         try {
@@ -207,19 +243,9 @@ export default function Exam() {
         }
 
         if (!restoredFromDraft) {
-          const searchParams = new URLSearchParams(location.search);
-          const partParam = searchParams.get('part');
-          if (partParam !== null) {
-            const requestedPartIndex = Number.parseInt(partParam, 10);
-            if (Number.isFinite(requestedPartIndex) && steps.length > 0) {
-              const maxStep = steps.length - 1;
-              const normalizedPartIndex =
-                requestedPartIndex > maxStep && requestedPartIndex - 1 >= 0 && requestedPartIndex - 1 <= maxStep
-                  ? requestedPartIndex - 1
-                  : requestedPartIndex;
-              const safeStep = Math.max(0, Math.min(maxStep, normalizedPartIndex));
-              setCurrentStep(safeStep);
-            }
+          if (isSingleMode) {
+            const safeStep = resolveRequestedStepIndex(location.search, steps);
+            setCurrentStep(safeStep);
           }
           setStartTime(Date.now());
         }

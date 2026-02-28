@@ -1,4 +1,4 @@
-# Future Roadmap: LearnReact (IELTS Platform)
+ik# Future Roadmap: LearnReact (IELTS Platform)
 
 This document outlines potential future enhancements for the platform, categorized by impactful areas.
 
@@ -57,3 +57,22 @@ This document outlines potential future enhancements for the platform, categoriz
 
 ### Live Tutoring Integration
 *   **Feature**: Booking system for 1-on-1 sessions with human tutors for high-tier users.
+
+## Recent Implementation Notes
+
+### Student Writing Submission View
+- Route: `/tests/writing/submissions/:id`
+- Update: When a student opens a writing submission, Task 1 now also shows the task image (if available).
+- Frontend source updated: `frontend/src/features/tests/pages/WritingSubmissionView.jsx`
+- Image fields supported in submission answers:
+  - `task_image`
+  - `image_url`
+
+### Single-part Test Timers
+- Route pattern: `/tests/:id/exam?mode=single&part=:index`
+- Update: custom timer duration by part type:
+  - Listening part: **10 minutes**
+  - Reading part: **20 minutes**
+  - Writing Task 1: **20 minutes**
+  - Writing Task 2: **40 minutes**
+- Frontend source updated: `frontend/src/features/tests/pages/Exam.jsx`
