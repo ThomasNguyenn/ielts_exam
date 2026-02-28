@@ -575,7 +575,7 @@ OUTPUT: CHỈ TRẢ JSON HỢP LỆ
       createPayload: (model) => ({
         model,
         messages: [{ role: "user", content: userMessageContent.length > 0 ? userMessageContent : systemPrompt }],
-        max_tokens: 10000,
+        max_completion_tokens: 5000,
         response_format: { type: "json_object" },
       }),
       timeoutMs: Number(process.env.OPENAI_TIMEOUT_MS || 60000),

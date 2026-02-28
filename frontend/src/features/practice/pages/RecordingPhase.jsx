@@ -394,6 +394,7 @@ export default function RecordingPhase({ topic, onComplete }) {
         : 'Tip: Give clear opinions, explain your reasoning, and add a short example.'));
 
   const topicLabel = String(topic?.title || 'General').trim() || 'General';
+  const promptText = String(topic?.prompt || '').trim();
   const part2QuestionTitle = String(
     topic?.part2_question_title || topic?.prompt || topic?.title || 'Speaking prompt unavailable',
   ).trim();
@@ -407,10 +408,10 @@ export default function RecordingPhase({ topic, onComplete }) {
     ? (isPart3Conversational ? 'Conversation Task' : 'Discussion Task')
     : (topicPart === 2 ? 'Cue Card Task' : (topicPart === 1 ? 'Introduction Task' : 'Speaking Task'));
   const cueHeading = isPart3Conversational
-    ? String(currentQuestion?.text || topic?.prompt || 'Speaking prompt unavailable')
+    ? String(currentQuestion?.text || promptText || 'Speaking prompt unavailable')
     : (topicPart === 2
       ? part2QuestionTitle
-      : String(topic?.title || topic?.prompt || 'Speaking prompt unavailable'));
+      : (promptText || String(topic?.title || 'Speaking prompt unavailable')));
 
   return (
     <section className="rp2-page">
@@ -425,40 +426,42 @@ export default function RecordingPhase({ topic, onComplete }) {
 
             <h2 className="rp2-title">{cueHeading}</h2>
 
-            <div className="rp2-body">
-              {isPart3Conversational ? (
-                <>
-                  <p className="rp2-part3-counter">
-                    Question {questionIndex + 1} / {conversationQuestions.length}
-                  </p>
-                  {currentQuestion?.audioUrl ? (
-                    <audio
-                      ref={questionAudioRef}
-                      key={`${currentQuestion.key}-${currentQuestion.audioUrl}`}
-                      src={currentQuestion.audioUrl}
-                      controls={!isRecording}
-                      preload="auto"
-                      className={`rp2-question-audio ${isRecording ? 'rp2-question-audio--hidden' : ''}`}
-                    />
-                  ) : (
-                    <p className="rp2-audio-note">Read-aloud audio is not available yet for this question.</p>
-                  )}
-                </>
-              ) : (
-                <>
-                  <p className="rp2-bullet-title">{promptListLabel}</p>
-                  {cueBullets.length > 0 ? (
-                    <ul className="rp2-bullets">
-                      {cueBullets.map((item, index) => (
-                        <li key={`bullet-${index}`}>{item}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="rp2-audio-note">{emptyPromptMessage}</p>
-                  )}
-                </>
-              )}
-            </div>
+            {topicPart !== 1 ? (
+              <div className="rp2-body">
+                {isPart3Conversational ? (
+                  <>
+                    <p className="rp2-part3-counter">
+                      Question {questionIndex + 1} / {conversationQuestions.length}
+                    </p>
+                    {currentQuestion?.audioUrl ? (
+                      <audio
+                        ref={questionAudioRef}
+                        key={`${currentQuestion.key}-${currentQuestion.audioUrl}`}
+                        src={currentQuestion.audioUrl}
+                        controls={!isRecording}
+                        preload="auto"
+                        className={`rp2-question-audio ${isRecording ? 'rp2-question-audio--hidden' : ''}`}
+                      />
+                    ) : (
+                      <p className="rp2-audio-note">Read-aloud audio is not available yet for this question.</p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <p className="rp2-bullet-title">{promptListLabel}</p>
+                    {cueBullets.length > 0 ? (
+                      <ul className="rp2-bullets">
+                        {cueBullets.map((item, index) => (
+                          <li key={`bullet-${index}`}>{item}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="rp2-audio-note">{emptyPromptMessage}</p>
+                    )}
+                  </>
+                )}
+              </div>
+            ) : null}
 
             <div className="rp2-tip">
               <LightbulbOutlined className="rp2-tip-icon" />

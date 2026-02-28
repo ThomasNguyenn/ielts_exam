@@ -183,9 +183,9 @@ describe('RecordingPhase UI merge', () => {
 
     expect(screen.getByText('Introduction Task')).toBeInTheDocument();
     expect(screen.queryByText('Cue Card Task')).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /Hometown/i })).toBeInTheDocument();
-    expect(screen.getByText('Common questions:')).toBeInTheDocument();
-    expect(screen.getByText('What do you like most about it?')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Do you like your hometown/i })).toBeInTheDocument();
+    expect(screen.queryByText('Common questions:')).not.toBeInTheDocument();
+    expect(screen.queryByText('What do you like most about it?')).not.toBeInTheDocument();
   });
 
   it('renders Part 3 conversational label and question counter', () => {

@@ -65,6 +65,17 @@ const parseAnalysisObject = (value) => {
   return null;
 };
 
+const normalizeSpeakingPart = (value) => {
+  const parsed = Number(value);
+  if ([1, 2, 3].includes(parsed)) return parsed;
+
+  const normalized = String(value || '').trim().toLowerCase();
+  if (['part1', 'part 1', 'p1'].includes(normalized)) return 1;
+  if (['part2', 'part 2', 'p2'].includes(normalized)) return 2;
+  if (['part3', 'part 3', 'p3'].includes(normalized)) return 3;
+  return 0;
+};
+
 const hasMeaningfulAnalysis = (analysis) => (
   Boolean(analysis) && typeof analysis === 'object' && Object.keys(analysis).length > 0
 );
@@ -312,10 +323,12 @@ export default function SpeakingFlow() {
       boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
     };
   const topicCategory = String(topic?.title || '').trim();
-  const part2QuestionTitle = String(topic?.part2_question_title || topic?.prompt || topicCategory).trim();
-  const headerTitle = Number(topic?.part || 0) === 2
+  const promptText = String(topic?.prompt || '').trim();
+  const topicPart = normalizeSpeakingPart(topic?.part);
+  const part2QuestionTitle = String(topic?.part2_question_title || promptText || topicCategory).trim();
+  const headerTitle = topicPart === 2
     ? part2QuestionTitle
-    : (topicCategory || String(topic?.prompt || 'Speaking topic').trim());
+    : (promptText || topicCategory || 'Speaking topic');
 
   return (
     <div className="practice-flow-container" style={containerStyle}>
