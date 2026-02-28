@@ -42,7 +42,8 @@ const Vocabulary = lazy(() => import('@/features/vocabulary/pages/Vocabulary'));
 const ScoreDashboard = lazy(() => import('@/features/admin/pages/ScoreDashboard'));
 const UserScoreDetail = lazy(() => import('@/features/admin/pages/UserScoreDetail'));
 const WritingAIResult = lazy(() => import('@/features/practice/pages/WritingAIResult'));
-const SkillWorkshopPage = lazy(() => import('@/features/practice/pages/SkillWorkshopPage'));
+const LearnPage = lazy(() => import('@/features/learn/pages/LearnPage'));
+const LearnModuleDetail = lazy(() => import('@/features/learn/pages/LearnModuleDetail'));
 const StudyPlanSetup = lazy(() => import('@/features/study-plan/pages/StudyPlanSetup'));
 const StudyPlanFullView = lazy(() => import('@/features/study-plan/pages/StudyPlanFullView'));
 const AnalyticsContainer = lazy(() => import('@/features/analytics/pages/AnalyticsContainer'));
@@ -117,6 +118,18 @@ function AnalyticsLegacyRedirect() {
   return <Navigate to={`${basePath}${location.search || ''}`} replace />;
 }
 
+function HomeIndexRoute() {
+  if (api.isAuthenticated()) {
+    const user = api.getUser();
+    if (user?.role === 'student' && !user?.isConfirmed) {
+      return <Navigate to="/wait-for-confirmation" replace />;
+    }
+    return <Navigate to="/profile" replace />;
+  }
+
+  return withSuspense(<Home />);
+}
+
 export default function App() {
   const [authBootstrapReady, setAuthBootstrapReady] = useState(false);
 
@@ -148,7 +161,7 @@ export default function App() {
       <AchievementToast />
       <Routes>
         <Route path="/" element={withSuspense(<Layout />)}>
-          <Route index element={withSuspense(<Home />)} />
+          <Route index element={<HomeIndexRoute />} />
           <Route path="tests" element={withSuspense(<TestList />)} />
           <Route path="tests/:id" element={withSuspense(<TestDetail />)} />
           <Route path="tests/:id/history" element={<ProtectedRoute>{withSuspense(<TestHistory />)}</ProtectedRoute>} />
@@ -161,7 +174,8 @@ export default function App() {
           {/* <Route path="practice" element={<Navigate to="/tests" replace />} /> Redirect old practice to tests */}
           <Route path="practice" element={<ProtectedRoute>{withSuspense(<PracticeList />)}</ProtectedRoute>} />
           <Route path="practice/:id" element={<ProtectedRoute>{withSuspense(<PracticeFlowContainer />)}</ProtectedRoute>} />
-          <Route path="learn/skills" element={<ProtectedRoute>{withSuspense(<SkillWorkshopPage />)}</ProtectedRoute>} />
+          <Route path="learn" element={<ProtectedRoute>{withSuspense(<LearnPage />)}</ProtectedRoute>} />
+          <Route path="learn/:moduleId" element={<ProtectedRoute>{withSuspense(<LearnModuleDetail />)}</ProtectedRoute>} />
 
           <Route path="speaking" element={<ProtectedRoute>{withSuspense(<SpeakingList />)}</ProtectedRoute>} />
           <Route path="practice/speaking/:id" element={<ProtectedRoute>{withSuspense(<SpeakingFlow />)}</ProtectedRoute>} />

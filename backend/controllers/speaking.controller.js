@@ -73,12 +73,24 @@ const withTimeout = async (promise, timeoutMs, timeoutMessage) => {
   }
 };
 
+const normalizeCueCardText = (value = "") => {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => String(item || "").trim())
+      .filter(Boolean)
+      .join("\n");
+  }
+  return String(value || "").trim();
+};
+
 const pickSpeakingPayload = (body = {}, { allowId = false } = {}) => {
   const allowed = [
     "title",
     "part",
     "prompt",
+    "cue_card",
     "sub_questions",
+    "image_url",
     "read_aloud",
     "keywords",
     "sample_highlights",
@@ -89,12 +101,18 @@ const pickSpeakingPayload = (body = {}, { allowId = false } = {}) => {
     allowed.push("_id");
   }
 
-  return allowed.reduce((acc, field) => {
+  const payload = allowed.reduce((acc, field) => {
     if (Object.prototype.hasOwnProperty.call(body, field)) {
       acc[field] = body[field];
     }
     return acc;
   }, {});
+
+  if (Object.prototype.hasOwnProperty.call(payload, "cue_card")) {
+    payload.cue_card = normalizeCueCardText(payload.cue_card);
+  }
+
+  return payload;
 };
 
 const uploadSpeakingAudio = async (audioFile) => {
@@ -176,7 +194,8 @@ export const getSpeakings = async (req, res) => {
       const safeRegex = new RegExp(escapeRegex(String(req.query.q).trim()), 'i');
       filter.$or = [
         { title: safeRegex },
-        { prompt: safeRegex }
+        { prompt: safeRegex },
+        { cue_card: safeRegex }
       ];
     }
 

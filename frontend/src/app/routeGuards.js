@@ -31,5 +31,5 @@ export function resolvePublicRouteRedirect({ isAuthenticated, user }) {
     return '/wait-for-confirmation';
   }
 
-  return '/';
+  return '/profile';
 }

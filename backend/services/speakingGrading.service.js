@@ -102,6 +102,24 @@ const normalizeSpeakingPart = (value) => {
   return 0;
 };
 
+const extractCueCardLines = (cueCard = "") =>
+  String(cueCard || "")
+    .split(/\r?\n/)
+    .map((item) => String(item || "").replace(/^[\s\-*•]+/, "").trim())
+    .filter(Boolean);
+
+const resolveTopicCuePoints = (topic = {}) => {
+  const part = normalizeSpeakingPart(topic?.part);
+  if (part !== 2) {
+    return Array.isArray(topic?.sub_questions) ? topic.sub_questions : [];
+  }
+
+  const cueCardLines = extractCueCardLines(topic?.cue_card || "");
+  if (cueCardLines.length > 0) return cueCardLines;
+
+  return Array.isArray(topic?.sub_questions) ? topic.sub_questions : [];
+};
+
 const formatSubQuestionLines = (subQuestions = []) => {
   const lines = (Array.isArray(subQuestions) ? subQuestions : [])
     .map((item) => String(item || "").trim())
@@ -782,10 +800,11 @@ export const scoreSpeakingSessionById = async ({ sessionId, force = false } = {}
   const clientTranscript = String(session.transcript || "").trim();
   const clientWPM = Number(session?.metrics?.wpm || 0);
   const parsedMetrics = session?.metrics?.pauses || {};
+  const cuePoints = resolveTopicCuePoints(topic);
   const prompt = buildStrictSpeakingPrompt({
     topicPrompt: topic.prompt,
     topicPart: topic.part,
-    subQuestions: topic.sub_questions || [],
+    subQuestions: cuePoints,
     clientWPM,
     parsedMetrics,
     clientTranscript,

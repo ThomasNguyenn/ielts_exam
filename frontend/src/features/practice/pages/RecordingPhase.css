@@ -1,0 +1,487 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap');
+
+.rp2-page {
+  width: 100%;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: #0f172a;
+}
+
+.rp2-shell {
+  width: min(1200px, 100%);
+  margin: 0 auto;
+  padding: 0.5rem 0;
+}
+
+.rp2-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2rem;
+  min-height: 600px;
+}
+
+.rp2-card {
+  border-radius: 1rem;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+  position: relative;
+  overflow: hidden;
+}
+
+.rp2-card--prompt {
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.rp2-card-topline {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 100%;
+  height: 4px;
+  background: #0f49bd;
+}
+
+.rp2-card-head {
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.rp2-kicker {
+  color: #94a3b8;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rp2-topic-badge {
+  background: #eff6ff;
+  color: #0f49bd;
+  border-radius: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.3rem 0.55rem;
+}
+
+.rp2-title {
+  margin: 0 0 1.5rem;
+  color: #0f172a;
+  font-size: clamp(1.45rem, 2vw, 1.85rem);
+  line-height: 1.35;
+  font-weight: 700;
+}
+
+.rp2-body {
+  flex: 1;
+  margin-bottom: 1.4rem;
+}
+
+.rp2-bullet-title {
+  margin: 0 0 0.75rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.rp2-bullets {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  color: #475569;
+  font-size: 1rem;
+  line-height: 1.65;
+}
+
+.rp2-bullets li::marker {
+  color: #94a3b8;
+}
+
+.rp2-part3-counter {
+  margin: 0 0 0.75rem;
+  color: #0f49bd;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.rp2-question-audio {
+  width: 100%;
+  margin-top: 0.35rem;
+}
+
+.rp2-question-audio--hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.rp2-audio-note {
+  margin: 0.2rem 0 0;
+  color: #64748b;
+  font-size: 0.92rem;
+}
+
+.rp2-tip {
+  border-radius: 0.65rem;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  padding: 0.9rem;
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-start;
+}
+
+.rp2-tip-icon {
+  color: #94a3b8;
+  font-size: 1.25rem !important;
+  margin-top: 0.08rem;
+}
+
+.rp2-tip p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  font-style: italic;
+}
+
+.rp2-card--record {
+  min-height: 500px;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.rp2-record-indicator {
+  position: absolute;
+  right: 1.4rem;
+  top: 1.2rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #ef4444;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+
+.rp2-dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 999px;
+  background: #94a3b8;
+}
+
+.rp2-dot.is-live {
+  background: #ef4444;
+  box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5);
+  animation: rp2-live-ping 1.4s infinite;
+}
+
+@keyframes rp2-live-ping {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+.rp2-mic-stage {
+  position: relative;
+  margin-bottom: 2.1rem;
+  width: 128px;
+  height: 128px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rp2-pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.rp2-pulse--outer {
+  background: rgba(15, 73, 189, 0.08);
+  transform: scale(1.45);
+  animation: rp2-pulse 3s ease-in-out infinite;
+}
+
+.rp2-pulse--inner {
+  background: rgba(15, 73, 189, 0.12);
+  transform: scale(1.25);
+  animation: rp2-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes rp2-pulse {
+  0%, 100% {
+    opacity: 0.95;
+    transform: scale(1.18);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.45);
+  }
+}
+
+.rp2-mic-btn {
+  position: relative;
+  z-index: 1;
+  width: 128px;
+  height: 128px;
+  border: none;
+  border-radius: 999px;
+  background: #0f49bd;
+  color: #ffffff;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 20px 36px rgba(15, 73, 189, 0.25);
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.rp2-mic-btn svg {
+  font-size: 3.1rem !important;
+}
+
+.rp2-mic-btn:hover:not(:disabled) {
+  background: #0c3a96;
+  transform: scale(1.05);
+}
+
+.rp2-mic-btn:disabled {
+  cursor: default;
+  opacity: 0.92;
+}
+
+.rp2-wave {
+  width: min(220px, 100%);
+  height: 64px;
+  margin-bottom: 1.3rem;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 0.38rem;
+}
+
+.rp2-wave-bar {
+  width: 4px;
+  min-height: 10%;
+  border-radius: 999px;
+  background: #0f49bd;
+}
+
+.rp2-wave.is-live .rp2-wave-bar {
+  animation: rp2-wave 1.2s ease-in-out infinite;
+}
+
+.rp2-wave.is-live .rp2-wave-bar:nth-child(odd) {
+  animation-duration: 0.8s;
+}
+
+.rp2-wave.is-live .rp2-wave-bar:nth-child(2n) {
+  animation-duration: 1.1s;
+}
+
+.rp2-wave.is-live .rp2-wave-bar:nth-child(3n) {
+  animation-duration: 1.3s;
+}
+
+.rp2-wave.is-live .rp2-wave-bar:nth-child(4n) {
+  animation-duration: 0.9s;
+}
+
+@keyframes rp2-wave {
+  0%, 100% {
+    transform: scaleY(0.55);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.rp2-status-text {
+  margin: 0;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.rp2-time {
+  margin: 0.55rem 0 1.2rem;
+  color: #334155;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+}
+
+.rp2-action-row {
+  width: min(540px, 100%);
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.rp2-btn {
+  border-radius: 0.55rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 2px solid transparent;
+  padding: 0.8rem 1.1rem;
+  min-height: 48px;
+}
+
+.rp2-btn svg {
+  font-size: 1.25rem !important;
+}
+
+.rp2-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.rp2-btn--ghost-danger {
+  flex: 1;
+  min-width: 185px;
+  border-color: #e2e8f0;
+  background: #ffffff;
+  color: #334155;
+}
+
+.rp2-btn--ghost-danger:hover:not(:disabled) {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.rp2-btn--primary-outline {
+  flex: 1;
+  min-width: 220px;
+  border-color: #0f49bd;
+  background: #ffffff;
+  color: #0f49bd;
+}
+
+.rp2-btn--primary-outline:hover:not(:disabled) {
+  background: #0f49bd;
+  color: #ffffff;
+}
+
+.rp2-audio-preview {
+  width: min(540px, 100%);
+  margin-top: 0.25rem;
+  margin-bottom: 0.85rem;
+}
+
+.rp2-warning {
+  margin: 0 0 0.9rem;
+  color: #b45309;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.rp2-btn--outline {
+  flex: 1;
+  min-width: 160px;
+  border-color: #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+}
+
+.rp2-btn--outline:hover:not(:disabled) {
+  border-color: #94a3b8;
+  background: #f8fafc;
+}
+
+.rp2-btn--submit {
+  flex: 1;
+  min-width: 220px;
+  border-color: transparent;
+  background: #0f49bd;
+  color: #ffffff;
+}
+
+.rp2-btn--submit:hover:not(:disabled) {
+  background: #0c3a96;
+}
+
+@media (max-width: 1080px) {
+  .rp2-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .rp2-card--record {
+    min-height: 460px;
+  }
+}
+
+@media (max-width: 768px) {
+  .rp2-card--prompt,
+  .rp2-card--record {
+    padding: 1.1rem;
+  }
+
+  .rp2-card-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .rp2-record-indicator {
+    position: static;
+    margin-bottom: 1rem;
+    align-self: flex-end;
+  }
+
+  .rp2-mic-stage,
+  .rp2-mic-btn {
+    width: 108px;
+    height: 108px;
+  }
+
+  .rp2-mic-btn svg {
+    font-size: 2.55rem !important;
+  }
+
+  .rp2-action-row {
+    flex-direction: column;
+  }
+
+  .rp2-btn {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rp2-dot.is-live,
+  .rp2-pulse,
+  .rp2-wave.is-live .rp2-wave-bar,
+  .rp2-btn,
+  .rp2-mic-btn {
+    animation: none !important;
+    transition: none !important;
+  }
+}

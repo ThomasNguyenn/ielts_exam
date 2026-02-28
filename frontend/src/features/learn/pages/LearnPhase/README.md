@@ -1,6 +1,6 @@
 # README
 
-Path: src/features/practice/pages/EnhancedPracticeFlow/Phase1Learn
+Path: src/features/learn/pages/LearnPhase
 
 Purpose: Phase 1: learn concepts and checkpoint quiz.
 

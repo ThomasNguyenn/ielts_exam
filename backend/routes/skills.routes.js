@@ -7,6 +7,9 @@ const router = express.Router();
 // All skill routes require authentication
 router.use(verifyToken);
 
+// Get categories summary
+router.get('/categories', skillsController.getCategories);
+
 // Get all modules
 router.get('/modules', skillsController.getAllModules);
 

@@ -2,7 +2,12 @@
 import mongoose from 'mongoose';
 
 
-const clientOptions = { serverApi: { version: '1', strict: true, deprecationErrors: true } };
+const clientOptions = {
+  serverApi: { version: '1', strict: true, deprecationErrors: true },
+  maxPoolSize: 50,
+  minPoolSize: 5,
+  maxIdleTimeMS: 30000,
+};
 const STATE_LABELS = {
   0: "disconnected",
   1: "connected",
@@ -19,7 +24,7 @@ export const connectDB = async function run() {
   } catch (error) {
     console.error("Database connection failed", error);
     process.exit(1);
-  }   
+  }
 }
 
 export const getDBHealth = async ({ includePing = false } = {}) => {

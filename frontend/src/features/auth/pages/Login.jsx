@@ -19,7 +19,7 @@ export default function Login() {
       const res = await api.login(form);
       api.setToken(res.data.token);
       api.setUser(res.data.user);
-      navigate('/');
+      navigate('/profile', { replace: true });
     } catch (err) {
       setError(err.message);
     } finally {

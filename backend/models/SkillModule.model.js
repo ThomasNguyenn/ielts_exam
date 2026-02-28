@@ -47,6 +47,27 @@ const skillModuleSchema = new mongoose.Schema({
         required: true,
         min: 1
     },
+    category: {
+        type: String,
+        enum: ['listening', 'reading', 'writing', 'speaking'],
+        default: 'writing',
+        index: true,
+    },
+    difficulty: {
+        type: String,
+        enum: ['beginner', 'intermediate', 'advanced'],
+        default: 'beginner',
+    },
+    tag: {
+        type: String,
+        default: '',
+        trim: true,
+    },
+    path: {
+        type: String,
+        default: '',
+        trim: true,
+    },
     title: {
         type: String,
         required: true
@@ -76,16 +97,6 @@ const skillModuleSchema = new mongoose.Schema({
         type: Number,
         default: 10
     },
-    unlockRequirement: {
-        previousModule: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'SkillModule'
-        },
-        minimumScore: {
-            type: Number,
-            default: 70
-        }
-    },
     icon: {
         type: String,
         default: '📚'
@@ -105,6 +116,7 @@ const skillModuleSchema = new mongoose.Schema({
 // Index for efficient querying
 skillModuleSchema.index({ moduleNumber: 1, order: 1 });
 skillModuleSchema.index({ isActive: 1 });
+skillModuleSchema.index({ category: 1, path: 1, order: 1 });
 
 const SkillModule = mongoose.models.SkillModule || mongoose.model('SkillModule', skillModuleSchema);
 export default SkillModule;

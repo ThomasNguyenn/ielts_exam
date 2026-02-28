@@ -31,6 +31,7 @@ export default function TestList() {
   const [allCategoryCounts, setAllCategoryCounts] = useState({});
   const [overallTotalTests, setOverallTotalTests] = useState(null);
   const isLoggedIn = api.isAuthenticated();
+  const requestedCategory = viewMode === 'full' ? selectedCategory : 'all';
 
   useEffect(() => {
     if (searchInput === searchQuery) return;
@@ -56,28 +57,37 @@ export default function TestList() {
   }, [viewMode]);
 
   useEffect(() => {
+    setCurrentPage(1);
+  }, [viewMode]);
+
+  useEffect(() => {
     setError(null);
     if (!loading) setIsFetching(true);
 
+    const requestParams = {
+      type: selectedType !== 'all' ? selectedType : undefined,
+      q: searchQuery.trim() || undefined,
+      includeQuestionGroupTypes: true,
+    };
+
+    if (viewMode === 'full') {
+      requestParams.page = currentPage;
+      requestParams.limit = PAGE_SIZE;
+      requestParams.category = requestedCategory !== 'all' ? requestedCategory : undefined;
+    }
+
     api
-      .getTests({
-        page: currentPage,
-        limit: PAGE_SIZE,
-        type: selectedType !== 'all' ? selectedType : undefined,
-        category: selectedCategory !== 'all' ? selectedCategory : undefined,
-        q: searchQuery.trim() || undefined,
-        includeQuestionGroupTypes: true,
-      })
+      .getTests(requestParams)
       .then((res) => {
         setTests(res.data || []);
-        setPagination(res.pagination || null);
+        setPagination(viewMode === 'full' ? (res.pagination || null) : null);
       })
       .catch((err) => setError(err.message))
       .finally(() => {
         setLoading(false);
         setIsFetching(false);
       });
-  }, [currentPage, selectedType, selectedCategory, searchQuery]);
+  }, [currentPage, requestedCategory, selectedType, searchQuery, viewMode]);
 
   useEffect(() => {
     let isMounted = true;
@@ -246,21 +256,22 @@ export default function TestList() {
   const getCategory = (test) => (test.category || '').trim() || 'Uncategorized';
   const getType = (test) => (test.type || 'reading');
   const matchesType = (test) => selectedType === 'all' || getType(test) === selectedType;
+  const normalizedQuery = searchQuery.trim().toLowerCase();
 
   // Primary filtering of tests
   const typeFilteredTests = tests.filter(matchesType);
-  const filteredTests = typeFilteredTests
-    .filter((test) => selectedCategory === 'all' || getCategory(test) === selectedCategory)
+  const searchFilteredTests = typeFilteredTests
     .filter((test) => {
-      if (!searchQuery.trim()) return true;
-      const query = searchQuery.toLowerCase();
+      if (!normalizedQuery) return true;
       return (
-        test.title.toLowerCase().includes(query) ||
-        test._id.toLowerCase().includes(query) ||
-        getCategory(test).toLowerCase().includes(query) ||
-        getType(test).toLowerCase().includes(query)
+        test.title.toLowerCase().includes(normalizedQuery) ||
+        test._id.toLowerCase().includes(normalizedQuery) ||
+        getCategory(test).toLowerCase().includes(normalizedQuery) ||
+        getType(test).toLowerCase().includes(normalizedQuery)
       );
     });
+  const categoryFilteredTests = searchFilteredTests
+    .filter((test) => selectedCategory === 'all' || getCategory(test) === selectedCategory);
 
   // [Skipping to filteredParts logic]
   // We need to inject the logic into the calculation block
@@ -270,11 +281,12 @@ export default function TestList() {
   let categoryCounts = {};
   let groupedTests = {};
   let flattenedParts = [];
+  let allPartsCount = 0;
   let questionGroupOptions = [{ value: 'all', label: 'All Question Groups' }];
   const canUseQuestionGroupFilter = viewMode === 'parts' && (selectedType === 'reading' || selectedType === 'listening');
 
   if (viewMode === 'full') {
-    const fallbackCategoryCounts = typeFilteredTests.reduce((acc, test) => {
+    const fallbackCategoryCounts = searchFilteredTests.reduce((acc, test) => {
       const cat = getCategory(test);
       acc[cat] = (acc[cat] || 0) + 1;
       return acc;
@@ -288,7 +300,7 @@ export default function TestList() {
 
     categories = Object.keys(categoryCounts).sort((a, b) => a.localeCompare(b));
 
-    groupedTests = filteredTests.reduce((acc, test) => {
+    groupedTests = categoryFilteredTests.reduce((acc, test) => {
       const cat = getCategory(test);
       if (!acc[cat]) acc[cat] = [];
       acc[cat].push(test);
@@ -296,7 +308,7 @@ export default function TestList() {
     }, {});
   } else {
     // Flatten parts
-    filteredTests.forEach(test => {
+    searchFilteredTests.forEach(test => {
       const cat = getCategory(test);
 
       // Reading Passages
@@ -409,13 +421,10 @@ export default function TestList() {
     }
 
     categories = Object.keys(categoryCounts).sort((a, b) => a.localeCompare(b));
-    if (Object.keys(categoryCounts).length === 0) {
-      categories = Array.from(new Set(flattenedParts.map(p => p.category))).sort();
-      categoryCounts = categories.reduce((acc, cat) => {
-        acc[cat] = flattenedParts.filter(p => p.category === cat).length;
-        return acc;
-      }, {});
-    }
+    allPartsCount = flattenedParts.length;
+    flattenedParts = selectedCategory === 'all'
+      ? flattenedParts
+      : flattenedParts.filter((part) => part.category === selectedCategory);
 
     // Group parts
     groupedTests = flattenedParts.reduce((acc, part) => {
@@ -427,6 +436,7 @@ export default function TestList() {
 
   const completedCount = Object.keys(attemptSummary).length;
   const statsTotalTests = overallTotalTests ?? (pagination?.totalItems ?? tests.length);
+  const allTestsCount = Object.values(categoryCounts).reduce((sum, count) => sum + Number(count || 0), 0);
 
   return (
     <div className="page test-list">
@@ -503,7 +513,7 @@ export default function TestList() {
                 setCurrentPage(1);
               }}
             >
-              All {viewMode === 'full' ? 'Tests' : 'Parts'} ({viewMode === 'full' ? (pagination?.totalItems ?? typeFilteredTests.length) : flattenedParts.length})
+              All {viewMode === 'full' ? 'Tests' : 'Parts'} ({viewMode === 'full' ? (allTestsCount || (pagination?.totalItems ?? searchFilteredTests.length)) : allPartsCount})
             </button>
             {categories.map((cat) => (
               <button

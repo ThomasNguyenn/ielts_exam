@@ -655,7 +655,9 @@ export const api = {
   },
 
   // Skill Modules (New Practice Flow)
-  getSkillModules: () => request('/api/skills/modules'),
+  getSkillCategories: () => request('/api/skills/categories'),
+  getSkillModules: (category) =>
+    request(`/api/skills/modules${category ? `?category=${encodeURIComponent(category)}` : ''}`),
   getSkillModule: (id) => request(`/api/skills/modules/${id}`),
   completeSkillModule: (id) => request(`/api/skills/modules/${id}/complete`, { method: 'POST' }),
   submitSkillQuiz: (id, answers) => request(`/api/skills/modules/${id}/quiz`, { method: 'POST', body: JSON.stringify({ answers }) }),

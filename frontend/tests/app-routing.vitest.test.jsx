@@ -39,6 +39,10 @@ vi.mock("@/features/home/pages/Home", () => ({
   default: () => <div>Home Page</div>,
 }));
 
+vi.mock("@/features/profile/pages/Profile", () => ({
+  default: () => <div>Profile Page</div>,
+}));
+
 vi.mock("@/features/auth/pages/Login", () => ({
   default: () => <div>Login Page</div>,
 }));
@@ -75,7 +79,7 @@ describe("App route guards", () => {
 
     renderAppAt("/manage");
 
-    expect(await screen.findByText("Home Page")).toBeInTheDocument();
+    expect(await screen.findByText("Profile Page")).toBeInTheDocument();
   });
 
   it("redirects unconfirmed students from public auth routes to wait page", async () => {

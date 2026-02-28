@@ -12,6 +12,7 @@ function speakingToForm(speaking) {
       title: '',
       part: '1',
       prompt: '',
+      cue_card: '',
       sub_questions: [],
       keywords: [],
       sample_highlights: '',
@@ -24,11 +25,23 @@ function speakingToForm(speaking) {
     };
   }
 
+  const part = String(speaking.part || '1');
+  const isPart2 = part === '2';
+  const storedTitle = String(speaking.title || '').trim();
+  const storedPrompt = String(speaking.prompt || '').trim();
+  const storedCueCard = String(speaking.cue_card || '').trim();
+  const shouldMigrateLegacyPromptToTitle =
+    isPart2 &&
+    !storedCueCard &&
+    storedPrompt &&
+    storedPrompt !== storedTitle;
+
   return {
     _id: speaking._id || '',
-    title: speaking.title || '',
-    part: String(speaking.part || '1'),
-    prompt: speaking.prompt || '',
+    title: shouldMigrateLegacyPromptToTitle ? storedPrompt : storedTitle,
+    part,
+    prompt: storedPrompt,
+    cue_card: storedCueCard,
     sub_questions: Array.isArray(speaking.sub_questions) ? speaking.sub_questions : [],
     keywords: Array.isArray(speaking.keywords) ? speaking.keywords : [],
     sample_highlights: speaking.sample_highlights || '',
@@ -120,7 +133,8 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
     event?.preventDefault?.();
     event?.stopPropagation?.();
 
-    if (!form.prompt.trim()) {
+    const sourcePrompt = form.part === '2' ? form.title : form.prompt;
+    if (!sourcePrompt.trim()) {
       showNotification('Vui long them cau hoi chinh truoc.', 'warning');
       return;
     }
@@ -129,7 +143,7 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
     try {
       const response = await api.generateSpeakingReadAloud({
         topicId: (form._id || `speaking-${Date.now()}`).trim(),
-        prompt: form.prompt,
+        prompt: sourcePrompt,
         provider: form.aiProvider || 'openai',
         model: form.aiModel || undefined,
         voice: form.aiVoice || undefined,
@@ -154,7 +168,14 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
   const saveSpeaking = async ({ asDraft = false } = {}) => {
     setError(null);
 
-    if (!form._id.trim() || !form.title.trim() || !form.prompt.trim()) {
+    const normalizedPart = Number(form.part);
+    const normalizedTitle = form.title.trim();
+    const normalizedPrompt = normalizedPart === 2
+      ? normalizedTitle
+      : form.prompt.trim();
+    const normalizedCueCard = form.cue_card?.trim() || '';
+
+    if (!form._id.trim() || !normalizedTitle || !normalizedPrompt) {
       showNotification('ID, tiêu đề và câu hỏi chính là bắt buộc.', 'error');
       return;
     }
@@ -163,9 +184,10 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
     try {
       const payload = {
         _id: form._id.trim(),
-        title: form.title.trim(),
-        part: Number(form.part),
-        prompt: form.prompt.trim(),
+        title: normalizedTitle,
+        part: normalizedPart,
+        prompt: normalizedPrompt,
+        cue_card: normalizedCueCard,
         sub_questions: form.sub_questions.filter(Boolean),
         keywords: form.keywords.filter(Boolean),
         sample_highlights: form.sample_highlights?.trim() || '',
@@ -272,12 +294,14 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
             </div>
 
             <div className="manage-input-group">
-              <label className="manage-input-label">Tiêu đề</label>
+              <label className="manage-input-label">
+                {form.part === '2' ? 'Title (Part 2 Question)' : 'Tiêu đề'}
+              </label>
               <input
                 className="manage-input-field"
                 value={form.title}
                 onChange={(event) => updateForm('title', event.target.value)}
-                placeholder="Tiêu đề bài thi"
+                placeholder={form.part === '2' ? 'Enter the Part 2 question title' : 'Tiêu đề bài thi'}
               />
             </div>
 
@@ -292,18 +316,31 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
           </div>
 
           <div className="manage-card">
-            <h3>Câu hỏi Chính</h3>
+            <h3>{form.part === '2' ? 'Cue Card' : 'Câu hỏi Chính'}</h3>
             <div className="manage-input-group" style={{ marginBottom: 0 }}>
-              <label className="manage-input-label">{form.part === '2' ? 'Thẻ Cue Card' : 'Câu hỏi Chính'}</label>
-              <textarea
-                className="manage-input-field"
-                value={form.prompt}
-                onChange={(event) => updateForm('prompt', event.target.value)}
-                rows={8}
-                placeholder={form.part === '2'
-                  ? 'Mô tả một chuyến đi đáng nhớ mà bạn đã trải qua...'
-                  : 'Bạn thích nghe thể loại nhạc nào?'}
-              />
+              {form.part === '2' ? (
+                <>
+                  <label className="manage-input-label">Cue Card Bullets (one point per line)</label>
+                  <textarea
+                    className="manage-input-field"
+                    value={form.cue_card}
+                    onChange={(event) => updateForm('cue_card', event.target.value)}
+                    rows={8}
+                    placeholder={'Describe a time you learned something new\nWhere it happened\nWho taught you\nWhy it was memorable'}
+                  />
+                </>
+              ) : (
+                <>
+                  <label className="manage-input-label">Câu hỏi Chính</label>
+                  <textarea
+                    className="manage-input-field"
+                    value={form.prompt}
+                    onChange={(event) => updateForm('prompt', event.target.value)}
+                    rows={8}
+                    placeholder="Bạn thích nghe thể loại nhạc nào?"
+                  />
+                </>
+              )}
             </div>
           </div>
 
@@ -498,4 +535,3 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
     </div>
   );
 }
-

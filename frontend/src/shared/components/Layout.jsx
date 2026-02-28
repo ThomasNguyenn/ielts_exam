@@ -26,9 +26,16 @@ const NAV_SCHEMA = {
       isActive: (pathname) => pathname === '/',
     },
     {
+      key: 'profile',
+      to: '/profile',
+      label: 'Dashboard',
+      visibility: 'auth',
+      isActive: (pathname) => pathname.startsWith('/profile'),
+    },
+    {
       key: 'tests',
       to: '/tests',
-      label: 'Luyện tập',
+      label: 'Luyện thi',
       visibility: 'all',
       isActive: (pathname) => pathname === '/tests' || pathname.startsWith('/tests/'),
     },
@@ -48,28 +55,10 @@ const NAV_SCHEMA = {
     },
     {
       key: 'skills',
-      to: '/learn/skills',
+      to: '/learn',
       label: 'Lý thuyết',
       visibility: 'all',
-      isActive: (pathname) => pathname.startsWith('/learn/skills'),
-    },
-  ],
-  direct: [
-    {
-      key: 'profile',
-      to: '/profile',
-      label: 'Profile',
-      visibility: 'auth',
-      isActive: (pathname) => pathname.startsWith('/profile'),
-    },
-  ],
-  more: [
-    {
-      key: 'vocabulary',
-      to: '/vocabulary',
-      label: 'Vocabulary',
-      visibility: 'auth',
-      isActive: (pathname) => pathname.startsWith('/vocabulary'),
+      isActive: (pathname) => pathname.startsWith('/learn'),
     },
     {
       key: 'analytics',
@@ -77,6 +66,16 @@ const NAV_SCHEMA = {
       label: 'Phân tích sâu',
       visibility: 'auth',
       isActive: (pathname) => pathname.startsWith('/analytics'),
+    },
+  ],
+  direct: [],
+  more: [
+    {
+      key: 'vocabulary',
+      to: '/vocabulary',
+      label: 'Vocabulary',
+      visibility: 'auth',
+      isActive: (pathname) => pathname.startsWith('/vocabulary'),
     },
     {
       key: 'achievements',
@@ -173,7 +172,10 @@ export default function Layout() {
   const hideHeader = isExamPage;
 
   // Use wide layout for practice pages.
-  const isPracticePage = pathname.includes('/practice') || pathname.includes('/learn/skills');
+  const isPracticePage =
+    pathname.includes('/practice') ||
+    pathname.startsWith('/learn') ||
+    pathname.startsWith('/speaking');
   // Use full width layout for manage pages and test list.
   const isManagePage = isManageRoute || pathname === '/tests' || pathname.startsWith('/scores');
 
@@ -193,7 +195,7 @@ export default function Layout() {
   const isAchievementsPage = pathname.startsWith('/achievements');
 
   const coreItems = useMemo(
-    () => NAV_SCHEMA.core.filter((item) => isItemVisible(item, user)),
+    () => NAV_SCHEMA.core.filter((item) => isItemVisible(item, user) && (item.key !== 'home' || !user)),
     [user],
   );
   const directItems = useMemo(

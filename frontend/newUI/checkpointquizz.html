@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>IELTS Final Course Quiz UI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#0f49bd", // Navy blue
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#101622",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+</head>
+
+<body
+    class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen flex flex-col overflow-hidden">
+    <!-- Sticky Header -->
+    <header
+        class="sticky top-0 z-50 flex items-center justify-between whitespace-nowrap border-b border-solid border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-3 shadow-sm">
+        <div class="flex items-center gap-4">
+            <div class="flex items-center justify-center size-8 rounded bg-primary/10 text-primary">
+                <span class="material-symbols-outlined">school</span>
+            </div>
+            <div>
+                <h2 class="text-slate-900 dark:text-white text-lg font-bold leading-tight">Writing Task 1 Mastery Final
+                    Test</h2>
+                <p class="text-slate-500 text-xs hidden sm:block">IELTS Academic Module • Section 2</p>
+            </div>
+        </div>
+        <!-- Center: Timer & Progress -->
+        <div
+            class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden md:flex flex-col items-center gap-1">
+            <div class="flex items-center gap-2 text-primary font-bold font-mono text-xl">
+                <span class="material-symbols-outlined text-lg">timer</span>
+                <span>00:29:59</span>
+            </div>
+        </div>
+        <div class="flex gap-3">
+            <div class="flex md:hidden items-center gap-2 text-primary font-bold font-mono text-sm mr-2">
+                <span>29:59</span>
+            </div>
+            <button
+                class="flex items-center justify-center rounded-lg h-9 px-4 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors gap-2">
+                <span class="material-symbols-outlined text-[18px]">flag</span>
+                <span class="hidden sm:inline">Report Issue</span>
+            </button>
+            <button
+                class="flex items-center justify-center rounded-lg h-9 px-4 bg-primary text-white text-sm font-bold shadow-md hover:bg-blue-700 transition-colors gap-2">
+                <span class="hidden sm:inline">Finish Test</span>
+                <span class="material-symbols-outlined text-[18px]">check_circle</span>
+            </button>
+        </div>
+    </header>
+    <!-- Main Layout -->
+    <main class="flex flex-1 h-[calc(100vh-64px)] overflow-hidden">
+        <!-- Left Panel: Content & Questions -->
+        <section class="flex-1 overflow-y-auto p-6 md:p-10 lg:pr-16 scroll-smooth">
+            <div class="max-w-3xl mx-auto flex flex-col gap-8 pb-20">
+                <!-- Progress Header inside content for mobile context mostly, but good for UX -->
+                <div class="flex flex-col gap-2">
+                    <div class="flex justify-between items-end">
+                        <span class="text-slate-500 font-medium text-sm">Question 12 of 40</span>
+                        <span class="text-primary font-bold text-sm">30% Completed</span>
+                    </div>
+                    <div class="h-2 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                        <div class="h-full bg-primary w-[30%] rounded-full"></div>
+                    </div>
+                </div>
+                <!-- Question Prompt -->
+                <div class="flex flex-col gap-6">
+                    <div
+                        class="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                        <h1 class="text-2xl md:text-3xl font-black text-slate-900 dark:text-white mb-4">
+                            Question 12
+                        </h1>
+                        <p class="text-slate-600 dark:text-slate-300 text-lg leading-relaxed mb-6">
+                            The graph below shows the consumption of fish and some different kinds of meat in a European
+                            country between 1979 and 2004. Based on the data provided in the chart, which of the
+                            following statements best summarizes the overall trend for fish consumption?
+                        </p>
+                        <!-- Image placeholder for graph -->
+                        <div
+                            class="w-full h-64 bg-slate-100 dark:bg-slate-700 rounded-lg flex items-center justify-center mb-4 overflow-hidden relative">
+                            <div class="absolute inset-0 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-800"
+                                data-alt="Line graph showing food consumption trends"></div>
+                            <span
+                                class="material-symbols-outlined text-4xl text-slate-400 relative z-10">monitoring</span>
+                        </div>
+                        <p class="text-sm text-slate-400 italic">Figure 1: Meat and Fish Consumption (1979-2004)</p>
+                    </div>
+                    <!-- Answers Area -->
+                    <div class="grid gap-3">
+                        <label
+                            class="group relative flex items-start gap-4 p-4 rounded-xl border-2 border-primary bg-primary/5 cursor-pointer transition-all hover:bg-primary/10">
+                            <div class="flex items-center h-6">
+                                <input checked=""
+                                    class="h-5 w-5 border-2 border-slate-300 text-primary focus:ring-primary focus:ring-offset-0 bg-white"
+                                    name="q12" type="radio" />
+                            </div>
+                            <div class="flex flex-col">
+                                <span class="text-slate-900 dark:text-white font-semibold text-base">Fish consumption
+                                    decreased significantly.</span>
+                                <span class="text-slate-500 dark:text-slate-400 text-sm mt-1">This trend is observed
+                                    consistently from 1985 onwards.</span>
+                            </div>
+                            <div class="absolute right-4 top-4 text-primary">
+                                <span class="material-symbols-outlined">check_circle</span>
+                            </div>
+                        </label>
+                        <label
+                            class="group relative flex items-start gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600 cursor-pointer transition-all hover:shadow-sm">
+                            <div class="flex items-center h-6">
+                                <input
+                                    class="h-5 w-5 border-2 border-slate-300 text-primary focus:ring-primary focus:ring-offset-0 bg-white"
+                                    name="q12" type="radio" />
+                            </div>
+                            <div class="flex flex-col">
+                                <span class="text-slate-900 dark:text-white font-medium text-base">Chicken consumption
+                                    showed an upward trend.</span>
+                            </div>
+                        </label>
+                        <label
+                            class="group relative flex items-start gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600 cursor-pointer transition-all hover:shadow-sm">
+                            <div class="flex items-center h-6">
+                                <input
+                                    class="h-5 w-5 border-2 border-slate-300 text-primary focus:ring-primary focus:ring-offset-0 bg-white"
+                                    name="q12" type="radio" />
+                            </div>
+                            <div class="flex flex-col">
+                                <span class="text-slate-900 dark:text-white font-medium text-base">Beef consumption
+                                    remained stable.</span>
+                            </div>
+                        </label>
+                        <label
+                            class="group relative flex items-start gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600 cursor-pointer transition-all hover:shadow-sm">
+                            <div class="flex items-center h-6">
+                                <input
+                                    class="h-5 w-5 border-2 border-slate-300 text-primary focus:ring-primary focus:ring-offset-0 bg-white"
+                                    name="q12" type="radio" />
+                            </div>
+                            <div class="flex flex-col">
+                                <span class="text-slate-900 dark:text-white font-medium text-base">Lamb was the most
+                                    popular meat in 2004.</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+                <!-- Navigation Buttons -->
+                <div
+                    class="flex items-center justify-between pt-8 border-t border-slate-200 dark:border-slate-700 mt-4">
+                    <button
+                        class="flex items-center gap-2 px-6 py-3 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold transition-colors">
+                        <span class="material-symbols-outlined">arrow_back</span>
+                        Previous
+                    </button>
+                    <button
+                        class="flex items-center gap-2 px-8 py-3 rounded-lg bg-primary text-white font-bold hover:bg-blue-700 shadow-lg shadow-blue-900/20 transition-all transform hover:-translate-y-0.5">
+                        Next Question
+                        <span class="material-symbols-outlined">arrow_forward</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+        <!-- Right Sidebar: Navigation Grid -->
+        <aside
+            class="hidden lg:flex w-80 flex-col border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+            <div class="p-5 border-b border-slate-200 dark:border-slate-800">
+                <h3 class="font-bold text-slate-900 dark:text-white mb-1">Question Navigator</h3>
+                <p class="text-xs text-slate-500">Legend:</p>
+                <div class="flex gap-4 mt-2 text-xs text-slate-600 dark:text-slate-400">
+                    <div class="flex items-center gap-1.5">
+                        <div class="w-3 h-3 rounded-full bg-primary"></div> Answered
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <div class="w-3 h-3 rounded-full border border-primary"></div> Current
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <div class="w-3 h-3 rounded-full bg-orange-400"></div> Flagged
+                    </div>
+                </div>
+            </div>
+            <div class="flex-1 overflow-y-auto p-5">
+                <div class="grid grid-cols-5 gap-3">
+                    <!-- Answered Questions -->
+                    <button
+                        class="aspect-square flex items-center justify-center rounded bg-primary text-white font-medium text-sm hover:bg-blue-700 transition-colors">1</button>
+                    <button
+                        class="aspect-square flex items-center justify-center rounded bg-primary text-white font-medium text-sm hover:bg-blue-700 transition-colors">2</button>
+                    <button
+                        class="aspect-square flex items-center justify-center rounded bg-primary text-white font-medium text-sm hover:bg-blue-700 transition-colors">3</button>
+                    <!-- Flagged Question -->
+                    <button
+                        class="relative aspect-square flex items-center justify-center rounded bg-primary text-white font-medium text-sm hover:bg-blue-700 transition-colors">
+                        4
+                        <div
+                            class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-orange-400 rounded-full border border-white">
+                        </div>
+                    </button>
+                    <button
+                        class="aspect-square flex items-center justify-center rounded bg-primary text-white font-medium text-sm hover:bg-blue-700 transition-colors">5</button>
+                    <button
+                        class="aspect-square flex items-center justify-center rounded bg-primary text-white font-medium text-sm hover:bg-blue-700 transition-colors">6</button>
+                    <button
+                        class="aspect-square flex items-center justify-center rounded bg-primary text-white font-medium text-sm hover:bg-blue-700 transition-colors">7</button>
+                    <button
+                        class="aspect-square flex items-center justify-center rounded bg-primary text-white font-medium text-sm hover:bg-blue-700 transition-colors">8</button>
+                    <button
+                        class="aspect-square flex items-center justify-center rounded bg-primary text-white font-medium text-sm hover:bg-blue-700 transition-colors">9</button>
+                    <button
+                        class="aspect-square flex items-center justify-center rounded bg-primary text-white font-medium text-sm hover:bg-blue-700 transition-colors">10</button>
+                    <button
+                        class="aspect-square flex items-center justify-center rounded bg-primary text-white font-medium text-sm hover:bg-blue-700 transition-colors">11</button>
+                    <!-- Current Question -->
+                    <button
+                        class="aspect-square flex items-center justify-center rounded border-2 border-primary bg-primary/5 text-primary font-bold text-sm shadow-sm">12</button>
+                    <!-- Unanswered Questions -->
+                    <button
+                        class="aspect-square flex items-center justify-center rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-medium text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">13</button>
+                    <button
+                        class="aspect-square flex items-center justify-center rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-medium text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">14</button>
+                    <button
+                        class="aspect-square flex items-center justify-center rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-medium text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">15</button>
+                    <!-- More Unanswered -->
+                    <button
+                        class="aspect-square flex items-center justify-center rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-medium text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">16</button>
+                    <button
+                        class="aspect-square flex items-center justify-center rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-medium text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">17</button>
+                    <button
+                        class="aspect-square flex items-center justify-center rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-medium text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">18</button>
+                    <button
+                        class="aspect-square flex items-center justify-center rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-medium text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">19</button>
+                    <button
+                        class="aspect-square flex items-center justify-center rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-medium text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">20</button>
+                </div>
+                <div
+                    class="mt-8 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 text-center">
+                    <p class="text-xs text-slate-500 mb-2">Section 2 ends at Question 20</p>
+                    <span class="text-xs font-bold text-primary cursor-pointer hover:underline">View Section
+                        Instructions</span>
+                </div>
+            </div>
+            <div class="p-5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
+                <button
+                    class="w-full flex items-center justify-center gap-2 rounded-lg py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 text-sm font-bold shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                    <span class="material-symbols-outlined text-[18px]">save</span>
+                    Save &amp; Exit Later
+                </button>
+            </div>
+        </aside>
+    </main>
+</body>
+
+</html>

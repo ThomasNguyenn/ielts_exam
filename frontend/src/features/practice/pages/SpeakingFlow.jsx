@@ -290,12 +290,13 @@ export default function SpeakingFlow() {
   if (loading) return <div className="practice-container">Loading topic...</div>;
 
   const isResultPhase = phase === 'result';
+  const isRecordingPhase = phase === 'recording';
   const containerStyle = {
-    maxWidth: isResultPhase ? '1280px' : '900px',
+    maxWidth: isResultPhase ? '1280px' : (isRecordingPhase ? '1200px' : '900px'),
     margin: '2rem auto',
     padding: '0 1rem',
   };
-  const contentStyle = isResultPhase
+  const contentStyle = (isResultPhase || isRecordingPhase)
     ? {
       background: 'transparent',
       padding: 0,

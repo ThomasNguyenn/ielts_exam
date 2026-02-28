@@ -298,7 +298,7 @@ export default function Home() {
           </div>
           <div>
             <h4>Resources</h4>
-            <Link to="/learn/skills">Study Guide</Link>
+            <Link to="/learn">Study Guide</Link>
             <a href="#features">Practice Tips</a>
             <a href="#benefits">Band Scores</a>
             <a href="#results">FAQs</a>

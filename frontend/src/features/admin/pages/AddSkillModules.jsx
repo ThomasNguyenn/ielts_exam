@@ -20,9 +20,16 @@ const emptyResourceItem = () => ({
   description: '',
 });
 
+const SKILL_CATEGORIES = ['listening', 'reading', 'writing', 'speaking'];
+const SKILL_DIFFICULTIES = ['beginner', 'intermediate', 'advanced'];
+
 const emptyForm = () => ({
   title: '',
   description: '',
+  category: 'writing',
+  difficulty: 'beginner',
+  tag: '',
+  path: '',
   icon: '📚',
   estimatedMinutes: 10,
   isActive: true,
@@ -43,6 +50,14 @@ const splitLines = (text) =>
 const moduleToForm = (module) => ({
   title: module?.title || '',
   description: module?.description || '',
+  category: SKILL_CATEGORIES.includes(String(module?.category || '').toLowerCase())
+    ? String(module.category).toLowerCase()
+    : 'writing',
+  difficulty: SKILL_DIFFICULTIES.includes(String(module?.difficulty || '').toLowerCase())
+    ? String(module.difficulty).toLowerCase()
+    : 'beginner',
+  tag: module?.tag || '',
+  path: module?.path || '',
   icon: module?.icon || '📚',
   estimatedMinutes: module?.estimatedMinutes || 10,
   isActive: module?.isActive !== false,
@@ -73,6 +88,14 @@ const moduleToForm = (module) => ({
 const formToPayload = (form) => ({
   title: form.title.trim(),
   description: form.description.trim(),
+  category: SKILL_CATEGORIES.includes(String(form.category || '').toLowerCase())
+    ? String(form.category).toLowerCase()
+    : 'writing',
+  difficulty: SKILL_DIFFICULTIES.includes(String(form.difficulty || '').toLowerCase())
+    ? String(form.difficulty).toLowerCase()
+    : 'beginner',
+  tag: String(form.tag || '').trim(),
+  path: String(form.path || '').trim(),
   icon: form.icon.trim() || '📚',
   estimatedMinutes: Number(form.estimatedMinutes) || 10,
   isActive: !!form.isActive,
@@ -317,6 +340,38 @@ export default function AddSkillModules() {
         </div>
 
         <div className="form-row">
+          <label>Category</label>
+          <select value={form.category} onChange={(e) => updateField('category', e.target.value)}>
+            {SKILL_CATEGORIES.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="form-row">
+          <label>Difficulty</label>
+          <select value={form.difficulty} onChange={(e) => updateField('difficulty', e.target.value)}>
+            {SKILL_DIFFICULTIES.map((difficulty) => (
+              <option key={difficulty} value={difficulty}>
+                {difficulty}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="form-row">
+          <label>Tag</label>
+          <input value={form.tag} onChange={(e) => updateField('tag', e.target.value)} placeholder="Vocabulary, Strategy..." />
+        </div>
+
+        <div className="form-row">
+          <label>Learning Path</label>
+          <input value={form.path} onChange={(e) => updateField('path', e.target.value)} placeholder="Foundation & Basics" />
+        </div>
+
+        <div className="form-row">
           <label>Lesson content *</label>
           <LessonEditor value={form.lesson} onChange={(html) => updateField('lesson', html)} />
         </div>
@@ -539,7 +594,9 @@ export default function AddSkillModules() {
                         {module.icon || '📚'} {module.title}
                       </span>
                       <span className="item-meta">
-                        {module.isActive ? 'Active' : 'Inactive'} · Module {module.moduleNumber} · {module.estimatedMinutes || 0} mins
+                        {module.isActive ? 'Active' : 'Inactive'} | Module {module.moduleNumber} | {module.estimatedMinutes || 0} mins | {String(module.category || 'writing').toLowerCase()} | {String(module.difficulty || 'beginner').toLowerCase()}
+                        {module.tag ? ` | ${module.tag}` : ''}
+                        {module.path ? ` | ${module.path}` : ''}
                       </span>
                     </div>
                     <div className="item-actions">
