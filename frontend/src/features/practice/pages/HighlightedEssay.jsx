@@ -1,5 +1,53 @@
 import React, { useMemo } from 'react';
 
+const normalizeSpace = (value) => String(value || '').trim().replace(/\s+/g, ' ');
+
+const escapeRegExp = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const buildFlexibleSnippetRegex = (snippet = '') => {
+  const normalized = normalizeSpace(snippet);
+  if (!normalized) return null;
+
+  const tokens = normalized.split(' ').map((token) => escapeRegExp(token)).filter(Boolean);
+  if (tokens.length === 0) return null;
+
+  return new RegExp(tokens.join('\\s+'), 'gi');
+};
+
+const splitTextWithSnippet = (text = '', snippet = '', payload = {}) => {
+  const regex = buildFlexibleSnippetRegex(snippet);
+  if (!regex) return null;
+
+  let match;
+  let cursor = 0;
+  const output = [];
+
+  while ((match = regex.exec(text)) !== null) {
+    const [matchedText] = match;
+    if (!matchedText) continue;
+
+    const start = match.index;
+    if (start > cursor) {
+      output.push({ text: text.slice(cursor, start), type: 'text' });
+    }
+
+    output.push({
+      text: matchedText,
+      type: 'highlight',
+      feedbackType: payload.type,
+      data: payload,
+    });
+    cursor = start + matchedText.length;
+  }
+
+  if (output.length === 0) return null;
+  if (cursor < text.length) {
+    output.push({ text: text.slice(cursor), type: 'text' });
+  }
+
+  return output;
+};
+
 const HighlightedEssay = ({ essay, analysis, onHighlightClick, selectedCriterion = 'all' }) => {
   const processedContent = useMemo(() => {
     if (!essay) return [];
@@ -28,7 +76,7 @@ const HighlightedEssay = ({ essay, analysis, onHighlightClick, selectedCriterion
 
             if (issues.length > 0) {
               const mapped = issues.map((issue) => ({
-                text_snippet: issue.text_snippet || issue.original,
+                text_snippet: normalizeSpace(issue.text_snippet || issue.original),
                 comment: issue.explanation || issue.comment,
                 correction: issue.improved || issue.correction,
                 band_impact: issue.band_impact,
@@ -46,9 +94,19 @@ const HighlightedEssay = ({ essay, analysis, onHighlightClick, selectedCriterion
 
     if (allIssues.length === 0) return [{ text: essay, type: 'text' }];
 
+    const dedupedIssues = [];
+    const seen = new Set();
+    allIssues.forEach((item) => {
+      const key = `${item.criterion || 'unknown'}::${normalizeSpace(item.text_snippet).toLowerCase()}`;
+      if (!item.text_snippet || seen.has(key)) return;
+      seen.add(key);
+      dedupedIssues.push(item);
+    });
+    dedupedIssues.sort((a, b) => String(b.text_snippet || '').length - String(a.text_snippet || '').length);
+
     let parts = [{ text: essay, type: 'text' }];
 
-    allIssues.forEach((item) => {
+    dedupedIssues.forEach((item) => {
       const snippet = item.text_snippet;
       if (!snippet) return;
 
@@ -60,22 +118,12 @@ const HighlightedEssay = ({ essay, analysis, onHighlightClick, selectedCriterion
           return;
         }
 
-        if (part.text.includes(snippet)) {
-          const split = part.text.split(snippet);
-          for (let i = 0; i < split.length; i += 1) {
-            if (split[i]) newParts.push({ text: split[i], type: 'text' });
-            if (i < split.length - 1) {
-              newParts.push({
-                text: snippet,
-                type: 'highlight',
-                feedbackType: item.type,
-                data: item,
-              });
-            }
-          }
-        } else {
+        const splitWithMatch = splitTextWithSnippet(part.text, snippet, item);
+        if (!splitWithMatch) {
           newParts.push(part);
+          return;
         }
+        newParts.push(...splitWithMatch);
       });
 
       parts = newParts;

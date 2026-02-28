@@ -135,7 +135,7 @@ describe("writingSubmissionScoring.service", () => {
     mocks.enrichWritingTaxonomyBySubmissionId.mockResolvedValue({});
   });
 
-  it("runs fast phase automatically, locks band/criteria from fast, and schedules taxonomy", async () => {
+  it("downgrades fast score when detail score is lower, then schedules taxonomy", async () => {
     const { scoreWritingSubmissionById } = await import("../../services/writingSubmissionScoring.service.js");
     const result = await scoreWritingSubmissionById({ submissionId: "submission-1", force: false });
 
@@ -146,7 +146,46 @@ describe("writingSubmissionScoring.service", () => {
     expect(result.submission.status).toBe("scored");
     expect(result.submission.scoring_state).toBe("detail_ready");
     expect(result.submission.taxonomy_state).toBe("processing");
-    expect(result.submission.score).toBe(7);
+    expect(result.submission.score).toBe(5.5);
+
+    expect(result.aiResult.band_score).toBe(5.5);
+    expect(result.aiResult.criteria_scores).toEqual({
+      task_response: 5.5,
+      coherence_cohesion: 5.5,
+      lexical_resource: 5.5,
+      grammatical_range_accuracy: 5.5,
+    });
+    expect(result.aiResult.downgraded_fast_score).toBe(true);
+    expect(result.submission.ai_fast_result?.band_score).toBe(5.5);
+    expect(result.submission.ai_fast_result?.adjusted_by_detail).toBe(true);
+
+    expect(mocks.enqueueWritingTaxonomyEnrichmentJob).toHaveBeenCalledTimes(1);
+    expect(mocks.enqueueWritingTaxonomyEnrichmentJob).toHaveBeenCalledWith({
+      submissionId: "submission-1",
+      force: true,
+    });
+    expect(mocks.enrichWritingTaxonomyBySubmissionId).not.toHaveBeenCalled();
+  });
+
+  it("keeps fast score when detail score is higher", async () => {
+    mocks.gradeEssay.mockResolvedValueOnce({
+      band_score: 8,
+      criteria_scores: {
+        task_response: 8,
+        coherence_cohesion: 8,
+        lexical_resource: 8,
+        grammatical_range_accuracy: 8,
+      },
+      task_response: [{ text_snippet: "tr", explanation: "tr" }],
+      coherence_cohesion: [{ text_snippet: "cc", explanation: "cc" }],
+      lexical_resource: [{ text_snippet: "lr", explanation: "lr" }],
+      grammatical_range_accuracy: [{ text_snippet: "gra", explanation: "gra" }],
+      feedback: ["ok"],
+      model: "gpt-4o-mini",
+    });
+
+    const { scoreWritingSubmissionById } = await import("../../services/writingSubmissionScoring.service.js");
+    const result = await scoreWritingSubmissionById({ submissionId: "submission-1", force: false });
 
     expect(result.aiResult.band_score).toBe(7);
     expect(result.aiResult.criteria_scores).toEqual({
@@ -155,12 +194,8 @@ describe("writingSubmissionScoring.service", () => {
       lexical_resource: 6.5,
       grammatical_range_accuracy: 6.5,
     });
-
-    expect(mocks.enqueueWritingTaxonomyEnrichmentJob).toHaveBeenCalledTimes(1);
-    expect(mocks.enqueueWritingTaxonomyEnrichmentJob).toHaveBeenCalledWith({
-      submissionId: "submission-1",
-      force: true,
-    });
-    expect(mocks.enrichWritingTaxonomyBySubmissionId).not.toHaveBeenCalled();
+    expect(result.aiResult.downgraded_fast_score).toBe(false);
+    expect(result.submission.score).toBe(7);
+    expect(result.submission.ai_fast_result?.band_score ?? 7).toBe(7);
   });
 });

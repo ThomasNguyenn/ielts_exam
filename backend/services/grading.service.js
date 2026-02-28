@@ -46,12 +46,28 @@ const WRITING_DETAIL_MODELS = uniqModels(
   "gpt-4o-mini",
 );
 
+const toBoolean = (value, fallback = false) => {
+  if (value === undefined || value === null) return fallback;
+  const normalized = String(value).trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "off"].includes(normalized)) return false;
+  return fallback;
+};
+
 const WRITING_FAST_MAX_OUTPUT_TOKENS = Number(process.env.WRITING_FAST_MAX_OUTPUT_TOKENS || 850);
-const WRITING_DETAIL_MAX_OUTPUT_TOKENS = Number(process.env.WRITING_DETAIL_MAX_OUTPUT_TOKENS || 1600);
+const WRITING_DETAIL_MAX_OUTPUT_TOKENS = Number(process.env.WRITING_DETAIL_MAX_OUTPUT_TOKENS || 2600);
+const WRITING_DETAIL_RECOVERY_MAX_OUTPUT_TOKENS = Number(process.env.WRITING_DETAIL_RECOVERY_MAX_OUTPUT_TOKENS || 900);
 const WRITING_FAST_TIMEOUT_MS = Number(process.env.WRITING_FAST_TIMEOUT_MS || process.env.OPENAI_TIMEOUT_MS || 22000);
 const WRITING_DETAIL_TIMEOUT_MS = Number(process.env.WRITING_DETAIL_TIMEOUT_MS || process.env.OPENAI_TIMEOUT_MS || 45000);
+const WRITING_DETAIL_RECOVERY_TIMEOUT_MS = Number(process.env.WRITING_DETAIL_RECOVERY_TIMEOUT_MS || 28000);
 const WRITING_FAST_MAX_ATTEMPTS = Number(process.env.WRITING_FAST_MAX_ATTEMPTS || process.env.OPENAI_MAX_ATTEMPTS || 2);
 const WRITING_DETAIL_MAX_ATTEMPTS = Number(process.env.WRITING_DETAIL_MAX_ATTEMPTS || process.env.OPENAI_MAX_ATTEMPTS || 2);
+const WRITING_DETAIL_RECOVERY_MAX_ATTEMPTS = Number(process.env.WRITING_DETAIL_RECOVERY_MAX_ATTEMPTS || 1);
+const WRITING_FAST_PASS_COUNT = Math.max(1, Math.min(3, Number(process.env.WRITING_FAST_PASS_COUNT || 2)));
+const WRITING_FAST_DOUBLE_PASS = toBoolean(process.env.WRITING_FAST_DOUBLE_PASS, true);
+const WRITING_DETAIL_GRA_LR_EXHAUSTIVE = toBoolean(process.env.WRITING_DETAIL_GRA_LR_EXHAUSTIVE, true);
+const WRITING_DETAIL_GRA_LR_EXTRA_PASSES = Math.max(0, Math.min(3, Number(process.env.WRITING_DETAIL_GRA_LR_EXTRA_PASSES || 1)));
+const WRITING_DETAIL_MAX_ISSUES_PER_CRITERION = Math.max(20, Number(process.env.WRITING_DETAIL_MAX_ISSUES_PER_CRITERION || 200));
 
 const CRITERIA_KEYS = [
   "task_response",
@@ -161,9 +177,91 @@ const normalizeFastEssayResult = (raw = {}, model = null) => {
   return normalized;
 };
 
+const averageBands = (values = [], fallback = 0) => {
+  const numericValues = values
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value));
+  if (numericValues.length === 0) return toBandHalfStep(fallback, 0);
+  const avg = numericValues.reduce((sum, value) => sum + value, 0) / numericValues.length;
+  return toBandHalfStep(avg, toBandHalfStep(fallback, 0));
+};
+
+const dedupeFastIssueItems = (items = []) => {
+  const output = [];
+  const seen = new Set();
+
+  toArray(items).forEach((item) => {
+    const normalized = normalizeTopIssue(item);
+    const key = `${normalized.text_snippet.toLowerCase()}::${normalized.improved.toLowerCase()}::${normalized.explanation.toLowerCase()}`;
+    if (!normalized.text_snippet || seen.has(key)) return;
+    seen.add(key);
+    output.push(normalized);
+  });
+
+  return output;
+};
+
+const averageFastEssayResults = (results = []) => {
+  const normalizedResults = toArray(results).filter(Boolean);
+  if (normalizedResults.length === 0) return normalizeFastEssayResult({});
+  if (normalizedResults.length === 1) return normalizedResults[0];
+
+  const averagedBand = averageBands(normalizedResults.map((result) => result.band_score), 0);
+  const averagedCriteria = normalizeCriteriaScores({
+    task_response: averageBands(normalizedResults.map((result) => result?.criteria_scores?.task_response), averagedBand),
+    coherence_cohesion: averageBands(normalizedResults.map((result) => result?.criteria_scores?.coherence_cohesion), averagedBand),
+    lexical_resource: averageBands(normalizedResults.map((result) => result?.criteria_scores?.lexical_resource), averagedBand),
+    grammatical_range_accuracy: averageBands(normalizedResults.map((result) => result?.criteria_scores?.grammatical_range_accuracy), averagedBand),
+  }, averagedBand);
+
+  const mergedFeedback = dedupeIssues(
+    normalizedResults.flatMap((result) => toArray(result?.feedback).map((entry) => ({ text_snippet: String(entry || "").trim() }))),
+  ).map((item) => item.text_snippet).filter(Boolean).slice(0, 3);
+
+  const summary = normalizedResults
+    .map((result) => String(result?.summary || "").trim())
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  const criteriaNotes = CRITERIA_KEYS.reduce((acc, key) => {
+    const merged = normalizedResults
+      .map((result) => String(result?.criteria_notes?.[key] || "").trim())
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+    acc[key] = merged;
+    return acc;
+  }, {});
+
+  const topIssues = {
+    grammatical_range_accuracy: dedupeFastIssueItems(
+      normalizedResults.flatMap((result) => toArray(result?.top_issues?.grammatical_range_accuracy)),
+    ).slice(0, 5),
+    lexical_resource: dedupeFastIssueItems(
+      normalizedResults.flatMap((result) => toArray(result?.top_issues?.lexical_resource)),
+    ).slice(0, 5),
+  };
+
+  return normalizeFastEssayResult({
+    band_score: averagedBand,
+    criteria_scores: averagedCriteria,
+    summary,
+    criteria_notes: criteriaNotes,
+    top_issues: topIssues,
+    performance_label: toPerformanceLabel(averagedBand),
+    feedback: mergedFeedback,
+  }, normalizedResults.map((result) => result.model).filter(Boolean).join("|") || null);
+};
+
 const normalizeIssue = (item = {}, { criterionKey = "", defaultCode = "NONE" } = {}) => {
+  const rawSnippet = String(item?.text_snippet || "").trim();
+  const compactSnippet = (criterionKey === "lexical_resource" || criterionKey === "grammatical_range_accuracy")
+    ? toCompactReferenceSnippet(rawSnippet || String(item?.improved || "").trim(), { maxWords: 4 })
+    : rawSnippet;
+
   const base = {
-    text_snippet: String(item?.text_snippet || "").trim(),
+    text_snippet: compactSnippet,
     type: String(item?.type || "error").trim() || "error",
     error_code: String(item?.error_code || defaultCode).trim() || defaultCode,
     explanation: String(item?.explanation || "").trim(),
@@ -211,10 +309,16 @@ const getDefaultShortIssue = (criterionKey, taskType) => {
   };
 };
 
-const normalizeDetailEssayResult = (raw = {}, { taskType = "task2", model = null } = {}) => {
+const normalizeDetailEssayResult = (raw = {}, { taskType = "task2", model = null, essayText = "" } = {}) => {
   const normalizedTaskType = normalizeTaskType(taskType);
   const criteria = normalizeCriteriaScores(raw.criteria_scores || {}, raw.band_score || 0);
   const bandScore = toBandHalfStep(raw.band_score, 0);
+  const totalWords = countWords(essayText);
+  const estimatedCeiling = totalWords > 0 ? Math.max(40, totalWords * 2) : WRITING_DETAIL_MAX_ISSUES_PER_CRITERION;
+  const maxIssuesPerCriterion = Math.max(
+    20,
+    Math.min(WRITING_DETAIL_MAX_ISSUES_PER_CRITERION, estimatedCeiling),
+  );
 
   const taskResponse = toArray(raw.task_response)
     .map((item) => normalizeIssue(item, { criterionKey: "task_response" }))
@@ -232,7 +336,7 @@ const normalizeDetailEssayResult = (raw = {}, { taskType = "task2", model = null
       defaultCode: normalizedTaskType === "task1" ? "W1-L1" : "W2-L1",
     }))
     .filter((item) => item.text_snippet || item.explanation)
-    .slice(0, 18);
+    .slice(0, maxIssuesPerCriterion);
 
   const grammar = toArray(raw.grammatical_range_accuracy)
     .map((item) => normalizeIssue(item, {
@@ -240,7 +344,7 @@ const normalizeDetailEssayResult = (raw = {}, { taskType = "task2", model = null
       defaultCode: normalizedTaskType === "task1" ? "W1-G1" : "W2-G1",
     }))
     .filter((item) => item.text_snippet || item.explanation)
-    .slice(0, 20);
+    .slice(0, maxIssuesPerCriterion);
 
   return {
     band_score: bandScore,
@@ -257,6 +361,208 @@ const normalizeDetailEssayResult = (raw = {}, { taskType = "task2", model = null
   };
 };
 
+const isErrorIssue = (issue = {}) => String(issue?.type || "error").trim().toLowerCase() === "error";
+
+const countErrorIssues = (items = []) => toArray(items).filter(isErrorIssue).length;
+
+const issueIdentity = (issue = {}) => {
+  const snippet = String(issue?.text_snippet || "").trim().toLowerCase();
+  const improved = String(issue?.improved || "").trim().toLowerCase();
+  const explanation = String(issue?.explanation || "").trim().toLowerCase();
+  return `${snippet}::${improved}::${explanation}`;
+};
+
+const dedupeIssues = (items = []) => {
+  const seen = new Set();
+  const output = [];
+  toArray(items).forEach((item) => {
+    const key = issueIdentity(item);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    output.push(item);
+  });
+  return output;
+};
+
+const toCompactReferenceSnippet = (value = "", { maxWords = 4 } = {}) => {
+  const cleaned = String(value || "").trim().replace(/\s+/g, " ");
+  if (!cleaned) return "";
+
+  const words = cleaned.split(" ").filter(Boolean);
+  if (words.length <= maxWords && !/[.!?]/.test(cleaned)) {
+    return cleaned;
+  }
+
+  const quotedMatches = cleaned.match(/["“”']([^"“”']+)["“”']/g) || [];
+  const quotedCandidates = quotedMatches
+    .map((segment) => segment.replace(/["“”']/g, "").trim())
+    .filter(Boolean)
+    .sort((a, b) => a.length - b.length);
+  const compactQuoted = quotedCandidates.find((segment) => segment.split(/\s+/).length <= maxWords);
+  if (compactQuoted) return compactQuoted;
+
+  const phraseCandidates = cleaned
+    .split(/[,:;.!?]/)
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .sort((a, b) => a.length - b.length);
+  const compactPhrase = phraseCandidates.find((segment) => segment.split(/\s+/).length <= maxWords);
+  if (compactPhrase) return compactPhrase;
+
+  return words.slice(0, maxWords).join(" ");
+};
+
+const shouldRunGraLrRecovery = ({ normalizedResult, essayText, targets }) => {
+  if (!String(essayText || "").trim()) return false;
+  if (!WRITING_DETAIL_GRA_LR_EXHAUSTIVE || WRITING_DETAIL_GRA_LR_EXTRA_PASSES < 1) return false;
+  const graErrors = countErrorIssues(normalizedResult?.grammatical_range_accuracy || []);
+  const lrErrors = countErrorIssues(normalizedResult?.lexical_resource || []);
+  const graTarget = Math.max(1, Number(targets?.gra || 1));
+  const lrTarget = Math.max(1, Number(targets?.lexical || 1));
+  return graErrors < graTarget || lrErrors < lrTarget || WRITING_DETAIL_GRA_LR_EXHAUSTIVE;
+};
+
+const buildGraLrRecoveryPrompt = ({
+  promptText,
+  essayText,
+  taskType,
+  targets,
+  passIndex = 1,
+  existingGra = [],
+  existingLr = [],
+}) => {
+  const normalizedTaskType = normalizeTaskType(taskType);
+  const grammarCodeHint = normalizedTaskType === "task1"
+    ? "W1-G1/W1-G2/W1-G3/W1-G4"
+    : "W2-G1/W2-G2/W2-G3";
+  const lexicalCodeHint = normalizedTaskType === "task1"
+    ? "W1-L1/W1-L2/W1-L3"
+    : "W2-L1/W2-L2/W2-L3";
+
+  return `
+You are an IELTS writing error extractor.
+Focus ONLY on Grammar and Lexical errors.
+Return strict JSON only.
+Pass ${passIndex} for exhaustive extraction of remaining errors.
+
+Prompt:
+${String(promptText || "").trim()}
+
+Student Essay:
+${String(essayText || "").trim()}
+
+Current extracted snippets (do not duplicate):
+- grammar: ${JSON.stringify(existingGra)}
+- lexical: ${JSON.stringify(existingLr)}
+
+Targets:
+- grammar errors >= ${targets.gra}
+- lexical errors >= ${targets.lexical}
+
+Rules:
+- Return only actionable error items.
+- Keep one item for one error.
+- Enumerate as many remaining errors as possible (do not stop at minimum target).
+- Include repeated mistakes if they appear in different positions.
+- text_snippet should be token/phrase length 1-4 words only (no full sentence).
+- Use concise Vietnamese explanations.
+
+Return JSON:
+{
+  "grammatical_range_accuracy": [
+    {
+      "text_snippet": "string",
+      "type": "error",
+      "error_code": "${grammarCodeHint}",
+      "explanation": "string",
+      "improved": "string",
+      "band_impact": "string"
+    }
+  ],
+  "lexical_resource": [
+    {
+      "text_snippet": "string",
+      "type": "error",
+      "error_code": "${lexicalCodeHint}",
+      "explanation": "string",
+      "improved": "string",
+      "lexical_unit": "word|collocation",
+      "source_level": "A2|B1|B2|C1|C2|UNKNOWN",
+      "target_level": "B2|C1|C2|UNKNOWN",
+      "b2_replacement": "string",
+      "c1_replacement": "string",
+      "band6_replacement": "string",
+      "band65_replacement": "string",
+      "band_impact": "string"
+    }
+  ]
+}
+`;
+};
+
+const recoverGraLrIssues = async ({
+  promptText,
+  essayText,
+  taskType,
+  targets,
+  normalizedResult,
+  passIndex = 1,
+}) => {
+  const maxIssueLimit = Math.max(20, WRITING_DETAIL_MAX_ISSUES_PER_CRITERION);
+  const existingGra = toArray(normalizedResult?.grammatical_range_accuracy)
+    .map((item) => String(item?.text_snippet || "").trim())
+    .filter(Boolean)
+    .slice(0, maxIssueLimit);
+  const existingLr = toArray(normalizedResult?.lexical_resource)
+    .map((item) => String(item?.text_snippet || "").trim())
+    .filter(Boolean)
+    .slice(0, maxIssueLimit);
+
+  const recoveryPrompt = buildGraLrRecoveryPrompt({
+    promptText,
+    essayText,
+    taskType,
+    targets,
+    passIndex,
+    existingGra,
+    existingLr,
+  });
+
+  const recoveryResponse = await requestOpenAIJsonWithFallback({
+    openai,
+    models: WRITING_DETAIL_MODELS,
+    createPayload: (model) => ({
+      model,
+      messages: [{ role: "user", content: buildTextMessage(recoveryPrompt) }],
+      ...toTokenPayload(model, WRITING_DETAIL_RECOVERY_MAX_OUTPUT_TOKENS),
+      response_format: { type: "json_object" },
+    }),
+    timeoutMs: WRITING_DETAIL_RECOVERY_TIMEOUT_MS,
+    maxAttempts: WRITING_DETAIL_RECOVERY_MAX_ATTEMPTS,
+  });
+
+  const normalizedRecovery = normalizeDetailEssayResult(recoveryResponse?.data || {}, {
+    taskType,
+    model: recoveryResponse?.model || null,
+    essayText,
+  });
+
+  const mergedGra = dedupeIssues([
+    ...toArray(normalizedResult?.grammatical_range_accuracy),
+    ...toArray(normalizedRecovery?.grammatical_range_accuracy),
+  ]).slice(0, maxIssueLimit);
+  const mergedLr = dedupeIssues([
+    ...toArray(normalizedResult?.lexical_resource),
+    ...toArray(normalizedRecovery?.lexical_resource),
+  ]).slice(0, maxIssueLimit);
+
+  return {
+    ...normalizedResult,
+    grammatical_range_accuracy: mergedGra,
+    lexical_resource: mergedLr,
+  };
+};
+
 const buildTextMessage = (prompt) => [{ type: "text", text: prompt }];
 
 const toTokenPayload = (model, maxOutputTokens) => {
@@ -266,7 +572,7 @@ const toTokenPayload = (model, maxOutputTokens) => {
   return { max_tokens: maxOutputTokens };
 };
 
-const buildFastPrompt = ({ promptText, essayText, taskType }) => {
+const buildFastPrompt = ({ promptText, essayText, taskType, passIndex = 1, totalPasses = 1 }) => {
   const taskLabel = normalizeTaskType(taskType) === "task1"
     ? "IELTS Writing Task 1"
     : "IELTS Writing Task 2";
@@ -274,6 +580,7 @@ const buildFastPrompt = ({ promptText, essayText, taskType }) => {
   return `
 You are an IELTS writing examiner.
 Fast mode objective: estimate score quickly with low latency.
+Evaluation pass: ${passIndex}/${totalPasses}
 
 Task Type: ${taskLabel}
 Prompt:
@@ -344,8 +651,10 @@ ${String(essayText || "").trim()}
 Extraction requirements:
 - GRA: prioritize concrete grammar errors, target at least ${targets.gra} issues when evidence is available.
 - LR: prioritize word choice/collocation/spelling/word form, target at least ${targets.lexical} issues when evidence is available.
+- Exhaustive mode: list as many valid GRA/LR errors as possible across the essay.
 - TR and CC: always return short notes (1-2 items each).
 - One issue item should focus on one correction.
+- For GRA/LR, text_snippet must be a compact reference token/phrase (1-4 words), not a whole sentence.
 - Keep explanation concise in Vietnamese.
 
 Return strict JSON only:
@@ -412,6 +721,7 @@ Return strict JSON only:
 export const gradeEssayFastBand = async (promptText, essayText, taskType = "task2", imageUrl = null) => {
   const normalizedTaskType = normalizeTaskType(taskType);
   const trimmedEssay = String(essayText || "").trim();
+  const passCount = WRITING_FAST_DOUBLE_PASS ? Math.max(2, WRITING_FAST_PASS_COUNT) : 1;
 
   if (!trimmedEssay) {
     return normalizeFastEssayResult({
@@ -443,33 +753,52 @@ export const gradeEssayFastBand = async (promptText, essayText, taskType = "task
       throw new Error("OpenAI API key is not configured");
     }
 
-    const messages = buildTextMessage(buildFastPrompt({
-      promptText,
-      essayText: trimmedEssay,
-      taskType: normalizedTaskType,
-    }));
+    const runSingleFastPass = async (passIndex) => {
+      const messages = buildTextMessage(buildFastPrompt({
+        promptText,
+        essayText: trimmedEssay,
+        taskType: normalizedTaskType,
+        passIndex,
+        totalPasses: passCount,
+      }));
 
-    if (imageUrl && normalizedTaskType === "task1") {
-      messages.push({
-        type: "image_url",
-        image_url: { url: imageUrl },
+      if (imageUrl && normalizedTaskType === "task1") {
+        messages.push({
+          type: "image_url",
+          image_url: { url: imageUrl },
+        });
+      }
+
+      const aiResponse = await requestOpenAIJsonWithFallback({
+        openai,
+        models: WRITING_FAST_MODELS,
+        createPayload: (model) => ({
+          model,
+          messages: [{ role: "user", content: messages }],
+          ...toTokenPayload(model, WRITING_FAST_MAX_OUTPUT_TOKENS),
+          response_format: { type: "json_object" },
+        }),
+        timeoutMs: WRITING_FAST_TIMEOUT_MS,
+        maxAttempts: WRITING_FAST_MAX_ATTEMPTS,
       });
+
+      return normalizeFastEssayResult(aiResponse.data, aiResponse.model);
+    };
+
+    const passSettled = await Promise.allSettled(
+      Array.from({ length: passCount }, (_, index) => runSingleFastPass(index + 1)),
+    );
+
+    const fulfilled = passSettled
+      .filter((entry) => entry.status === "fulfilled")
+      .map((entry) => entry.value);
+
+    if (fulfilled.length === 0) {
+      const rejected = passSettled.find((entry) => entry.status === "rejected");
+      throw (rejected?.reason || new Error("Fast scoring failed for all passes"));
     }
 
-    const aiResponse = await requestOpenAIJsonWithFallback({
-      openai,
-      models: WRITING_FAST_MODELS,
-      createPayload: (model) => ({
-        model,
-        messages: [{ role: "user", content: messages }],
-        ...toTokenPayload(model, WRITING_FAST_MAX_OUTPUT_TOKENS),
-        response_format: { type: "json_object" },
-      }),
-      timeoutMs: WRITING_FAST_TIMEOUT_MS,
-      maxAttempts: WRITING_FAST_MAX_ATTEMPTS,
-    });
-
-    return normalizeFastEssayResult(aiResponse.data, aiResponse.model);
+    return averageFastEssayResults(fulfilled);
   } catch (error) {
     console.error("gradeEssayFastBand fallback triggered:", error.message);
     return normalizeFastEssayResult({
@@ -533,10 +862,42 @@ export const extractWritingDetailIssues = async (promptText, essayText, taskType
       maxAttempts: WRITING_DETAIL_MAX_ATTEMPTS,
     });
 
-    return normalizeDetailEssayResult(aiResponse.data || {}, {
+    const normalizedDetail = normalizeDetailEssayResult(aiResponse.data || {}, {
       taskType: normalizedTaskType,
       model: aiResponse.model,
+      essayText,
     });
+
+    if (!shouldRunGraLrRecovery({ normalizedResult: normalizedDetail, essayText, targets: detailTargets })) {
+      return normalizedDetail;
+    }
+
+    let enrichedDetail = normalizedDetail;
+    for (let passIndex = 1; passIndex <= WRITING_DETAIL_GRA_LR_EXTRA_PASSES; passIndex += 1) {
+      try {
+        const beforeGraCount = countErrorIssues(enrichedDetail?.grammatical_range_accuracy || []);
+        const beforeLrCount = countErrorIssues(enrichedDetail?.lexical_resource || []);
+        const recovered = await recoverGraLrIssues({
+          promptText,
+          essayText,
+          taskType: normalizedTaskType,
+          targets: detailTargets,
+          normalizedResult: enrichedDetail,
+          passIndex,
+        });
+        const afterGraCount = countErrorIssues(recovered?.grammatical_range_accuracy || []);
+        const afterLrCount = countErrorIssues(recovered?.lexical_resource || []);
+        enrichedDetail = recovered;
+
+        if (afterGraCount <= beforeGraCount && afterLrCount <= beforeLrCount) {
+          break;
+        }
+      } catch (recoveryError) {
+        console.warn("extractWritingDetailIssues GRA/LR recovery skipped:", recoveryError.message);
+        break;
+      }
+    }
+    return enrichedDetail;
   } catch (error) {
     console.error("extractWritingDetailIssues fallback triggered:", error.message);
     return normalizeDetailEssayResult({
@@ -555,6 +916,7 @@ export const extractWritingDetailIssues = async (promptText, essayText, taskType
     }, {
       taskType: normalizedTaskType,
       model: WRITING_DETAIL_MODELS[0] || "gpt-4o-mini",
+      essayText,
     });
   }
 };

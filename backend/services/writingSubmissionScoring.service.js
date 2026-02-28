@@ -173,6 +173,114 @@ const ensureDetailArrays = (result = {}) => ({
   feedback: toArray(result?.feedback).filter(Boolean),
 });
 
+const toOptionalBand = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return null;
+  return toBandHalfStep(numeric);
+};
+
+const toOptionalCriteriaScores = (raw = {}) => CRITERIA_KEYS.reduce((acc, key) => {
+  const numeric = Number(raw?.[key]);
+  acc[key] = Number.isFinite(numeric) ? toBandHalfStep(numeric) : null;
+  return acc;
+}, {});
+
+const hasRetryMarker = (feedback = []) => {
+  const normalized = toArray(feedback)
+    .map((item) => String(item || "").toLowerCase())
+    .join(" ");
+  const markers = ["tam thoi", "temporarily", "unavailable", "thu lai", "retry"];
+  return markers.some((marker) => normalized.includes(marker));
+};
+
+const isDetailScoringFallback = (detailResult = {}) => {
+  const detailBand = Number(detailResult?.band_score);
+  const criteriaScores = detailResult?.criteria_scores || {};
+  const criteriaTotal = CRITERIA_KEYS.reduce((sum, key) => {
+    const value = Number(criteriaScores[key]);
+    return sum + (Number.isFinite(value) ? value : 0);
+  }, 0);
+
+  if (Number.isFinite(detailBand) && detailBand > 0) return false;
+  if (criteriaTotal > 0) return false;
+  return hasRetryMarker(detailResult?.feedback);
+};
+
+const pickDownwardBand = ({ fastBand, detailBand, allowDetailDowngrade = true }) => {
+  if (fastBand === null) return detailBand ?? 0;
+  if (detailBand === null) return fastBand;
+  if (!allowDetailDowngrade) return fastBand;
+  return detailBand < fastBand ? detailBand : fastBand;
+};
+
+const pickDownwardCriteriaScores = ({
+  fastCriteria,
+  detailCriteria,
+  fallbackBand = 0,
+  allowDetailDowngrade = true,
+}) => {
+  const merged = {};
+
+  CRITERIA_KEYS.forEach((key) => {
+    const fastValue = fastCriteria?.[key];
+    const detailValue = detailCriteria?.[key];
+
+    if (fastValue === null || fastValue === undefined) {
+      merged[key] = detailValue ?? fallbackBand;
+      return;
+    }
+
+    if (detailValue === null || detailValue === undefined) {
+      merged[key] = fastValue;
+      return;
+    }
+
+    merged[key] = allowDetailDowngrade && detailValue < fastValue ? detailValue : fastValue;
+  });
+
+  return normalizeCriteriaScores(merged, fallbackBand);
+};
+
+const adjustFastResultAfterDetail = ({ fastResult, taskResults, overallBand, overallCriteria }) => {
+  if (!fastResult || typeof fastResult !== "object") return fastResult;
+  const fastOverallBand = toOptionalBand(fastResult?.band_score);
+  if (fastOverallBand === null || overallBand >= fastOverallBand) return fastResult;
+
+  const adjustedAt = new Date().toISOString();
+  const nextFastResult = {
+    ...fastResult,
+    band_score: overallBand,
+    criteria_scores: normalizeCriteriaScores(fastResult?.criteria_scores || overallCriteria, overallBand),
+    adjusted_by_detail: true,
+    adjusted_at: adjustedAt,
+    adjustment_reason: "detail_lower_score",
+  };
+
+  const taskResultById = new Map(
+    toArray(taskResults).map((task) => [String(task.task_id || ""), task]),
+  );
+
+  if (Array.isArray(fastResult?.tasks)) {
+    nextFastResult.tasks = fastResult.tasks.map((task) => {
+      const taskId = String(task?.task_id || "");
+      const detailTask = taskResultById.get(taskId);
+      if (!detailTask) return task;
+
+      const fastTaskBand = toOptionalBand(task?.band_score);
+      if (fastTaskBand === null || detailTask.band_score >= fastTaskBand) return task;
+
+      return {
+        ...task,
+        band_score: detailTask.band_score,
+        criteria_scores: detailTask.criteria_scores,
+        adjusted_by_detail: true,
+      };
+    });
+  }
+
+  return nextFastResult;
+};
+
 export const scoreWritingSubmissionById = async ({ submissionId, force = false } = {}) => {
   const submission = await WritingSubmission.findById(submissionId);
   if (!submission) {
@@ -250,30 +358,47 @@ export const scoreWritingSubmissionById = async ({ submissionId, force = false }
       );
 
       const detailResult = ensureDetailArrays(detailResultRaw || {});
-      const fallbackBand = toBandHalfStep(detailResult?.band_score || 0);
-      const fallbackCriteria = normalizeCriteriaScores(detailResult?.criteria_scores || {}, fallbackBand);
+      const detailBand = toOptionalBand(detailResult?.band_score);
+      const detailCriteria = toOptionalCriteriaScores(detailResult?.criteria_scores || {});
       const fastTask = fastTaskLookup.get(String(task._id));
+      const fastBand = toOptionalBand(fastTask?.band_score);
+      const fastCriteria = toOptionalCriteriaScores(fastTask?.criteria_scores || {});
+      const allowDetailDowngrade = !isDetailScoringFallback(detailResult);
+      const fallbackBand = fastBand ?? detailBand ?? 0;
 
-      const lockedBand = fastTask
-        ? toBandHalfStep(fastTask.band_score)
-        : fallbackBand;
-      const lockedCriteria = fastTask
-        ? normalizeCriteriaScores(fastTask.criteria_scores || {}, lockedBand)
-        : fallbackCriteria;
+      const mergedBand = pickDownwardBand({
+        fastBand,
+        detailBand,
+        allowDetailDowngrade,
+      });
+      const mergedCriteria = pickDownwardCriteriaScores({
+        fastCriteria,
+        detailCriteria,
+        fallbackBand: mergedBand || fallbackBand,
+        allowDetailDowngrade,
+      });
+      const downgradedByDetail = (
+        fastBand !== null
+        && detailBand !== null
+        && allowDetailDowngrade
+        && detailBand < fastBand
+      );
 
       const { model: detailModel, ...detailPayload } = detailResult;
       const mergedResult = {
         ...detailPayload,
-        band_score: lockedBand,
-        criteria_scores: lockedCriteria,
+        band_score: mergedBand,
+        criteria_scores: mergedCriteria,
+        downgraded_fast_score: downgradedByDetail,
       };
 
       return {
         task_id: String(task._id),
         task_type: task.task_type || "task2",
         task_title: task.title || answer.task_title || "",
-        band_score: lockedBand,
-        criteria_scores: lockedCriteria,
+        band_score: mergedBand,
+        criteria_scores: mergedCriteria,
+        downgraded_by_detail: downgradedByDetail,
         detail_model: String(detailModel || "").trim() || null,
         result: mergedResult,
       };
@@ -287,15 +412,15 @@ export const scoreWritingSubmissionById = async ({ submissionId, force = false }
     throw error;
   }
 
-  const fastOverallBand = Number(fastResult?.band_score);
-  const overallBand = Number.isFinite(fastOverallBand)
-    ? toBandHalfStep(fastOverallBand)
-    : computeOverallBand(taskResults);
-
-  const overallCriteria = normalizeCriteriaScores(
-    fastResult?.criteria_scores || computeOverallCriteria(taskResults),
+  const overallBand = computeOverallBand(taskResults);
+  const overallCriteria = computeOverallCriteria(taskResults);
+  const fastResultAdjusted = adjustFastResultAfterDetail({
+    fastResult,
+    taskResults,
     overallBand,
-  );
+    overallCriteria,
+  });
+  const anyTaskDowngraded = taskResults.some((item) => item.downgraded_by_detail);
 
   const firstDetailModel = taskResults.map((item) => item.detail_model).find(Boolean) || null;
   const aiPipelineVersion = "writing_v2_phase_models";
@@ -306,8 +431,9 @@ export const scoreWritingSubmissionById = async ({ submissionId, force = false }
       band_score: taskResults[0].band_score,
       criteria_scores: taskResults[0].criteria_scores,
       ai_pipeline_version: aiPipelineVersion,
-      ai_fast_model: submission.ai_fast_model || fastResult?.model || null,
+      ai_fast_model: submission.ai_fast_model || fastResultAdjusted?.model || null,
       ai_detail_model: firstDetailModel,
+      downgraded_fast_score: anyTaskDowngraded,
     }
     : {
       band_score: overallBand,
@@ -319,12 +445,16 @@ export const scoreWritingSubmissionById = async ({ submissionId, force = false }
         band_score: task.band_score,
         result: task.result,
       })),
-      feedback: ["AI extracted detailed issues based on fast-band locked scoring."],
+      feedback: ["AI extracted detailed issues and can downgrade fast score when detail finds lower performance."],
       ai_pipeline_version: aiPipelineVersion,
-      ai_fast_model: submission.ai_fast_model || fastResult?.model || null,
+      ai_fast_model: submission.ai_fast_model || fastResultAdjusted?.model || null,
       ai_detail_model: firstDetailModel,
+      downgraded_fast_score: anyTaskDowngraded,
     };
 
+  if (fastResultAdjusted) {
+    submission.ai_fast_result = fastResultAdjusted;
+  }
   submission.ai_result = aiResult;
   submission.is_ai_graded = true;
   submission.score = overallBand;
