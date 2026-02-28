@@ -15,7 +15,7 @@ const fixedYesNoOptions = [
 ];
 
 function normalizeValue(value) {
-  return String(value ?? '').trim().replace(/\s+/g, ' ').toUpperCase();
+  return String(value ?? '').trim().replace(/\s+/g, ' ').toUpperCase().replace(/[.,]+$/, '');
 }
 
 function toScalar(value) {
@@ -112,14 +112,82 @@ export default function ReviewExamLayout({
     [questionReview]
   );
 
-  const reviewAnswers = useMemo(
-    () =>
-      slots.map((slot) => {
-        const reviewItem = reviewLookup[String(slot.q_number)];
-        return resolveReviewValue(slot, reviewItem);
-      }),
-    [reviewLookup, slots]
-  );
+  // Build reviewAnswers in a group-aware way so multi-select groups
+  // get ALL correct answers spread across their slots (for checkbox highlighting).
+  const reviewAnswers = useMemo(() => {
+    const result = new Array(slots.length).fill('');
+
+    // We need to process slot by slot but be aware of multi-select groups.
+    // A multi-select group: mult_choice type with >1 questions and no 'radio' layout.
+    // We build a group index to detect this. We walk step.item.question_groups.
+    // Since reviewAnswers is used for the whole exam, we iterate all steps.
+
+    // Build a map: q_number -> { groupSize, groupQNumbers }
+    const groupInfoByQNumber = {};
+    (steps || []).forEach((s) => {
+      (s.item?.question_groups || []).forEach((group) => {
+        const groupLayout = group.group_layout;
+        const isForceRadio = groupLayout === 'radio';
+        const isForceCheckbox = groupLayout === 'checkbox';
+        const qs = group.questions || [];
+        const isMulti =
+          (group.type === 'mult_choice' || group.type === 'mult_choice_multi') &&
+          (isForceCheckbox || (!isForceRadio && qs.length > 1));
+
+        qs.forEach((q) => {
+          groupInfoByQNumber[String(q.q_number)] = {
+            isMultiSelectGroup: isMulti,
+            groupQNumbers: isMulti ? qs.map((gq) => String(gq.q_number)) : null,
+          };
+        });
+      });
+    });
+
+    // Track which multi-select groups we've already processed (to avoid double work)
+    const processedGroups = new Set();
+
+    slots.forEach((slot, idx) => {
+      const qKey = String(slot.q_number);
+      const info = groupInfoByQNumber[qKey];
+
+      if (info?.isMultiSelectGroup) {
+        const groupKey = info.groupQNumbers.join(',');
+        if (processedGroups.has(groupKey)) {
+          // Already filled in by the first slot's pass — leave as-is
+          return;
+        }
+        processedGroups.add(groupKey);
+
+        // Collect all unique correct answers from every slot in this group
+        const allCorrect = [];
+        info.groupQNumbers.forEach((gqKey) => {
+          const ri = reviewLookup[gqKey];
+          if (!ri) return;
+          const ca = ri.correct_answer;
+          if (Array.isArray(ca)) {
+            ca.forEach((v) => { if (v && !allCorrect.includes(v)) allCorrect.push(v); });
+          } else if (ca) {
+            if (!allCorrect.includes(ca)) allCorrect.push(ca);
+          }
+        });
+
+        // Spread them into consecutive slots starting at the first slot of the group
+        const firstSlotIdx = slots.findIndex((s) => String(s.q_number) === info.groupQNumbers[0]);
+        allCorrect.forEach((answer, i) => {
+          if (firstSlotIdx + i < result.length) {
+            result[firstSlotIdx + i] = answer;
+          }
+        });
+      } else {
+        // Normal single-answer slot
+        const reviewItem = reviewLookup[qKey];
+        result[idx] = resolveReviewValue(slot, reviewItem);
+      }
+    });
+
+    return result;
+  }, [reviewLookup, slots, steps]);
+
 
   const hasSteps = Array.isArray(steps) && steps.length > 0;
   if (!hasSteps || !step) {

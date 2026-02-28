@@ -103,9 +103,19 @@ const buildObjectiveQuestionReview = ({ attempt, test, examType }) => {
 
                 const yourAnswerRaw = detail?.user_answer ?? "";
                 const yourAnswer = Array.isArray(yourAnswerRaw) ? String(yourAnswerRaw[0] || "") : String(yourAnswerRaw || "");
-                const correctAnswer = detail?.correct_answer
-                    ?? (Array.isArray(question?.correct_answers) ? question.correct_answers[0] : "")
-                    ?? "";
+                const isMultiSelectGroup = group?.type === 'mult_choice' && (group?.questions || []).length > 1;
+                
+                // For multi-select groups, always use the DB's authoritative correct_answers array per question.
+                // For single-answer, use saved detail.correct_answer or fallback to DB.
+                let correctAnswer;
+                if (isMultiSelectGroup) {
+                    correctAnswer = Array.isArray(question?.correct_answers) ? question.correct_answers : [];
+                } else {
+                    const raw = detail?.correct_answer 
+                        ?? (Array.isArray(question?.correct_answers) ? question.correct_answers[0] : '')
+                        ?? '';
+                    correctAnswer = Array.isArray(raw) ? (raw[0] ?? '') : raw;
+                }
                 const isCorrect = typeof detail?.is_correct === "boolean"
                     ? detail.is_correct
                     : normalizeReviewAnswer(yourAnswer) !== "" &&

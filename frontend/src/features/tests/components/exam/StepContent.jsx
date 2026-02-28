@@ -501,7 +501,7 @@ function ReadingStepLayout({
 
 /** One step: passage/section content + its questions (with slot indices) */
 function normalizeReviewText(value) {
-  return String(value ?? '').trim().replace(/\s+/g, ' ').toUpperCase();
+  return String(value ?? '').trim().replace(/\s+/g, ' ').toUpperCase().replace(/[.,]+$/, '');
 }
 
 function formatReviewAnswer(value) {
@@ -987,7 +987,11 @@ function StepContent({
                     <div className="exam-options">
                       {options.map((opt) => {
                         const optKey = `opt_${item._id}_${groupIdx}_${opt.label}`;
-                        const isChecked = currentAnswers.includes(opt.text);
+                        const isChecked = currentAnswers.some(ans => 
+                           normalizeReviewText(ans) === normalizeReviewText(opt.text) || 
+                           normalizeReviewText(ans) === normalizeReviewText(opt.label) ||
+                           normalizeReviewText(ans) === normalizeReviewText(opt.id)
+                        );
                         return (
                           <label key={opt.label} className={`exam-option-label ${isChecked ? 'selected-multi' : ''}`}>
                             <input
@@ -1151,6 +1155,13 @@ function StepContent({
                 {(group.questions || []).map((q) => {
                   const reviewItem = getReviewForQuestion(q.q_number);
                   if (!reviewItem) return null;
+
+                  const isAutoMulti = (group.questions || []).length > 1;
+                  const isForceRadio = group.group_layout === 'radio';
+                  const isForceCheckbox = group.group_layout === 'checkbox';
+                  const isMultiSelectGroup = (group.type === 'mult_choice' || group.type === 'mult_choice_multi') && (isForceCheckbox || (!isForceRadio && isAutoMulti));
+
+                  if (!reviewItem) return null;
                   const optionPool = isSummary
                     ? ((group.options && group.options.length) ? group.options : (group.headings || []))
                     : isMatching
@@ -1168,6 +1179,20 @@ function StepContent({
                   const isExpanded = Boolean(expandedReviewQuestions[q.q_number]);
                   const isActiveReference = Number(activeReviewQuestionNumber) === Number(q.q_number);
 
+                  let displayCorrectAnswer = correctAnswer;
+                  if (isMultiSelectGroup) {
+                    const mappedPool = group.questions.map(gq => {
+                      const ri = getReviewForQuestion(gq.q_number);
+                      return ri ? ri.correct_answer : null;
+                    }).flat().filter(Boolean);
+                    
+                    const groupCorrectPool = [...new Set(mappedPool)];
+                    
+                    displayCorrectAnswer = optionPool.length
+                      ? formatReviewAnswerByOptions(groupCorrectPool, optionPool)
+                      : formatReviewAnswer(groupCorrectPool);
+                  }
+
                   return (
                     <div key={`review-${groupIdx}-${q.q_number}`}>
                       <div
@@ -1176,7 +1201,7 @@ function StepContent({
                       >
                         <span className="review-check-number">Q{q.q_number}</span>
                         <span className="review-check-user">{'\u0042\u1EA1n l\u00E0m:'} {yourAnswer}</span>
-                        <span className="review-check-correct">{'\u0110\u00E1p \u00E1n:'} {correctAnswer}</span>
+                        <span className="review-check-correct">{'\u0110\u00E1p \u00E1n:'} {displayCorrectAnswer}</span>
                         <div className="review-check-actions">
                           <span className={`review-check-badge ${correct ? 'correct' : 'wrong'}`}>
                             {correct ? '\u0110\u00FAng' : 'Sai'}

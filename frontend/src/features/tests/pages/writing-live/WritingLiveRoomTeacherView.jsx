@@ -105,7 +105,7 @@ export default function WritingLiveRoomTeacherView({
             onClick={onFinishAndGrade}
           >
             <CheckCircleIcon className="text-[20px]" />
-            <span>Finish &amp; Grade</span>
+            <span>Kết thúc & Đóng phòng</span>
           </button>
           <div className="size-9 rounded-full bg-primary text-white text-sm font-semibold flex items-center justify-center border-2 border-white shadow-sm">
             T
@@ -146,17 +146,13 @@ export default function WritingLiveRoomTeacherView({
             <div className="flex items-center gap-2 pl-1">
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-1">Highlighters:</span>
               {TEACHER_HIGHLIGHT_OPTIONS.map((option) => (
-                <button
+                <div
                   key={option.value}
-                  type="button"
-                  className={`writing-live-ui__chip ${option.chipClass} ${
-                    session.selectedCriterion === option.value ? 'is-active' : ''
-                  }`}
-                  onClick={() => session.setSelectedCriterion(option.value)}
+                  className={`writing-live-ui__chip ${option.chipClass} cursor-default`}
                 >
                   <span className={`writing-live-ui__chip-dot ${option.dotClass}`} />
                   <span>{option.label}</span>
-                </button>
+                </div>
               ))}
             </div>
           </div>
@@ -240,6 +236,22 @@ export default function WritingLiveRoomTeacherView({
                   placeholder="Comment for student..."
                   className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40"
                 />
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  {TEACHER_HIGHLIGHT_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      className={`writing-live-ui__chip ${option.chipClass} hover:opacity-80 transition-opacity ${
+                        session.selectedCriterion === option.value ? 'is-active ring-2 ring-primary ring-offset-1' : ''
+                      }`}
+                      onClick={() => session.setSelectedCriterion(option.value)}
+                      style={{ padding: '2px 8px', fontSize: '11px' }}
+                    >
+                      <span className={`writing-live-ui__chip-dot ${option.dotClass}`} />
+                      <span>{option.label}</span>
+                    </button>
+                  ))}
+                </div>
                 <div className="flex justify-end gap-2">
                   <button
                     type="button"
@@ -471,7 +483,7 @@ export default function WritingLiveRoomTeacherView({
             className="mt-2 w-full rounded-lg bg-red-600 text-white text-sm py-2 hover:bg-red-700"
             onClick={onFinishAndGrade}
           >
-            Close Room Now
+            Kết thúc & Đóng phòng
           </button>
         </section>
       </aside>

@@ -175,8 +175,6 @@ export default function App() {
           {/* AI Scoring Result Page */}
           <Route path="tests/writing/result-ai/:id" element={<ProtectedRoute>{withSuspense(<WritingAIResult />)}</ProtectedRoute>} />
           <Route path="tests/writing/submissions/:id" element={<ProtectedRoute>{withSuspense(<WritingSubmissionView />)}</ProtectedRoute>} />
-          <Route path="writing-live/join" element={<ProtectedRoute>{withSuspense(<WritingLiveJoin />)}</ProtectedRoute>} />
-          <Route path="writing-live/:roomCode" element={<ProtectedRoute>{withSuspense(<WritingLiveRoom />)}</ProtectedRoute>} />
 
           <Route path="profile" element={<ProtectedRoute>{withSuspense(<Profile />)}</ProtectedRoute>} />
           <Route path="analytics" element={<ProtectedRoute>{withSuspense(<AnalyticsContainer />)}</ProtectedRoute>} />
@@ -237,6 +235,8 @@ export default function App() {
         <Route path="analytics/student/:studentId/errors" element={
           <ManageRoute><AnalyticsLegacyRedirect /></ManageRoute>
         } />
+        <Route path="writing-live/join" element={<ProtectedRoute>{withSuspense(<WritingLiveJoin />)}</ProtectedRoute>} />
+        <Route path="writing-live/:roomCode" element={<ProtectedRoute>{withSuspense(<WritingLiveRoom />)}</ProtectedRoute>} />
         <Route path="*" element={withSuspense(<NotFound />)} />
       </Routes>
     </NotificationProvider>

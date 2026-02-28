@@ -242,6 +242,13 @@ export function gradeExam({ test, examType, safeAnswers }) {
             };
 
             if (group.type === "mult_choice" && groupQuestions.length > 1) {
+                // Collect ALL correct answers across the whole group (for review display)
+                const allGroupCorrectAnswers = [
+                    ...new Set(
+                        groupQuestions.flatMap((q) => (q.correct_answers || []).map(normalizeAnswer))
+                    )
+                ];
+
                 const groupCorrectPool = groupQuestions.map((question) =>
                     (question.correct_answers || []).map(normalizeAnswer),
                 );
@@ -258,17 +265,13 @@ export function gradeExam({ test, examType, safeAnswers }) {
                         groupCorrectPool[matchIndex] = null;
                     }
 
-                    const finalCorrectAnswer =
-                        question.correct_answers && question.correct_answers.length > 0
-                            ? question.correct_answers[0]
-                            : "";
-
                     questionReview.push({
                         question_number: question.q_number,
                         type: group.type,
                         question_text: resolveQuestionText(question),
                         your_answer: safeAnswers[questionIndex] || "",
-                        correct_answer: finalCorrectAnswer,
+                        // Store all group correct answers so any slot can reconstruct the full picture
+                        correct_answer: allGroupCorrectAnswers,
                         options:
                             question.option && question.option.length > 0
                                 ? question.option
