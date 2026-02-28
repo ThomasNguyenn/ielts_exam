@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
+import { getWritingTaskTypeOptions } from '@/shared/constants/writingTaskTypes';
 import './Manage.css';
 
 function writingToForm(writing) {
@@ -12,6 +13,7 @@ function writingToForm(writing) {
       title: '',
       type: 'academic',
       task_type: 'task1',
+      writing_task_type: '',
       prompt: '',
       image_url: '',
       word_limit: 150,
@@ -30,6 +32,7 @@ function writingToForm(writing) {
     title: writing.title || '',
     type: writing.type || 'academic',
     task_type: writing.task_type || 'task1',
+    writing_task_type: writing.writing_task_type || '',
     prompt: writing.prompt || '',
     image_url: writing.image_url || '',
     word_limit: writing.word_limit ?? 150,
@@ -134,6 +137,7 @@ export default function AddWriting({ editIdOverride = null, embedded = false, on
         title: form.title.trim(),
         type: form.type,
         task_type: form.task_type,
+        writing_task_type: form.writing_task_type?.trim() || null,
         prompt: form.prompt.trim(),
         image_url: form.image_url?.trim() || '',
         word_limit: Number(form.word_limit) || 150,
@@ -246,7 +250,7 @@ export default function AddWriting({ editIdOverride = null, embedded = false, on
               />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
               <div className="manage-input-group" style={{ marginBottom: 0 }}>
                 <label className="manage-input-label">Type</label>
                 <select className="manage-input-field" value={form.type} onChange={(event) => updateForm('type', event.target.value)}>
@@ -262,18 +266,37 @@ export default function AddWriting({ editIdOverride = null, embedded = false, on
                   value={form.task_type}
                   onChange={(event) => {
                     const nextTaskType = event.target.value;
-                    updateForm('task_type', nextTaskType);
-                    if (nextTaskType === 'task1') {
-                      updateForm('word_limit', 150);
-                      updateForm('time_limit', 20);
-                    } else {
-                      updateForm('word_limit', 250);
-                      updateForm('time_limit', 40);
-                    }
+                    setForm((prev) => {
+                      const options = getWritingTaskTypeOptions(nextTaskType);
+                      const currentValid = options.some((o) => o.value === prev.writing_task_type);
+                      return {
+                        ...prev,
+                        task_type: nextTaskType,
+                        writing_task_type: currentValid ? prev.writing_task_type : '',
+                        word_limit: nextTaskType === 'task1' ? 150 : 250,
+                        time_limit: nextTaskType === 'task1' ? 20 : 40,
+                      };
+                    });
                   }}
                 >
                   <option value="task1">Task 1</option>
                   <option value="task2">Task 2</option>
+                </select>
+              </div>
+
+              <div className="manage-input-group" style={{ marginBottom: 0 }}>
+                <label className="manage-input-label">Task Variant</label>
+                <select
+                  className="manage-input-field"
+                  value={form.writing_task_type}
+                  onChange={(event) => updateForm('writing_task_type', event.target.value)}
+                >
+                  <option value="">— Select —</option>
+                  {getWritingTaskTypeOptions(form.task_type).map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>

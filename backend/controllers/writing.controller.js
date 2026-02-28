@@ -27,6 +27,7 @@ const sanitizeWritingForLearner = (writing) => ({
     type: writing.type,
     prompt: writing.prompt,
     task_type: writing.task_type,
+    writing_task_type: writing.writing_task_type ?? null,
     image_url: writing.image_url || null,
     word_limit: writing.word_limit ?? null,
     essay_word_limit: writing.essay_word_limit ?? null,
@@ -71,12 +72,13 @@ const enrichWritingAnswersWithTaskDetails = async (answers = []) => {
 
     return Promise.all(
         answers.map(async (answer) => {
-            const taskDetails = await Writing.findById(answer.task_id).select("title prompt image_url task_type").lean();
+            const taskDetails = await Writing.findById(answer.task_id).select("title prompt image_url task_type writing_task_type").lean();
             return {
                 ...(typeof answer?.toObject === "function" ? answer.toObject() : answer),
                 task_prompt: taskDetails?.prompt || "",
                 task_image: taskDetails?.image_url || null,
                 task_type: taskDetails?.task_type || "Task 1",
+                writing_task_type: taskDetails?.writing_task_type ?? null,
             };
         }),
     );
@@ -88,6 +90,7 @@ const pickWritingPayload = (body = {}, { allowId = false } = {}) => {
         "type",
         "prompt",
         "task_type",
+        "writing_task_type",
         "image_url",
         "word_limit",
         "essay_word_limit",
@@ -256,7 +259,8 @@ export const getWritingExam = async (req, res) => {
                     title: writing.title,
                     prompt: writing.prompt,
                     image_url: writing.image_url,
-                    task_type: writing.task_type
+                    task_type: writing.task_type,
+                    writing_task_type: writing.writing_task_type ?? null
                 }],
                 reading_passages: [],
                 listening_sections: []
