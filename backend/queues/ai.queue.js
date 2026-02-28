@@ -1,12 +1,19 @@
 import { Queue } from "bullmq";
-import { createRedisConnection, isAiAsyncModeEnabled } from "../config/queue.config.js";
+import {
+  createRedisConnection,
+  getAiQueueJobAttempts,
+  getAiQueueJobBackoffMs,
+  isAiAsyncModeEnabled,
+} from "../config/queue.config.js";
 
 export const WRITING_AI_QUEUE = "writing-ai-grading";
 export const SPEAKING_AI_QUEUE = "speaking-ai-grading";
+export const WRITING_TAXONOMY_QUEUE = "writing-taxonomy-enrichment";
 
 let redisConnection = null;
 let writingQueue = null;
 let speakingQueue = null;
+let writingTaxonomyQueue = null;
 
 const ensureQueues = () => {
   if (!isAiAsyncModeEnabled()) {
@@ -29,15 +36,21 @@ const ensureQueues = () => {
     speakingQueue = new Queue(SPEAKING_AI_QUEUE, { connection: redisConnection });
   }
 
+  if (!writingTaxonomyQueue) {
+    writingTaxonomyQueue = new Queue(WRITING_TAXONOMY_QUEUE, { connection: redisConnection });
+  }
+
   return { ready: true };
 };
 
 const addUniqueJob = async (queue, name, payload, jobId) => {
   try {
+    const attempts = getAiQueueJobAttempts();
+    const backoffDelay = getAiQueueJobBackoffMs();
     return await queue.add(name, payload, {
       jobId,
-      attempts: 3,
-      backoff: { type: "exponential", delay: 5000 },
+      attempts,
+      backoff: { type: "exponential", delay: backoffDelay },
       removeOnComplete: 200,
       removeOnFail: 500,
     });
@@ -107,6 +120,32 @@ export const enqueueSpeakingAiScoreJob = async ({ sessionId, force = false }) =>
   return {
     queued: true,
     queue: SPEAKING_AI_QUEUE,
+    jobId: String(job.id),
+  };
+};
+
+export const enqueueWritingTaxonomyEnrichmentJob = async ({ submissionId, force = false }) => {
+  const state = ensureQueues();
+  if (!state.ready) {
+    return {
+      queued: false,
+      reason: state.reason,
+      queue: WRITING_TAXONOMY_QUEUE,
+      jobId: null,
+    };
+  }
+
+  const jobId = buildSafeJobId("writing-taxonomy", submissionId);
+  const job = await addUniqueJob(
+    writingTaxonomyQueue,
+    "enrich-writing-taxonomy",
+    { submissionId, force },
+    jobId,
+  );
+
+  return {
+    queued: true,
+    queue: WRITING_TAXONOMY_QUEUE,
     jobId: String(job.id),
   };
 };

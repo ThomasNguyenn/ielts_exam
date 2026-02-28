@@ -1,104 +1,37 @@
+import { isAiAsyncModeEnabled } from "../config/queue.config.js";
 import WritingSubmission from "../models/WritingSubmission.model.js";
 import Writing from "../models/Writing.model.js";
+import {
+  enqueueWritingTaxonomyEnrichmentJob,
+  isAiQueueReady,
+} from "../queues/ai.queue.js";
 import { gradeEssay } from "./grading.service.js";
-import { createTaxonomyErrorLog } from "./taxonomy.registry.js";
+import { scoreWritingSubmissionFastById } from "./writingFastScoring.service.js";
+import { enrichWritingTaxonomyBySubmissionId } from "./writingTaxonomyEnrichment.service.js";
 
-const toBandHalfStep = (score) => Math.round(Number(score || 0) * 2) / 2;
-const TRACKED_CRITERIA_KEYS = new Set(["lexical_resource", "grammatical_range_accuracy"]);
-const MIN_CONFIDENCE_FOR_LOG = 0.55;
-
-const MINOR_MARKERS = [
-  "minor",
-  "nhe",
-  "khong dang ke",
-  "it anh huong",
-  "low impact",
-  "small impact",
+const CRITERIA_KEYS = [
+  "task_response",
+  "coherence_cohesion",
+  "lexical_resource",
+  "grammatical_range_accuracy",
 ];
 
-const PRAISE_MARKERS = [
-  "well done",
-  "excellent",
-  "good job",
-  "strong point",
-  "diem manh",
-  "lam tot",
-  "rat tot",
-  "kha tot",
-  "very good",
-];
-
-const LEXICAL_MARKERS = [
-  "spelling",
-  "chinh ta",
-  "word choice",
-  "word form",
-  "collocation",
-  "vocabulary",
-  "tu vung",
-  "lexical",
-  "typo",
-  "misspell",
-  "dung tu",
-];
-
-const normalizeText = (value) => String(value || "")
-  .toLowerCase()
-  .normalize("NFD")
-  .replace(/[\u0300-\u036f]/g, "")
-  .replace(/\s+/g, " ")
-  .trim();
-
-const includesAny = (value, markers) => {
-  const normalized = normalizeText(value);
-  if (!normalized) return false;
-  return markers.some((marker) => normalized.includes(marker));
+const toBandHalfStep = (score) => {
+  const numeric = Number(score);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.round(Math.max(0, Math.min(9, numeric)) * 2) / 2;
 };
 
-const hasMeaningfulCorrection = (item = {}) => {
-  const snippet = normalizeText(item?.text_snippet);
-  const improved = normalizeText(item?.improved);
-  if (!snippet || !improved) return true;
-  return snippet !== improved;
-};
+const toArray = (value) => (Array.isArray(value) ? value : []);
 
-const isMinorIssue = (item = {}) => {
-  const confidence = Number(item?.confidence);
-  if (Number.isFinite(confidence) && confidence > 0 && confidence < MIN_CONFIDENCE_FOR_LOG) {
-    return true;
-  }
-  return includesAny(item?.band_impact, MINOR_MARKERS) || includesAny(item?.explanation, MINOR_MARKERS);
-};
-
-const isPraiseLikeIssue = (item = {}) => {
-  const type = normalizeText(item?.type);
-  if (type && type !== "error") return true;
-
-  const errorCode = normalizeText(item?.error_code);
-  if (!errorCode || errorCode === "none") return true;
-
-  return includesAny(item?.explanation, PRAISE_MARKERS) || includesAny(item?.band_impact, PRAISE_MARKERS);
-};
-
-const isLexicalOrSpellingIssue = (item = {}) => {
-  const lexicalUnit = normalizeText(item?.lexical_unit);
-  if (lexicalUnit === "word" || lexicalUnit === "collocation") return true;
-
-  const combined = `${normalizeText(item?.explanation)} ${normalizeText(item?.text_snippet)} ${normalizeText(item?.improved)}`;
-  return LEXICAL_MARKERS.some((marker) => combined.includes(marker));
-};
-
-const shouldPersistWritingIssue = ({ criterionKey, item }) => {
-  if (!TRACKED_CRITERIA_KEYS.has(criterionKey)) return false;
-  if (isPraiseLikeIssue(item)) return false;
-  if (isMinorIssue(item)) return false;
-  if (!hasMeaningfulCorrection(item)) return false;
-
-  if (criterionKey === "lexical_resource") {
-    return isLexicalOrSpellingIssue(item);
-  }
-
-  return true;
+const normalizeCriteriaScores = (raw = {}, fallbackBand = 0) => {
+  const safeBand = toBandHalfStep(fallbackBand);
+  return {
+    task_response: toBandHalfStep(raw.task_response ?? safeBand),
+    coherence_cohesion: toBandHalfStep(raw.coherence_cohesion ?? safeBand),
+    lexical_resource: toBandHalfStep(raw.lexical_resource ?? safeBand),
+    grammatical_range_accuracy: toBandHalfStep(raw.grammatical_range_accuracy ?? safeBand),
+  };
 };
 
 const computeOverallBand = (taskResults) => {
@@ -116,6 +49,130 @@ const computeOverallBand = (taskResults) => {
   return toBandHalfStep(avg);
 };
 
+const computeOverallCriteria = (taskResults = []) => {
+  if (!Array.isArray(taskResults) || taskResults.length === 0) {
+    return normalizeCriteriaScores({}, 0);
+  }
+
+  const buckets = CRITERIA_KEYS.reduce((acc, key) => {
+    acc[key] = { sum: 0, weight: 0 };
+    return acc;
+  }, {});
+
+  taskResults.forEach((item) => {
+    const weight = item.task_type === "task2" ? 2 : 1;
+    const criteria = item.criteria_scores || {};
+
+    CRITERIA_KEYS.forEach((key) => {
+      const score = Number(criteria[key]);
+      if (!Number.isFinite(score)) return;
+      buckets[key].sum += score * weight;
+      buckets[key].weight += weight;
+    });
+  });
+
+  return CRITERIA_KEYS.reduce((acc, key) => {
+    const bucket = buckets[key];
+    acc[key] = bucket.weight > 0 ? toBandHalfStep(bucket.sum / bucket.weight) : 0;
+    return acc;
+  }, {});
+};
+
+const queueInlineTaxonomyEnrichment = ({ submissionId, force = false }) => {
+  setImmediate(() => {
+    enrichWritingTaxonomyBySubmissionId({ submissionId, force })
+      .catch((error) => {
+        console.warn("Writing taxonomy enrichment (inline) failed:", error?.message || error);
+      });
+  });
+};
+
+const scheduleWritingTaxonomyEnrichment = async ({ submissionId, force = false }) => {
+  const shouldQueue = isAiAsyncModeEnabled() && isAiQueueReady();
+  if (shouldQueue) {
+    try {
+      const result = await enqueueWritingTaxonomyEnrichmentJob({
+        submissionId,
+        force,
+      });
+      if (result?.queued) return result;
+    } catch (error) {
+      console.warn("Writing taxonomy enqueue failed, falling back to inline:", error.message);
+    }
+  }
+
+  queueInlineTaxonomyEnrichment({ submissionId, force });
+  return {
+    queued: false,
+    queue: "inline",
+    jobId: null,
+  };
+};
+
+const getTaskTypeByAnswerOrder = async (answers = []) => {
+  const taskIds = Array.from(new Set(
+    answers
+      .map((answer) => String(answer?.task_id || "").trim())
+      .filter(Boolean),
+  ));
+  if (taskIds.length === 0) return new Map();
+
+  const tasks = await Writing.find({ _id: { $in: taskIds } })
+    .select("_id task_type")
+    .lean();
+  return new Map(tasks.map((task) => [String(task._id), String(task.task_type || "task2")]));
+};
+
+const buildTaskLookup = async (answers = []) => {
+  const taskIds = Array.from(new Set(
+    answers
+      .map((answer) => String(answer?.task_id || "").trim())
+      .filter(Boolean),
+  ));
+  if (taskIds.length === 0) return new Map();
+
+  const tasks = await Writing.find({ _id: { $in: taskIds } }).lean();
+  return new Map(tasks.map((task) => [String(task._id), task]));
+};
+
+const getFastTaskLookup = (fastResult = {}, answers = []) => {
+  const lookup = new Map();
+  const taskEntries = toArray(fastResult?.tasks);
+
+  taskEntries.forEach((taskEntry) => {
+    const taskId = String(taskEntry?.task_id || "").trim();
+    if (!taskId) return;
+
+    const bandScore = toBandHalfStep(taskEntry?.band_score ?? fastResult?.band_score ?? 0);
+    lookup.set(taskId, {
+      band_score: bandScore,
+      criteria_scores: normalizeCriteriaScores(taskEntry?.criteria_scores || {}, bandScore),
+    });
+  });
+
+  if (lookup.size === 0 && answers.length === 1) {
+    const taskId = String(answers[0]?.task_id || "").trim();
+    if (taskId) {
+      const bandScore = toBandHalfStep(fastResult?.band_score || 0);
+      lookup.set(taskId, {
+        band_score: bandScore,
+        criteria_scores: normalizeCriteriaScores(fastResult?.criteria_scores || {}, bandScore),
+      });
+    }
+  }
+
+  return lookup;
+};
+
+const ensureDetailArrays = (result = {}) => ({
+  ...result,
+  task_response: toArray(result?.task_response),
+  coherence_cohesion: toArray(result?.coherence_cohesion),
+  lexical_resource: toArray(result?.lexical_resource),
+  grammatical_range_accuracy: toArray(result?.grammatical_range_accuracy),
+  feedback: toArray(result?.feedback).filter(Boolean),
+});
+
 export const scoreWritingSubmissionById = async ({ submissionId, force = false } = {}) => {
   const submission = await WritingSubmission.findById(submissionId);
   if (!submission) {
@@ -125,10 +182,30 @@ export const scoreWritingSubmissionById = async ({ submissionId, force = false }
   }
 
   if (submission.status === "scored" && submission.is_ai_graded && !force) {
+    let hasPendingSave = false;
     if (submission.scoring_state !== "detail_ready") {
       submission.scoring_state = "detail_ready";
+      hasPendingSave = true;
+    }
+
+    const taxonomyState = String(submission.taxonomy_state || "none");
+    if (taxonomyState === "none" || taxonomyState === "failed") {
+      submission.taxonomy_state = "processing";
+      submission.taxonomy_updated_at = null;
+      hasPendingSave = true;
+    }
+
+    if (hasPendingSave) {
       await submission.save();
     }
+
+    if (taxonomyState === "none" || taxonomyState === "failed") {
+      await scheduleWritingTaxonomyEnrichment({
+        submissionId: String(submission._id),
+        force: true,
+      });
+    }
+
     return {
       submission,
       aiResult: submission.ai_result || null,
@@ -143,93 +220,134 @@ export const scoreWritingSubmissionById = async ({ submissionId, force = false }
     throw error;
   }
 
-  const taskResults = [];
-  for (const answer of answers) {
-    const task = await Writing.findById(answer.task_id).lean();
-    if (!task) continue;
-
-    const aiResult = await gradeEssay(
-      task.prompt || "",
-      answer.answer_text || "",
-      task.task_type,
-      task.image_url,
-    );
-
-    taskResults.push({
-      task_id: String(task._id),
-      task_type: task.task_type || "task2",
-      task_title: task.title || answer.task_title || "",
-      band_score: Number(aiResult?.band_score || 0),
-      result: aiResult,
+  let fastResult = submission.ai_fast_result || null;
+  if (force || !submission.is_ai_fast_graded || !fastResult) {
+    const fastScored = await scoreWritingSubmissionFastById({
+      submissionId: String(submission._id),
+      force,
     });
+    fastResult = fastScored?.fastResult || fastScored?.submission?.ai_fast_result || fastResult;
   }
 
+  if (!fastResult) {
+    const error = new Error("Fast scoring result is required before detail scoring");
+    error.statusCode = 500;
+    throw error;
+  }
+
+  const fastTaskLookup = getFastTaskLookup(fastResult, answers);
+  const taskLookup = await buildTaskLookup(answers);
+  const taskResultsRaw = await Promise.all(
+    answers.map(async (answer) => {
+      const task = taskLookup.get(String(answer.task_id || ""));
+      if (!task) return null;
+
+      const detailResultRaw = await gradeEssay(
+        task.prompt || "",
+        answer.answer_text || "",
+        task.task_type,
+        task.image_url,
+      );
+
+      const detailResult = ensureDetailArrays(detailResultRaw || {});
+      const fallbackBand = toBandHalfStep(detailResult?.band_score || 0);
+      const fallbackCriteria = normalizeCriteriaScores(detailResult?.criteria_scores || {}, fallbackBand);
+      const fastTask = fastTaskLookup.get(String(task._id));
+
+      const lockedBand = fastTask
+        ? toBandHalfStep(fastTask.band_score)
+        : fallbackBand;
+      const lockedCriteria = fastTask
+        ? normalizeCriteriaScores(fastTask.criteria_scores || {}, lockedBand)
+        : fallbackCriteria;
+
+      const { model: detailModel, ...detailPayload } = detailResult;
+      const mergedResult = {
+        ...detailPayload,
+        band_score: lockedBand,
+        criteria_scores: lockedCriteria,
+      };
+
+      return {
+        task_id: String(task._id),
+        task_type: task.task_type || "task2",
+        task_title: task.title || answer.task_title || "",
+        band_score: lockedBand,
+        criteria_scores: lockedCriteria,
+        detail_model: String(detailModel || "").trim() || null,
+        result: mergedResult,
+      };
+    }),
+  );
+
+  const taskResults = taskResultsRaw.filter(Boolean);
   if (taskResults.length === 0) {
     const error = new Error("Original writing tasks not found for this submission");
     error.statusCode = 404;
     throw error;
   }
 
-  const overallBand = computeOverallBand(taskResults);
-  const singleTaskResult = taskResults.length === 1 ? taskResults[0].result : null;
-  const aiResult = singleTaskResult || {
-    band_score: overallBand,
-    tasks: taskResults.map((task) => ({
-      task_id: task.task_id,
-      task_type: task.task_type,
-      task_title: task.task_title,
-      band_score: task.band_score,
-      result: task.result,
-    })),
-    feedback: ["AI scored multi-task writing submission."],
-  };
+  const fastOverallBand = Number(fastResult?.band_score);
+  const overallBand = Number.isFinite(fastOverallBand)
+    ? toBandHalfStep(fastOverallBand)
+    : computeOverallBand(taskResults);
 
-  // Extract Error Taxonomy Logs
-  const errorLogs = [];
-  for (const tr of taskResults) {
-    const aiRes = tr.result;
-    if (!aiRes) continue;
+  const overallCriteria = normalizeCriteriaScores(
+    fastResult?.criteria_scores || computeOverallCriteria(taskResults),
+    overallBand,
+  );
 
-    const criteriaList = [
-      { key: "lexical_resource" },
-      { key: "grammatical_range_accuracy" },
-    ];
+  const firstDetailModel = taskResults.map((item) => item.detail_model).find(Boolean) || null;
+  const aiPipelineVersion = "writing_v2_phase_models";
 
-    for (const { key } of criteriaList) {
-      const items = Array.isArray(aiRes[key]) ? aiRes[key] : [];
-      for (const item of items) {
-        if (!shouldPersistWritingIssue({ criterionKey: key, item })) continue;
-
-        const normalizedLog = createTaxonomyErrorLog({
-          skillDomain: "writing",
-          taskType: tr.task_type,
-          questionType: tr.task_type,
-          errorCode: item.error_code,
-          textSnippet: item.text_snippet || "",
-          explanation: item.explanation || "",
-          detectionMethod: "llm",
-          confidence: item.confidence,
-          secondaryErrorCodes: item.secondary_error_codes,
-        });
-
-        // Only keep precise taxonomy codes. Skip ambiguous fallback entries.
-        if (normalizedLog.error_code === "W-UNCLASSIFIED") continue;
-        errorLogs.push(normalizedLog);
-      }
+  const aiResult = taskResults.length === 1
+    ? {
+      ...taskResults[0].result,
+      band_score: taskResults[0].band_score,
+      criteria_scores: taskResults[0].criteria_scores,
+      ai_pipeline_version: aiPipelineVersion,
+      ai_fast_model: submission.ai_fast_model || fastResult?.model || null,
+      ai_detail_model: firstDetailModel,
     }
-  }
+    : {
+      band_score: overallBand,
+      criteria_scores: overallCriteria,
+      tasks: taskResults.map((task) => ({
+        task_id: task.task_id,
+        task_type: task.task_type,
+        task_title: task.task_title,
+        band_score: task.band_score,
+        result: task.result,
+      })),
+      feedback: ["AI extracted detailed issues based on fast-band locked scoring."],
+      ai_pipeline_version: aiPipelineVersion,
+      ai_fast_model: submission.ai_fast_model || fastResult?.model || null,
+      ai_detail_model: firstDetailModel,
+    };
 
-  submission.error_logs = errorLogs;
   submission.ai_result = aiResult;
   submission.is_ai_graded = true;
   submission.score = overallBand;
   submission.status = "scored";
   submission.scoring_state = "detail_ready";
+  submission.taxonomy_state = "processing";
+  submission.taxonomy_updated_at = null;
   await submission.save();
+
+  await scheduleWritingTaxonomyEnrichment({
+    submissionId: String(submission._id),
+    force: true,
+  });
 
   return {
     submission,
     aiResult,
     skipped: false,
   };
+};
+
+export const getWritingTaskTypeMapBySubmissionId = async ({ submissionId } = {}) => {
+  const submission = await WritingSubmission.findById(submissionId).select("writing_answers").lean();
+  if (!submission) return new Map();
+  return getTaskTypeByAnswerOrder(submission.writing_answers || []);
 };

@@ -37,6 +37,12 @@ const WritingSubmissionSchema = new mongoose.Schema({
     enum: ["none", "fast_ready", "detail_processing", "detail_ready", "failed"],
     default: "none",
   },
+  taxonomy_state: {
+    type: String,
+    enum: ["none", "processing", "ready", "failed"],
+    default: "none",
+  },
+  taxonomy_updated_at: { type: Date, default: null },
 
   // Metadata
   submitted_at: { type: Date, default: Date.now },
@@ -97,6 +103,7 @@ WritingSubmissionSchema.index({ user_id: 1, submitted_at: -1 });
 WritingSubmissionSchema.index({ user_id: 1, status: 1, submitted_at: -1 });
 WritingSubmissionSchema.index({ attempt_id: 1 });
 WritingSubmissionSchema.index({ submitted_at: -1 });
+WritingSubmissionSchema.index({ user_id: 1, taxonomy_state: 1, submitted_at: -1 });
 
 const WritingSubmission = mongoose.models.WritingSubmission || mongoose.model('WritingSubmission', WritingSubmissionSchema);
 export default WritingSubmission;

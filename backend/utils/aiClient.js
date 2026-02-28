@@ -1,8 +1,69 @@
 const DEFAULT_TIMEOUT_MS = Number(process.env.AI_REQUEST_TIMEOUT_MS || 30000);
 const DEFAULT_MAX_ATTEMPTS = Number(process.env.AI_REQUEST_MAX_ATTEMPTS || 3);
 const DEFAULT_BASE_DELAY_MS = Number(process.env.AI_RETRY_BASE_DELAY_MS || 500);
+const MODEL_DEMOTE_ERROR_THRESHOLD = Number(process.env.AI_MODEL_DEMOTE_ERROR_THRESHOLD || 3);
+const MODEL_DEMOTE_WINDOW_MS = Number(process.env.AI_MODEL_DEMOTE_WINDOW_MS || 300000);
+const modelHealthState = new Map();
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const toModelErrorSignature = (error) => {
+  const code = String(error?.code || "").toUpperCase();
+  const message = String(error?.message || "").toLowerCase();
+  if (code === "MODEL_JSON_PARSE_FAILED") return "model_json_parse_failed";
+  if (message.includes("empty content")) return "empty_content";
+  return "";
+};
+
+const isDemotableModelError = (error) => Boolean(toModelErrorSignature(error));
+
+const registerModelSuccess = (model) => {
+  if (!model) return;
+  modelHealthState.delete(model);
+};
+
+const registerModelFailure = (model, error) => {
+  if (!model || !isDemotableModelError(error)) return;
+
+  const now = Date.now();
+  const previous = modelHealthState.get(model) || {
+    failures: 0,
+    lastFailureAt: 0,
+    demotedUntil: 0,
+  };
+  const withinWindow = now - Number(previous.lastFailureAt || 0) <= MODEL_DEMOTE_WINDOW_MS;
+  const failures = withinWindow ? Number(previous.failures || 0) + 1 : 1;
+  const nextState = {
+    failures,
+    lastFailureAt: now,
+    demotedUntil: Number(previous.demotedUntil || 0),
+  };
+
+  if (failures >= MODEL_DEMOTE_ERROR_THRESHOLD) {
+    nextState.demotedUntil = now + MODEL_DEMOTE_WINDOW_MS;
+    nextState.failures = 0;
+  }
+
+  modelHealthState.set(model, nextState);
+};
+
+const prioritizeHealthyModels = (models = []) => {
+  const now = Date.now();
+  const healthy = [];
+  const demoted = [];
+
+  models.forEach((model) => {
+    const state = modelHealthState.get(model);
+    const isDemoted = Number(state?.demotedUntil || 0) > now;
+    if (isDemoted) {
+      demoted.push(model);
+      return;
+    }
+    healthy.push(model);
+  });
+
+  return [...healthy, ...demoted];
+};
 
 const withTimeout = async (promiseFactory, timeoutMs, timeoutMessage) => {
   let timeoutHandle;
@@ -272,6 +333,7 @@ export const requestOpenAIJsonWithFallback = async ({
   if (normalizedModels.length === 0) {
     throw new Error("No OpenAI model provided for AI request");
   }
+  const orderedModels = prioritizeHealthyModels(normalizedModels);
 
   const extractTextFromChatMessageContent = (content) => {
     if (typeof content === "string") {
@@ -298,7 +360,7 @@ export const requestOpenAIJsonWithFallback = async ({
   };
 
   let lastError;
-  for (const model of normalizedModels) {
+  for (const model of orderedModels) {
     try {
       const completion = await runWithRetry({
         label: `OpenAI:${model}`,
@@ -331,12 +393,14 @@ export const requestOpenAIJsonWithFallback = async ({
         },
       });
 
+      registerModelSuccess(model);
       return {
         model,
         data: completion.parsed,
         rawText: completion.content,
       };
     } catch (error) {
+      registerModelFailure(model, error);
       lastError = error;
     }
   }

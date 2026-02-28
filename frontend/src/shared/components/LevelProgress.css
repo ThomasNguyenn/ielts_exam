@@ -1,80 +1,76 @@
 .level-badge {
     display: flex;
     align-items: center;
-    gap: 0.6rem;
-    padding: 0.35rem 1rem;
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: 2rem;
+    gap: 0.58rem;
+    padding: 0.35rem 0.84rem;
+    background: #f8fbff;
+    border: 1px solid #dbe4f4;
+    border-radius: 999px;
     cursor: help;
-    transition: all 0.2s;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
+    transition: all 0.2s ease;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
 .level-badge:hover {
-    border-color: #6366F1;
-    box-shadow: 0 4px 12px rgba(208, 57, 57, 0.1);
+    border-color: #bfd3ff;
+    box-shadow: 0 6px 14px rgba(17, 82, 212, 0.14);
     transform: translateY(-1px);
 }
 
-/* Admin Special Style */
 .level-badge-admin {
-    background: linear-gradient(135deg, #EEF2FF, #fff);
-    border-color: #fbbf24;
-    /* Amber/Gold */
+    background: linear-gradient(135deg, #eef4ff, #ffffff 75%);
+    border-color: #f3c56b;
 }
 
 .level-badge-admin .level-icon-wrapper {
-    color: #d97706;
-    /* Gold text */
+    color: #b45309;
     background: #fef3c7;
 }
 
 .level-badge-admin:hover {
-    border-color: #f59e0b;
-    box-shadow: 0 4px 12px rgba(251, 191, 36, 0.2);
+    border-color: #e6a742;
+    box-shadow: 0 6px 14px rgba(230, 167, 66, 0.2);
 }
 
 .level-icon-wrapper {
-    width: 32px;
-    height: 32px;
-    background: #fee2e2;
+    width: 30px;
+    height: 30px;
+    background: #eaf1ff;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #6366F1;
+    color: #1152d4;
     flex-shrink: 0;
 }
 
 .level-svg {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
 }
 
 .level-info {
     display: flex;
     flex-direction: column;
     justify-content: center;
-    min-width: 60px;
-    line-height: 1.2;
+    min-width: 62px;
+    line-height: 1.18;
 }
 
 .level-title {
-    font-size: 0.65rem;
+    font-size: 0.63rem;
     text-transform: uppercase;
     color: #64748b;
     font-weight: 700;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.45px;
 }
 
 .level-number-text {
-    font-size: 0.85rem;
+    font-size: 0.84rem;
     color: #1e293b;
     font-weight: 800;
 }
 
 .level-xp {
     display: none;
-    /* Hidden for cleaner look, shown on hover via title */
 }

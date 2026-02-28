@@ -4,7 +4,11 @@ import WritingSubmission from "../models/WritingSubmission.model.js";
 import TestAttempt from "../models/TestAttempt.model.js";
 import User from "../models/User.model.js";
 import { isAiAsyncModeEnabled } from "../config/queue.config.js";
-import { enqueueWritingAiScoreJob, isAiQueueReady } from "../queues/ai.queue.js";
+import {
+    enqueueWritingAiScoreJob,
+    enqueueWritingTaxonomyEnrichmentJob,
+    isAiQueueReady,
+} from "../queues/ai.queue.js";
 import { scoreWritingSubmissionById } from "../services/writingSubmissionScoring.service.js";
 import { scoreWritingSubmissionFastById } from "../services/writingFastScoring.service.js";
 import {
@@ -41,6 +45,46 @@ const canAccessSubmission = (submission, user) => {
     if (!submission?.user_id) return user.role === "admin" || user.role === "teacher";
     if (String(submission.user_id) === String(user.userId)) return true;
     return user.role === "admin" || user.role === "teacher";
+};
+
+const resolveTaxonomyState = (submission) => {
+    const explicit = String(submission?.taxonomy_state || "").trim().toLowerCase();
+    if (["none", "processing", "ready", "failed"].includes(explicit)) {
+        return explicit;
+    }
+
+    const hasErrorLogs = Array.isArray(submission?.error_logs) && submission.error_logs.length > 0;
+    return hasErrorLogs ? "ready" : "none";
+};
+
+const triggerWritingTaxonomyEnrichment = async (submissionId) => {
+    const shouldQueue = isAiAsyncModeEnabled() && isAiQueueReady();
+    if (shouldQueue) {
+        try {
+            const queueResult = await enqueueWritingTaxonomyEnrichmentJob({
+                submissionId: String(submissionId),
+                force: true,
+            });
+            if (queueResult.queued) return queueResult;
+        } catch (queueError) {
+            console.warn("Writing taxonomy enqueue failed, falling back to inline:", queueError.message);
+        }
+    }
+
+    setImmediate(async () => {
+        try {
+            const { enrichWritingTaxonomyBySubmissionId } = await import("../services/writingTaxonomyEnrichment.service.js");
+            await enrichWritingTaxonomyBySubmissionId({ submissionId: String(submissionId), force: true });
+        } catch (error) {
+            console.warn("Writing taxonomy inline fallback failed:", error.message);
+        }
+    });
+
+    return {
+        queued: false,
+        queue: "inline",
+        jobId: null,
+    };
 };
 
 const normalizeFastTopIssue = (item = {}) => ({
@@ -311,6 +355,8 @@ export const submitWriting = async (req, res) => {
             }],
             status: gradingMode === "ai" ? "processing" : "pending",
             scoring_state: "none",
+            taxonomy_state: "none",
+            taxonomy_updated_at: null,
             time_taken_ms: normalizedTimeTakenMs,
         });
 
@@ -764,6 +810,8 @@ export const getSubmissionStatus = async (req, res) => {
                 ai_fast_model: submission.ai_fast_model || null,
                 ai_fast_scored_at: submission.ai_fast_scored_at || null,
                 scoring_state: submission.scoring_state || (submission.is_ai_graded ? "detail_ready" : "none"),
+                taxonomy_state: resolveTaxonomyState(submission),
+                taxonomy_updated_at: submission.taxonomy_updated_at || null,
                 writing_answers: submission.writing_answers || [],
                 submitted_at: submission.submitted_at,
                 time_taken_ms: Number.isFinite(Number(submission.time_taken_ms))
@@ -992,10 +1040,25 @@ export const scoreSubmissionAI = async (req, res) => {
         }
 
         if (submission.is_ai_graded && submission.ai_result) {
+            const currentTaxonomyState = resolveTaxonomyState(submission);
+            let taxonomyScheduled = false;
+
             if (submission.scoring_state !== "detail_ready" || submission.status !== "scored") {
                 submission.scoring_state = "detail_ready";
                 submission.status = "scored";
+                taxonomyScheduled = true;
+            }
+            if (currentTaxonomyState === "none" || currentTaxonomyState === "failed") {
+                submission.taxonomy_state = "processing";
+                submission.taxonomy_updated_at = null;
+                taxonomyScheduled = true;
+            }
+
+            if (taxonomyScheduled) {
                 await submission.save();
+            }
+            if (currentTaxonomyState === "none" || currentTaxonomyState === "failed") {
+                await triggerWritingTaxonomyEnrichment(String(submission._id));
             }
             return res.status(200).json({ success: true, data: submission });
         }
@@ -1041,6 +1104,8 @@ export const scoreSubmissionAI = async (req, res) => {
         await WritingSubmission.findByIdAndUpdate(id, {
             status: "failed",
             scoring_state: "failed",
+            taxonomy_state: "failed",
+            taxonomy_updated_at: new Date(),
         }).catch(() => { });
         return handleControllerError(req, res, error);
     }

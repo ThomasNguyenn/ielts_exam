@@ -1,6 +1,20 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, LogIn, LogOut, Menu, UserPlus, X } from 'lucide-react';
+import HomeOutlined from '@mui/icons-material/HomeOutlined';
+import SpaceDashboardOutlined from '@mui/icons-material/SpaceDashboardOutlined';
+import LibraryBooksOutlined from '@mui/icons-material/LibraryBooksOutlined';
+import EditNoteOutlined from '@mui/icons-material/EditNoteOutlined';
+import RecordVoiceOverOutlined from '@mui/icons-material/RecordVoiceOverOutlined';
+import MenuBookOutlined from '@mui/icons-material/MenuBookOutlined';
+import AnalyticsOutlined from '@mui/icons-material/AnalyticsOutlined';
+import TranslateOutlined from '@mui/icons-material/TranslateOutlined';
+import MilitaryTechOutlined from '@mui/icons-material/MilitaryTechOutlined';
+import GradingOutlined from '@mui/icons-material/GradingOutlined';
+import LeaderboardOutlined from '@mui/icons-material/LeaderboardOutlined';
+import AdminPanelSettingsOutlined from '@mui/icons-material/AdminPanelSettingsOutlined';
+import AppsOutlined from '@mui/icons-material/AppsOutlined';
+import WorkspacesOutlined from '@mui/icons-material/WorkspacesOutlined';
 import { api } from '@/shared/api/client';
 import LevelProgress from './LevelProgress';
 import './Navigation.css';
@@ -11,6 +25,7 @@ import './Navigation-mobile.css';
  * @property {string} key
  * @property {string} to
  * @property {string} label
+ * @property {string=} icon
  * @property {'all'|'auth'|'teacher_admin'|'admin'} visibility
  * @property {(pathname: string) => boolean=} isActive
  */
@@ -22,6 +37,7 @@ const NAV_SCHEMA = {
       key: 'home',
       to: '/',
       label: 'Trang chủ',
+      icon: 'home',
       visibility: 'all',
       isActive: (pathname) => pathname === '/',
     },
@@ -29,6 +45,7 @@ const NAV_SCHEMA = {
       key: 'profile',
       to: '/profile',
       label: 'Dashboard',
+      icon: 'space_dashboard',
       visibility: 'auth',
       isActive: (pathname) => pathname.startsWith('/profile'),
     },
@@ -36,6 +53,7 @@ const NAV_SCHEMA = {
       key: 'tests',
       to: '/tests',
       label: 'Luyện thi',
+      icon: 'library_books',
       visibility: 'all',
       isActive: (pathname) => pathname === '/tests' || pathname.startsWith('/tests/'),
     },
@@ -43,6 +61,7 @@ const NAV_SCHEMA = {
       key: 'writing',
       to: '/practice',
       label: 'Luyện viết',
+      icon: 'edit_square',
       visibility: 'all',
       isActive: (pathname) => pathname.startsWith('/practice') && !pathname.includes('/speaking'),
     },
@@ -50,6 +69,7 @@ const NAV_SCHEMA = {
       key: 'speaking',
       to: '/speaking',
       label: 'Luyện nói',
+      icon: 'record_voice_over',
       visibility: 'all',
       isActive: (pathname) => pathname.includes('/speaking'),
     },
@@ -57,6 +77,7 @@ const NAV_SCHEMA = {
       key: 'skills',
       to: '/learn',
       label: 'Lý thuyết',
+      icon: 'menu_book',
       visibility: 'all',
       isActive: (pathname) => pathname.startsWith('/learn'),
     },
@@ -64,6 +85,7 @@ const NAV_SCHEMA = {
       key: 'analytics',
       to: '/analytics',
       label: 'Phân tích sâu',
+      icon: 'analytics',
       visibility: 'auth',
       isActive: (pathname) => pathname.startsWith('/analytics'),
     },
@@ -74,6 +96,7 @@ const NAV_SCHEMA = {
       key: 'vocabulary',
       to: '/vocabulary',
       label: 'Vocabulary',
+      icon: 'translate',
       visibility: 'auth',
       isActive: (pathname) => pathname.startsWith('/vocabulary'),
     },
@@ -81,6 +104,7 @@ const NAV_SCHEMA = {
       key: 'achievements',
       to: '/achievements',
       label: 'Thành tựu',
+      icon: 'military_tech',
       visibility: 'auth',
       isActive: (pathname) => pathname.startsWith('/achievements'),
     },
@@ -90,6 +114,7 @@ const NAV_SCHEMA = {
       key: 'grading',
       to: '/grading',
       label: 'Chấm bài',
+      icon: 'grading',
       visibility: 'teacher_admin',
       isActive: (pathname) => pathname.startsWith('/grading'),
     },
@@ -97,6 +122,7 @@ const NAV_SCHEMA = {
       key: 'scores',
       to: '/scores',
       label: 'Kết quả',
+      icon: 'leaderboard',
       visibility: 'teacher_admin',
       isActive: (pathname) => pathname.startsWith('/scores'),
     },
@@ -104,10 +130,26 @@ const NAV_SCHEMA = {
       key: 'manage',
       to: '/manage',
       label: 'Quản lý',
+      icon: 'admin_panel_settings',
       visibility: 'admin',
       isActive: (pathname) => pathname.startsWith('/manage'),
     },
   ],
+};
+
+const NAV_ICON_COMPONENTS = {
+  home: HomeOutlined,
+  space_dashboard: SpaceDashboardOutlined,
+  library_books: LibraryBooksOutlined,
+  edit_square: EditNoteOutlined,
+  record_voice_over: RecordVoiceOverOutlined,
+  menu_book: MenuBookOutlined,
+  analytics: AnalyticsOutlined,
+  translate: TranslateOutlined,
+  military_tech: MilitaryTechOutlined,
+  grading: GradingOutlined,
+  leaderboard: LeaderboardOutlined,
+  admin_panel_settings: AdminPanelSettingsOutlined,
 };
 
 const isItemVisible = (item, user) => {
@@ -240,6 +282,15 @@ export default function Layout() {
     const active = typeof item.isActive === 'function' ? item.isActive(pathname) : isActiveFromRouter;
     return `nav-item ${active ? 'active' : ''} ${extraClass}`.trim();
   };
+  const renderNavLabel = (item) => {
+    const IconComponent = item.icon ? NAV_ICON_COMPONENTS[item.icon] : null;
+    return (
+      <>
+        {IconComponent ? <IconComponent className="nav-item-symbol" aria-hidden="true" fontSize="inherit" /> : null}
+        <span className="nav-item-text">{item.label}</span>
+      </>
+    );
+  };
 
   return (
     <div className="layout">
@@ -248,7 +299,7 @@ export default function Layout() {
           <div className="nav-container" ref={navContainerRef}>
             <div className="nav-mobile-head">
               <NavLink to="/" className="nav-mobile-brand" onClick={closeAllMenus}>
-                IELTS MASTER
+                <span className="nav-brand-text">IELTS MASTER</span>
               </NavLink>
               <button
                 type="button"
@@ -273,7 +324,7 @@ export default function Layout() {
                   className={({ isActive }) => getNavLinkClassName(item, isActive)}
                   onClick={closeAllMenus}
                 >
-                  {item.label}
+                  {renderNavLabel(item)}
                 </NavLink>
               ))}
               {directItems.map((item) => (
@@ -283,7 +334,7 @@ export default function Layout() {
                   className={({ isActive }) => getNavLinkClassName(item, isActive)}
                   onClick={closeAllMenus}
                 >
-                  {item.label}
+                  {renderNavLabel(item)}
                 </NavLink>
               ))}
 
@@ -300,7 +351,8 @@ export default function Layout() {
                       aria-controls="nav-more-menu"
                       onClick={() => toggleDropdown('more')}
                     >
-                      Tiện ích
+                      <AppsOutlined className="nav-item-symbol" aria-hidden="true" fontSize="inherit" />
+                      <span className="nav-item-text">Tiện ích</span>
                       <ChevronDown className={`nav-dropdown-chevron ${openDropdown === 'more' ? 'rotated' : ''}`} />
                     </button>
                     <div
@@ -316,7 +368,7 @@ export default function Layout() {
                           className={({ isActive }) => getNavLinkClassName(item, isActive, 'nav-dropdown-item')}
                           onClick={closeAllMenus}
                         >
-                          {item.label}
+                          {renderNavLabel(item)}
                         </NavLink>
                       ))}
                     </div>
@@ -331,7 +383,7 @@ export default function Layout() {
                         className={({ isActive }) => getNavLinkClassName(item, isActive)}
                         onClick={closeAllMenus}
                       >
-                        {item.label}
+                        {renderNavLabel(item)}
                       </NavLink>
                     ))}
                   </div>
@@ -349,7 +401,8 @@ export default function Layout() {
                       aria-controls="nav-workspace-menu"
                       onClick={() => toggleDropdown('workspace')}
                     >
-                      Workspace
+                      <WorkspacesOutlined className="nav-item-symbol" aria-hidden="true" fontSize="inherit" />
+                      <span className="nav-item-text">Workspace</span>
                       <ChevronDown className={`nav-dropdown-chevron ${openDropdown === 'workspace' ? 'rotated' : ''}`} />
                     </button>
                     <div
@@ -365,7 +418,7 @@ export default function Layout() {
                           className={({ isActive }) => getNavLinkClassName(item, isActive, 'nav-dropdown-item')}
                           onClick={closeAllMenus}
                         >
-                          {item.label}
+                          {renderNavLabel(item)}
                         </NavLink>
                       ))}
                     </div>
@@ -380,7 +433,7 @@ export default function Layout() {
                         className={({ isActive }) => getNavLinkClassName(item, isActive)}
                         onClick={closeAllMenus}
                       >
-                        {item.label}
+                        {renderNavLabel(item)}
                       </NavLink>
                     ))}
                   </div>
@@ -392,9 +445,10 @@ export default function Layout() {
                   <LevelProgress user={user} />
                   <button
                     type="button"
-                    className="nav-item logout-btn"
+                    className="logout-btn"
                     onClick={handleLogout}
                     disabled={isLoggingOut}
+                    title="Logout"
                   >
                     <LogOut className="nav-icon" />
                   </button>

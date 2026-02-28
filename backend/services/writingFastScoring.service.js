@@ -183,11 +183,14 @@ export const scoreWritingSubmissionFastById = async ({ submissionId, force = fal
   }
 
   const fastResult = buildFastResult(taskResults);
-  const fastModel = taskResults.map((item) => item.model).find(Boolean) || process.env.WRITING_FAST_MODEL || "gpt-4o-mini";
+  const fastModel = taskResults.map((item) => item.model).find(Boolean)
+    || process.env.WRITING_FAST_PRIMARY_MODEL
+    || process.env.WRITING_FAST_MODEL
+    || "gpt-5-mini";
 
   submission.ai_fast_result = fastResult;
   submission.is_ai_fast_graded = true;
-  submission.ai_fast_model = String(fastModel || "gpt-4o-mini");
+  submission.ai_fast_model = String(fastModel || "gpt-5-mini");
   submission.ai_fast_scored_at = new Date();
   submission.scoring_state = submission.is_ai_graded ? "detail_ready" : "fast_ready";
   submission.status = submission.is_ai_graded ? "scored" : "processing";

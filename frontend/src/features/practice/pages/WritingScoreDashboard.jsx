@@ -100,25 +100,6 @@ const WritingScoreDashboard = ({ result, onRestart }) => {
                         </div>
                     )}
 
-                    {/* Model Essay Card */}
-                    {result.sample_essay && (
-                        <div className="bg-emerald-50/30 rounded-2xl shadow-sm border border-emerald-100 ">
-                            <div className="bg-emerald-50/50 px-6 py-4 border-b border-emerald-100 flex justify-between items-center">
-                                <h3 className="font-bold text-emerald-800 flex items-center gap-2">
-                                    <span className="w-2 h-6 bg-emerald-500 rounded-full"></span>
-                                    Band 8.0 Model Essay
-                                </h3>
-                                <span className="bg-white px-3 py-1 rounded-full text-xs font-bold text-emerald-600 border border-emerald-200 shadow-sm">
-                                    {result.sample_essay.split(/\s+/).length} words
-                                </span>
-                            </div>
-                            <div className="p-8 font-serif text-lg leading-loose text-slate-800 space-y-4">
-                                {result.sample_essay.split('\n').map((para, idx) => (
-                                    <p key={idx}>{para}</p>
-                                ))}
-                            </div>
-                        </div>
-                    )}
                 </div>
 
                 {/* Right: Sidebar */}

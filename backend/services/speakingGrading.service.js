@@ -42,7 +42,7 @@ const SPEAKING_GEMINI_MAX_ATTEMPTS = Number(
   process.env.SPEAKING_GEMINI_MAX_ATTEMPTS || process.env.GEMINI_MAX_ATTEMPTS || 2,
 );
 const SPEAKING_ANALYSIS_MAX_OUTPUT_TOKENS = Number(
-  process.env.SPEAKING_ANALYSIS_MAX_OUTPUT_TOKENS || 1200,
+  process.env.SPEAKING_ANALYSIS_MAX_OUTPUT_TOKENS || 800,
 );
 const SPEAKING_MOCK_MAX_OUTPUT_TOKENS = Number(
   process.env.SPEAKING_MOCK_MAX_OUTPUT_TOKENS || 220,
@@ -951,7 +951,9 @@ export const scoreSpeakingSessionById = async ({ sessionId, force = false } = {}
     provisional_final_band_diff: bandDiff,
   }));
 
-  await cleanupSessionAudioFromCloudinary(session);
+  void cleanupSessionAudioFromCloudinary(session).catch((cleanupError) => {
+    console.warn("Cloudinary async cleanup wrapper failed:", cleanupError?.message || cleanupError);
+  });
 
   return {
     session,

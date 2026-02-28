@@ -4,10 +4,16 @@ import { connectDB } from "../config/db.js";
 import { validateWorkerEnvironment } from "../config/env.validation.js";
 import {
   createRedisConnection,
-  getAiWorkerConcurrency,
+  getSpeakingWorkerConcurrency,
+  getTaxonomyWorkerConcurrency,
+  getWritingWorkerConcurrency,
   isAiAsyncModeEnabled,
 } from "../config/queue.config.js";
-import { WRITING_AI_QUEUE, SPEAKING_AI_QUEUE } from "../queues/ai.queue.js";
+import {
+  SPEAKING_AI_QUEUE,
+  WRITING_AI_QUEUE,
+  WRITING_TAXONOMY_QUEUE,
+} from "../queues/ai.queue.js";
 
 dotenv.config();
 
@@ -34,10 +40,13 @@ const main = async () => {
   }
 
   await connectDB();
-  const concurrency = getAiWorkerConcurrency();
-  const [{ scoreWritingSubmissionById }, { scoreSpeakingSessionById }] = await Promise.all([
+  const writingConcurrency = getWritingWorkerConcurrency();
+  const speakingConcurrency = getSpeakingWorkerConcurrency();
+  const taxonomyConcurrency = getTaxonomyWorkerConcurrency();
+  const [{ scoreWritingSubmissionById }, { scoreSpeakingSessionById }, { enrichWritingTaxonomyBySubmissionId }] = await Promise.all([
     import("../services/writingSubmissionScoring.service.js"),
     import("../services/speakingGrading.service.js"),
+    import("../services/writingTaxonomyEnrichment.service.js"),
   ]);
 
   const writingWorker = new Worker(
@@ -48,7 +57,7 @@ const main = async () => {
       await scoreWritingSubmissionById({ submissionId, force });
       return { submissionId };
     },
-    { connection: redisConnection, concurrency },
+    { connection: redisConnection, concurrency: writingConcurrency },
   );
 
   const speakingWorker = new Worker(
@@ -59,7 +68,18 @@ const main = async () => {
       await scoreSpeakingSessionById({ sessionId, force });
       return { sessionId };
     },
-    { connection: redisConnection, concurrency },
+    { connection: redisConnection, concurrency: speakingConcurrency },
+  );
+
+  const writingTaxonomyWorker = new Worker(
+    WRITING_TAXONOMY_QUEUE,
+    async (job) => {
+      const { submissionId, force = false } = job.data || {};
+      if (!submissionId) throw new Error("Missing submissionId");
+      await enrichWritingTaxonomyBySubmissionId({ submissionId, force });
+      return { submissionId };
+    },
+    { connection: redisConnection, concurrency: taxonomyConcurrency },
   );
 
   writingWorker.on("completed", (job) => {
@@ -74,10 +94,18 @@ const main = async () => {
   speakingWorker.on("failed", (job, err) => {
     log("Speaking job failed", { jobId: job?.id, error: err?.message });
   });
+  writingTaxonomyWorker.on("completed", (job) => {
+    log("Writing taxonomy job completed", { jobId: job.id });
+  });
+  writingTaxonomyWorker.on("failed", (job, err) => {
+    log("Writing taxonomy job failed", { jobId: job?.id, error: err?.message });
+  });
 
   log("AI workers started", {
-    queues: [WRITING_AI_QUEUE, SPEAKING_AI_QUEUE],
-    concurrency,
+    queues: [WRITING_AI_QUEUE, SPEAKING_AI_QUEUE, WRITING_TAXONOMY_QUEUE],
+    writingConcurrency,
+    speakingConcurrency,
+    taxonomyConcurrency,
   });
 };
 
