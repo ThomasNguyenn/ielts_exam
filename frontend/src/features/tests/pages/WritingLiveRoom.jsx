@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '@/shared/api/client';
+import { useNotification } from '@/shared/context/NotificationContext';
 import './WritingLiveRoom.css';
 
 const CRITERION_OPTIONS = [
@@ -184,10 +185,11 @@ export default function WritingLiveRoom() {
   const { roomCode: rawRoomCode } = useParams();
   const roomCode = normalizeCode(rawRoomCode);
   const navigate = useNavigate();
+  const { showNotification } = useNotification();
 
   const user = api.getUser() || {};
   const isTeacher = user?.role === 'teacher' || user?.role === 'admin';
-  const roomEndRedirectPath = isTeacher ? '/scores' : '/profile';
+  const roomEndRedirectPath = isTeacher ? '/grading' : '/profile';
 
   const essayRef = useRef(null);
   const socketRef = useRef(null);
@@ -262,6 +264,27 @@ export default function WritingLiveRoom() {
         })),
     [taskHighlights],
   );
+
+  const closeSocketConnection = useCallback((reason = 'room_closed') => {
+    endedByServerRef.current = true;
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+
+    const socket = socketRef.current;
+    socketRef.current = null;
+    if (socket) {
+      try {
+        if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+          socket.close(1000, reason);
+        }
+      } catch {
+        // ignore close error
+      }
+    }
+    setWsState('disconnected');
+  }, []);
 
   const sendSocketEvent = useCallback((type, payload = {}) => {
     const socket = socketRef.current;
@@ -399,14 +422,9 @@ export default function WritingLiveRoom() {
         }
 
         if (type === 'room_closed') {
-          endedByServerRef.current = true;
           setRoomClosedMessage('This live room has been closed by teacher or timeout.');
-          setWsState('disconnected');
-          try {
-            socket.close();
-          } catch {
-            // ignore close error
-          }
+          closeSocketConnection('room_closed');
+          showNotification('Phòng chữa Writing đã đóng', 'info');
           navigate(roomEndRedirectPath, { replace: true });
           return;
         }
@@ -461,7 +479,7 @@ export default function WritingLiveRoom() {
         }
       }
     };
-  }, [roomCode, sendSocketEvent, navigate, roomEndRedirectPath]);
+  }, [roomCode, sendSocketEvent, navigate, roomEndRedirectPath, closeSocketConnection, showNotification]);
 
   useEffect(() => {
     const submissionId = String(submission?._id || '').trim();
@@ -581,7 +599,9 @@ export default function WritingLiveRoom() {
     setStatus('');
     try {
       await closeRoomByTeacher();
-      navigate('/scores', { replace: true });
+      closeSocketConnection('teacher_ended');
+      showNotification('Phòng chữa Writing đã đóng', 'info');
+      navigate('/grading', { replace: true });
     } catch (closeError) {
       setStatus(closeError?.message || 'Failed to close room.');
     }
@@ -595,7 +615,7 @@ export default function WritingLiveRoom() {
         // Continue navigation even if close request fails.
       }
     }
-    navigate(isTeacher ? '/scores' : '/profile');
+    navigate(isTeacher ? '/grading' : '/profile');
   };
 
   const handleSubmitScore = async (event) => {

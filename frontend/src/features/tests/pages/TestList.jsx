@@ -5,6 +5,7 @@ import TestCardSkeleton from '@/shared/components/TestCardSkeleton';
 import PaginationControls from '@/shared/components/PaginationControls';
 import { TestCard, PartCard } from '@/features/tests/components/TestCard';
 import TestSidebar from '@/features/tests/components/TestSidebar';
+import { canonicalizeQuestionGroupType, getQuestionGroupLabel } from '@/features/tests/utils/questionGroupLabels';
 import './TestList.css';
 
 const PAGE_SIZE = 12;
@@ -18,6 +19,7 @@ export default function TestList() {
   const [error, setError] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedPartFilter, setSelectedPartFilter] = useState('all');
+  const [selectedQuestionGroupFilter, setSelectedQuestionGroupFilter] = useState('all');
   const [selectedType, setSelectedType] = useState('all');
   const [viewMode, setViewMode] = useState('full'); // 'full' | 'parts'
   const [searchInput, setSearchInput] = useState('');
@@ -43,8 +45,14 @@ export default function TestList() {
   useEffect(() => {
     setSelectedCategory('all');
     setSelectedPartFilter('all');
+    setSelectedQuestionGroupFilter('all');
     setCurrentPage(1);
   }, [selectedType]);
+
+  useEffect(() => {
+    if (viewMode === 'parts') return;
+    setSelectedQuestionGroupFilter('all');
+  }, [viewMode]);
 
   useEffect(() => {
     setError(null);
@@ -57,6 +65,7 @@ export default function TestList() {
         type: selectedType !== 'all' ? selectedType : undefined,
         category: selectedCategory !== 'all' ? selectedCategory : undefined,
         q: searchQuery.trim() || undefined,
+        includeQuestionGroupTypes: true,
       })
       .then((res) => {
         setTests(res.data || []);
@@ -132,6 +141,63 @@ export default function TestList() {
     };
   }, []);
 
+  useEffect(() => {
+    const canUseQuestionGroupFilter = viewMode === 'parts' && (selectedType === 'reading' || selectedType === 'listening');
+    if (!canUseQuestionGroupFilter) {
+      if (selectedQuestionGroupFilter !== 'all') {
+        setSelectedQuestionGroupFilter('all');
+      }
+      return;
+    }
+
+    const query = searchQuery.trim().toLowerCase();
+    const targetPartIndex = selectedPartFilter === 'all'
+      ? null
+      : Number.parseInt(selectedPartFilter.replace('part', ''), 10) - 1;
+    const availableTypes = new Set();
+
+    tests.forEach((test) => {
+      const type = test.type || 'reading';
+      const category = (test.category || '').trim() || 'Uncategorized';
+
+      if (selectedType !== 'all' && type !== selectedType) return;
+      if (selectedCategory !== 'all' && category !== selectedCategory) return;
+
+      if (query) {
+        const matchesQuery =
+          test.title.toLowerCase().includes(query) ||
+          test._id.toLowerCase().includes(query) ||
+          category.toLowerCase().includes(query) ||
+          type.toLowerCase().includes(query);
+        if (!matchesQuery) return;
+      }
+
+      const parts = type === 'reading'
+        ? (test.reading_passages || [])
+        : (type === 'listening' ? (test.listening_sections || []) : []);
+
+      parts.forEach((part, index) => {
+        if (targetPartIndex !== null && index !== targetPartIndex) return;
+        (part?.question_groups || []).forEach((group) => {
+          const canonicalType = canonicalizeQuestionGroupType(group?.type);
+          if (canonicalType) availableTypes.add(canonicalType);
+        });
+      });
+    });
+
+    if (selectedQuestionGroupFilter !== 'all' && !availableTypes.has(selectedQuestionGroupFilter)) {
+      setSelectedQuestionGroupFilter('all');
+    }
+  }, [
+    selectedCategory,
+    selectedPartFilter,
+    selectedQuestionGroupFilter,
+    selectedType,
+    searchQuery,
+    tests,
+    viewMode,
+  ]);
+
   if (loading) {
     return (
       <div className="page test-list">
@@ -203,6 +269,8 @@ export default function TestList() {
   let categoryCounts = {};
   let groupedTests = {};
   let flattenedParts = [];
+  let questionGroupOptions = [{ value: 'all', label: 'All Question Groups' }];
+  const canUseQuestionGroupFilter = viewMode === 'parts' && (selectedType === 'reading' || selectedType === 'listening');
 
   if (viewMode === 'full') {
     const fallbackCategoryCounts = typeFilteredTests.reduce((acc, test) => {
@@ -233,6 +301,13 @@ export default function TestList() {
       // Reading Passages
       if (test.type === 'reading' && test.reading_passages) {
         test.reading_passages.forEach((p, index) => {
+          const questionGroupTypes = Array.from(
+            new Set(
+              (p?.question_groups || [])
+                .map((group) => canonicalizeQuestionGroupType(group?.type))
+                .filter(Boolean)
+            )
+          );
           flattenedParts.push({
             uniqueId: `${test._id}_p${index}`,
             testId: test._id,
@@ -241,7 +316,8 @@ export default function TestList() {
             category: cat,
             type: 'reading',
             partIndex: index,
-            label: `Passage ${index + 1}`
+            label: `Passage ${index + 1}`,
+            questionGroupTypes,
           });
         });
       }
@@ -249,6 +325,13 @@ export default function TestList() {
       // Listening Sections
       if (test.type === 'listening' && test.listening_sections) {
         test.listening_sections.forEach((s, index) => {
+          const questionGroupTypes = Array.from(
+            new Set(
+              (s?.question_groups || [])
+                .map((group) => canonicalizeQuestionGroupType(group?.type))
+                .filter(Boolean)
+            )
+          );
           flattenedParts.push({
             uniqueId: `${test._id}_s${index}`,
             testId: test._id,
@@ -257,7 +340,8 @@ export default function TestList() {
             category: cat,
             type: 'listening',
             partIndex: index,
-            label: `Section ${index + 1}`
+            label: `Section ${index + 1}`,
+            questionGroupTypes,
           });
         });
       }
@@ -272,7 +356,8 @@ export default function TestList() {
             category: cat,
             type: 'writing',
             partIndex: index,
-            label: `Task ${index + 1}`
+            label: `Task ${index + 1}`,
+            questionGroupTypes: [],
           });
         });
       }
@@ -282,6 +367,23 @@ export default function TestList() {
     if (selectedPartFilter !== 'all') {
       const targetIndex = parseInt(selectedPartFilter.replace('part', '')) - 1;
       flattenedParts = flattenedParts.filter(p => p.partIndex === targetIndex);
+    }
+
+    if (canUseQuestionGroupFilter) {
+      const availableTypes = Array.from(
+        new Set(flattenedParts.flatMap((part) => part.questionGroupTypes || []))
+      ).sort((a, b) => getQuestionGroupLabel(a).localeCompare(getQuestionGroupLabel(b)));
+
+      questionGroupOptions = [
+        { value: 'all', label: 'All Question Groups' },
+        ...availableTypes.map((value) => ({ value, label: getQuestionGroupLabel(value) })),
+      ];
+
+      if (selectedQuestionGroupFilter !== 'all') {
+        flattenedParts = flattenedParts.filter((part) =>
+          (part.questionGroupTypes || []).includes(selectedQuestionGroupFilter)
+        );
+      }
     }
 
     const pagePartCategoryCounts = flattenedParts.reduce((acc, part) => {
@@ -381,6 +483,9 @@ export default function TestList() {
           onViewModeChange={setViewMode}
           selectedPartFilter={selectedPartFilter}
           onPartFilterChange={setSelectedPartFilter}
+          selectedQuestionGroupFilter={selectedQuestionGroupFilter}
+          onQuestionGroupFilterChange={setSelectedQuestionGroupFilter}
+          questionGroupOptions={questionGroupOptions}
           totalTests={statsTotalTests}
           completedTests={completedCount}
         />

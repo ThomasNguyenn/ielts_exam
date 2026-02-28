@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>IELTS Writing Manager</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#0f49bd",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#101622",
+                    },
+                    fontFamily: {
+                        display: ["Inter", "sans-serif"],
+                    },
+                    borderRadius: {
+                        DEFAULT: "0.5rem",
+                        lg: "1rem",
+                        xl: "1.5rem",
+                        "2xl": "2rem",
+                        full: "9999px",
+                    },
+                },
+            },
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+
+<body class="bg-background-light text-slate-900 min-h-screen flex flex-col">
+    <!-- Top Navigation Bar -->
+    <div class="relative flex w-full flex-col bg-white border-b border-slate-200">
+        <header class="flex items-center justify-between whitespace-nowrap px-10 py-4 max-w-[1440px] mx-auto w-full">
+            <div class="flex items-center gap-8">
+                <div class="flex items-center gap-3 text-slate-900">
+                    <div class="size-8 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+                        <span class="material-symbols-outlined">edit_note</span>
+                    </div>
+                    <h2 class="text-slate-900 text-lg font-bold leading-tight tracking-[-0.015em]">IELTS Writing Manager
+                    </h2>
+                </div>
+                <nav class="hidden md:flex items-center gap-1">
+                    <a class="text-slate-500 hover:text-primary hover:bg-slate-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                        href="#">Dashboard</a>
+                    <a class="text-primary bg-primary/5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                        href="#">Assignments</a>
+                    <a class="text-slate-500 hover:text-primary hover:bg-slate-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                        href="#">Students</a>
+                    <a class="text-slate-500 hover:text-primary hover:bg-slate-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                        href="#">Reports</a>
+                </nav>
+            </div>
+            <div class="flex items-center justify-end gap-6">
+                <label class="hidden lg:flex flex-col min-w-40 h-10 max-w-64 relative group">
+                    <div
+                        class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary transition-colors">
+                        <span class="material-symbols-outlined text-[20px]">search</span>
+                    </div>
+                    <input
+                        class="form-input block w-full rounded-xl border-none bg-slate-100 py-2 pl-10 pr-3 text-sm placeholder:text-slate-400 focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all"
+                        placeholder="Search students..." type="text" />
+                </label>
+                <button class="relative p-2 text-slate-400 hover:text-primary transition-colors">
+                    <span class="material-symbols-outlined">notifications</span>
+                    <span class="absolute top-2 right-2 size-2 bg-red-500 rounded-full border border-white"></span>
+                </button>
+                <div class="bg-center bg-no-repeat bg-cover rounded-full size-10 ring-2 ring-white shadow-sm cursor-pointer"
+                    data-alt="User profile photo of a teacher"
+                    style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDQ_kUNUgof1ZWpS55v51InuhJn4ypBlObruautFHatiSqxxuybPVFPZxJSETsiKyD9_-bevh3YTnOJRA66tQttLVOL2oDlax0_x7GV1bBjUQ9bEF05GSLf8YMdmPJKfziC2vyX-VC3qRHaO9AKKwIZFnCUFuZmDN6SnnM-YCiiXc7ggQQ_BC8VYWbgxPW76qD21Dg72CQqZtEoJHYLOh_og_37iG8kpyXlAQC1rX0F76eJdiI-Dc8CzT9Bn8JwA-rpSfxUpPi0MJ4");'>
+                </div>
+            </div>
+        </header>
+    </div>
+    <!-- Main Content Area -->
+    <main class="flex-1 w-full max-w-[1440px] mx-auto p-6 md:p-10 flex flex-col lg:flex-row gap-8">
+        <!-- Left Column: Assignment List -->
+        <div class="flex-1 flex flex-col gap-6">
+            <!-- Page Header -->
+            <div class="flex flex-col gap-2">
+                <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Assignment Management</h1>
+                <p class="text-slate-500">Review, grade, and track student submissions for IELTS Task 1 &amp; 2.</p>
+            </div>
+            <!-- Tabs -->
+            <div class="border-b border-slate-200">
+                <div class="flex gap-8">
+                    <button class="group flex items-center gap-2 border-b-[3px] border-primary pb-3 pt-2 text-primary">
+                        <span class="text-sm font-bold">Pending</span>
+                        <span class="bg-primary/10 text-primary px-2 py-0.5 rounded-full text-xs font-bold">12</span>
+                    </button>
+                    <button
+                        class="group flex items-center gap-2 border-b-[3px] border-transparent pb-3 pt-2 text-slate-500 hover:text-slate-700 hover:border-slate-300 transition-colors">
+                        <span class="text-sm font-bold">Graded</span>
+                        <span
+                            class="bg-slate-100 text-slate-600 group-hover:bg-slate-200 px-2 py-0.5 rounded-full text-xs font-bold transition-colors">45</span>
+                    </button>
+                </div>
+            </div>
+            <!-- Filters -->
+            <div class="flex flex-wrap gap-3 py-2">
+                <div class="relative">
+                    <select
+                        class="appearance-none h-10 pl-4 pr-10 rounded-xl bg-white border border-slate-200 text-sm font-medium text-slate-700 hover:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer transition-all">
+                        <option>All Task Types</option>
+                        <option>Task 1 (Academic)</option>
+                        <option>Task 2 (Essay)</option>
+                    </select>
+                    <span
+                        class="material-symbols-outlined absolute right-3 top-2.5 text-slate-400 pointer-events-none text-[20px]">expand_more</span>
+                </div>
+                <div class="relative">
+                    <select
+                        class="appearance-none h-10 pl-4 pr-10 rounded-xl bg-white border border-slate-200 text-sm font-medium text-slate-700 hover:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer transition-all">
+                        <option>All Classes</option>
+                        <option>IELTS Prep A</option>
+                        <option>Advanced Writing B</option>
+                    </select>
+                    <span
+                        class="material-symbols-outlined absolute right-3 top-2.5 text-slate-400 pointer-events-none text-[20px]">expand_more</span>
+                </div>
+                <div class="relative">
+                    <select
+                        class="appearance-none h-10 pl-4 pr-10 rounded-xl bg-white border border-slate-200 text-sm font-medium text-slate-700 hover:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer transition-all">
+                        <option>Sort by: Submission Date</option>
+                        <option>Sort by: Name</option>
+                        <option>Sort by: Priority</option>
+                    </select>
+                    <span
+                        class="material-symbols-outlined absolute right-3 top-2.5 text-slate-400 pointer-events-none text-[20px]">expand_more</span>
+                </div>
+                <button
+                    class="h-10 w-10 flex items-center justify-center rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-primary hover:border-primary transition-all ml-auto">
+                    <span class="material-symbols-outlined">filter_list</span>
+                </button>
+            </div>
+            <!-- Assignment Cards List -->
+            <div class="flex flex-col gap-4">
+                <!-- Card 1: High Priority -->
+                <article
+                    class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm hover:shadow-md hover:border-primary/30 transition-all group">
+                    <div class="flex flex-col sm:flex-row gap-5 items-start sm:items-center justify-between">
+                        <div class="flex items-center gap-4">
+                            <div class="relative">
+                                <div class="size-12 rounded-full bg-cover bg-center"
+                                    data-alt="Student portrait of Sarah Jenkins"
+                                    style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBWdeVc-67TEnfXAPcz4s8nu-uMZTGsdwccpkFbJ3W1hKqyVa974WoHK0h8Zv9FLTPbksizfpuk1VQMaO5lT_XB75E0AuqSnWweZBMTxAaj_hNQwsG81RhGmL9vjQLKlh-5EiGhAWF0DWp8vZGJC2UTnrIgdQgbO19bxml9CofgACEMWHL2Qa8P-prTQP1cnLCGYQRTGtEULVeYC9-Dc_EFOYF_gTco0qBla-CEneljqwymltUAbLgwp9VLKrxTEU-zDAs4YKop57k')">
+                                </div>
+                                <div class="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5">
+                                    <div class="bg-green-500 size-3 rounded-full border-2 border-white"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-slate-900 group-hover:text-primary transition-colors">Sarah
+                                    Jenkins</h3>
+                                <p class="text-sm text-slate-500">Task 2: The impact of technology on education</p>
+                            </div>
+                        </div>
+                        <div class="flex flex-col items-end gap-1">
+                            <span
+                                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-100">
+                                <span class="size-1.5 rounded-full bg-orange-500"></span>
+                                Submitted 2h ago
+                            </span>
+                            <span class="text-xs text-slate-400 font-medium">Due in 24 hours</span>
+                        </div>
+                    </div>
+                    <div
+                        class="mt-4 pt-4 border-t border-slate-100 flex flex-col sm:flex-row gap-4 items-center justify-between">
+                        <div class="flex items-center gap-3 w-full sm:w-auto">
+                            <div
+                                class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200">
+                                <span class="material-symbols-outlined text-purple-600 text-[18px]">smart_toy</span>
+                                <span class="text-xs font-semibold text-slate-700">AI Prelim: <span
+                                        class="text-purple-700">6.5</span></span>
+                            </div>
+                            <span class="text-xs text-slate-400">Word count: 284</span>
+                        </div>
+                        <button
+                            class="w-full sm:w-auto px-5 py-2.5 bg-primary hover:bg-primary/90 text-white text-sm font-semibold rounded-lg shadow-sm shadow-primary/30 transition-all flex items-center justify-center gap-2">
+                            <span>Grade Now</span>
+                            <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+                        </button>
+                    </div>
+                </article>
+                <!-- Card 2 -->
+                <article
+                    class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm hover:shadow-md hover:border-primary/30 transition-all group">
+                    <div class="flex flex-col sm:flex-row gap-5 items-start sm:items-center justify-between">
+                        <div class="flex items-center gap-4">
+                            <div class="relative">
+                                <div class="size-12 rounded-full bg-cover bg-center"
+                                    data-alt="Student portrait of Michael Chen"
+                                    style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBpMXNf23kv_gxgoa2xOWm80kLBWEL6HhYEDyaBuJTLT2hps6wgagYJrkzoUk31ytJ8PZbN_v1Vi1SmwNDLmyM4SxTMk5DCznn7qnTYpwb0fxEAZ_RyJ04tLNookODs4e1u9-fi2NnV4Y8VfA9vgIZmQxqH7ep0jtkXaPMAvOdVoiL1QsnEe1aqy4NzMblRVbrbltvI4L49j0HIg3WEU1_beJAR_C5I52E37vdy2ybxZALzFmXfnKxKkHhhTm1lNDjIlEUvfBl85ZQ')">
+                                </div>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-slate-900 group-hover:text-primary transition-colors">Michael
+                                    Chen</h3>
+                                <p class="text-sm text-slate-500">Task 1: Urban population growth chart analysis</p>
+                            </div>
+                        </div>
+                        <div class="flex flex-col items-end gap-1">
+                            <span
+                                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                                <span class="size-1.5 rounded-full bg-slate-400"></span>
+                                Submitted 5h ago
+                            </span>
+                        </div>
+                    </div>
+                    <div
+                        class="mt-4 pt-4 border-t border-slate-100 flex flex-col sm:flex-row gap-4 items-center justify-between">
+                        <div class="flex items-center gap-3 w-full sm:w-auto">
+                            <div
+                                class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200">
+                                <span class="material-symbols-outlined text-purple-600 text-[18px]">smart_toy</span>
+                                <span class="text-xs font-semibold text-slate-700">AI Prelim: <span
+                                        class="text-purple-700">7.0</span></span>
+                            </div>
+                            <span class="text-xs text-slate-400">Word count: 165</span>
+                        </div>
+                        <button
+                            class="w-full sm:w-auto px-5 py-2.5 bg-primary hover:bg-primary/90 text-white text-sm font-semibold rounded-lg shadow-sm shadow-primary/30 transition-all flex items-center justify-center gap-2">
+                            <span>Grade Now</span>
+                            <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+                        </button>
+                    </div>
+                </article>
+                <!-- Card 3 -->
+                <article
+                    class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm hover:shadow-md hover:border-primary/30 transition-all group">
+                    <div class="flex flex-col sm:flex-row gap-5 items-start sm:items-center justify-between">
+                        <div class="flex items-center gap-4">
+                            <div class="relative">
+                                <div class="size-12 rounded-full bg-cover bg-center"
+                                    data-alt="Student portrait of Emma Wilson"
+                                    style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDCbskO5VJTmMsboDr3TDBXP5Wj29OgBJSZNJMA_wPnnKjfijcBHCI80_QnkCmO4BaRezBOyAUBF04VmazrGPCAJiBtriU4l2G_mnIIuEMn3H9aDFl1QxX0ZPwkMgMH1Ck4DLonGGaVSMCqOcwkLiTD6EETWBchHPracVjkml_vBaIJPIY4JgqqYJ3dUGcYYCHzQ7unZnLTPBd1oKjkSXQ9C9AZ4a5VKiUqVxXb-lQRJVhO8YJ2E90zSk9WWuZwiY0cFshNVlgtkd4')">
+                                </div>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-slate-900 group-hover:text-primary transition-colors">Emma
+                                    Wilson</h3>
+                                <p class="text-sm text-slate-500">Task 2: Environmental protection responsibilities</p>
+                            </div>
+                        </div>
+                        <div class="flex flex-col items-end gap-1">
+                            <span
+                                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                                <span class="size-1.5 rounded-full bg-slate-400"></span>
+                                Submitted 1d ago
+                            </span>
+                        </div>
+                    </div>
+                    <div
+                        class="mt-4 pt-4 border-t border-slate-100 flex flex-col sm:flex-row gap-4 items-center justify-between">
+                        <div class="flex items-center gap-3 w-full sm:w-auto">
+                            <div
+                                class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200">
+                                <span class="material-symbols-outlined text-purple-600 text-[18px]">smart_toy</span>
+                                <span class="text-xs font-semibold text-slate-700">AI Prelim: <span
+                                        class="text-purple-700">6.0</span></span>
+                            </div>
+                            <span class="text-xs text-slate-400">Word count: 310</span>
+                        </div>
+                        <button
+                            class="w-full sm:w-auto px-5 py-2.5 bg-primary hover:bg-primary/90 text-white text-sm font-semibold rounded-lg shadow-sm shadow-primary/30 transition-all flex items-center justify-center gap-2">
+                            <span>Grade Now</span>
+                            <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+                        </button>
+                    </div>
+                </article>
+                <!-- Card 4 (Slightly faded to indicate older) -->
+                <article
+                    class="bg-white/80 rounded-xl p-5 border border-slate-200 hover:bg-white hover:shadow-md hover:border-primary/30 transition-all group">
+                    <div class="flex flex-col sm:flex-row gap-5 items-start sm:items-center justify-between">
+                        <div class="flex items-center gap-4">
+                            <div class="relative">
+                                <div
+                                    class="size-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xl">
+                                    JD</div>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-slate-900 group-hover:text-primary transition-colors">James
+                                    Doe</h3>
+                                <p class="text-sm text-slate-500">Task 1: Process diagram of recycling</p>
+                            </div>
+                        </div>
+                        <div class="flex flex-col items-end gap-1">
+                            <span
+                                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                                <span class="size-1.5 rounded-full bg-slate-400"></span>
+                                Submitted 2d ago
+                            </span>
+                        </div>
+                    </div>
+                    <div
+                        class="mt-4 pt-4 border-t border-slate-100 flex flex-col sm:flex-row gap-4 items-center justify-between">
+                        <div class="flex items-center gap-3 w-full sm:w-auto">
+                            <div
+                                class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200">
+                                <span class="material-symbols-outlined text-purple-600 text-[18px]">smart_toy</span>
+                                <span class="text-xs font-semibold text-slate-700">AI Prelim: <span
+                                        class="text-purple-700">5.5</span></span>
+                            </div>
+                            <span class="text-xs text-slate-400">Word count: 142</span>
+                        </div>
+                        <button
+                            class="w-full sm:w-auto px-5 py-2.5 bg-primary hover:bg-primary/90 text-white text-sm font-semibold rounded-lg shadow-sm shadow-primary/30 transition-all flex items-center justify-center gap-2">
+                            <span>Grade Now</span>
+                            <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+                        </button>
+                    </div>
+                </article>
+            </div>
+            <div class="flex justify-center mt-4">
+                <button class="text-primary text-sm font-medium hover:underline flex items-center gap-1">
+                    Load more pending assignments
+                    <span class="material-symbols-outlined text-[16px]">expand_more</span>
+                </button>
+            </div>
+        </div>
+        <!-- Right Column: Stats & Quick Info -->
+        <aside class="w-full lg:w-80 flex flex-col gap-6">
+            <!-- Quick Stats -->
+            <div class="bg-white rounded-xl p-6 border border-slate-200 shadow-sm flex flex-col gap-6">
+                <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+                    <h3 class="font-bold text-slate-900">Your Performance</h3>
+                    <span class="material-symbols-outlined text-slate-400">trending_up</span>
+                </div>
+                <div class="flex flex-col gap-2">
+                    <div class="flex justify-between items-end">
+                        <span class="text-sm text-slate-500 font-medium">Weekly Goal</span>
+                        <span class="text-lg font-bold text-slate-900">15<span
+                                class="text-slate-400 text-sm font-normal">/20</span></span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-2">
+                        <div class="bg-primary h-2 rounded-full" style="width: 75%"></div>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-1">5 more to reach your goal!</p>
+                </div>
+                <div class="flex flex-col gap-2">
+                    <span class="text-sm text-slate-500 font-medium">Avg. Turnaround Time</span>
+                    <div class="flex items-baseline gap-2">
+                        <span class="text-2xl font-bold text-slate-900">4.5h</span>
+                        <span
+                            class="text-xs font-medium text-green-600 bg-green-50 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                            <span class="material-symbols-outlined text-[12px]">arrow_downward</span> 12%
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <!-- Recently Graded Mini-list -->
+            <div class="bg-white rounded-xl p-6 border border-slate-200 shadow-sm flex flex-col gap-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-bold text-slate-900">Recently Graded</h3>
+                    <a class="text-xs text-primary font-medium hover:underline" href="#">View All</a>
+                </div>
+                <div class="flex flex-col gap-4">
+                    <div class="flex items-center justify-between gap-3 group cursor-pointer">
+                        <div class="flex items-center gap-3">
+                            <div
+                                class="size-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center text-xs font-bold">
+                                AK</div>
+                            <div class="flex flex-col">
+                                <span
+                                    class="text-sm font-semibold text-slate-900 group-hover:text-primary transition-colors">Alex
+                                    Kim</span>
+                                <span class="text-xs text-slate-500">Task 2 • 2h ago</span>
+                            </div>
+                        </div>
+                        <span
+                            class="bg-green-50 text-green-700 border border-green-100 text-xs font-bold px-2 py-0.5 rounded">7.5</span>
+                    </div>
+                    <div class="flex items-center justify-between gap-3 group cursor-pointer">
+                        <div class="flex items-center gap-3">
+                            <div class="size-8 rounded-full bg-cover bg-center" data-alt="Student photo"
+                                style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBO5AtpqaakrQsKkVAB2cLBmPVizBXrnZFMSKX9LGXLDl15L8HFPKwanK5JSchI8Fr9W2lw4nGdnmSflpkU_ROPFkkW_dzF7DBSVjzxa_YRBEx_NirsqKOOC4G-DsnE_SntS6Dt9KRGHmg8Dht9NNE8RRPK6swJXEB6fXXwiPAu7QxgiX-c5FU4R1XPvqYEIWmqiJaZPeyqQtXprXCHaAZxe6xbEFAoaWE8tdgRUwkavl001mrj6kH1iGTPKM_HEeB7ovvKl2tIaFU')">
+                            </div>
+                            <div class="flex flex-col">
+                                <span
+                                    class="text-sm font-semibold text-slate-900 group-hover:text-primary transition-colors">Maria
+                                    G.</span>
+                                <span class="text-xs text-slate-500">Task 1 • 4h ago</span>
+                            </div>
+                        </div>
+                        <span
+                            class="bg-yellow-50 text-yellow-700 border border-yellow-100 text-xs font-bold px-2 py-0.5 rounded">6.0</span>
+                    </div>
+                    <div class="flex items-center justify-between gap-3 group cursor-pointer">
+                        <div class="flex items-center gap-3">
+                            <div
+                                class="size-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center text-xs font-bold">
+                                DL</div>
+                            <div class="flex flex-col">
+                                <span
+                                    class="text-sm font-semibold text-slate-900 group-hover:text-primary transition-colors">David
+                                    Lee</span>
+                                <span class="text-xs text-slate-500">Task 2 • 1d ago</span>
+                            </div>
+                        </div>
+                        <span
+                            class="bg-green-50 text-green-700 border border-green-100 text-xs font-bold px-2 py-0.5 rounded">7.0</span>
+                    </div>
+                </div>
+            </div>
+            <!-- Helpful Resource Card -->
+            <div
+                class="bg-primary/5 rounded-xl p-5 border border-primary/10 flex items-start gap-4 relative overflow-hidden">
+                <div class="absolute -right-4 -top-4 text-primary/10 rotate-12">
+                    <span class="material-symbols-outlined text-[100px]">school</span>
+                </div>
+                <div class="relative z-10">
+                    <h4 class="font-bold text-primary text-sm mb-1">New Rubric Update</h4>
+                    <p class="text-xs text-slate-600 mb-3">The IELTS writing evaluation criteria has been slightly
+                        updated for Task 1.</p>
+                    <a class="text-xs font-bold text-primary hover:text-primary/80 flex items-center gap-1" href="#">
+                        Read Guidelines <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
+                    </a>
+                </div>
+            </div>
+        </aside>
+    </main>
+</body>
+
+</html>

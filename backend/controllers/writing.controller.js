@@ -110,6 +110,39 @@ const pickWritingPayload = (body = {}, { allowId = false } = {}) => {
     }, {});
 };
 
+const escapeRegexForQuery = (value = "") =>
+    String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const resolveSubmissionStatusFilter = (status) => {
+    if (status === "pending") {
+        return { $in: ["pending", "processing"] };
+    }
+    if (status === "scored") {
+        return { $in: ["scored", "reviewed"] };
+    }
+    if (status) {
+        return status;
+    }
+    return null;
+};
+
+const resolveSubmissionSort = ({ sortBy, sortOrder }) => {
+    const normalizedSortBy = ["submitted_at", "student_name", "priority"].includes(sortBy)
+        ? sortBy
+        : "submitted_at";
+    const normalizedSortOrder = String(sortOrder || "").toLowerCase() === "asc" ? 1 : -1;
+
+    if (normalizedSortBy === "student_name") {
+        return { student_name: normalizedSortOrder, submitted_at: -1, _id: 1 };
+    }
+
+    if (normalizedSortBy === "priority") {
+        return { priority: true, direction: normalizedSortOrder };
+    }
+
+    return { submitted_at: normalizedSortOrder, _id: normalizedSortOrder };
+};
+
 export const getAllWritings = async (req, res) => {
     try {
         const privileged = isTeacherOrAdminRequest(req);
@@ -328,16 +361,21 @@ export const submitWriting = async (req, res) => {
 /** Get submissions with status filtering */
 export const getSubmissions = async (req, res) => {
     try {
-        const { status, startDate, endDate } = req.query;
+        const {
+            status,
+            startDate,
+            endDate,
+            taskType,
+            student,
+            q,
+            sortBy,
+            sortOrder,
+        } = req.query;
         const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 20, maxLimit: 100 });
         const filter = {};
-        if (status === "pending") {
-            // "Pending" tab should still include AI-processing submissions that are not teacher-scored yet.
-            filter.status = { $in: ["pending", "processing"] };
-        } else if (status === "scored") {
-            filter.status = { $in: ["scored", "reviewed"] };
-        } else if (status) {
-            filter.status = status;
+        const statusFilter = resolveSubmissionStatusFilter(status);
+        if (statusFilter) {
+            filter.status = statusFilter;
         }
 
         if (startDate && endDate) {
@@ -346,6 +384,38 @@ export const getSubmissions = async (req, res) => {
                 $lte: new Date(endDate)
             };
         }
+
+        const normalizedTaskType = String(taskType || "").toLowerCase();
+        if (normalizedTaskType === "task1" || normalizedTaskType === "task2") {
+            const taskCandidates = await Writing.find({ task_type: normalizedTaskType }).select("_id").lean();
+            const taskIds = taskCandidates.map((task) => String(task._id));
+            if (taskIds.length === 0) {
+                return res.status(200).json({
+                    success: true,
+                    data: [],
+                    pagination: buildPaginationMeta({ page, limit, totalItems: 0 }),
+                });
+            }
+
+            filter["writing_answers.task_id"] = { $in: taskIds };
+        }
+
+        if (student) {
+            const studentRegex = new RegExp(`^${escapeRegexForQuery(student)}$`, "i");
+            filter.student_name = studentRegex;
+        }
+
+        const trimmedQuery = String(q || "").trim();
+        if (trimmedQuery) {
+            const queryRegex = new RegExp(escapeRegexForQuery(trimmedQuery), "i");
+            filter.$or = [
+                { student_name: queryRegex },
+                { student_email: queryRegex },
+                { "writing_answers.task_title": queryRegex },
+            ];
+        }
+
+        const resolvedSort = resolveSubmissionSort({ sortBy, sortOrder });
 
         // Keep list payload lean: dashboard only needs metadata, task titles and scoring summary.
         const listProjection = {
@@ -356,24 +426,97 @@ export const getSubmissions = async (req, res) => {
             is_ai_graded: 1,
             score: 1,
             scores: 1,
+            "ai_fast_result.band_score": 1,
             "writing_answers.task_id": 1,
             "writing_answers.task_title": 1,
+            "writing_answers.word_count": 1,
         };
 
-        const [totalItems, submissions] = await Promise.all([
-            WritingSubmission.countDocuments(filter),
-            WritingSubmission.find(filter)
+        const totalItemsPromise = WritingSubmission.countDocuments(filter);
+        let submissionsPromise;
+
+        if (resolvedSort.priority) {
+            const priorityDirection = resolvedSort.direction;
+            submissionsPromise = WritingSubmission.aggregate([
+                { $match: filter },
+                {
+                    $addFields: {
+                        priority_rank: {
+                            $switch: {
+                                branches: [
+                                    { case: { $eq: ["$status", "processing"] }, then: 0 },
+                                    { case: { $eq: ["$status", "pending"] }, then: 1 },
+                                    { case: { $eq: ["$status", "failed"] }, then: 2 },
+                                    { case: { $eq: ["$status", "reviewed"] }, then: 3 },
+                                    { case: { $eq: ["$status", "scored"] }, then: 4 },
+                                ],
+                                default: 9,
+                            },
+                        },
+                    },
+                },
+                { $sort: { priority_rank: priorityDirection, submitted_at: -1, _id: 1 } },
+                { $project: listProjection },
+                { $skip: skip },
+                { $limit: limit },
+            ]);
+        } else {
+            submissionsPromise = WritingSubmission.find(filter)
                 .select(listProjection)
-                .sort({ submitted_at: -1 })
+                .sort(resolvedSort)
                 .skip(skip)
                 .limit(limit)
-                .lean(),
+                .lean();
+        }
+
+        const [totalItems, submissions] = await Promise.all([
+            totalItemsPromise,
+            submissionsPromise,
         ]);
 
         res.status(200).json({
             success: true,
             data: submissions,
             pagination: buildPaginationMeta({ page, limit, totalItems }),
+        });
+    } catch (error) {
+        return handleControllerError(req, res, error);
+    }
+};
+
+/** Distinct student list for grading filters */
+export const getSubmissionStudents = async (req, res) => {
+    try {
+        const { status } = req.query;
+        const filter = {};
+        const statusFilter = resolveSubmissionStatusFilter(status);
+        if (statusFilter) {
+            filter.status = statusFilter;
+        }
+
+        const students = await WritingSubmission.aggregate([
+            { $match: filter },
+            {
+                $group: {
+                    _id: { $trim: { input: { $ifNull: ["$student_name", ""] } } },
+                    count: { $sum: 1 },
+                },
+            },
+            { $match: { _id: { $ne: "" } } },
+            { $sort: { _id: 1 } },
+            {
+                $project: {
+                    _id: 0,
+                    value: "$_id",
+                    label: "$_id",
+                    count: 1,
+                },
+            },
+        ]);
+
+        return res.status(200).json({
+            success: true,
+            data: students,
         });
     } catch (error) {
         return handleControllerError(req, res, error);

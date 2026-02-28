@@ -462,6 +462,10 @@ export const api = {
     const query = toQueryString(params);
     return request(`/api/writings/submissions${query ? `?${query}` : ''}`);
   },
+  getSubmissionStudents: (params = {}) => {
+    const query = toQueryString(params);
+    return request(`/api/writings/submissions/students${query ? `?${query}` : ''}`);
+  },
   getSubmissionById: (id) => request(`/api/writings/submissions/${id}`),
   getSubmissionStatus: (id) => request(`/api/writings/submissions/${id}/status`),
   scoreSubmission: (id, body) => request(`/api/writings/submissions/${id}/score`, { method: 'POST', body: JSON.stringify(body) }),

@@ -7,9 +7,15 @@ import { handleControllerError, sendControllerError } from "../utils/controllerE
 
 const escapeRegex = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const ALLOWED_TEST_TYPES = ['reading', 'listening', 'writing'];
+const TRUTHY_QUERY_VALUES = new Set(['1', 'true', 'yes']);
 const isTeacherOrAdminRequest = (req) => (
     req.user?.role === 'teacher' || req.user?.role === 'admin'
 );
+const parseTruthyQueryFlag = (value) => {
+    if (typeof value === 'boolean') return value;
+    if (value === null || value === undefined) return false;
+    return TRUTHY_QUERY_VALUES.has(String(value).trim().toLowerCase());
+};
 const pickTestPayload = (body = {}, { allowId = false } = {}) => {
     const allowed = [
         "title",
@@ -132,10 +138,13 @@ export const getAllTests = async (req, res) => {
     try {
         const shouldPaginate = req.query.page !== undefined || req.query.limit !== undefined;
         const filter = buildTestFilter(req.query);
+        const includeQuestionGroupTypes = parseTruthyQueryFlag(req.query.includeQuestionGroupTypes);
+        const readingSelect = includeQuestionGroupTypes ? 'title question_groups.type' : 'title';
+        const listeningSelect = includeQuestionGroupTypes ? 'title question_groups.type' : 'title';
 
         const baseQuery = Test.find(filter)
-            .populate('reading_passages', 'title')
-            .populate('listening_sections', 'title')
+            .populate('reading_passages', readingSelect)
+            .populate('listening_sections', listeningSelect)
             .populate('writing_tasks', 'title')
             .sort({ created_at: -1 });
 

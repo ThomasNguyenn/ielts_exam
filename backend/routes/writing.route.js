@@ -6,6 +6,7 @@ import {
   getAllWritings,
   getLiveRoomSharedContext,
   getSubmissionById,
+  getSubmissionStudents,
   getSubmissionStatus,
   getSubmissions,
   getWritingById,
@@ -48,6 +49,7 @@ const upload = multer({
 
 router.get("/", optionalVerifyToken, getAllWritings);
 router.get("/submissions", verifyToken, isTeacherOrAdmin, getSubmissions);
+router.get("/submissions/students", verifyToken, isTeacherOrAdmin, getSubmissionStudents);
 router.get("/submissions/:id", verifyToken, isTeacherOrAdmin, getSubmissionById);
 router.get("/submissions/:id/status", verifyToken, getSubmissionStatus);
 router.post("/submissions/:id/live-room", verifyToken, isTeacherOrAdmin, createSubmissionLiveRoom);

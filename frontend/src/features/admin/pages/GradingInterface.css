@@ -1,0 +1,226 @@
+.grading-interface {
+  min-height: 100vh;
+  background: #f6f6f8;
+  padding: 1.75rem;
+}
+
+.grading-interface--center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.grading-interface__container {
+  width: min(1100px, 100%);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.grading-interface__back-btn {
+  width: fit-content;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #475569;
+  border-radius: 0.75rem;
+  padding: 0.55rem 0.85rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.grading-interface__header {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  padding: 1.35rem 1.4rem;
+}
+
+.grading-interface__header h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  color: #0f49bd;
+}
+
+.grading-interface__header p {
+  margin: 0.5rem 0 0;
+  color: #475569;
+  font-size: 0.92rem;
+}
+
+.grading-interface__separator {
+  margin: 0 0.5rem;
+  color: #94a3b8;
+}
+
+.grading-interface__overall-band {
+  margin-top: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 0.75rem;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 700;
+  padding: 0.5rem 0.9rem;
+}
+
+.grading-interface__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.3rem;
+}
+
+.grading-interface__task-block {
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.grading-interface__task-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #f1f5f9;
+  background: #f8fafc;
+}
+
+.grading-interface__task-head h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1.06rem;
+}
+
+.grading-interface__task-head span {
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.grading-interface__prompt-card,
+.grading-interface__answer-card {
+  padding: 1.2rem 1.25rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.grading-interface__prompt-card h3,
+.grading-interface__answer-card h3,
+.grading-interface__grading-box h3 {
+  margin: 0 0 0.65rem;
+  color: #334155;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+}
+
+.grading-interface__prompt-text,
+.grading-interface__answer-card p {
+  margin: 0;
+  white-space: pre-wrap;
+  color: #334155;
+  line-height: 1.65;
+}
+
+.grading-interface__task-image-wrap {
+  margin-bottom: 0.9rem;
+}
+
+.grading-interface__task-image {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+}
+
+.grading-interface__grading-box {
+  background: #eff6ff;
+  padding: 1.2rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.grading-interface__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.grading-interface__field span {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.grading-interface__field input,
+.grading-interface__field textarea {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  border-radius: 0.65rem;
+  padding: 0.65rem 0.8rem;
+  color: #1e293b;
+  font-size: 0.92rem;
+}
+
+.grading-interface__field input {
+  width: 120px;
+}
+
+.grading-interface__field textarea {
+  resize: vertical;
+  min-height: 120px;
+}
+
+.grading-interface__field input:focus,
+.grading-interface__field textarea:focus {
+  outline: none;
+  border-color: #0f49bd;
+  box-shadow: 0 0 0 3px rgba(15, 73, 189, 0.12);
+}
+
+.grading-interface__actions {
+  display: flex;
+}
+
+.grading-interface__actions button {
+  width: 100%;
+  border: none;
+  border-radius: 0.8rem;
+  padding: 0.95rem 1rem;
+  background: #0f49bd;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.96rem;
+}
+
+.grading-interface__actions button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.grading-interface__muted {
+  color: #64748b;
+}
+
+.grading-interface__error {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .grading-interface {
+    padding: 1rem;
+  }
+
+  .grading-interface__task-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

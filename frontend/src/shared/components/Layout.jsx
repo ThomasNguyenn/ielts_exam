@@ -177,6 +177,9 @@ export default function Layout() {
   // Use full width layout for manage pages and test list.
   const isManagePage = isManageRoute || pathname === '/tests' || pathname.startsWith('/scores');
 
+  // Use full width layout for grading pages.
+  const isGradingPage = pathname.startsWith('/grading');
+
   // Use wide layout for AI result pages.
   const isResultAiPage = pathname.includes('/result-ai');
   const isWritingLivePage = pathname.startsWith('/writing-live/');
@@ -294,7 +297,7 @@ export default function Layout() {
                       aria-controls="nav-more-menu"
                       onClick={() => toggleDropdown('more')}
                     >
-                      More
+                      Tiện ích
                       <ChevronDown className={`nav-dropdown-chevron ${openDropdown === 'more' ? 'rotated' : ''}`} />
                     </button>
                     <div
@@ -408,7 +411,7 @@ export default function Layout() {
           </div>
         </header>
       )}
-      <main className={`layout-main ${isExamPage ? 'layout-main--fullscreen' : ''} ${isPracticePage || isTestDetailPage ? 'layout-main--wide' : ''} ${isResultAiPage ? 'layout-main--result-ai' : ''} ${isManagePage ? 'layout-main--manage' : ''} ${pathname === '/' ? 'layout-main--home' : ''} ${isProfilePage ? 'layout-main--profile' : ''} ${isAnalyticsPage ? 'layout-main--analytics' : ''} ${isAchievementsPage ? 'layout-main--achievements' : ''} ${isWritingLivePage ? 'layout-main--writing-live' : ''}`}>
+      <main className={`layout-main ${isExamPage ? 'layout-main--fullscreen' : ''} ${isPracticePage || isTestDetailPage ? 'layout-main--wide' : ''} ${isResultAiPage ? 'layout-main--result-ai' : ''} ${isManagePage ? 'layout-main--manage' : ''} ${isGradingPage ? 'layout-main--grading' : ''} ${pathname === '/' ? 'layout-main--home' : ''} ${isProfilePage ? 'layout-main--profile' : ''} ${isAnalyticsPage ? 'layout-main--analytics' : ''} ${isAchievementsPage ? 'layout-main--achievements' : ''} ${isWritingLivePage ? 'layout-main--writing-live' : ''}`}>
         <Outlet />
       </main>
     </div>

@@ -1,0 +1,163 @@
+.grading-dashboard {
+  font-family: var(--font-sans), 'Inter', sans-serif;
+}
+
+.grading-dashboard__select-wrap {
+  position: relative;
+  display: inline-flex;
+  min-width: 180px;
+}
+
+.grading-dashboard__select {
+  appearance: none;
+  height: 40px;
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #334155;
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 0 2.4rem 0 0.95rem;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.grading-dashboard__select:hover {
+  border-color: #0f49bd;
+}
+
+.grading-dashboard__select:focus {
+  border-color: #0f49bd;
+  box-shadow: 0 0 0 3px rgba(15, 73, 189, 0.12);
+}
+
+.grading-dashboard__select-icon {
+  position: absolute;
+  right: 0.7rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.grading-dashboard__filter-button {
+  width: 40px;
+  height: 40px;
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #64748b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.grading-dashboard__filter-button:hover {
+  border-color: #0f49bd;
+  color: #0f49bd;
+}
+
+.grading-dashboard__filter-button--active {
+  border-color: #0f49bd;
+  color: #0f49bd;
+  box-shadow: 0 0 0 3px rgba(15, 73, 189, 0.12);
+}
+
+.grading-dashboard__date-panel {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  width: 280px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  border-radius: 0.85rem;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
+  padding: 0.75rem;
+  z-index: 40;
+}
+
+.grading-dashboard__date-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.7rem;
+}
+
+.grading-dashboard__date-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.grading-dashboard__date-field input {
+  width: 100%;
+  height: 36px;
+  border-radius: 0.6rem;
+  border: 1px solid #e2e8f0;
+  padding: 0 0.65rem;
+  font-size: 0.82rem;
+  color: #334155;
+}
+
+.grading-dashboard__date-field input:focus {
+  outline: none;
+  border-color: #0f49bd;
+  box-shadow: 0 0 0 3px rgba(15, 73, 189, 0.12);
+}
+
+.grading-dashboard__date-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+.grading-dashboard__date-btn {
+  border-radius: 0.55rem;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #475569;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.38rem 0.75rem;
+}
+
+.grading-dashboard__date-btn--primary {
+  border-color: #0f49bd;
+  background: #0f49bd;
+  color: #ffffff;
+}
+
+.grading-dashboard__spinner {
+  width: 34px;
+  height: 34px;
+  border: 4px solid rgba(15, 73, 189, 0.18);
+  border-top-color: #0f49bd;
+  border-radius: 999px;
+  animation: grading-spin 0.7s linear infinite;
+}
+
+@keyframes grading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (min-width: 1024px) {
+  .grading-dashboard__sidebar {
+    position: sticky;
+    top: 86px;
+    align-self: flex-start;
+  }
+}
+
+@media (max-width: 768px) {
+  .grading-dashboard__select-wrap {
+    min-width: 100%;
+  }
+
+  .grading-dashboard__date-panel {
+    width: min(92vw, 280px);
+  }
+}

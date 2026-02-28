@@ -81,6 +81,14 @@ a {
   max-width: 95vw !important;
 }
 
+/* Grading full width mode */
+.layout-main--grading {
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100%;
+}
+
 /* Management full width mode */
 .layout-main--manage {
   max-width: none !important;

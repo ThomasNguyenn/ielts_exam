@@ -2,7 +2,6 @@ import {
     Headphones,
     BookOpen,
     PenTool,
-    Mic,
     LayoutGrid,
     Layers,
     Filter,
@@ -57,12 +56,19 @@ export default function TestSidebar({
     onViewModeChange,
     selectedPartFilter,
     onPartFilterChange,
+    selectedQuestionGroupFilter = 'all',
+    onQuestionGroupFilterChange,
+    questionGroupOptions = [],
     totalTests = 0,
     completedTests = 0,
 }) {
     const safeTotal = Math.max(0, Number(totalTests) || 0);
     const safeCompleted = Math.min(Math.max(0, Number(completedTests) || 0), safeTotal);
     const progress = safeTotal > 0 ? Math.round((safeCompleted / safeTotal) * 100) : 0;
+    const canShowQuestionGroupFilter = viewMode === 'parts' && (selectedType === 'reading' || selectedType === 'listening');
+    const safeQuestionGroupOptions = questionGroupOptions.length
+        ? questionGroupOptions
+        : [{ value: 'all', label: 'All Question Groups' }];
 
     return (
         <aside className="ts">
@@ -139,6 +145,23 @@ export default function TestSidebar({
                                     key={opt.value}
                                     className={`ts-part-option ${selectedPartFilter === opt.value ? 'active' : ''}`}
                                     onClick={() => onPartFilterChange(opt.value)}
+                                >
+                                    {opt.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {canShowQuestionGroupFilter && (
+                    <div className="ts-card">
+                        <h3>Filter by Question Group</h3>
+                        <div className="ts-btn-list">
+                            {safeQuestionGroupOptions.map((opt) => (
+                                <button
+                                    key={opt.value}
+                                    className={`ts-part-option ${selectedQuestionGroupFilter === opt.value ? 'active' : ''}`}
+                                    onClick={() => onQuestionGroupFilterChange?.(opt.value)}
                                 >
                                     {opt.label}
                                 </button>
