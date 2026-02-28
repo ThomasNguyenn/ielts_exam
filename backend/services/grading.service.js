@@ -7,8 +7,8 @@ const hasOpenAiCredentials = Boolean(OPENAI_API_KEY);
 
 const OPENAI_MODELS = [
   process.env.OPENAI_PRIMARY_MODEL || "gpt-5-mini",
-  process.env.OPENAI_FALLBACK_MODEL || "gpt-5-mini",
-];
+  process.env.OPENAI_FALLBACK_MODEL || "gpt-4o-mini",
+].filter((model, index, list) => Boolean(model) && list.indexOf(model) === index);
 
 const DETAIL_AUGMENT_MODELS = [
   process.env.OPENAI_DETAIL_AUGMENT_MODEL || "gpt-4o-mini",

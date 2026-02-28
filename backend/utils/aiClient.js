@@ -266,10 +266,36 @@ export const requestOpenAIJsonWithFallback = async ({
     throw new Error("OpenAI client is not initialized");
   }
 
-  const normalizedModels = (models || []).filter(Boolean);
+  const normalizedModels = (models || [])
+    .filter(Boolean)
+    .filter((model, index, list) => list.indexOf(model) === index);
   if (normalizedModels.length === 0) {
     throw new Error("No OpenAI model provided for AI request");
   }
+
+  const extractTextFromChatMessageContent = (content) => {
+    if (typeof content === "string") {
+      return content.trim();
+    }
+
+    if (Array.isArray(content)) {
+      const merged = content
+        .map((item) => {
+          if (typeof item === "string") return item;
+          if (item?.type === "text" && typeof item?.text === "string") return item.text;
+          if (item?.type === "output_text" && typeof item?.text === "string") return item.text;
+          if (typeof item?.text === "string") return item.text;
+          return "";
+        })
+        .filter(Boolean)
+        .join("\n")
+        .trim();
+
+      return merged;
+    }
+
+    return "";
+  };
 
   let lastError;
   for (const model of normalizedModels) {
@@ -281,8 +307,21 @@ export const requestOpenAIJsonWithFallback = async ({
         baseDelayMs,
         operation: async () => {
           const response = await openai.chat.completions.create(createPayload(model));
-          const content = response?.choices?.[0]?.message?.content;
+          const choice = response?.choices?.[0] || null;
+          const message = choice?.message || null;
+          const content = extractTextFromChatMessageContent(message?.content);
+          const refusal = String(message?.refusal || "").trim();
+
           if (!content) {
+            const finishReason = String(choice?.finish_reason || "").trim();
+            if (refusal) {
+              throw new Error(`OpenAI refusal for model ${model}: ${refusal}`);
+            }
+
+            if (finishReason) {
+              throw new Error(`OpenAI returned empty content for model ${model} (finish_reason=${finishReason})`);
+            }
+
             throw new Error(`OpenAI returned empty content for model ${model}`);
           }
           return {
