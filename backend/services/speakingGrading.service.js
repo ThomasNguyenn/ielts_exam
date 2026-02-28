@@ -18,7 +18,7 @@ const normalizeGeminiModel = (modelName, fallbackModel) => {
 
   // Legacy 1.5 models are not available on current generateContent endpoint.
   if (normalized === "gemini-1.5-flash") {
-    return "gemini-2.0-flash";
+    return "gemini-2.5-flash";
   }
 
   return normalized;
@@ -26,11 +26,11 @@ const normalizeGeminiModel = (modelName, fallbackModel) => {
 
 const primaryModel = normalizeGeminiModel(
   process.env.GEMINI_PRIMARY_MODEL,
-  "gemini-2.5-flash",
+  "gemini-3-flash-preview",
 );
 const fallbackModel = normalizeGeminiModel(
   process.env.GEMINI_FALLBACK_MODEL,
-  "gemini-2.0-flash",
+  "gemini-2.5-flash",
 );
 const GEMINI_MODELS = [primaryModel, fallbackModel].filter(
   (model, index, list) => Boolean(model) && list.indexOf(model) === index,

@@ -1,36 +1,70 @@
-import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { api } from '@/shared/api/client';
-import './TestHistory.css';
+import { useEffect, useMemo, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import { api } from "@/shared/api/client";
+import "./TestHistory.css";
 
-// Helper to separate date and time
-function formatDateParts(val) {
-  if (!val) return { date: '--', time: '--' };
-  const d = new Date(val);
-  if (Number.isNaN(d.getTime())) return { date: '--', time: '--' };
+const toNumber = (value, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
 
-  // YY/MM/DD format
-  const year = d.getFullYear().toString().slice(-2);
-  const month = (d.getMonth() + 1).toString().padStart(2, '0');
-  const day = d.getDate().toString().padStart(2, '0');
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
-  // HH:MM:SS format
-  const hours = d.getHours().toString().padStart(2, '0');
-  const mins = d.getMinutes().toString().padStart(2, '0');
-  const secs = d.getSeconds().toString().padStart(2, '0');
+function formatDateParts(value) {
+  if (!value) return { date: "--", time: "--" };
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return { date: "--", time: "--" };
+
+  const year = date.getFullYear().toString().slice(-2);
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  const hours = `${date.getHours()}`.padStart(2, "0");
+  const minutes = `${date.getMinutes()}`.padStart(2, "0");
+  const seconds = `${date.getSeconds()}`.padStart(2, "0");
 
   return {
     date: `${day}/${month}/${year}`,
-    time: `${hours}:${mins}:${secs}`
+    time: `${hours}:${minutes}:${seconds}`,
   };
 }
 
 function formatDuration(ms) {
-  if (!ms || typeof ms !== 'number') return '--';
-  const totalSeconds = Math.floor(ms / 1000);
+  const value = toNumber(ms, 0);
+  if (value <= 0) return "--";
+  const totalSeconds = Math.floor(value / 1000);
   const mins = Math.floor(totalSeconds / 60);
   const secs = totalSeconds % 60;
   return `${mins}m ${secs}s`;
+}
+
+function formatOneDecimal(value) {
+  const parsed = toNumber(value, 0);
+  return parsed.toFixed(1);
+}
+
+function resolveAttempt(attempt) {
+  const score = toNumber(attempt?.score, 0);
+  const total = toNumber(attempt?.total, 0);
+  const skipped = toNumber(attempt?.skipped, 0);
+  const wrong =
+    typeof attempt?.wrong === "number"
+      ? toNumber(attempt.wrong, 0)
+      : Math.max(0, total - score - skipped);
+  const pct =
+    typeof attempt?.percentage === "number"
+      ? Math.round(toNumber(attempt.percentage, 0))
+      : total > 0
+        ? Math.round((score / total) * 100)
+        : 0;
+
+  return {
+    ...attempt,
+    score,
+    total,
+    calculatedWrong: wrong,
+    calculatedSkipped: skipped,
+    pct: clamp(pct, 0, 100),
+  };
 }
 
 export default function TestHistory() {
@@ -38,181 +72,289 @@ export default function TestHistory() {
   const [test, setTest] = useState(null);
   const [attempts, setAttempts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    setLoading(true);
-    setError(null);
-    Promise.all([api.getTestById(id), api.getMyTestHistory(id)])
-      .then(([testRes, attemptsRes]) => {
-        setTest(testRes.data || null);
-        setAttempts(attemptsRes.data || []);
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
+    let mounted = true;
+
+    const load = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const [testRes, attemptsRes] = await Promise.all([
+          api.getTestById(id),
+          api.getMyTestHistory(id),
+        ]);
+
+        if (!mounted) return;
+        setTest(testRes?.data || null);
+        setAttempts(Array.isArray(attemptsRes?.data) ? attemptsRes.data : []);
+      } catch (loadError) {
+        if (!mounted) return;
+        setError(loadError?.message || "Failed to load history.");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    load();
+    return () => {
+      mounted = false;
+    };
   }, [id]);
 
-  const scoredAttempts = attempts.map((a) => {
-    const pct = typeof a.percentage === 'number'
-      ? a.percentage
-      : a.total
-        ? Math.round((a.score / a.total) * 100)
+  const scoredAttempts = useMemo(
+    () =>
+      attempts
+        .map(resolveAttempt)
+        .sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at)),
+    [attempts],
+  );
+
+  const isWriting = String(test?.type || "").toLowerCase() === "writing";
+
+  const summary = useMemo(() => {
+    const totalAttempts = scoredAttempts.length;
+    const latest = scoredAttempts[0] || null;
+    const latestDate = latest?.submitted_at ? formatDateParts(latest.submitted_at).date : "--";
+
+    if (isWriting) {
+      const bandScores = scoredAttempts
+        .map((attempt) => toNumber(attempt.score, NaN))
+        .filter((value) => Number.isFinite(value));
+      const bestBand = bandScores.length ? Math.max(...bandScores) : 0;
+      const avgBand = bandScores.length
+        ? bandScores.reduce((acc, current) => acc + current, 0) / bandScores.length
         : 0;
+      const latestBand = latest ? toNumber(latest.score, 0) : 0;
 
-    // Backend now stores `skipped`. If present, use it.
-    // If undefined (old data), assume 0 or infer from wrong if logic was total-score=wrong
-    // But previously wrong included separate skipped. 
-    // Let's rely on new backend logic: total = score + wrong + skipped.
+      return {
+        totalAttempts: `${totalAttempts}`,
+        best: `Band ${formatOneDecimal(bestBand)}`,
+        average: `Band ${formatOneDecimal(avgBand)}`,
+        latest: latest ? `Band ${formatOneDecimal(latestBand)}` : "--",
+        latestDate,
+      };
+    }
 
-    const skipped = typeof a.skipped === 'number' ? a.skipped : 0;
-    // Fallback for wrong if calculated differently in old data
-    const wrong = typeof a.wrong === 'number' ? a.wrong : (a.total ? a.total - a.score - skipped : 0);
+    const percentages = scoredAttempts.map((attempt) => toNumber(attempt.pct, 0));
+    const bestPct = percentages.length ? Math.max(...percentages) : 0;
+    const avgPct = percentages.length
+      ? Math.round(percentages.reduce((acc, current) => acc + current, 0) / percentages.length)
+      : 0;
+    const latestPct = latest ? toNumber(latest.pct, 0) : 0;
 
-    return { ...a, pct, calculatedWrong: wrong, calculatedSkipped: skipped };
-  })
-    .sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at)); // Latest first
+    return {
+      totalAttempts: `${totalAttempts}`,
+      best: `${bestPct}%`,
+      average: `${avgPct}%`,
+      latest: latest ? `${latestPct}%` : "--",
+      latestDate,
+    };
+  }, [isWriting, scoredAttempts]);
 
-  if (loading) return <div className="page"><p className="muted">Loading history...</p></div>;
-  if (error) return <div className="page"><p className="error">{error}</p><Link to="/tests">Back to tests</Link></div>;
+  const testTitle = String(test?.title || "Test History");
+  const typeLabel = test?.type
+    ? `${String(test.type).charAt(0).toUpperCase()}${String(test.type).slice(1)} Test`
+    : "Practice Test";
+
+  if (loading) {
+    return (
+      <div className="page test-history">
+        <section className="th-state-card">
+          <span className="material-symbols-outlined">hourglass_top</span>
+          <h2>Loading history</h2>
+          <p>Please wait while we fetch your latest attempts.</p>
+        </section>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="page test-history">
+        <section className="th-state-card th-state-card--error">
+          <span className="material-symbols-outlined">error</span>
+          <h2>Unable to load test history</h2>
+          <p>{error}</p>
+          <div className="th-state-actions">
+            <Link to="/tests" className="th-btn th-btn--ghost">
+              Back to tests
+            </Link>
+            <Link to={`/tests/${id}`} className="th-btn th-btn--primary">
+              Start this test
+            </Link>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   return (
-    <div className="page test-history" style={{ maxWidth: '1200px' }}>
-      <div className="test-history-header" style={{ marginBottom: '2rem' }}>
-        <div>
-          <h1>{test?.title || 'Test history'}</h1>
-          <p className="muted">{test?.type ? `${test.type[0].toUpperCase() + test.type.slice(1)} test` : ''}</p>
+    <div className="page test-history">
+      <section className="th-hero-card">
+        <div className="th-hero-top">
+          <Link to="/tests" className="th-back-link">
+            <span className="material-symbols-outlined">arrow_back</span>
+            All tests
+          </Link>
+          <span className={`th-test-type ${isWriting ? "writing" : "objective"}`}>{typeLabel}</span>
         </div>
-        <div className="test-history-actions">
-          <Link to={`/tests/${id}`} className="btn btn-primary">Bắt đầu bài thi</Link>
-          <Link to="/tests" className="btn btn-ghost">Quay lại danh sách bài thi</Link>
+
+        <div className="th-hero-main">
+          <div className="th-hero-content">
+            <h1>{testTitle}</h1>
+            <p>Review every submission, spot patterns, and plan your next improvement cycle.</p>
+          </div>
+          <div className="th-hero-actions">
+            <Link to={`/tests/${id}`} className="th-btn th-btn--primary">
+              Retake test
+            </Link>
+            <Link to="/tests" className="th-btn th-btn--ghost">
+              Browse tests
+            </Link>
+          </div>
         </div>
-      </div>
+
+        <div className="th-kpi-grid">
+          <article className="th-kpi-card">
+            <div className="th-kpi-icon">
+              <span className="material-symbols-outlined">history</span>
+            </div>
+            <p>Total Attempts</p>
+            <strong>{summary.totalAttempts}</strong>
+          </article>
+          <article className="th-kpi-card">
+            <div className="th-kpi-icon">
+              <span className="material-symbols-outlined">military_tech</span>
+            </div>
+            <p>Best Result</p>
+            <strong>{summary.best}</strong>
+          </article>
+          <article className="th-kpi-card">
+            <div className="th-kpi-icon">
+              <span className="material-symbols-outlined">stacked_line_chart</span>
+            </div>
+            <p>Average Result</p>
+            <strong>{summary.average}</strong>
+          </article>
+          <article className="th-kpi-card">
+            <div className="th-kpi-icon">
+              <span className="material-symbols-outlined">schedule</span>
+            </div>
+            <p>Latest</p>
+            <strong>{summary.latest}</strong>
+            <span>{summary.latestDate}</span>
+          </article>
+        </div>
+      </section>
 
       {scoredAttempts.length === 0 ? (
-        <p className="muted">No attempts yet.</p>
+        <section className="th-state-card">
+          <span className="material-symbols-outlined">assignment</span>
+          <h2>No attempts yet</h2>
+          <p>Start your first attempt and this page will track all history for this test.</p>
+          <div className="th-state-actions">
+            <Link to={`/tests/${id}`} className="th-btn th-btn--primary">
+              Start this test
+            </Link>
+          </div>
+        </section>
       ) : (
-        <div className="history-table-container" style={{ overflowX: 'auto', background: 'white', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center' }}>
-            <thead>
-              <tr style={{ background: '#f8fafc', color: '#64748b', fontSize: '0.9rem', fontWeight: 600 }}>
-                <th style={{ padding: '1rem', textAlign: 'left' }}>Tên bài</th>
-                <th style={{ padding: '1rem' }}>Thời gian<br />nộp bài</th>
-                {test?.type === 'writing' ? (
-                  <>
-                    <th style={{ padding: '1rem' }}>Task 1</th>
-                    <th style={{ padding: '1rem' }}>Task 2</th>
-                    <th style={{ padding: '1rem' }}>Overall (Band)</th>
-                    <th style={{ padding: '1rem' }}>Nhận xét</th>
-                  </>
-                ) : (
-                  <>
-                    <th style={{ padding: '1rem' }}>Thời gian<br />làm bài</th>
-                    <th style={{ padding: '1rem' }}>Tổng<br />số câu</th>
-                    <th style={{ padding: '1rem', background: '#22c55e', color: 'white' }}>Đúng</th>
-                    <th style={{ padding: '1rem' }}>Sai</th>
-                    <th style={{ padding: '1rem' }}>Bỏ qua</th>
-                    <th style={{ padding: '1rem', width: '150px' }}>Tỉ lệ đúng</th>
-                  </>
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {scoredAttempts.map((a, index) => {
-                const { date, time } = formatDateParts(a.submitted_at);
-                const duration = formatDuration(a.time_taken_ms);
-                const isWriting = test?.type === 'writing';
-                const w = a.writing_details || {};
+        <section className="th-table-card">
+          <div className="th-table-head">
+            <h2>Attempt Timeline</h2>
+            <span>{scoredAttempts.length} records</span>
+          </div>
 
-                return (
-                  <tr key={a._id || index} style={{ borderTop: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: '1rem', textAlign: 'left', fontWeight: 500, color: '#334155' }}>
-                      {test ? test.title : 'Loading...'}
-                    </td>
-                    <td style={{ padding: '1rem', color: '#64748b', fontSize: '0.9rem' }}>
-                      <div style={{ fontWeight: 500, color: '#334155' }}>{date}</div>
-                      <div>{time}</div>
-                    </td>
+          <div className="th-table-scroll">
+            <table className="th-table">
+              <thead>
+                <tr>
+                  <th className="left">Attempt</th>
+                  <th>Submitted</th>
+                  {isWriting ? (
+                    <>
+                      <th>Task 1</th>
+                      <th>Task 2</th>
+                      <th>Overall Band</th>
+                      <th className="left">Feedback</th>
+                    </>
+                  ) : (
+                    <>
+                      <th>Duration</th>
+                      <th>Total</th>
+                      <th>Correct</th>
+                      <th>Wrong</th>
+                      <th>Skipped</th>
+                      <th className="left">Accuracy</th>
+                    </>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {scoredAttempts.map((attempt, index) => {
+                  const { date, time } = formatDateParts(attempt.submitted_at);
+                  const writingDetails = attempt.writing_details || {};
 
-                    {isWriting ? (
-                      <>
-                        <td style={{ padding: '1rem' }}>{w.task1_score ?? '--'}</td>
-                        <td style={{ padding: '1rem' }}>{w.task2_score ?? '--'}</td>
-                        <td style={{ padding: '1rem' }}>
-                          <span style={{ fontWeight: 'bold', color: '#4F46E5' }}>{a.score ?? '--'}</span>
-                        </td>
-                        <td style={{ padding: '1rem', fontSize: '0.9rem', textAlign: 'left', maxWidth: '300px' }}>
-                          {w.feedback ? (
-                            <div style={{ maxHeight: '60px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'pre-wrap' }}>
-                              {w.feedback}
+                  return (
+                    <tr key={attempt._id || `${attempt.submitted_at || "attempt"}-${index}`}>
+                      <td className="left">
+                        <div className="th-attempt-id">Attempt #{scoredAttempts.length - index}</div>
+                        <div className="th-attempt-subtitle">{testTitle}</div>
+                      </td>
+                      <td>
+                        <div className="th-date">{date}</div>
+                        <div className="th-time">{time}</div>
+                      </td>
+
+                      {isWriting ? (
+                        <>
+                          <td>
+                            <span className="th-pill th-pill--neutral">{writingDetails.task1_score ?? "--"}</span>
+                          </td>
+                          <td>
+                            <span className="th-pill th-pill--neutral">{writingDetails.task2_score ?? "--"}</span>
+                          </td>
+                          <td>
+                            <span className="th-pill th-pill--primary">{attempt.score ?? "--"}</span>
+                          </td>
+                          <td className="left th-feedback-cell">
+                            {writingDetails.feedback ? (
+                              <p className="th-feedback-text">{writingDetails.feedback}</p>
+                            ) : (
+                              <span className="th-feedback-empty">No feedback yet</span>
+                            )}
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td>{formatDuration(attempt.time_taken_ms)}</td>
+                          <td>{attempt.total}</td>
+                          <td>
+                            <span className="th-pill th-pill--correct">{attempt.score}</span>
+                          </td>
+                          <td>
+                            <span className="th-pill th-pill--wrong">{attempt.calculatedWrong}</span>
+                          </td>
+                          <td>
+                            <span className="th-pill th-pill--skipped">{attempt.calculatedSkipped}</span>
+                          </td>
+                          <td className="left th-accuracy-cell">
+                            <div className="th-accuracy-value">{attempt.pct}%</div>
+                            <div className="th-accuracy-track">
+                              <div className="th-accuracy-fill" style={{ width: `${attempt.pct}%` }} />
                             </div>
-                          ) : <span className="muted">No feedback yet</span>}
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        <td style={{ padding: '1rem', color: '#64748b' }}>
-                          {duration}
-                        </td>
-                        <td style={{ padding: '1rem', color: '#334155' }}>
-                          {a.total || 0}
-                        </td>
-                        <td style={{ padding: '1rem' }}>
-                          <span style={{
-                            color: '#22c55e',
-                            fontWeight: 600,
-                            background: '#dcfce7',
-                            padding: '0.25rem 0.75rem',
-                            borderRadius: '999px',
-                            display: 'inline-block',
-                            minWidth: '2rem'
-                          }}>
-                            {a.score || 0}
-                          </span>
-                        </td>
-                        <td style={{ padding: '1rem' }}>
-                          <span style={{
-                            color: '#ef4444',
-                            fontWeight: 600,
-                            background: '#fee2e2',
-                            padding: '0.25rem 0.75rem',
-                            borderRadius: '999px',
-                            display: 'inline-block',
-                            minWidth: '2rem'
-                          }}>
-                            {a.calculatedWrong}
-                          </span>
-                        </td>
-                        <td style={{ padding: '1rem' }}>
-                          <span style={{
-                            color: '#64748b',
-                            fontWeight: 600,
-                            background: '#f1f5f9',
-                            padding: '0.25rem 0.75rem',
-                            borderRadius: '999px',
-                            display: 'inline-block',
-                            minWidth: '2rem'
-                          }}>
-                            {a.calculatedSkipped}
-                          </span>
-                        </td>
-                        <td style={{ padding: '1rem', verticalAlign: 'middle' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                            <span style={{ fontWeight: 700, color: '#334155', textAlign: 'left' }}>
-                              {a.pct}%
-                            </span>
-                            <div style={{ height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
-                              <div style={{ width: `${a.pct}%`, height: '100%', background: '#22c55e' }} />
-                            </div>
-                          </div>
-                        </td>
-                      </>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
       )}
     </div>
   );

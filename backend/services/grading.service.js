@@ -1,4 +1,4 @@
-import OpenAI from 'openai';
+﻿import OpenAI from 'openai';
 import { requestOpenAIJsonWithFallback } from '../utils/aiClient.js';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.OPEN_API_KEY;
@@ -6,8 +6,8 @@ const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
 const hasOpenAiCredentials = Boolean(OPENAI_API_KEY);
 
 const OPENAI_MODELS = [
-  process.env.OPENAI_PRIMARY_MODEL || "gpt-4o",
-  process.env.OPENAI_FALLBACK_MODEL || "gpt-4o-mini",
+  process.env.OPENAI_PRIMARY_MODEL || "gpt-5-mini",
+  process.env.OPENAI_FALLBACK_MODEL || "gpt-5-mini",
 ];
 
 const DETAIL_AUGMENT_MODELS = [

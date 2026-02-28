@@ -12,6 +12,17 @@ const CHUNK_TIMESLICE_MS = 1000;
 const WAVE_BAR_COUNT = 15;
 const BASE_WAVE_LEVELS = [14, 28, 22, 36, 18, 42, 28, 16, 24, 12, 40, 26, 15, 30, 20];
 
+const normalizeSpeakingPart = (value) => {
+  const parsed = Number(value);
+  if ([1, 2, 3].includes(parsed)) return parsed;
+
+  const normalized = String(value || '').trim().toLowerCase();
+  if (['part1', 'part 1', 'p1'].includes(normalized)) return 1;
+  if (['part2', 'part 2', 'p2'].includes(normalized)) return 2;
+  if (['part3', 'part 3', 'p3'].includes(normalized)) return 3;
+  return 0;
+};
+
 const getSupportedRecordingMimeType = () => {
   if (typeof window === 'undefined' || !window.MediaRecorder?.isTypeSupported) {
     return null;
@@ -27,7 +38,7 @@ const getSupportedRecordingMimeType = () => {
 };
 
 const toConversationQuestions = (topic) => {
-  const part = Number(topic?.part || 0);
+  const part = normalizeSpeakingPart(topic?.part);
   if (part !== 3) return [];
 
   const scriptedQuestions = Array.isArray(topic?.conversation_script?.questions)
@@ -110,7 +121,8 @@ export default function RecordingPhase({ topic, onComplete }) {
   const animationFrameRef = useRef(null);
 
   const conversationQuestions = useMemo(() => toConversationQuestions(topic), [topic]);
-  const isPart3Conversational = Number(topic?.part || 0) === 3 && conversationQuestions.length > 1;
+  const topicPart = normalizeSpeakingPart(topic?.part);
+  const isPart3Conversational = topicPart === 3 && conversationQuestions.length > 1;
   const currentQuestion = isPart3Conversational ? conversationQuestions[questionIndex] : null;
   const atLastConversationQuestion = !isPart3Conversational || questionIndex >= conversationQuestions.length - 1;
   const cueBullets = useMemo(() => {
@@ -375,12 +387,30 @@ export default function RecordingPhase({ topic, onComplete }) {
 
   const tipText = isPart3Conversational
     ? 'Tip: For each question, answer naturally then use "Pause & Next Question". Recording resumes automatically.'
-    : 'Tip: You have 1 minute to prepare your notes. Use bullet points to structure your answer.';
+    : (topicPart === 2
+      ? 'Tip: You have 1 minute to prepare your notes. Use bullet points to structure your answer.'
+      : (topicPart === 1
+        ? 'Tip: Keep answers concise (2-3 sentences), direct, and personal.'
+        : 'Tip: Give clear opinions, explain your reasoning, and add a short example.'));
 
   const topicLabel = String(topic?.title || 'General').trim() || 'General';
+  const part2QuestionTitle = String(
+    topic?.part2_question_title || topic?.prompt || topic?.title || 'Speaking prompt unavailable',
+  ).trim();
+  const promptListLabel = topicPart === 2
+    ? 'You should say:'
+    : (topicPart === 1 ? 'Common questions:' : (topicPart === 3 ? 'Discussion points:' : 'Prompts:'));
+  const emptyPromptMessage = topicPart === 2
+    ? 'No cue card bullets available for this topic yet.'
+    : 'No follow-up prompts available for this topic yet.';
+  const taskKicker = topicPart === 3
+    ? (isPart3Conversational ? 'Conversation Task' : 'Discussion Task')
+    : (topicPart === 2 ? 'Cue Card Task' : (topicPart === 1 ? 'Introduction Task' : 'Speaking Task'));
   const cueHeading = isPart3Conversational
     ? String(currentQuestion?.text || topic?.prompt || 'Speaking prompt unavailable')
-    : String(topic?.title || topic?.prompt || 'Speaking prompt unavailable');
+    : (topicPart === 2
+      ? part2QuestionTitle
+      : String(topic?.title || topic?.prompt || 'Speaking prompt unavailable'));
 
   return (
     <section className="rp2-page">
@@ -389,7 +419,7 @@ export default function RecordingPhase({ topic, onComplete }) {
           <article className="rp2-card rp2-card--prompt">
             <div className="rp2-card-topline" />
             <div className="rp2-card-head">
-              <span className="rp2-kicker">{isPart3Conversational ? 'Conversation Task' : 'Cue Card Task'}</span>
+              <span className="rp2-kicker">{taskKicker}</span>
               <span className="rp2-topic-badge">Topic: {topicLabel}</span>
             </div>
 
@@ -416,7 +446,7 @@ export default function RecordingPhase({ topic, onComplete }) {
                 </>
               ) : (
                 <>
-                  <p className="rp2-bullet-title">You should say:</p>
+                  <p className="rp2-bullet-title">{promptListLabel}</p>
                   {cueBullets.length > 0 ? (
                     <ul className="rp2-bullets">
                       {cueBullets.map((item, index) => (
@@ -424,7 +454,7 @@ export default function RecordingPhase({ topic, onComplete }) {
                       ))}
                     </ul>
                   ) : (
-                    <p className="rp2-audio-note">No cue card bullets available for this topic yet.</p>
+                    <p className="rp2-audio-note">{emptyPromptMessage}</p>
                   )}
                 </>
               )}

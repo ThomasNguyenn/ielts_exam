@@ -1,37 +1,52 @@
-import { useEffect, useState } from 'react';
-import { api } from '@/shared/api/client';
-import { Sparkles, Search, SlidersHorizontal } from 'lucide-react';
-import TestCardSkeleton from '@/shared/components/TestCardSkeleton';
-import PaginationControls from '@/shared/components/PaginationControls';
-import { TestCard, PartCard } from '@/features/tests/components/TestCard';
-import TestSidebar from '@/features/tests/components/TestSidebar';
-import { canonicalizeQuestionGroupType, getQuestionGroupLabel } from '@/features/tests/utils/questionGroupLabels';
-import { getWritingTaskTypeLabel, getWritingTaskTypeOptions } from '@/shared/constants/writingTaskTypes';
-import './TestList.css';
+import { useEffect, useState } from "react";
+import { Search, SlidersHorizontal, Sparkles } from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import TestCardSkeleton from "@/shared/components/TestCardSkeleton";
+import { api } from "@/shared/api/client";
+import { PartCard, TestCard } from "@/features/tests/components/TestCard";
+import TestSidebar from "@/features/tests/components/TestSidebar";
+import {
+  canonicalizeQuestionGroupType,
+  getQuestionGroupLabel,
+} from "@/features/tests/utils/questionGroupLabels";
+import "./TestList.css";
 
 const PAGE_SIZE = 12;
-
-
 
 export default function TestList() {
   const [tests, setTests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
   const [error, setError] = useState(null);
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [selectedPartFilter, setSelectedPartFilter] = useState('all');
-  const [selectedQuestionGroupFilter, setSelectedQuestionGroupFilter] = useState('all');
-  const [selectedType, setSelectedType] = useState('all');
-  const [viewMode, setViewMode] = useState('full'); // 'full' | 'parts'
-  const [searchInput, setSearchInput] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [selectedPartFilter, setSelectedPartFilter] = useState("all");
+  const [selectedQuestionGroupFilter, setSelectedQuestionGroupFilter] = useState("all");
+  const [selectedType, setSelectedType] = useState("all");
+  const [viewMode, setViewMode] = useState("full");
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [attemptSummary, setAttemptSummary] = useState({});
   const [currentPage, setCurrentPage] = useState(1);
   const [pagination, setPagination] = useState(null);
   const [allCategoryCounts, setAllCategoryCounts] = useState({});
   const [overallTotalTests, setOverallTotalTests] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+
   const isLoggedIn = api.isAuthenticated();
-  const requestedCategory = viewMode === 'full' ? selectedCategory : 'all';
+  const requestedCategory = viewMode === "full" ? selectedCategory : "all";
 
   useEffect(() => {
     if (searchInput === searchQuery) return;
@@ -45,15 +60,15 @@ export default function TestList() {
   }, [searchInput, searchQuery]);
 
   useEffect(() => {
-    setSelectedCategory('all');
-    setSelectedPartFilter('all');
-    setSelectedQuestionGroupFilter('all');
+    setSelectedCategory("all");
+    setSelectedPartFilter("all");
+    setSelectedQuestionGroupFilter("all");
     setCurrentPage(1);
   }, [selectedType]);
 
   useEffect(() => {
-    if (viewMode === 'parts') return;
-    setSelectedQuestionGroupFilter('all');
+    if (viewMode === "parts") return;
+    setSelectedQuestionGroupFilter("all");
   }, [viewMode]);
 
   useEffect(() => {
@@ -65,47 +80,47 @@ export default function TestList() {
     if (!loading) setIsFetching(true);
 
     const requestParams = {
-      type: selectedType !== 'all' ? selectedType : undefined,
+      type: selectedType !== "all" ? selectedType : undefined,
       q: searchQuery.trim() || undefined,
       includeQuestionGroupTypes: true,
     };
 
-    if (viewMode === 'full') {
+    if (viewMode === "full") {
       requestParams.page = currentPage;
       requestParams.limit = PAGE_SIZE;
-      requestParams.category = requestedCategory !== 'all' ? requestedCategory : undefined;
+      requestParams.category = requestedCategory !== "all" ? requestedCategory : undefined;
     }
 
     api
       .getTests(requestParams)
-      .then((res) => {
-        setTests(res.data || []);
-        setPagination(viewMode === 'full' ? (res.pagination || null) : null);
+      .then((response) => {
+        setTests(response.data || []);
+        setPagination(viewMode === "full" ? response.pagination || null : null);
       })
-      .catch((err) => setError(err.message))
+      .catch((loadError) => {
+        setError(loadError.message || "Failed to load tests.");
+      })
       .finally(() => {
         setLoading(false);
         setIsFetching(false);
       });
-  }, [currentPage, requestedCategory, selectedType, searchQuery, viewMode]);
+  }, [currentPage, requestedCategory, selectedType, searchQuery, viewMode, reloadKey]);
 
   useEffect(() => {
     let isMounted = true;
 
     api
       .getTestCategories({
-        type: selectedType !== 'all' ? selectedType : undefined,
+        type: selectedType !== "all" ? selectedType : undefined,
         q: searchQuery.trim() || undefined,
       })
       .then((res) => {
         if (!isMounted) return;
-
         const counts = (res.data || []).reduce((acc, row) => {
-          const category = (row?.category || '').trim() || 'Uncategorized';
+          const category = (row?.category || "").trim() || "Uncategorized";
           acc[category] = Number(row?.count || 0);
           return acc;
         }, {});
-
         setAllCategoryCounts(counts);
       })
       .catch(() => {
@@ -116,7 +131,7 @@ export default function TestList() {
     return () => {
       isMounted = false;
     };
-  }, [selectedType, searchQuery]);
+  }, [selectedType, searchQuery, reloadKey]);
 
   useEffect(() => {
     if (!isLoggedIn) return;
@@ -130,17 +145,17 @@ export default function TestList() {
         });
         setAttemptSummary(map);
       })
-      .catch(() => { });
-  }, [isLoggedIn]);
+      .catch(() => {});
+  }, [isLoggedIn, reloadKey]);
 
   useEffect(() => {
     let isMounted = true;
 
     api
       .getTests({ page: 1, limit: 1 })
-      .then((res) => {
+      .then((response) => {
         if (!isMounted) return;
-        setOverallTotalTests(Number(res?.pagination?.totalItems || 0));
+        setOverallTotalTests(Number(response?.pagination?.totalItems || 0));
       })
       .catch(() => {
         if (!isMounted) return;
@@ -150,29 +165,31 @@ export default function TestList() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [reloadKey]);
 
   useEffect(() => {
-    const canUseQuestionGroupFilter = viewMode === 'parts' && (selectedType === 'reading' || selectedType === 'listening');
+    const canUseQuestionGroupFilter =
+      viewMode === "parts" && (selectedType === "reading" || selectedType === "listening");
     if (!canUseQuestionGroupFilter) {
-      if (selectedQuestionGroupFilter !== 'all') {
-        setSelectedQuestionGroupFilter('all');
+      if (selectedQuestionGroupFilter !== "all") {
+        setSelectedQuestionGroupFilter("all");
       }
       return;
     }
 
     const query = searchQuery.trim().toLowerCase();
-    const targetPartIndex = selectedPartFilter === 'all'
-      ? null
-      : Number.parseInt(selectedPartFilter.replace('part', ''), 10) - 1;
+    const targetPartIndex =
+      selectedPartFilter === "all"
+        ? null
+        : Number.parseInt(selectedPartFilter.replace("part", ""), 10) - 1;
     const availableTypes = new Set();
 
     tests.forEach((test) => {
-      const type = test.type || 'reading';
-      const category = (test.category || '').trim() || 'Uncategorized';
+      const type = test.type || "reading";
+      const category = (test.category || "").trim() || "Uncategorized";
 
-      if (selectedType !== 'all' && type !== selectedType) return;
-      if (selectedCategory !== 'all' && category !== selectedCategory) return;
+      if (selectedType !== "all" && type !== selectedType) return;
+      if (selectedCategory !== "all" && category !== selectedCategory) return;
 
       if (query) {
         const matchesQuery =
@@ -183,9 +200,12 @@ export default function TestList() {
         if (!matchesQuery) return;
       }
 
-      const parts = type === 'reading'
-        ? (test.reading_passages || [])
-        : (type === 'listening' ? (test.listening_sections || []) : []);
+      const parts =
+        type === "reading"
+          ? test.reading_passages || []
+          : type === "listening"
+            ? test.listening_sections || []
+            : [];
 
       parts.forEach((part, index) => {
         if (targetPartIndex !== null && index !== targetPartIndex) return;
@@ -196,8 +216,8 @@ export default function TestList() {
       });
     });
 
-    if (selectedQuestionGroupFilter !== 'all' && !availableTypes.has(selectedQuestionGroupFilter)) {
-      setSelectedQuestionGroupFilter('all');
+    if (selectedQuestionGroupFilter !== "all" && !availableTypes.has(selectedQuestionGroupFilter)) {
+      setSelectedQuestionGroupFilter("all");
     }
   }, [
     selectedCategory,
@@ -209,83 +229,35 @@ export default function TestList() {
     viewMode,
   ]);
 
-  if (loading) {
-    return (
-      <div className="page test-list">
-        <div className="test-list-layout">
-          {/* Skeleton Sidebar */}
-          <aside className="test-sidebar">
-            <div className="h-6 bg-gray-200 rounded w-1/3 mb-4 animate-pulse"></div>
-            <div className="h-10 bg-gray-200 rounded-lg mb-8 animate-pulse"></div>
-
-            <div className="h-6 bg-gray-200 rounded w-1/2 mb-4 animate-pulse"></div>
-            <div className="space-y-3 mb-8">
-              {[1, 2, 3, 4].map(i => (
-                <div key={i} className="h-8 bg-gray-200 rounded-lg w-full animate-pulse"></div>
-              ))}
-            </div>
-          </aside>
-
-          {/* Skeleton Main Content */}
-          <section className="test-main">
-            {/* Skeleton Search */}
-            <div className="test-search-box mb-8">
-              <div className="h-14 bg-gray-200 rounded-2xl w-full animate-pulse"></div>
-            </div>
-
-            {/* Skeleton Filters */}
-            <div className="flex gap-3 mb-10 overflow-hidden">
-              {[1, 2, 3, 4].map(i => (
-                <div key={i} className="h-9 w-32 bg-gray-200 rounded-full animate-pulse"></div>
-              ))}
-            </div>
-
-            {/* Skeleton Grid */}
-            <div className="test-cards">
-              {[1, 2, 3, 4, 5, 6].map((n) => (
-                <TestCardSkeleton key={n} />
-              ))}
-            </div>
-          </section>
-        </div>
-      </div>
-    );
-  }
-  if (error) return <div className="page"><p className="error">Error: {error}</p></div>;
-
-  const getCategory = (test) => (test.category || '').trim() || 'Uncategorized';
-  const getType = (test) => (test.type || 'reading');
-  const matchesType = (test) => selectedType === 'all' || getType(test) === selectedType;
+  const getCategory = (test) => (test.category || "").trim() || "Uncategorized";
+  const getType = (test) => test.type || "reading";
+  const matchesType = (test) => selectedType === "all" || getType(test) === selectedType;
   const normalizedQuery = searchQuery.trim().toLowerCase();
 
-  // Primary filtering of tests
   const typeFilteredTests = tests.filter(matchesType);
-  const searchFilteredTests = typeFilteredTests
-    .filter((test) => {
-      if (!normalizedQuery) return true;
-      return (
-        test.title.toLowerCase().includes(normalizedQuery) ||
-        test._id.toLowerCase().includes(normalizedQuery) ||
-        getCategory(test).toLowerCase().includes(normalizedQuery) ||
-        getType(test).toLowerCase().includes(normalizedQuery)
-      );
-    });
-  const categoryFilteredTests = searchFilteredTests
-    .filter((test) => selectedCategory === 'all' || getCategory(test) === selectedCategory);
+  const searchFilteredTests = typeFilteredTests.filter((test) => {
+    if (!normalizedQuery) return true;
+    return (
+      test.title.toLowerCase().includes(normalizedQuery) ||
+      test._id.toLowerCase().includes(normalizedQuery) ||
+      getCategory(test).toLowerCase().includes(normalizedQuery) ||
+      getType(test).toLowerCase().includes(normalizedQuery)
+    );
+  });
+  const categoryFilteredTests = searchFilteredTests.filter(
+    (test) => selectedCategory === "all" || getCategory(test) === selectedCategory,
+  );
 
-  // [Skipping to filteredParts logic]
-  // We need to inject the logic into the calculation block
-
-  // Calculate stats for categories based on View Mode
   let categories = [];
   let categoryCounts = {};
   let groupedTests = {};
   let flattenedParts = [];
   let allPartsCount = 0;
-  let questionGroupOptions = [{ value: 'all', label: 'All Question Groups' }];
-  const canUseQuestionGroupFilter = viewMode === 'parts' && (selectedType === 'reading' || selectedType === 'listening');
+  let questionGroupOptions = [{ value: "all", label: "All question groups" }];
+  const canUseQuestionGroupFilter =
+    viewMode === "parts" && (selectedType === "reading" || selectedType === "listening");
 
-  if (viewMode === 'full') {
+  if (viewMode === "full") {
     const fallbackCategoryCounts = searchFilteredTests.reduce((acc, test) => {
       const cat = getCategory(test);
       acc[cat] = (acc[cat] || 0) + 1;
@@ -294,7 +266,7 @@ export default function TestList() {
     const hasAllCategoriesData = Object.keys(allCategoryCounts).length > 0;
     categoryCounts = hasAllCategoriesData ? { ...allCategoryCounts } : fallbackCategoryCounts;
 
-    if (selectedCategory !== 'all' && categoryCounts[selectedCategory] === undefined) {
+    if (selectedCategory !== "all" && categoryCounts[selectedCategory] === undefined) {
       categoryCounts[selectedCategory] = 0;
     }
 
@@ -307,27 +279,25 @@ export default function TestList() {
       return acc;
     }, {});
   } else {
-    // Flatten parts
-    searchFilteredTests.forEach(test => {
+    searchFilteredTests.forEach((test) => {
       const cat = getCategory(test);
 
-      // Reading Passages
-      if (test.type === 'reading' && test.reading_passages) {
-        test.reading_passages.forEach((p, index) => {
+      if (test.type === "reading" && test.reading_passages) {
+        test.reading_passages.forEach((passage, index) => {
           const questionGroupTypes = Array.from(
             new Set(
-              (p?.question_groups || [])
+              (passage?.question_groups || [])
                 .map((group) => canonicalizeQuestionGroupType(group?.type))
-                .filter(Boolean)
-            )
+                .filter(Boolean),
+            ),
           );
           flattenedParts.push({
             uniqueId: `${test._id}_p${index}`,
             testId: test._id,
-            title: p.title || `Passage ${index + 1}`,
+            title: passage.title || `Passage ${index + 1}`,
             testTitle: test.title,
             category: cat,
-            type: 'reading',
+            type: "reading",
             partIndex: index,
             label: `Passage ${index + 1}`,
             questionGroupTypes,
@@ -335,79 +305,67 @@ export default function TestList() {
         });
       }
 
-      // Listening Sections
-      if (test.type === 'listening' && test.listening_sections) {
-        test.listening_sections.forEach((s, index) => {
+      if (test.type === "listening" && test.listening_sections) {
+        test.listening_sections.forEach((section, index) => {
           const questionGroupTypes = Array.from(
             new Set(
-              (s?.question_groups || [])
+              (section?.question_groups || [])
                 .map((group) => canonicalizeQuestionGroupType(group?.type))
-                .filter(Boolean)
-            )
+                .filter(Boolean),
+            ),
           );
           flattenedParts.push({
             uniqueId: `${test._id}_s${index}`,
             testId: test._id,
-            title: s.title || `Section ${index + 1}`,
+            title: section.title || `Section ${index + 1}`,
             testTitle: test.title,
             category: cat,
-            type: 'listening',
+            type: "listening",
             partIndex: index,
             label: `Section ${index + 1}`,
             questionGroupTypes,
           });
         });
       }
-      // Writing Tasks
-      if (test.type === 'writing' && test.writing_tasks) {
-        test.writing_tasks.forEach((w, index) => {
-          const rawTaskType = String(w?.task_type || '').trim().toLowerCase();
-          const normalizedTaskType = rawTaskType.replace(/\s+/g, '');
-          const taskType = normalizedTaskType === 'task1' || normalizedTaskType === 'task2'
-            ? normalizedTaskType
-            : (index === 0 ? 'task1' : 'task2');
-          const taskVariant = String(w?.writing_task_type || '').trim();
+
+      if (test.type === "writing" && test.writing_tasks) {
+        test.writing_tasks.forEach((task, index) => {
           flattenedParts.push({
             uniqueId: `${test._id}_w${index}`,
             testId: test._id,
-            title: w.title,
+            title: task.title,
             testTitle: test.title,
             category: cat,
-            type: 'writing',
+            type: "writing",
             partIndex: index,
             label: `Task ${index + 1}`,
-            taskType,
-            taskVariant,
             questionGroupTypes: [],
           });
         });
       }
     });
 
-    // APPLY PART FILTER
-    if (selectedPartFilter !== 'all') {
-      const targetIndex = parseInt(selectedPartFilter.replace('part', '')) - 1;
-      flattenedParts = flattenedParts.filter(p => p.partIndex === targetIndex);
+    if (selectedPartFilter !== "all") {
+      const targetIndex = Number.parseInt(selectedPartFilter.replace("part", ""), 10) - 1;
+      flattenedParts = flattenedParts.filter((part) => part.partIndex === targetIndex);
     }
 
     if (canUseQuestionGroupFilter) {
       const availableTypes = Array.from(
-        new Set(flattenedParts.flatMap((part) => part.questionGroupTypes || []))
+        new Set(flattenedParts.flatMap((part) => part.questionGroupTypes || [])),
       ).sort((a, b) => getQuestionGroupLabel(a).localeCompare(getQuestionGroupLabel(b)));
 
       questionGroupOptions = [
-        { value: 'all', label: 'All Question Groups' },
+        { value: "all", label: "All question groups" },
         ...availableTypes.map((value) => ({ value, label: getQuestionGroupLabel(value) })),
       ];
 
-      if (selectedQuestionGroupFilter !== 'all') {
+      if (selectedQuestionGroupFilter !== "all") {
         flattenedParts = flattenedParts.filter((part) =>
-          (part.questionGroupTypes || []).includes(selectedQuestionGroupFilter)
+          (part.questionGroupTypes || []).includes(selectedQuestionGroupFilter),
         );
       }
     }
-
-
 
     const pagePartCategoryCounts = flattenedParts.reduce((acc, part) => {
       acc[part.category] = (acc[part.category] || 0) + 1;
@@ -416,17 +374,17 @@ export default function TestList() {
 
     categoryCounts = { ...pagePartCategoryCounts };
 
-    if (selectedCategory !== 'all' && categoryCounts[selectedCategory] === undefined) {
+    if (selectedCategory !== "all" && categoryCounts[selectedCategory] === undefined) {
       categoryCounts[selectedCategory] = 0;
     }
 
     categories = Object.keys(categoryCounts).sort((a, b) => a.localeCompare(b));
     allPartsCount = flattenedParts.length;
-    flattenedParts = selectedCategory === 'all'
-      ? flattenedParts
-      : flattenedParts.filter((part) => part.category === selectedCategory);
+    flattenedParts =
+      selectedCategory === "all"
+        ? flattenedParts
+        : flattenedParts.filter((part) => part.category === selectedCategory);
 
-    // Group parts
     groupedTests = flattenedParts.reduce((acc, part) => {
       if (!acc[part.category]) acc[part.category] = [];
       acc[part.category].push(part);
@@ -435,154 +393,263 @@ export default function TestList() {
   }
 
   const completedCount = Object.keys(attemptSummary).length;
-  const statsTotalTests = overallTotalTests ?? (pagination?.totalItems ?? tests.length);
+  const statsTotalTests = overallTotalTests ?? pagination?.totalItems ?? tests.length;
   const allTestsCount = Object.values(categoryCounts).reduce((sum, count) => sum + Number(count || 0), 0);
 
-  return (
-    <div className="page test-list">
-      {/* Header + Search — full width above layout */}
-      <div className="mb-8" style={{ maxWidth: 1200, margin: '0 auto', padding: '2rem 1.5rem 0' }}>
-        <div className="test-list-hero flex items-end justify-between">
-          <div className="test-list-hero-copy">
-            <div className="flex items-center gap-2 mb-2">
-              <Sparkles className="w-4 h-4 text-[#F59E0B]" />
-              <span
-                className="text-[#6366F1]"
-                style={{
-                  fontSize: "0.8125rem",
-                  fontWeight: 600,
-                  letterSpacing: "0.04em",
-                  textTransform: "uppercase",
-                }}
-              >
-                Practice Tests
-              </span>
+  const paginationPage = Number(pagination?.page || 1);
+  const paginationTotalPages = Math.max(1, Number(pagination?.totalPages || 1));
+  const hasPrevPage = Boolean(pagination?.hasPrevPage ?? paginationPage > 1);
+  const hasNextPage = Boolean(pagination?.hasNextPage ?? paginationPage < paginationTotalPages);
+
+  const handleRetry = () => {
+    setLoading(true);
+    setError(null);
+    setReloadKey((prev) => prev + 1);
+  };
+
+  const renderSidebar = () => (
+    <TestSidebar
+      selectedType={selectedType}
+      onTypeChange={(value) => {
+        setSelectedType(value);
+        setCurrentPage(1);
+      }}
+      viewMode={viewMode}
+      onViewModeChange={setViewMode}
+      selectedPartFilter={selectedPartFilter}
+      onPartFilterChange={setSelectedPartFilter}
+      selectedQuestionGroupFilter={selectedQuestionGroupFilter}
+      onQuestionGroupFilterChange={setSelectedQuestionGroupFilter}
+      questionGroupOptions={questionGroupOptions}
+      totalTests={statsTotalTests}
+      completedTests={completedCount}
+    />
+  );
+
+  if (loading) {
+    return (
+      <div className="page test-list">
+        <div className="test-list-shell">
+          <section className="tl-hero-card">
+            <div className="tl-skeleton-header">
+              <div className="tl-skeleton tl-skeleton-line wide" />
+              <div className="tl-skeleton tl-skeleton-line short" />
             </div>
-            <h1
-              className="text-[#0F172A]"
-              style={{ fontSize: "2rem", fontWeight: 700, lineHeight: 1.25 }}
-            >
-              CHINH PHỤC MỤC TIÊU IELTS
-            </h1>
-            <p className="text-[#64748B] mt-1.5" style={{ fontSize: "0.9375rem" }}>
-              Ngân hàng đề thi được thiết kế để đạt band 7+.
-            </p>
-          </div>
-          <div className="test-list-hero-controls flex items-center gap-3">
-            <div className="test-list-search-group relative group">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94A3B8] group-focus-within:text-[#6366F1] transition-colors" />
-              <input
-                type="text"
-                placeholder="Filter tests..."
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                className="test-list-search-input-mobile h-10 pl-10 pr-4 w-[220px] bg-white border border-[#E2E8F0] rounded-xl text-[#0F172A] placeholder:text-[#94A3B8] focus:outline-none focus:border-[#6366F1]/40 focus:shadow-[0_0_0_3px_rgba(99,102,241,0.08)] transition-all"
-                style={{ fontSize: "0.8125rem" }}
-              />
-            </div>
-            <button className="test-list-sort-btn flex items-center gap-2 h-10 px-4 bg-white border border-[#E2E8F0] rounded-xl text-[#64748B] hover:text-[#334155] hover:border-[#CBD5E1] transition-all cursor-pointer shadow-sm">
-              <SlidersHorizontal className="w-4 h-4" />
-              <span style={{ fontSize: "0.8125rem" }}>Sort</span>
-            </button>
+          </section>
+          <div className="test-list-layout">
+            <aside className="tl-sidebar-desktop">
+              <div className="tl-side-skeleton">
+                <div className="tl-skeleton tl-skeleton-line" />
+                <div className="tl-skeleton tl-skeleton-block" />
+                <div className="tl-skeleton tl-skeleton-block" />
+              </div>
+            </aside>
+            <section className="test-main">
+              <ul className="test-cards" aria-busy="true" aria-live="polite">
+                {[1, 2, 3, 4, 5, 6].map((index) => (
+                  <li key={`loading-skeleton-${index}`}>
+                    <TestCardSkeleton />
+                  </li>
+                ))}
+              </ul>
+            </section>
           </div>
         </div>
       </div>
+    );
+  }
 
-      <div className="test-list-layout">
-        <TestSidebar
-          selectedType={selectedType}
-          onTypeChange={(val) => { setSelectedType(val); setCurrentPage(1); }}
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
-          selectedPartFilter={selectedPartFilter}
-          onPartFilterChange={setSelectedPartFilter}
-          selectedQuestionGroupFilter={selectedQuestionGroupFilter}
-          onQuestionGroupFilterChange={setSelectedQuestionGroupFilter}
-          questionGroupOptions={questionGroupOptions}
-          totalTests={statsTotalTests}
-          completedTests={completedCount}
-        />
+  if (error) {
+    return (
+      <div className="page test-list">
+        <div className="test-list-shell">
+          <section className="tl-hero-card">
+            <h1>IELTS Test Studio</h1>
+            <p>Practice smarter with structured full tests and targeted part drills.</p>
+          </section>
 
-        <section className="test-main">
-          {/* Category filter chips */}
-          <div className="test-category-filter">
-            <button
-              className={`category-btn ${selectedCategory === 'all' ? 'active' : ''}`}
-              onClick={() => {
-                setSelectedCategory('all');
-                setCurrentPage(1);
-              }}
-            >
-              All {viewMode === 'full' ? 'Tests' : 'Parts'} ({viewMode === 'full' ? (allTestsCount || (pagination?.totalItems ?? searchFilteredTests.length)) : allPartsCount})
-            </button>
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                className={`category-btn ${selectedCategory === cat ? 'active' : ''}`}
-                onClick={() => {
-                  setSelectedCategory(cat);
-                  setCurrentPage(1);
-                }}
-              >
-                {cat} ({categoryCounts[cat] || 0})
-              </button>
-            ))}
+          <section className="tl-error-card">
+            <h2>Unable to load tests</h2>
+            <p>{error}</p>
+            <Button type="button" onClick={handleRetry} className="tl-retry-btn">
+              Try again
+            </Button>
+          </section>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="page test-list">
+      <div className="test-list-shell">
+        <section className="tl-hero-card">
+          <div className="tl-hero-main">
+            <div className="tl-hero-copy">
+              <div className="tl-hero-kicker">
+                <Sparkles size={14} />
+                <span>Practice tests</span>
+              </div>
+              <h1>IELTS Test Studio</h1>
+              <p>Practice smarter with structured full tests and targeted part drills.</p>
+              <div className="tl-hero-stats">
+                <Badge variant="outline" className="tl-stat-badge">
+                  {statsTotalTests} total tests
+                </Badge>
+                <Badge variant="outline" className="tl-stat-badge">
+                  {completedCount} completed
+                </Badge>
+                <Badge variant="outline" className="tl-stat-badge">
+                  {viewMode === "full" ? "Full mode" : "Parts mode"}
+                </Badge>
+              </div>
+            </div>
+
+            <div className="tl-hero-controls">
+              <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
+                <SheetTrigger asChild>
+                  <Button type="button" variant="outline" className="tl-mobile-filter-btn">
+                    <SlidersHorizontal size={15} />
+                    Filters
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="tl-filter-sheet">
+                  <SheetHeader>
+                    <SheetTitle>Filters</SheetTitle>
+                    <SheetDescription>Refine by skills, test mode, and parts.</SheetDescription>
+                  </SheetHeader>
+                  <div className="tl-filter-sheet-body">{renderSidebar()}</div>
+                </SheetContent>
+              </Sheet>
+
+              <div className="tl-search-box">
+                <Search size={14} className="tl-search-icon" />
+                <Input
+                  type="text"
+                  placeholder="Search tests, categories, or ids..."
+                  value={searchInput}
+                  onChange={(event) => setSearchInput(event.target.value)}
+                  className="tl-search-input"
+                />
+              </div>
+            </div>
           </div>
+        </section>
 
-          {isFetching ? (
-            <ul className="test-cards" aria-busy="true" aria-live="polite">
-              {[1, 2, 3, 4, 5, 6].map((n) => (
-                <li key={`fetch-skeleton-${n}`}>
-                  <TestCardSkeleton />
-                </li>
-              ))}
-            </ul>
-          ) : Object.keys(groupedTests).length === 0 ? (
-            <p className="muted" style={{ textAlign: 'center', padding: '3rem', color: '#94A3B8' }}>
-              {selectedCategory === 'all'
-                ? `No ${viewMode === 'full' ? 'tests' : 'parts'} found.`
-                : `No content available in "${selectedCategory}".`}
-            </p>
-          ) : (
-            Object.keys(groupedTests)
-              .sort((a, b) => a.localeCompare(b))
-              .map((cat) => (
-                <div key={cat} className="test-category-group">
-                  <h2>{cat}</h2>
-                  <ul className="test-cards">
-                    {groupedTests[cat].map((item) => {
-                      if (viewMode === 'full') {
-                        const test = item;
-                        return (
-                          <li key={test._id}>
-                            <TestCard
-                              test={test}
-                              attemptData={attemptSummary[test._id]}
-                              isLoggedIn={isLoggedIn}
-                            />
-                          </li>
-                        );
-                      } else {
+        <div className="test-list-layout">
+          <aside className="tl-sidebar-desktop">{renderSidebar()}</aside>
+
+          <section className="test-main">
+            <div className="tl-category-wrap">
+              <ScrollArea className="tl-category-scroll">
+                <div className="test-category-filter tl-category-row">
+                  <button
+                    type="button"
+                    className={`category-btn ${selectedCategory === "all" ? "active" : ""}`}
+                    onClick={() => {
+                      setSelectedCategory("all");
+                      setCurrentPage(1);
+                    }}
+                  >
+                    All {viewMode === "full" ? "tests" : "parts"} (
+                    {viewMode === "full"
+                      ? allTestsCount || pagination?.totalItems || searchFilteredTests.length
+                      : allPartsCount}
+                    )
+                  </button>
+                  {categories.map((category) => (
+                    <button
+                      type="button"
+                      key={category}
+                      className={`category-btn ${selectedCategory === category ? "active" : ""}`}
+                      onClick={() => {
+                        setSelectedCategory(category);
+                        setCurrentPage(1);
+                      }}
+                    >
+                      {category} ({categoryCounts[category] || 0})
+                    </button>
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
+
+            {isFetching ? (
+              <ul className="test-cards" aria-busy="true" aria-live="polite">
+                {[1, 2, 3, 4, 5, 6].map((index) => (
+                  <li key={`fetching-skeleton-${index}`}>
+                    <TestCardSkeleton />
+                  </li>
+                ))}
+              </ul>
+            ) : Object.keys(groupedTests).length === 0 ? (
+              <div className="tl-empty-card">
+                {selectedCategory === "all"
+                  ? `No ${viewMode === "full" ? "tests" : "parts"} found.`
+                  : `No content available in "${selectedCategory}".`}
+              </div>
+            ) : (
+              Object.keys(groupedTests)
+                .sort((a, b) => a.localeCompare(b))
+                .map((category) => (
+                  <div key={category} className="test-category-group">
+                    <h2>{category}</h2>
+                    <ul className="test-cards">
+                      {groupedTests[category].map((item) => {
+                        if (viewMode === "full") {
+                          const test = item;
+                          return (
+                            <li key={test._id}>
+                              <TestCard
+                                test={test}
+                                attemptData={attemptSummary[test._id]}
+                                isLoggedIn={isLoggedIn}
+                              />
+                            </li>
+                          );
+                        }
+
                         const part = item;
                         return (
                           <li key={part.uniqueId}>
                             <PartCard part={part} />
                           </li>
                         );
-                      }
-                    })}
-                  </ul>
-                </div>
-              ))
-          )}
+                      })}
+                    </ul>
+                  </div>
+                ))
+            )}
 
-          <PaginationControls
-            pagination={pagination}
-            loading={loading || isFetching}
-            itemLabel={viewMode === 'full' ? 'tests' : 'tests'}
-            onPageChange={setCurrentPage}
-          />
-        </section>
+            {viewMode === "full" && pagination ? (
+              <div className="tl-pagination-wrap">
+                <span className="tl-pagination-text">
+                  Page {paginationPage} / {paginationTotalPages} - {Number(pagination.totalItems || 0)} tests
+                </span>
+                <div className="tl-pagination-actions">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={loading || isFetching || !hasPrevPage}
+                    onClick={() => setCurrentPage(Math.max(1, paginationPage - 1))}
+                  >
+                    Prev
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={loading || isFetching || !hasNextPage}
+                    onClick={() => setCurrentPage(Math.min(paginationTotalPages, paginationPage + 1))}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+          </section>
+        </div>
       </div>
     </div>
   );

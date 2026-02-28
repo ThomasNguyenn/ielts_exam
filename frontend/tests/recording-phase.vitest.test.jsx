@@ -72,10 +72,19 @@ class FakeAudioContext {
 const buildPart2Topic = () => ({
   _id: 'sp-p2',
   part: 2,
-  title: 'Describe a journey you went on that was longer than you expected.',
-  prompt: 'Describe a journey you went on that was longer than you expected.',
+  title: 'Education',
+  part2_question_title: 'Describe a journey you went on that was longer than you expected.',
+  prompt: 'Legacy prompt text',
   cue_card: 'Where it happened\nWho you went with\nWhy the journey took longer than expected',
   sub_questions: [],
+});
+
+const buildPart1Topic = () => ({
+  _id: 'sp-p1',
+  part: 'part1',
+  title: 'Hometown',
+  prompt: 'Do you like your hometown?',
+  sub_questions: ['What do you like most about it?', 'Would you like to live there in the future?'],
 });
 
 const buildPart3Topic = () => ({
@@ -158,14 +167,25 @@ describe('RecordingPhase UI merge', () => {
     cleanup();
   });
 
-  it('renders Part 1/2 cue-card layout with mapped topic data', () => {
+  it('renders Part 2 cue-card layout with mapped topic data', () => {
     render(<RecordingPhase topic={buildPart2Topic()} onComplete={vi.fn()} />);
 
     expect(screen.getByText('Cue Card Task')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Describe a journey/i })).toBeInTheDocument();
+    expect(screen.getByText('Topic: Education')).toBeInTheDocument();
     expect(screen.getByText('You should say:')).toBeInTheDocument();
     expect(screen.getByText('Where it happened')).toBeInTheDocument();
     expect(document.querySelector('.material-symbols-outlined')).toBeNull();
+  });
+
+  it('renders Part 1 without cue-card label', () => {
+    render(<RecordingPhase topic={buildPart1Topic()} onComplete={vi.fn()} />);
+
+    expect(screen.getByText('Introduction Task')).toBeInTheDocument();
+    expect(screen.queryByText('Cue Card Task')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Hometown/i })).toBeInTheDocument();
+    expect(screen.getByText('Common questions:')).toBeInTheDocument();
+    expect(screen.getByText('What do you like most about it?')).toBeInTheDocument();
   });
 
   it('renders Part 3 conversational label and question counter', () => {

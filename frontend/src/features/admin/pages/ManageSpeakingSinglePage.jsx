@@ -74,7 +74,8 @@ export default function ManageSpeakingSinglePage() {
       : speakings.filter((item) =>
       String(item.title || '').toLowerCase().includes(query) ||
       String(item._id || '').toLowerCase().includes(query) ||
-      String(item.prompt || '').toLowerCase().includes(query)
+      String(item.prompt || '').toLowerCase().includes(query) ||
+      String(item.part2_question_title || '').toLowerCase().includes(query)
     );
     return [...matched].sort((a, b) => getSortTimestamp(b) - getSortTimestamp(a));
   }, [speakings, searchQuery]);

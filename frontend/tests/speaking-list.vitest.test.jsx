@@ -19,7 +19,8 @@ const buildRows = () => ([
     _id: 's-1',
     title: 'Education',
     part: 2,
-    prompt: 'Describe a teacher who influenced you',
+    part2_question_title: 'Describe a teacher who influenced you',
+    prompt: 'Legacy Part 2 prompt',
     sub_questions: ['You should say how this teacher helped you.'],
     image_url: 'https://cdn.example.com/speaking/teacher.jpg',
   },
@@ -74,6 +75,7 @@ describe('SpeakingList page', () => {
 
     expect(await screen.findByText('Speaking Excellence')).toBeInTheDocument();
     expect(await screen.findByText('Describe a teacher who influenced you')).toBeInTheDocument();
+    expect(screen.queryByText('Legacy Part 2 prompt')).not.toBeInTheDocument();
 
     expect(mockApi.getSpeakings).toHaveBeenCalledWith(expect.objectContaining({ topicsOnly: true }));
     expect(mockApi.getSpeakings).toHaveBeenCalledWith(expect.objectContaining({

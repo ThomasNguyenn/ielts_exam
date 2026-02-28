@@ -368,6 +368,10 @@ export default function SpeakingList() {
                 const part = Number(item?.part || 1);
                 const category = toText(item?.title) || 'General';
                 const prompt = toText(item?.prompt) || 'Speaking prompt unavailable';
+                const part2QuestionTitle = toText(item?.part2_question_title);
+                const heading = part === 2
+                  ? (part2QuestionTitle || prompt || category)
+                  : prompt;
                 const description =
                   toCueCardPreview(item?.cue_card) ||
                   toText(item?.sub_questions?.[0]) ||
@@ -385,7 +389,7 @@ export default function SpeakingList() {
                     </div>
 
                     <div className="sp2-card-body">
-                      <h3>{prompt}</h3>
+                      <h3>{heading}</h3>
                       <p>{description}</p>
                       <Link to={`/practice/speaking/${item?._id}`} className="sp2-primary-cta">
                         <MicOutlined className="sp2-icon" />

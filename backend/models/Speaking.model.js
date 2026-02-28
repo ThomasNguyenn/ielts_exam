@@ -5,6 +5,7 @@ const SpeakingSchema = new mongoose.Schema({
   title: { type: String, required: true }, // e.g., "Hometown & Background"
   part: { type: Number, enum: [1, 2, 3], required: true }, // IELTS Speaking Part
   prompt: { type: String, required: true }, // The main question or card text
+  part2_question_title: { type: String, default: "", trim: true }, // Dedicated question title for Part 2
   cue_card: { type: String, default: "" }, // Part 2 cue-card bullets (line-based)
   sub_questions: [{ type: String }], // Follow-up questions for Part 1 or 3
   image_url: { type: String, default: null, trim: true },

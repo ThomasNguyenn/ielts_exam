@@ -10,6 +10,7 @@ function speakingToForm(speaking) {
     return {
       _id: '',
       title: '',
+      part2_question_title: '',
       part: '1',
       prompt: '',
       cue_card: '',
@@ -29,16 +30,13 @@ function speakingToForm(speaking) {
   const isPart2 = part === '2';
   const storedTitle = String(speaking.title || '').trim();
   const storedPrompt = String(speaking.prompt || '').trim();
+  const storedPart2QuestionTitle = String(speaking.part2_question_title || '').trim();
   const storedCueCard = String(speaking.cue_card || '').trim();
-  const shouldMigrateLegacyPromptToTitle =
-    isPart2 &&
-    !storedCueCard &&
-    storedPrompt &&
-    storedPrompt !== storedTitle;
 
   return {
     _id: speaking._id || '',
-    title: shouldMigrateLegacyPromptToTitle ? storedPrompt : storedTitle,
+    title: storedTitle,
+    part2_question_title: isPart2 ? (storedPart2QuestionTitle || storedPrompt) : storedPart2QuestionTitle,
     part,
     prompt: storedPrompt,
     cue_card: storedCueCard,
@@ -133,7 +131,7 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
     event?.preventDefault?.();
     event?.stopPropagation?.();
 
-    const sourcePrompt = form.part === '2' ? form.title : form.prompt;
+    const sourcePrompt = form.part === '2' ? form.part2_question_title : form.prompt;
     if (!sourcePrompt.trim()) {
       showNotification('Vui long them cau hoi chinh truoc.', 'warning');
       return;
@@ -170,13 +168,16 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
 
     const normalizedPart = Number(form.part);
     const normalizedTitle = form.title.trim();
+    const normalizedPart2QuestionTitle = normalizedPart === 2
+      ? String(form.part2_question_title || '').trim()
+      : '';
     const normalizedPrompt = normalizedPart === 2
-      ? normalizedTitle
+      ? normalizedPart2QuestionTitle
       : form.prompt.trim();
     const normalizedCueCard = form.cue_card?.trim() || '';
 
-    if (!form._id.trim() || !normalizedTitle || !normalizedPrompt) {
-      showNotification('ID, tiêu đề và câu hỏi chính là bắt buộc.', 'error');
+    if (!form._id.trim() || !normalizedTitle || !normalizedPrompt || (normalizedPart === 2 && !normalizedPart2QuestionTitle)) {
+      showNotification('ID, topic category, and question title are required.', 'error');
       return;
     }
 
@@ -187,6 +188,7 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
         title: normalizedTitle,
         part: normalizedPart,
         prompt: normalizedPrompt,
+        part2_question_title: normalizedPart2QuestionTitle,
         cue_card: normalizedCueCard,
         sub_questions: form.sub_questions.filter(Boolean),
         keywords: form.keywords.filter(Boolean),
@@ -295,15 +297,27 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
 
             <div className="manage-input-group">
               <label className="manage-input-label">
-                {form.part === '2' ? 'Title (Part 2 Question)' : 'Tiêu đề'}
+                {form.part === '2' ? 'Tiêu đề (Topic Category)' : 'Tiêu đề'}
               </label>
               <input
                 className="manage-input-field"
                 value={form.title}
                 onChange={(event) => updateForm('title', event.target.value)}
-                placeholder={form.part === '2' ? 'Enter the Part 2 question title' : 'Tiêu đề bài thi'}
+                placeholder={form.part === '2' ? 'Education, Travel, Environment...' : 'Tiêu đề bài thi'}
               />
             </div>
+
+            {form.part === '2' ? (
+              <div className="manage-input-group">
+                <label className="manage-input-label">Part 2 Question Title</label>
+                <input
+                  className="manage-input-field"
+                  value={form.part2_question_title}
+                  onChange={(event) => updateForm('part2_question_title', event.target.value)}
+                  placeholder="Describe a teacher who influenced you"
+                />
+              </div>
+            ) : null}
 
             <div className="manage-input-group" style={{ marginBottom: 0 }}>
               <label className="manage-input-label">Phần thi Nói</label>

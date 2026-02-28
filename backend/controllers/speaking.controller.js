@@ -83,11 +83,46 @@ const normalizeCueCardText = (value = "") => {
   return String(value || "").trim();
 };
 
+const normalizePart2QuestionTitle = (value = "") => String(value || "").trim();
+
+const toPartNumber = (value) => {
+  const parsed = Number.parseInt(value, 10);
+  return [1, 2, 3].includes(parsed) ? parsed : null;
+};
+
+const applyPart2Consistency = (payload = {}, existingTopic = null) => {
+  const hasIncomingPart = Object.prototype.hasOwnProperty.call(payload, "part");
+  const incomingPart = hasIncomingPart ? toPartNumber(payload.part) : null;
+  const effectivePart = incomingPart ?? toPartNumber(existingTopic?.part);
+
+  if (effectivePart === 2) {
+    const resolvedPart2Title = [
+      payload.part2_question_title,
+      payload.prompt,
+      existingTopic?.part2_question_title,
+      existingTopic?.prompt,
+      "",
+    ]
+      .map((item) => String(item || "").trim())
+      .find(Boolean) || "";
+
+    payload.part2_question_title = resolvedPart2Title;
+    payload.prompt = resolvedPart2Title;
+  }
+
+  if (hasIncomingPart && incomingPart !== 2) {
+    payload.part2_question_title = "";
+  }
+
+  return payload;
+};
+
 const pickSpeakingPayload = (body = {}, { allowId = false } = {}) => {
   const allowed = [
     "title",
     "part",
     "prompt",
+    "part2_question_title",
     "cue_card",
     "sub_questions",
     "image_url",
@@ -110,6 +145,10 @@ const pickSpeakingPayload = (body = {}, { allowId = false } = {}) => {
 
   if (Object.prototype.hasOwnProperty.call(payload, "cue_card")) {
     payload.cue_card = normalizeCueCardText(payload.cue_card);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, "part2_question_title")) {
+    payload.part2_question_title = normalizePart2QuestionTitle(payload.part2_question_title);
   }
 
   return payload;
@@ -195,6 +234,7 @@ export const getSpeakings = async (req, res) => {
       filter.$or = [
         { title: safeRegex },
         { prompt: safeRegex },
+        { part2_question_title: safeRegex },
         { cue_card: safeRegex }
       ];
     }
@@ -481,6 +521,7 @@ export const runMockExaminerTurn = async (req, res) => {
 export const createSpeaking = async (req, res) => {
   try {
     const payload = pickSpeakingPayload(req.body, { allowId: true });
+    applyPart2Consistency(payload);
     const newTopic = new Speaking(payload);
     const savedTopic = await newTopic.save();
     return res.status(201).json({ success: true, data: savedTopic });
@@ -495,6 +536,13 @@ export const updateSpeaking = async (req, res) => {
     if (Object.keys(payload).length === 0) {
       return sendControllerError(req, res, { statusCode: 400, message: "No valid update fields provided"  });
     }
+
+    const existingTopic = await Speaking.findById(req.params.id);
+    if (!existingTopic) {
+      return sendControllerError(req, res, { statusCode: 404, message: "Speaking topic not found"  });
+    }
+
+    applyPart2Consistency(payload, existingTopic);
 
     const updatedTopic = await Speaking.findByIdAndUpdate(
       req.params.id,

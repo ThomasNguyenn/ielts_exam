@@ -311,6 +311,11 @@ export default function SpeakingFlow() {
       borderRadius: '16px',
       boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
     };
+  const topicCategory = String(topic?.title || '').trim();
+  const part2QuestionTitle = String(topic?.part2_question_title || topic?.prompt || topicCategory).trim();
+  const headerTitle = Number(topic?.part || 0) === 2
+    ? part2QuestionTitle
+    : (topicCategory || String(topic?.prompt || 'Speaking topic').trim());
 
   return (
     <div className="practice-flow-container" style={containerStyle}>
@@ -323,7 +328,7 @@ export default function SpeakingFlow() {
             <span className="badge badge-purple" style={{ background: '#e0e7ff', color: '#4338ca', padding: '4px 12px', borderRadius: '50px', fontSize: '0.8rem', fontWeight: 700 }}>
               PART {topic.part}
             </span>
-            <h1 style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{topic.title}</h1>
+            <h1 style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{headerTitle}</h1>
           </div>
         </div>
       )}
