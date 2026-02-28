@@ -415,7 +415,10 @@ export async function persistAttempt({
             question_type: question.type,
             is_correct: question.is_correct,
             user_answer: question.your_answer,
-            correct_answer: question.correct_answer,
+            // DB schema expects String; serialize arrays so they survive round-trip
+            correct_answer: Array.isArray(question.correct_answer)
+                ? JSON.stringify(question.correct_answer)
+                : (question.correct_answer ?? ''),
         })),
     });
 
