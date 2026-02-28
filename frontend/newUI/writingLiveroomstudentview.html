@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Live Writing Feedback - Student View</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#0f49bd",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#101622",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: { "DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+    <style>
+        /* Custom scrollbar for cleaner look */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 20px;
+        }
+
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: #334155;
+        }
+
+        /* Highlight styles */
+        .highlight-yellow {
+            background-color: rgba(253, 224, 71, 0.4);
+            border-bottom: 2px solid #eab308;
+        }
+
+        .highlight-red {
+            background-color: rgba(252, 165, 165, 0.3);
+            border-bottom: 2px solid #ef4444;
+            text-decoration: line-through;
+            text-decoration-color: #ef4444;
+        }
+
+        .highlight-green {
+            background-color: rgba(134, 239, 172, 0.3);
+            border-bottom: 2px solid #22c55e;
+        }
+    </style>
+</head>
+
+<body
+    class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 font-display min-h-screen flex flex-col overflow-hidden">
+    <!-- Header -->
+    <header
+        class="flex items-center justify-between whitespace-nowrap border-b border-solid border-slate-200 dark:border-slate-800 bg-white dark:bg-[#151b2b] px-6 py-3 h-16 shrink-0 z-20">
+        <div class="flex items-center gap-4 text-slate-900 dark:text-white">
+            <div class="size-8 flex items-center justify-center bg-primary/10 rounded-lg text-primary">
+                <span class="material-symbols-outlined">school</span>
+            </div>
+            <h2 class="text-lg font-bold leading-tight tracking-[-0.015em]">Live Writing Score</h2>
+            <div
+                class="flex items-center gap-2 px-3 py-1 rounded-full bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800">
+                <span class="relative flex h-2 w-2">
+                    <span
+                        class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                </span>
+                <span class="text-xs font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider">Live
+                    Session</span>
+            </div>
+        </div>
+        <div class="flex flex-1 justify-end gap-6 items-center">
+            <div class="hidden md:flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                <span class="material-symbols-outlined text-[18px]">timer</span>
+                <span>Time Remaining: 14:02</span>
+            </div>
+            <div class="h-6 w-px bg-slate-200 dark:bg-slate-700"></div>
+            <div class="flex gap-3">
+                <button
+                    class="flex items-center justify-center rounded-xl h-9 px-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-sm font-semibold">
+                    Leave Session
+                </button>
+                <div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-9 ring-2 ring-white dark:ring-slate-800 shadow-sm"
+                    data-alt="Student profile picture showing a young woman smiling"
+                    style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuA32jhk21Nd7P9RQ2b0oCSQbS5cQNyj1eccRHhfjlLT9P7wi2Ch5cnI8Ksf0thidXnJsiRnWlffXqXKparM2Biu0CVYfYpuo-cSUueRdyd0W4T9Q1QMubtO--yaPpvRi-WiMokbB1A4Vp2lq-7bBZifZ5nomyRqn1yKdC5-rCY_1KBBQlAIpLhPzacvuIXiurWCf81wrPlPFBAURW4yu-f-UneBq9-feYUybZmmKXuJGFIOoPedQqZBEsIFxLBSqyzzBhUKNKBDKoU");'>
+                </div>
+            </div>
+        </div>
+    </header>
+    <!-- Main Content Grid -->
+    <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden">
+        <!-- Left Panel: Student Essay (Read Only) -->
+        <div
+            class="lg:col-span-8 bg-background-light dark:bg-background-dark overflow-y-auto custom-scrollbar p-6 md:p-10 flex justify-center">
+            <div
+                class="w-full max-w-3xl bg-white dark:bg-[#151b2b] rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 min-h-[800px] p-8 md:p-12">
+                <!-- Document Header -->
+                <div class="mb-8 border-b border-slate-100 dark:border-slate-800 pb-6">
+                    <h1 class="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white mb-2">IELTS Writing Task 2:
+                        Technology in Education</h1>
+                    <div
+                        class="flex flex-wrap gap-2 text-sm text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg">
+                        <span class="font-semibold text-primary">Topic:</span> Some people believe that technology has
+                        made learning easier, while others argue that it has made students lazy. Discuss both views and
+                        give your opinion.
+                    </div>
+                </div>
+                <!-- Essay Content -->
+                <div
+                    class="prose prose-slate dark:prose-invert max-w-none font-serif text-lg leading-loose text-slate-700 dark:text-slate-300">
+                    <p class="mb-6">
+                        Nowadays, technology is an <span
+                            class="highlight-green relative group cursor-help rounded-sm px-0.5">integral part
+                            <span
+                                class="absolute hidden group-hover:block bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-slate-900 text-white text-xs rounded py-1 px-2 text-center shadow-lg z-10">
+                                Good use of collocation!
+                                <svg class="absolute text-slate-900 h-2 w-full left-0 top-full" viewbox="0 0 255 255"
+                                    x="0px" xml:space="preserve" y="0px">
+                                    <polygon class="fill-current" points="0,0 127.5,127.5 255,0"></polygon>
+                                </svg>
+                            </span>
+                        </span> of education. It provides students with access to a vast amount of information and
+                        interactive learning tools. However, some argue that reliance on devices reduces <span
+                            class="highlight-yellow relative group cursor-help rounded-sm px-0.5">critical thinking
+                            skills
+                            <span
+                                class="absolute hidden group-hover:block bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-slate-900 text-white text-xs rounded py-1 px-2 text-center shadow-lg z-10">
+                                Can you expand on this with an example?
+                                <svg class="absolute text-slate-900 h-2 w-full left-0 top-full" viewbox="0 0 255 255"
+                                    x="0px" xml:space="preserve" y="0px">
+                                    <polygon class="fill-current" points="0,0 127.5,127.5 255,0"></polygon>
+                                </svg>
+                            </span>
+                        </span> and physical activity.
+                    </p>
+                    <p class="mb-6">
+                        On the one hand, proponents of educational technology emphasize its efficiency. With the
+                        internet, students can find resources for any subject in seconds. Furthermore, visual aids and
+                        educational software make complex concepts <span
+                            class="highlight-red relative group cursor-help rounded-sm px-0.5">more easier
+                            <span
+                                class="absolute hidden group-hover:block bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-slate-900 text-white text-xs rounded py-1 px-2 text-center shadow-lg z-10">
+                                Grammar error: just 'easier'
+                                <svg class="absolute text-slate-900 h-2 w-full left-0 top-full" viewbox="0 0 255 255"
+                                    x="0px" xml:space="preserve" y="0px">
+                                    <polygon class="fill-current" points="0,0 127.5,127.5 255,0"></polygon>
+                                </svg>
+                            </span>
+                        </span> to understand. For instance, medical students can use 3D models to study anatomy without
+                        needing physical specimens. This accessibility democratizes education, allowing people from
+                        remote areas to learn from top institutions.
+                    </p>
+                    <p class="mb-6">
+                        On the other hand, critics worry about the negative impacts. Constant use of tablets and laptops
+                        can lead to health issues such as eye strain and bad posture. Moreover, when students can easily
+                        Google answers, they may lose the ability to solve problems independently. There is also the
+                        issue of distraction; social media and games are just a click away, diverting attention from
+                        studies.
+                    </p>
+                    <p class="mb-6">
+                        In my opinion, while technology poses certain risks, its benefits outweigh the drawbacks if
+                        managed correctly. Schools should implement strict guidelines on device usage, and parents
+                        should monitor screen time. Technology is a tool, and like any tool, its impact depends on how
+                        it is used.
+                    </p>
+                    <p
+                        class="text-slate-400 italic text-base mt-8 border-t border-slate-100 dark:border-slate-800 pt-4">
+                        Word Count: 215 words
+                    </p>
+                </div>
+            </div>
+        </div>
+        <!-- Right Panel: Live Feed & Chat -->
+        <div
+            class="lg:col-span-4 bg-white dark:bg-[#151b2b] border-l border-slate-200 dark:border-slate-800 flex flex-col h-[calc(100vh-64px)]">
+            <!-- Feed Header -->
+            <div
+                class="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-white dark:bg-[#151b2b] z-10">
+                <h3 class="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary">forum</span>
+                    Live Feedback Feed
+                </h3>
+                <button
+                    class="p-2 text-slate-400 hover:text-primary transition-colors rounded-full hover:bg-slate-50 dark:hover:bg-slate-800">
+                    <span class="material-symbols-outlined">filter_list</span>
+                </button>
+            </div>
+            <!-- Feed Content Area -->
+            <div class="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-6 bg-slate-50/50 dark:bg-[#0f141f]">
+                <!-- Timeline Item 1 -->
+                <div class="flex gap-3">
+                    <div class="flex flex-col items-center">
+                        <div
+                            class="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center text-xs font-bold shadow-sm">
+                            T</div>
+                        <div class="w-0.5 h-full bg-slate-200 dark:bg-slate-700 mt-2"></div>
+                    </div>
+                    <div class="flex-1 pb-4">
+                        <div class="flex justify-between items-start mb-1">
+                            <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">10:42 AM</span>
+                            <span
+                                class="text-[10px] uppercase tracking-wider font-bold text-green-600 bg-green-100 dark:bg-green-900/30 dark:text-green-400 px-2 py-0.5 rounded">Vocab</span>
+                        </div>
+                        <div
+                            class="bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-100 dark:border-slate-700 shadow-sm">
+                            <p class="text-sm text-slate-600 dark:text-slate-300 mb-2">Highlighted <span
+                                    class="font-bold text-slate-800 dark:text-slate-200">"integral part"</span></p>
+                            <div class="text-sm text-slate-800 dark:text-white pl-2 border-l-2 border-green-500">
+                                "Excellent use of collocation here. This boosts your Lexical Resource score."
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Timeline Item 2 -->
+                <div class="flex gap-3">
+                    <div class="flex flex-col items-center">
+                        <div
+                            class="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center text-xs font-bold shadow-sm">
+                            T</div>
+                        <div class="w-0.5 h-full bg-slate-200 dark:bg-slate-700 mt-2"></div>
+                    </div>
+                    <div class="flex-1 pb-4">
+                        <div class="flex justify-between items-start mb-1">
+                            <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">10:45 AM</span>
+                            <span
+                                class="text-[10px] uppercase tracking-wider font-bold text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-400 px-2 py-0.5 rounded">Content</span>
+                        </div>
+                        <div
+                            class="bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-100 dark:border-slate-700 shadow-sm">
+                            <p class="text-sm text-slate-600 dark:text-slate-300 mb-2">Commented on Paragraph 1</p>
+                            <div class="text-sm text-slate-800 dark:text-white pl-2 border-l-2 border-yellow-500">
+                                "Try to use more academic synonyms here. Instead of 'bad', try 'detrimental'."
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Timeline Item 3 -->
+                <div class="flex gap-3">
+                    <div class="flex flex-col items-center">
+                        <div
+                            class="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center text-xs font-bold shadow-sm">
+                            T</div>
+                        <!-- Last item connector fade out -->
+                        <div
+                            class="w-0.5 h-full bg-gradient-to-b from-slate-200 to-transparent dark:from-slate-700 mt-2">
+                        </div>
+                    </div>
+                    <div class="flex-1 pb-4">
+                        <div class="flex justify-between items-start mb-1">
+                            <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">10:48 AM</span>
+                            <span
+                                class="text-[10px] uppercase tracking-wider font-bold text-red-600 bg-red-100 dark:bg-red-900/30 dark:text-red-400 px-2 py-0.5 rounded">Grammar</span>
+                        </div>
+                        <div
+                            class="bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-100 dark:border-slate-700 shadow-sm">
+                            <p class="text-sm text-slate-600 dark:text-slate-300 mb-2">Correction on <span
+                                    class="line-through decoration-red-500 decoration-2">"more easier"</span></p>
+                            <div class="text-sm text-slate-800 dark:text-white pl-2 border-l-2 border-red-500">
+                                "Grammar error: comparatives don't need 'more' if they end in 'er'."
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</body>
+
+</html>

@@ -391,15 +391,7 @@ export default function TestList() {
       return acc;
     }, {});
 
-    const mergedCategoryCounts = Object.keys(allCategoryCounts).reduce((acc, cat) => {
-      acc[cat] = 0;
-      return acc;
-    }, {});
-
-    categoryCounts = Object.keys(pagePartCategoryCounts).reduce((acc, cat) => {
-      acc[cat] = pagePartCategoryCounts[cat];
-      return acc;
-    }, mergedCategoryCounts);
+    categoryCounts = { ...pagePartCategoryCounts };
 
     if (selectedCategory !== 'all' && categoryCounts[selectedCategory] === undefined) {
       categoryCounts[selectedCategory] = 0;

@@ -109,7 +109,7 @@ export default function Register() {
             </div>
 
             <h2 className="auth-brand-tagline">
-              Bắt đầu hành trình chinh phục IELTS
+              Luyện thi IELTS hiệu quả cùng AI
             </h2>
             <p className="auth-brand-desc">
               Tạo tài khoản miễn phí để truy cập hàng trăm đề thi, nhận phản hồi từ AI và theo dõi tiến trình học tập.

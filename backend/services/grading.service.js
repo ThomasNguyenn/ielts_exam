@@ -233,7 +233,7 @@ YÊU CẦU RẤT QUAN TRỌNG (BẮT BUỘC)
 ━━━━━━━━━━━━━━━━━━━━━━
 
 A) Mỗi tiêu chí phải trả về là MỘT ARRAY riêng.
-B) Mỗi tiêu chí phải cố gắng tìm ÍT NHẤT 5-7 lỗi/điểm cần cải thiện (Task 1 ngắn hơn Task 2).
+B) Mỗi tiêu chí phải cố gắng tìm ÍT NHẤT 5-7 lỗi/điểm cần cải thiện.
    - Nếu không đủ lỗi, hãy đưa ra gợi ý nâng cao (suggestion).
    - Với Grammatical Range & Accuracy, ưu tiên ít nhất ${detailTargets.gra} mục lỗi khi bài có đủ dữ liệu.
 C) SOI KỸ Task Achievement (TA):

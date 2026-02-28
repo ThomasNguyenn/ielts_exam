@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Live Writing Grading - Teacher View</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#0f49bd",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#101622",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: { "DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+    <style>
+        /* Custom scrollbar for chat areas */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 20px;
+        }
+    </style>
+</head>
+
+<body
+    class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 h-screen flex flex-col overflow-hidden">
+    <!-- Header -->
+    <header
+        class="h-16 flex-none bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 flex items-center justify-between z-10">
+        <div class="flex items-center gap-4">
+            <div class="flex items-center justify-center size-10 rounded-lg bg-primary/10 text-primary">
+                <span class="material-symbols-outlined">edit_note</span>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold leading-tight">IELTS Writing Task 2</h1>
+                <div class="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">
+                    <span class="flex size-2 rounded-full bg-green-500 animate-pulse"></span>
+                    <span>Live Session Active</span>
+                    <span class="mx-1">•</span>
+                    <span>Student: Alex Chen</span>
+                </div>
+            </div>
+        </div>
+        <div class="flex items-center gap-4">
+            <div
+                class="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                <span class="material-symbols-outlined text-slate-500 text-[18px]">timer</span>
+                <span class="text-sm font-semibold font-mono">34:12</span>
+            </div>
+            <button
+                class="flex items-center justify-center gap-2 px-5 py-2 bg-primary hover:bg-primary/90 text-white text-sm font-bold rounded-xl transition-colors">
+                <span class="material-symbols-outlined text-[20px]">check_circle</span>
+                <span>Finish &amp; Grade</span>
+            </button>
+            <div class="size-9 rounded-full bg-cover bg-center border-2 border-white shadow-sm"
+                data-alt="Portrait of a female teacher"
+                style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCwy5xCZq-J6t1kAEAfD3QzNkEpW7ew2iqdhlHSiBycjDIWEm6YPPXdw8BgJdRL0p0IIkuKrxNxHS_QT8zRafuMkKxWTChDi8VxRM73UT5PkiIXXjR6fc9bKkB1efoR-bCoKGtTn_Ufn7jQre2tcERYUBoRmiXnCjwglEAWkq4-sGYYBwEBqCpuI3u3C-Kv0pWt7CTKk-EJAyFyaCgJQzB2euGi9yiIdzZpf2aypfvYLNpRS_EFylfB_qr58DOTvvRcuGvq3V8pL54");'>
+            </div>
+        </div>
+    </header>
+    <!-- Main Content -->
+    <main class="flex-1 flex overflow-hidden">
+        <!-- Left Panel: Essay Editor (60%) -->
+        <section
+            class="w-full lg:w-[60%] flex flex-col bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 h-full relative">
+            <!-- Toolbar -->
+            <div
+                class="flex items-center gap-2 p-3 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 z-10 overflow-x-auto">
+                <div class="flex items-center gap-2 pl-2">
+                    <span
+                        class="text-xs font-semibold text-slate-400 uppercase tracking-wider px-2">Highlighters:</span>
+                    <button
+                        class="group flex items-center gap-2 px-3 py-1.5 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800/30 rounded-full hover:shadow-sm transition-all cursor-pointer">
+                        <div class="size-3 rounded-full bg-red-500"></div>
+                        <span class="text-xs font-medium text-red-700 dark:text-red-300">Grammar</span>
+                    </button>
+                    <button
+                        class="group flex items-center gap-2 px-3 py-1.5 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-100 dark:border-yellow-800/30 rounded-full hover:shadow-sm transition-all cursor-pointer">
+                        <div class="size-3 rounded-full bg-yellow-500"></div>
+                        <span class="text-xs font-medium text-yellow-700 dark:text-yellow-300">Vocab</span>
+                    </button>
+                    <button
+                        class="group flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/30 rounded-full hover:shadow-sm transition-all cursor-pointer">
+                        <div class="size-3 rounded-full bg-blue-500"></div>
+                        <span class="text-xs font-medium text-blue-700 dark:text-blue-300">Coherence</span>
+                    </button>
+                </div>
+            </div>
+            <!-- Editor Area -->
+            <div class="flex-1 overflow-y-auto custom-scrollbar p-8 lg:p-12">
+                <div class="max-w-[720px] mx-auto">
+                    <h2 class="text-2xl font-bold mb-6 text-slate-900 dark:text-slate-100">
+                        Discuss the advantages and disadvantages of online education compared to traditional classroom
+                        learning.
+                    </h2>
+                    <div
+                        class="prose prose-lg dark:prose-invert max-w-none font-display text-slate-700 dark:text-slate-300 leading-relaxed">
+                        <p class="mb-4">
+                            In recent years, the landscape of education has shifted dramatically with the advent of
+                            digital technologies.
+                            <span
+                                class="bg-blue-100 dark:bg-blue-900/40 text-slate-900 dark:text-slate-100 border-b-2 border-blue-400 px-1 py-0.5 rounded-sm relative group cursor-help">
+                                Although many people believe
+                                <span
+                                    class="absolute hidden group-hover:block bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-slate-800 text-white text-xs rounded-lg shadow-lg z-50">Good
+                                    use of concession for coherence.</span>
+                            </span>
+                            that traditional classrooms are superior, online education offers unique benefits that
+                            cannot be ignored.
+                        </p>
+                        <p class="mb-4">
+                            First and foremost, online learning provides flexibility. Students can attend classes from
+                            anywhere, which saves time on commuting. For example, a student living in a rural area
+                            <span
+                                class="bg-red-100 dark:bg-red-900/40 text-slate-900 dark:text-slate-100 border-b-2 border-red-400 px-1 py-0.5 rounded-sm relative group cursor-help">
+                                can easy access
+                                <span
+                                    class="absolute hidden group-hover:block bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-slate-800 text-white text-xs rounded-lg shadow-lg z-50">Grammar:
+                                    Adverb "easily" needed here.</span>
+                            </span>
+                            high-quality courses without moving to a big city. This democratization of education is a
+                            significant advantage.
+                        </p>
+                        <p class="mb-4">
+                            However, there are drawbacks. The lack of face-to-face interaction can lead to feelings of
+                            isolation. Furthermore, it requires a high level of self-discipline. Without a teacher
+                            physically present, some students might struggle to stay motivated.
+                            <span
+                                class="bg-yellow-100 dark:bg-yellow-900/40 text-slate-900 dark:text-slate-100 border-b-2 border-yellow-400 px-1 py-0.5 rounded-sm relative group cursor-help">
+                                In addition to this point
+                                <span
+                                    class="absolute hidden group-hover:block bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-slate-800 text-white text-xs rounded-lg shadow-lg z-50">Vocab:
+                                    Consider "Moreover" or "Furthermore".</span>
+                            </span>,
+                            technical issues such as poor internet connection can disrupt the learning process
+                            significantly.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="absolute bottom-6 right-6">
+                <div
+                    class="bg-slate-900 text-white text-xs px-3 py-1.5 rounded-full shadow-lg opacity-80 hover:opacity-100 transition-opacity">
+                    Word count: 243
+                </div>
+            </div>
+        </section>
+        <!-- Right Panel: Interaction Hub (40%) -->
+        <section class="hidden lg:flex flex-col w-[40%] bg-background-light dark:bg-background-dark h-full">
+            <!-- Top: AI Scoring Dashboard -->
+            <div
+                class="p-6 bg-white dark:bg-slate-900 m-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex-none">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary">analytics</span>
+                        Projected Band Score
+                    </h3>
+                    <span class="text-2xl font-bold text-primary">6.5</span>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div
+                        class="bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700">
+                        <div class="flex justify-between text-xs font-medium text-slate-500 mb-1">
+                            <span>Task Response</span>
+                            <span class="text-slate-900 dark:text-white">7.0</span>
+                        </div>
+                        <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5">
+                            <div class="bg-green-500 h-1.5 rounded-full" style="width: 70%"></div>
+                        </div>
+                    </div>
+                    <div
+                        class="bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700">
+                        <div class="flex justify-between text-xs font-medium text-slate-500 mb-1">
+                            <span>Coherence</span>
+                            <span class="text-slate-900 dark:text-white">6.5</span>
+                        </div>
+                        <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5">
+                            <div class="bg-blue-500 h-1.5 rounded-full" style="width: 65%"></div>
+                        </div>
+                    </div>
+                    <div
+                        class="bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700">
+                        <div class="flex justify-between text-xs font-medium text-slate-500 mb-1">
+                            <span>Lexical</span>
+                            <span class="text-slate-900 dark:text-white">6.0</span>
+                        </div>
+                        <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5">
+                            <div class="bg-yellow-500 h-1.5 rounded-full" style="width: 60%"></div>
+                        </div>
+                    </div>
+                    <div
+                        class="bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700">
+                        <div class="flex justify-between text-xs font-medium text-slate-500 mb-1">
+                            <span>Grammar</span>
+                            <span class="text-slate-900 dark:text-white">6.0</span>
+                        </div>
+                        <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5">
+                            <div class="bg-red-500 h-1.5 rounded-full" style="width: 60%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Middle: Live Activity Feed -->
+            <div class="px-4 flex-1 flex flex-col min-h-0">
+                <div class="flex items-center justify-between mb-2 px-2">
+                    <h4 class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Activity Feed</h4>
+                    <span
+                        class="text-[10px] bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-full">Auto-generated</span>
+                </div>
+                <div class="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-2 pb-4">
+                    <!-- Activity Item: Grammar -->
+                    <div
+                        class="flex gap-3 items-start bg-white dark:bg-slate-800 p-3 rounded-xl border-l-4 border-l-red-500 shadow-sm">
+                        <div class="mt-0.5 min-w-[24px]">
+                            <span
+                                class="material-symbols-outlined text-red-500 text-sm bg-red-50 dark:bg-red-900/30 p-1 rounded-md">gavel</span>
+                        </div>
+                        <div>
+                            <p class="text-sm text-slate-800 dark:text-slate-200">
+                                <span class="font-bold">You</span> highlighted <span
+                                    class="font-mono text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-1 rounded">can
+                                    easy access</span>
+                            </p>
+                            <p class="text-xs text-slate-500 mt-1">Comment: "Incorrect adverb form. Should be 'easily'."
+                            </p>
+                        </div>
+                        <span class="text-[10px] text-slate-400 ml-auto whitespace-nowrap">2m ago</span>
+                    </div>
+                    <!-- Activity Item: Coherence -->
+                    <div
+                        class="flex gap-3 items-start bg-white dark:bg-slate-800 p-3 rounded-xl border-l-4 border-l-blue-500 shadow-sm">
+                        <div class="mt-0.5 min-w-[24px]">
+                            <span
+                                class="material-symbols-outlined text-blue-500 text-sm bg-blue-50 dark:bg-blue-900/30 p-1 rounded-md">link</span>
+                        </div>
+                        <div>
+                            <p class="text-sm text-slate-800 dark:text-slate-200">
+                                <span class="font-bold">You</span> marked coherence on <span
+                                    class="font-mono text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-1 rounded">Although
+                                    many...</span>
+                            </p>
+                            <p class="text-xs text-slate-500 mt-1">Comment: "Good concession structure."</p>
+                        </div>
+                        <span class="text-[10px] text-slate-400 ml-auto whitespace-nowrap">5m ago</span>
+                    </div>
+                    <!-- Activity Item: Vocab -->
+                    <div
+                        class="flex gap-3 items-start bg-white dark:bg-slate-800 p-3 rounded-xl border-l-4 border-l-yellow-500 shadow-sm">
+                        <div class="mt-0.5 min-w-[24px]">
+                            <span
+                                class="material-symbols-outlined text-yellow-500 text-sm bg-yellow-50 dark:bg-yellow-900/30 p-1 rounded-md">book_2</span>
+                        </div>
+                        <div>
+                            <p class="text-sm text-slate-800 dark:text-slate-200">
+                                <span class="font-bold">You</span> highlighted <span
+                                    class="font-mono text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 px-1 rounded">In
+                                    addition to this point</span>
+                            </p>
+                            <p class="text-xs text-slate-500 mt-1">Suggestion: "Use a more advanced connector."</p>
+                        </div>
+                        <span class="text-[10px] text-slate-400 ml-auto whitespace-nowrap">Just now</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+</body>
+
+</html>

@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>IELTS Speaking Elite Library V2</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#0f3460", "primary-hover": "#16213e",
+                        "accent": "#e94560", "background-light": "#f8f9fa",
+                        "background-dark": "#0b1116",
+                        "surface-light": "#ffffff",
+                        "surface-dark": "#161b22",
+                        "text-main": "#1a202c",
+                        "text-main-dark": "#f0f6fc",
+                        "text-secondary": "#64748b",
+                        "text-secondary-dark": "#8b949e",
+                        "border-light": "#e2e8f0",
+                        "border-dark": "#30363d",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "0.75rem",
+                        "xl": "1rem",
+                        "2xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                    boxShadow: {
+                        "soft": "0 4px 20px -2px rgba(0, 0, 0, 0.05)",
+                        "glow": "0 0 15px rgba(15, 52, 96, 0.15)",
+                        "card": "0 1px 3px rgba(0,0,0,0.05), 0 10px 15px -5px rgba(0,0,0,0.02)",
+                        "card-hover": "0 10px 25px -5px rgba(0,0,0,0.08), 0 8px 10px -6px rgba(0,0,0,0.01)"
+                    }
+                },
+            },
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .text-balance {
+                text-wrap: balance;
+            }
+            .glass-badge {
+                @apply backdrop-blur-md bg-white/90 shadow-sm border border-white/20;
+            }
+        }
+    </style>
+</head>
+
+<body
+    class="bg-background-light dark:bg-background-dark font-display min-h-screen flex flex-col text-text-main dark:text-text-main-dark selection:bg-primary selection:text-white">
+    <header
+        class="sticky top-0 z-50 w-full bg-surface-light/80 dark:bg-surface-dark/80 backdrop-blur-lg border-b border-border-light dark:border-border-dark px-4 py-4 lg:px-10 transition-all duration-300">
+        <div class="flex items-center justify-between mx-auto max-w-7xl">
+            <div class="flex items-center gap-3 text-primary dark:text-white group cursor-pointer">
+                <div
+                    class="size-9 bg-primary text-white rounded-lg flex items-center justify-center shadow-lg shadow-primary/20">
+                    <svg class="size-5" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path
+                            d="M12 2L2 7l10 5 10-5-10-5zm0 9l2.5-1.25L12 8.5l-2.5 1.25L12 11zm0 2.5l-5-2.5-5 2.5L12 22l10-8.5-5-2.5-5 2.5z">
+                        </path>
+                    </svg>
+                </div>
+                <div class="flex flex-col">
+                    <h2 class="text-lg font-bold tracking-tight leading-none text-primary dark:text-white">IELTS Elite
+                    </h2>
+                    <span
+                        class="text-[10px] font-medium tracking-wider uppercase text-text-secondary dark:text-text-secondary-dark">Library</span>
+                </div>
+            </div>
+            <nav class="hidden md:flex flex-1 justify-center gap-1">
+                <a class="px-4 py-2 rounded-full text-text-secondary hover:text-primary hover:bg-primary/5 dark:text-text-secondary-dark dark:hover:text-white dark:hover:bg-white/5 text-sm font-medium transition-all"
+                    href="#">Dashboard</a>
+                <a class="px-4 py-2 rounded-full bg-primary/5 text-primary dark:bg-white/10 dark:text-white text-sm font-bold transition-all shadow-sm"
+                    href="#">Speaking Library</a>
+                <a class="px-4 py-2 rounded-full text-text-secondary hover:text-primary hover:bg-primary/5 dark:text-text-secondary-dark dark:hover:text-white dark:hover:bg-white/5 text-sm font-medium transition-all"
+                    href="#">Writing</a>
+                <a class="px-4 py-2 rounded-full text-text-secondary hover:text-primary hover:bg-primary/5 dark:text-text-secondary-dark dark:hover:text-white dark:hover:bg-white/5 text-sm font-medium transition-all"
+                    href="#">Reading</a>
+            </nav>
+            <div class="flex items-center gap-4">
+                <div class="hidden sm:flex items-center gap-2 mr-2">
+                    <div class="flex -space-x-2">
+                        <div class="size-6 rounded-full bg-gray-200 border-2 border-white dark:border-surface-dark">
+                        </div>
+                        <div class="size-6 rounded-full bg-gray-300 border-2 border-white dark:border-surface-dark">
+                        </div>
+                        <div
+                            class="size-6 rounded-full bg-primary flex items-center justify-center text-[8px] text-white border-2 border-white dark:border-surface-dark font-bold">
+                            1k+</div>
+                    </div>
+                    <span class="text-xs text-text-secondary dark:text-text-secondary-dark">Students active</span>
+                </div>
+                <button
+                    class="hidden sm:flex h-10 items-center justify-center rounded-lg bg-primary hover:bg-primary-hover px-5 text-white text-sm font-semibold transition-all shadow-lg shadow-primary/25 hover:shadow-primary/40">
+                    Upgrade Pro
+                </button>
+                <div class="relative group cursor-pointer">
+                    <div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 ring-2 ring-border-light dark:ring-border-dark group-hover:ring-primary transition-all"
+                        style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAQjdzUpYs6BlP6xQHWNSCqud072uCGdTI0poHJqt-eWdxBRTNYM-Xq295un0XZSgHbmwOLKBXUfe5ej94x9_4pZcTOs-V4LrtH8d5zqU17XrN1SwTWQTBImSu0ZzLuoQ9A4ShIbGT46ItxFCMrcU0ibW9dl6_DXD-DEjZhmXnFqyJW32fEjB8QOtOgZixHRl6KRxBLDaC-Pi-D_9BXeRBP59k5sqw4Gq5HjrZmaYOt9VyBY-D_vWA_rvYbdxZZkYh52NWOtbGpu-k");'>
+                    </div>
+                    <div
+                        class="absolute bottom-0 right-0 size-3 bg-green-500 border-2 border-white dark:border-surface-dark rounded-full">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+    <main class="flex-1 w-full max-w-7xl mx-auto px-4 py-10 lg:px-10 flex flex-col gap-10">
+        <div class="flex flex-col lg:flex-row gap-8 lg:items-end justify-between animate-fade-in">
+            <div class="flex-1 max-w-2xl">
+                <div
+                    class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-900/20 text-primary dark:text-blue-300 text-xs font-bold uppercase tracking-wider mb-4 border border-blue-100 dark:border-blue-800">
+                    <span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+                    New Topics Added
+                </div>
+                <h1 class="text-4xl lg:text-5xl font-bold text-text-main dark:text-text-main-dark mb-4 tracking-tight">
+                    Speaking Excellence</h1>
+                <p
+                    class="text-lg text-text-secondary dark:text-text-secondary-dark mb-8 max-w-xl text-balance leading-relaxed">
+                    Refine your articulation with our elite collection of 250+ IELTS topics. Receive instant, AI-powered
+                    band score analysis.</p>
+                <div class="relative w-full max-w-lg group">
+                    <div
+                        class="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none text-text-secondary dark:text-text-secondary-dark group-focus-within:text-primary transition-colors">
+                        <span class="material-symbols-outlined">search</span>
+                    </div>
+                    <div class="absolute inset-y-0 right-0 flex items-center pr-2">
+                        <kbd
+                            class="hidden sm:inline-flex items-center h-6 px-2 text-xs font-medium text-text-secondary bg-gray-100 dark:bg-gray-800 rounded">⌘K</kbd>
+                    </div>
+                    <input
+                        class="block w-full py-3.5 pl-11 pr-12 text-sm text-text-main dark:text-text-main-dark border border-border-light dark:border-border-dark rounded-xl bg-white dark:bg-surface-dark focus:ring-2 focus:ring-primary/20 focus:border-primary placeholder-text-secondary/60 dark:placeholder-text-secondary-dark/60 shadow-soft transition-all"
+                        placeholder="Find a topic (e.g. 'Business', 'Travel')" type="text" />
+                </div>
+            </div>
+            <div class="flex flex-row gap-5 w-full lg:w-auto">
+                <div
+                    class="flex flex-1 lg:w-48 flex-col justify-between rounded-2xl p-6 bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark shadow-card hover:shadow-card-hover transition-all duration-300 group">
+                    <div class="flex justify-between items-start">
+                        <div
+                            class="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-primary dark:text-blue-300 group-hover:bg-primary group-hover:text-white transition-colors">
+                            <span class="material-symbols-outlined text-[24px]">library_books</span>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <p class="text-3xl font-bold text-text-main dark:text-text-main-dark tracking-tight">250+</p>
+                        <p
+                            class="text-xs font-medium text-text-secondary dark:text-text-secondary-dark uppercase tracking-wide mt-1">
+                            Active Topics</p>
+                    </div>
+                </div>
+                <div
+                    class="flex flex-1 lg:w-48 flex-col justify-between rounded-2xl p-6 bg-gradient-to-br from-primary to-primary-hover text-white shadow-lg shadow-primary/25 relative overflow-hidden group">
+                    <div class="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -mr-10 -mt-10 blur-xl"></div>
+                    <div class="absolute bottom-0 left-0 w-16 h-16 bg-white/5 rounded-full -ml-8 -mb-8 blur-lg"></div>
+                    <div class="flex justify-between items-start relative z-10">
+                        <div class="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                            <span class="material-symbols-outlined text-[24px]">trending_up</span>
+                        </div>
+                        <span
+                            class="text-xs font-bold bg-green-400 text-primary px-2 py-0.5 rounded text-center shadow-sm">Top
+                            5%</span>
+                    </div>
+                    <div class="mt-4 relative z-10">
+                        <div class="flex items-baseline gap-1">
+                            <p class="text-3xl font-bold">15</p>
+                            <span class="text-sm font-medium opacity-80">/ 250</span>
+                        </div>
+                        <p class="text-xs font-medium opacity-80 uppercase tracking-wide mt-1">Topics Mastered</p>
+                        <div class="w-full bg-black/20 h-1 mt-3 rounded-full overflow-hidden">
+                            <div class="bg-green-400 h-full rounded-full" style="width: 6%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="h-px w-full bg-gradient-to-r from-transparent via-border-light dark:via-border-dark to-transparent">
+        </div>
+        <div class="flex flex-col lg:flex-row gap-10 items-start">
+            <aside class="w-full lg:w-64 flex-shrink-0 flex flex-col gap-8 sticky top-28">
+                <div
+                    class="lg:hidden flex items-center justify-between bg-white dark:bg-surface-dark p-4 rounded-xl border border-border-light dark:border-border-dark shadow-sm">
+                    <span class="font-bold text-text-main dark:text-text-main-dark">Filter Topics</span>
+                    <button
+                        class="text-primary p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"><span
+                            class="material-symbols-outlined">filter_list</span></button>
+                </div>
+                <div class="hidden lg:flex flex-col gap-8">
+                    <div class="bg-white dark:bg-surface-dark/50 rounded-xl p-1">
+                        <h3
+                            class="text-xs font-bold uppercase tracking-wider text-text-secondary dark:text-text-secondary-dark mb-3 px-3">
+                            Section</h3>
+                        <div class="space-y-1">
+                            <label
+                                class="flex items-center gap-3 p-2.5 rounded-lg hover:bg-background-light dark:hover:bg-surface-dark cursor-pointer group transition-colors">
+                                <input
+                                    class="rounded border-gray-300 text-primary focus:ring-primary focus:ring-offset-0 h-4 w-4 bg-white dark:bg-surface-dark dark:border-border-dark transition-all"
+                                    type="checkbox" />
+                                <span
+                                    class="text-sm font-medium text-text-main dark:text-text-main-dark group-hover:text-primary transition-colors">Part
+                                    1: Introduction</span>
+                            </label>
+                            <label
+                                class="flex items-center gap-3 p-2.5 rounded-lg bg-blue-50/50 dark:bg-blue-900/10 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer group transition-colors border border-blue-100/50 dark:border-blue-800/20">
+                                <input checked=""
+                                    class="rounded border-gray-300 text-primary focus:ring-primary focus:ring-offset-0 h-4 w-4 bg-white dark:bg-surface-dark dark:border-border-dark transition-all"
+                                    type="checkbox" />
+                                <span class="text-sm font-semibold text-primary dark:text-blue-300">Part 2: Cue
+                                    Card</span>
+                            </label>
+                            <label
+                                class="flex items-center gap-3 p-2.5 rounded-lg hover:bg-background-light dark:hover:bg-surface-dark cursor-pointer group transition-colors">
+                                <input
+                                    class="rounded border-gray-300 text-primary focus:ring-primary focus:ring-offset-0 h-4 w-4 bg-white dark:bg-surface-dark dark:border-border-dark transition-all"
+                                    type="checkbox" />
+                                <span
+                                    class="text-sm font-medium text-text-main dark:text-text-main-dark group-hover:text-primary transition-colors">Part
+                                    3: Discussion</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div>
+                        <h3
+                            class="text-xs font-bold uppercase tracking-wider text-text-secondary dark:text-text-secondary-dark mb-4 px-1">
+                            Categories</h3>
+                        <div class="flex flex-wrap gap-2">
+                            <button
+                                class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-white shadow-md shadow-primary/20 hover:bg-primary-hover transition-all">All</button>
+                            <button
+                                class="px-3 py-1.5 rounded-lg text-xs font-medium bg-white dark:bg-surface-dark text-text-secondary dark:text-text-secondary-dark border border-border-light dark:border-border-dark hover:border-primary hover:text-primary hover:shadow-sm transition-all">Technology</button>
+                            <button
+                                class="px-3 py-1.5 rounded-lg text-xs font-medium bg-white dark:bg-surface-dark text-text-secondary dark:text-text-secondary-dark border border-border-light dark:border-border-dark hover:border-primary hover:text-primary hover:shadow-sm transition-all">Education</button>
+                            <button
+                                class="px-3 py-1.5 rounded-lg text-xs font-medium bg-white dark:bg-surface-dark text-text-secondary dark:text-text-secondary-dark border border-border-light dark:border-border-dark hover:border-primary hover:text-primary hover:shadow-sm transition-all">Environment</button>
+                            <button
+                                class="px-3 py-1.5 rounded-lg text-xs font-medium bg-white dark:bg-surface-dark text-text-secondary dark:text-text-secondary-dark border border-border-light dark:border-border-dark hover:border-primary hover:text-primary hover:shadow-sm transition-all">Work</button>
+                            <button
+                                class="px-3 py-1.5 rounded-lg text-xs font-medium bg-white dark:bg-surface-dark text-text-secondary dark:text-text-secondary-dark border border-border-light dark:border-border-dark hover:border-primary hover:text-primary hover:shadow-sm transition-all">Health</button>
+                        </div>
+                    </div>
+                    <div
+                        class="bg-white dark:bg-surface-dark/50 rounded-xl p-4 border border-border-light dark:border-border-dark">
+                        <h3
+                            class="text-xs font-bold uppercase tracking-wider text-text-secondary dark:text-text-secondary-dark mb-3">
+                            Target Band</h3>
+                        <div class="flex flex-col gap-2">
+                            <label class="flex items-center gap-3 cursor-pointer group">
+                                <div class="relative flex items-center">
+                                    <input class="peer sr-only" name="band" type="radio" />
+                                    <div
+                                        class="w-4 h-4 border-2 border-text-secondary rounded-full peer-checked:border-primary peer-checked:bg-white transition-all">
+                                    </div>
+                                    <div
+                                        class="absolute w-2 h-2 bg-primary rounded-full left-1 top-1 opacity-0 peer-checked:opacity-100 transition-opacity">
+                                    </div>
+                                </div>
+                                <span
+                                    class="text-sm text-text-secondary group-hover:text-text-main dark:text-text-secondary-dark dark:group-hover:text-white transition-colors">Band
+                                    4.0 - 5.5</span>
+                            </label>
+                            <label class="flex items-center gap-3 cursor-pointer group">
+                                <div class="relative flex items-center">
+                                    <input checked="" class="peer sr-only" name="band" type="radio" />
+                                    <div
+                                        class="w-4 h-4 border-2 border-text-secondary rounded-full peer-checked:border-primary peer-checked:bg-white transition-all">
+                                    </div>
+                                    <div
+                                        class="absolute w-2 h-2 bg-primary rounded-full left-1 top-1 opacity-0 peer-checked:opacity-100 transition-opacity">
+                                    </div>
+                                </div>
+                                <span class="text-sm font-semibold text-primary dark:text-white">Band 6.0 - 7.0</span>
+                            </label>
+                            <label class="flex items-center gap-3 cursor-pointer group">
+                                <div class="relative flex items-center">
+                                    <input class="peer sr-only" name="band" type="radio" />
+                                    <div
+                                        class="w-4 h-4 border-2 border-text-secondary rounded-full peer-checked:border-primary peer-checked:bg-white transition-all">
+                                    </div>
+                                    <div
+                                        class="absolute w-2 h-2 bg-primary rounded-full left-1 top-1 opacity-0 peer-checked:opacity-100 transition-opacity">
+                                    </div>
+                                </div>
+                                <span
+                                    class="text-sm text-text-secondary group-hover:text-text-main dark:text-text-secondary-dark dark:group-hover:text-white transition-colors">Band
+                                    7.5+</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+            <div class="flex-1">
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-8">
+                    <div
+                        class="group flex flex-col bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-2xl overflow-hidden hover:shadow-card-hover hover:-translate-y-1 transition-all duration-300">
+                        <div class="h-44 bg-cover bg-center relative overflow-hidden"
+                            data-alt="Two people talking in a library environment"
+                            style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuD_Ulxg78r9RtLTQmoc5AWh0gtHYKvcfhHu1rolPkXwWBxnyHtvf8IwTINz4bxdLbK_3DFs7mtkelrDFQs1HWJEFy6Wh1jLg8sPdwBQsQ6hlsA0w-HXahWrBcvCoUeMvLf5J6AN7PZBqWooAJy9hzpgXrl1E78OuT3kivIpaQHBKFCscMuXCzX29r6vOs_WkCJ0_G3qOvJC7ShSSsePiMP1lZCBzwhgwhWMUm-wEPL6jOjyM0kiPhpnwWoZTFAB428EDsQxskFegDs");'>
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent">
+                            </div>
+                            <div
+                                class="absolute inset-0 bg-primary/20 mix-blend-overlay opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                            </div>
+                            <div class="absolute top-4 left-4 flex gap-2">
+                                <span
+                                    class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-white/90 text-primary backdrop-blur-md shadow-sm">Part
+                                    2</span>
+                            </div>
+                            <div class="absolute bottom-4 right-4 animate-in fade-in zoom-in duration-300">
+                                <div
+                                    class="flex items-center gap-2 bg-green-500 text-white px-3 py-1.5 rounded-lg shadow-[0_0_15px_rgba(34,197,94,0.4)] ring-1 ring-white/30 backdrop-blur-sm">
+                                    <span class="material-symbols-outlined text-lg">smart_toy</span>
+                                    <div class="flex flex-col items-start leading-none">
+                                        <span class="text-[8px] opacity-90 uppercase font-bold tracking-wider">AI
+                                            Score</span>
+                                        <span class="text-sm font-bold">Band 7.5</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="absolute bottom-4 left-4 text-white">
+                                <p
+                                    class="text-[10px] font-bold opacity-90 uppercase tracking-widest bg-black/30 px-2 py-0.5 rounded backdrop-blur-sm">
+                                    Education</p>
+                            </div>
+                        </div>
+                        <div class="p-6 flex flex-col flex-1">
+                            <h3
+                                class="text-xl font-bold text-text-main dark:text-text-main-dark leading-tight mb-2 group-hover:text-primary transition-colors">
+                                Describe a teacher who influenced you</h3>
+                            <p class="text-sm text-text-secondary dark:text-text-secondary-dark mb-6 line-clamp-2">
+                                Reflect on the pedagogical impact of an educator in your academic journey.</p>
+                            <div class="mt-auto flex flex-col gap-3">
+                                <button
+                                    class="w-full py-3 px-4 bg-primary hover:bg-primary-hover text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2 group/btn">
+                                    <span class="material-symbols-outlined text-[18px]">mic</span>
+                                    Practice Again
+                                    <span
+                                        class="material-symbols-outlined text-[16px] opacity-0 -ml-4 group-hover/btn:opacity-100 group-hover/btn:ml-0 transition-all">arrow_forward</span>
+                                </button>
+                                <button
+                                    class="w-full py-3 px-4 bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark hover:bg-gray-50 dark:hover:bg-gray-800 text-text-secondary dark:text-text-secondary-dark hover:text-text-main dark:hover:text-text-main-dark rounded-xl text-sm font-semibold transition-colors">
+                                    View Sample Answer
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        class="group flex flex-col bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-2xl overflow-hidden hover:shadow-card-hover hover:-translate-y-1 transition-all duration-300">
+                        <div class="h-44 bg-cover bg-center relative overflow-hidden"
+                            data-alt="Modern office workspace with laptop"
+                            style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCBjc8zpbjpyFFRywckGOi2Wd2rkCMvoAEepqfCU0wmUfjIVlrlRRlmGNjCVDdyIdbRTE6c7RuHjFILhZRdPGayF8Bgjcu3Vrwl7rHRHt-az8FPKPneo0XhNHPZrMrLR8S1j2oGQXp2cXu0y4FY-a4jK805XL9Xl1bGSko0KmRbt1cKggEZDgS0UcY8O3k3z0kqxPNtBrOCz5wFYq0buPaFhi14AB13CC1KwQvwec2EcOcp9IWy8cDH7f_kd6Yq6OATph-x7wBjRkk");'>
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent">
+                            </div>
+                            <div
+                                class="absolute inset-0 bg-primary/20 mix-blend-overlay opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                            </div>
+                            <div class="absolute top-4 left-4 flex gap-2">
+                                <span
+                                    class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-white/90 text-primary backdrop-blur-md shadow-sm">Part
+                                    1</span>
+                            </div>
+                            <div class="absolute bottom-4 left-4 text-white">
+                                <p
+                                    class="text-[10px] font-bold opacity-90 uppercase tracking-widest bg-black/30 px-2 py-0.5 rounded backdrop-blur-sm">
+                                    Work &amp; Study</p>
+                            </div>
+                        </div>
+                        <div class="p-6 flex flex-col flex-1">
+                            <h3
+                                class="text-xl font-bold text-text-main dark:text-text-main-dark leading-tight mb-2 group-hover:text-primary transition-colors">
+                                Teamwork vs. Solo Work</h3>
+                            <p class="text-sm text-text-secondary dark:text-text-secondary-dark mb-6 line-clamp-2">
+                                Discuss the advantages and disadvantages of teamwork versus individual work in your
+                                profession.</p>
+                            <div class="mt-auto flex flex-col gap-3">
+                                <button
+                                    class="w-full py-3 px-4 bg-primary hover:bg-primary-hover text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2 group/btn">
+                                    <span class="material-symbols-outlined text-[18px]">mic</span>
+                                    Practice with AI
+                                    <span
+                                        class="material-symbols-outlined text-[16px] opacity-0 -ml-4 group-hover/btn:opacity-100 group-hover/btn:ml-0 transition-all">arrow_forward</span>
+                                </button>
+                                <button
+                                    class="w-full py-3 px-4 bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark hover:bg-gray-50 dark:hover:bg-gray-800 text-text-secondary dark:text-text-secondary-dark hover:text-text-main dark:hover:text-text-main-dark rounded-xl text-sm font-semibold transition-colors">
+                                    View Sample Answer
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        class="group flex flex-col bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-2xl overflow-hidden hover:shadow-card-hover hover:-translate-y-1 transition-all duration-300">
+                        <div class="h-44 bg-cover bg-center relative overflow-hidden"
+                            data-alt="Green plant sprouting from soil"
+                            style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCPtyLTm77hOA-PP5XqUEizQvzLi-MfQCIY-XilByZq2riMsDOM1a7sws1yfADc1KmCxvOYRcR-oFlZ9mU-1g8H2Ee0R2MlbdOT7M9xzVOXNlyyAb1_FAojV0tPqDfe1QgvcisD2vxZHxOSxtlM2IVgmC-gauM9wSLJQpesv0Ttzb1Pyi20kjnWpM0qQC6OhUY79uXdCXrkBYx2bc_FEdzu1JIWTQnwOEhb7SlHt19hz1-OLnFM3gWtnH2JcEbynNut-Pnuhm95PIg");'>
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent">
+                            </div>
+                            <div
+                                class="absolute inset-0 bg-primary/20 mix-blend-overlay opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                            </div>
+                            <div class="absolute top-4 left-4 flex gap-2">
+                                <span
+                                    class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-white/90 text-primary backdrop-blur-md shadow-sm">Part
+                                    3</span>
+                            </div>
+                            <div class="absolute bottom-4 left-4 text-white">
+                                <p
+                                    class="text-[10px] font-bold opacity-90 uppercase tracking-widest bg-black/30 px-2 py-0.5 rounded backdrop-blur-sm">
+                                    Environment</p>
+                            </div>
+                        </div>
+                        <div class="p-6 flex flex-col flex-1">
+                            <h3
+                                class="text-xl font-bold text-text-main dark:text-text-main-dark leading-tight mb-2 group-hover:text-primary transition-colors">
+                                Global Environmental Issues</h3>
+                            <p class="text-sm text-text-secondary dark:text-text-secondary-dark mb-6 line-clamp-2">Deep
+                                dive into discussion about climate change, pollution, and individual contributions.</p>
+                            <div class="mt-auto flex flex-col gap-3">
+                                <button
+                                    class="w-full py-3 px-4 bg-primary hover:bg-primary-hover text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2 group/btn">
+                                    <span class="material-symbols-outlined text-[18px]">mic</span>
+                                    Practice with AI
+                                    <span
+                                        class="material-symbols-outlined text-[16px] opacity-0 -ml-4 group-hover/btn:opacity-100 group-hover/btn:ml-0 transition-all">arrow_forward</span>
+                                </button>
+                                <button
+                                    class="w-full py-3 px-4 bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark hover:bg-gray-50 dark:hover:bg-gray-800 text-text-secondary dark:text-text-secondary-dark hover:text-text-main dark:hover:text-text-main-dark rounded-xl text-sm font-semibold transition-colors">
+                                    View Sample Answer
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        class="group flex flex-col bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-2xl overflow-hidden hover:shadow-card-hover hover:-translate-y-1 transition-all duration-300">
+                        <div class="h-44 bg-cover bg-center relative overflow-hidden"
+                            data-alt="Group of friends laughing together"
+                            style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCxyMeN_-kxlXfA4LJRa9ACd7V_FBUSVngUx0aNbkRxHu0aqbXw-3DtbRuz-4n01-indOqKkZFS0cghTxRBMasxuk-ToBEALzSAG086ehqVsrNbNf91kE0aLgJvBCnFeWkiQqO9tMVehYsOOXVWcRjzC6G1SC97nRWtT6mpfcQ1LOjtng91d0Cr0yNlCnzI7BgQt2DfxiLbuhKDuFb3IxtdPvR-ohVqxW1BEqCBL587W8fK-kDvZfSNRzQDgzLOT13vW98Dn3ECEr8");'>
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent">
+                            </div>
+                            <div
+                                class="absolute inset-0 bg-primary/20 mix-blend-overlay opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                            </div>
+                            <div class="absolute top-4 left-4 flex gap-2">
+                                <span
+                                    class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-white/90 text-primary backdrop-blur-md shadow-sm">Part
+                                    2</span>
+                            </div>
+                            <div class="absolute bottom-4 right-4 animate-in fade-in zoom-in duration-300">
+                                <div
+                                    class="flex items-center gap-2 bg-yellow-500 text-white px-3 py-1.5 rounded-lg shadow-[0_0_15px_rgba(234,179,8,0.4)] ring-1 ring-white/30 backdrop-blur-sm">
+                                    <span class="material-symbols-outlined text-lg">smart_toy</span>
+                                    <div class="flex flex-col items-start leading-none">
+                                        <span class="text-[8px] opacity-90 uppercase font-bold tracking-wider">AI
+                                            Score</span>
+                                        <span class="text-sm font-bold">Band 6.0</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="absolute bottom-4 left-4 text-white">
+                                <p
+                                    class="text-[10px] font-bold opacity-90 uppercase tracking-widest bg-black/30 px-2 py-0.5 rounded backdrop-blur-sm">
+                                    People</p>
+                            </div>
+                        </div>
+                        <div class="p-6 flex flex-col flex-1">
+                            <h3
+                                class="text-xl font-bold text-text-main dark:text-text-main-dark leading-tight mb-2 group-hover:text-primary transition-colors">
+                                Describe a person you admire</h3>
+                            <p class="text-sm text-text-secondary dark:text-text-secondary-dark mb-6 line-clamp-2">
+                                Detail the qualities of an individual who has earned your respect and why.</p>
+                            <div class="mt-auto flex flex-col gap-3">
+                                <button
+                                    class="w-full py-3 px-4 bg-primary hover:bg-primary-hover text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2 group/btn">
+                                    <span class="material-symbols-outlined text-[18px]">mic</span>
+                                    Improve Score
+                                    <span
+                                        class="material-symbols-outlined text-[16px] opacity-0 -ml-4 group-hover/btn:opacity-100 group-hover/btn:ml-0 transition-all">arrow_forward</span>
+                                </button>
+                                <button
+                                    class="w-full py-3 px-4 bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark hover:bg-gray-50 dark:hover:bg-gray-800 text-text-secondary dark:text-text-secondary-dark hover:text-text-main dark:hover:text-text-main-dark rounded-xl text-sm font-semibold transition-colors">
+                                    View Sample Answer
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        class="group flex flex-col bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-2xl overflow-hidden hover:shadow-card-hover hover:-translate-y-1 transition-all duration-300">
+                        <div class="h-44 bg-cover bg-center relative overflow-hidden"
+                            data-alt="Laptop and notebook on desk representing technology"
+                            style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuARDo77X7oQmdfNqJQ2cEVOCwdxGa9QslK8fsfflKjClm930SYlRWB-xGKxxUCUVnL75vfOH3gN1PF9RVQvYyr2rhozTAfaQjavf6U0tKNHt5yHOwMK4xOHiEqpDREPtn9C0v0CjFmbhxYYqWyNR-AvNEKzdZsaIzjugX2Jro6vQMkMk2pEMq6xYLS_ZKN37-QZTnp3StmEeuHwkawzcIkwKM6d3RFwdsoisCFFKbwD3f7bWD6pdqiKl_5FBFjIsmkwlz5VpEDGX60");'>
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent">
+                            </div>
+                            <div
+                                class="absolute inset-0 bg-primary/20 mix-blend-overlay opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                            </div>
+                            <div class="absolute top-4 left-4 flex gap-2">
+                                <span
+                                    class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-white/90 text-primary backdrop-blur-md shadow-sm">Part
+                                    1</span>
+                            </div>
+                            <div class="absolute bottom-4 left-4 text-white">
+                                <p
+                                    class="text-[10px] font-bold opacity-90 uppercase tracking-widest bg-black/30 px-2 py-0.5 rounded backdrop-blur-sm">
+                                    Technology</p>
+                            </div>
+                        </div>
+                        <div class="p-6 flex flex-col flex-1">
+                            <h3
+                                class="text-xl font-bold text-text-main dark:text-text-main-dark leading-tight mb-2 group-hover:text-primary transition-colors">
+                                Daily use of the Internet</h3>
+                            <p class="text-sm text-text-secondary dark:text-text-secondary-dark mb-6 line-clamp-2">
+                                Questions about your daily internet habits and specific purposes.</p>
+                            <div class="mt-auto flex flex-col gap-3">
+                                <button
+                                    class="w-full py-3 px-4 bg-primary hover:bg-primary-hover text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2 group/btn">
+                                    <span class="material-symbols-outlined text-[18px]">mic</span>
+                                    Practice with AI
+                                    <span
+                                        class="material-symbols-outlined text-[16px] opacity-0 -ml-4 group-hover/btn:opacity-100 group-hover/btn:ml-0 transition-all">arrow_forward</span>
+                                </button>
+                                <button
+                                    class="w-full py-3 px-4 bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark hover:bg-gray-50 dark:hover:bg-gray-800 text-text-secondary dark:text-text-secondary-dark hover:text-text-main dark:hover:text-text-main-dark rounded-xl text-sm font-semibold transition-colors">
+                                    View Sample Answer
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        class="group flex flex-col bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-2xl overflow-hidden hover:shadow-card-hover hover:-translate-y-1 transition-all duration-300">
+                        <div class="h-44 bg-cover bg-center relative overflow-hidden"
+                            data-alt="Person jogging in a park representing health"
+                            style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCdqUqLdF3Tn9qZq-RnXmMaFGfUF8F6uM0U41F3voX7vnfhiJwXjcI8JiaDY7abtEixFY5zxxuU-l2S1tK7ogucvMc2NnuDx4TYFYfnEiIzQCSTvCfQpPp-6BhSMCX7QYueczyLXtYSLji29yaryQd0MwGCGpFiT4d47iUBYbVDQr1Ow-kxnBRutxWl7PtsUc3bYd32fGhy4q4vkogVEB4JPvoRxje11Hj3wc0XYrmh-j-0o0fMqrLfPvgXRcUexWWgYp86zOZkplA");'>
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent">
+                            </div>
+                            <div
+                                class="absolute inset-0 bg-primary/20 mix-blend-overlay opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                            </div>
+                            <div class="absolute top-4 left-4 flex gap-2">
+                                <span
+                                    class="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-white/90 text-primary backdrop-blur-md shadow-sm">Part
+                                    3</span>
+                            </div>
+                            <div class="absolute bottom-4 left-4 text-white">
+                                <p
+                                    class="text-[10px] font-bold opacity-90 uppercase tracking-widest bg-black/30 px-2 py-0.5 rounded backdrop-blur-sm">
+                                    Health</p>
+                            </div>
+                        </div>
+                        <div class="p-6 flex flex-col flex-1">
+                            <h3
+                                class="text-xl font-bold text-text-main dark:text-text-main-dark leading-tight mb-2 group-hover:text-primary transition-colors">
+                                Modern Lifestyles</h3>
+                            <p class="text-sm text-text-secondary dark:text-text-secondary-dark mb-6 line-clamp-2">How
+                                have lifestyles changed in your country? Are people healthier now?</p>
+                            <div class="mt-auto flex flex-col gap-3">
+                                <button
+                                    class="w-full py-3 px-4 bg-primary hover:bg-primary-hover text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-primary/20 flex items-center justify-center gap-2 group/btn">
+                                    <span class="material-symbols-outlined text-[18px]">mic</span>
+                                    Practice with AI
+                                    <span
+                                        class="material-symbols-outlined text-[16px] opacity-0 -ml-4 group-hover/btn:opacity-100 group-hover/btn:ml-0 transition-all">arrow_forward</span>
+                                </button>
+                                <button
+                                    class="w-full py-3 px-4 bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark hover:bg-gray-50 dark:hover:bg-gray-800 text-text-secondary dark:text-text-secondary-dark hover:text-text-main dark:hover:text-text-main-dark rounded-xl text-sm font-semibold transition-colors">
+                                    View Sample Answer
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center justify-center mt-12 gap-3">
+                    <button
+                        class="w-10 h-10 rounded-xl border border-border-light dark:border-border-dark text-text-secondary dark:text-text-secondary-dark hover:bg-white dark:hover:bg-surface-dark hover:text-primary hover:border-primary transition-all disabled:opacity-50">
+                        <span class="material-symbols-outlined text-lg">chevron_left</span>
+                    </button>
+                    <button
+                        class="w-10 h-10 rounded-xl bg-primary text-white font-bold text-sm shadow-md shadow-primary/20 flex items-center justify-center">1</button>
+                    <button
+                        class="w-10 h-10 rounded-xl border border-border-light dark:border-border-dark text-text-secondary dark:text-text-secondary-dark font-medium text-sm flex items-center justify-center hover:bg-white dark:hover:bg-surface-dark hover:text-primary hover:border-primary transition-all">2</button>
+                    <button
+                        class="w-10 h-10 rounded-xl border border-border-light dark:border-border-dark text-text-secondary dark:text-text-secondary-dark font-medium text-sm flex items-center justify-center hover:bg-white dark:hover:bg-surface-dark hover:text-primary hover:border-primary transition-all">3</button>
+                    <span class="text-text-secondary dark:text-text-secondary-dark">...</span>
+                    <button
+                        class="w-10 h-10 rounded-xl border border-border-light dark:border-border-dark text-text-secondary dark:text-text-secondary-dark font-medium text-sm flex items-center justify-center hover:bg-white dark:hover:bg-surface-dark hover:text-primary hover:border-primary transition-all">12</button>
+                    <button
+                        class="w-10 h-10 rounded-xl border border-border-light dark:border-border-dark text-text-secondary dark:text-text-secondary-dark hover:bg-white dark:hover:bg-surface-dark hover:text-primary hover:border-primary transition-all">
+                        <span class="material-symbols-outlined text-lg">chevron_right</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+    <footer
+        class="mt-auto bg-white dark:bg-surface-dark border-t border-border-light dark:border-border-dark py-12 px-4 lg:px-10">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+            <div class="flex flex-col gap-1 items-center md:items-start">
+                <div class="flex items-center gap-2 text-primary dark:text-white">
+                    <svg class="size-5" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path
+                            d="M12 2L2 7l10 5 10-5-10-5zm0 9l2.5-1.25L12 8.5l-2.5 1.25L12 11zm0 2.5l-5-2.5-5 2.5L12 22l10-8.5-5-2.5-5 2.5z">
+                        </path>
+                    </svg>
+                    <span class="font-bold text-lg">IELTS Elite</span>
+                </div>
+                <p class="text-text-secondary dark:text-text-secondary-dark text-xs mt-1">© 2024 IELTS Elite. All rights
+                    reserved.</p>
+            </div>
+            <div class="flex gap-8">
+                <a class="text-text-secondary dark:text-text-secondary-dark hover:text-primary dark:hover:text-white text-sm font-medium transition-colors"
+                    href="#">Privacy</a>
+                <a class="text-text-secondary dark:text-text-secondary-dark hover:text-primary dark:hover:text-white text-sm font-medium transition-colors"
+                    href="#">Terms</a>
+                <a class="text-text-secondary dark:text-text-secondary-dark hover:text-primary dark:hover:text-white text-sm font-medium transition-colors"
+                    href="#">Support</a>
+            </div>
+        </div>
+    </footer>
+
+</body>
+
+</html>
