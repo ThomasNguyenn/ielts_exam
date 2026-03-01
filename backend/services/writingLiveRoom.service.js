@@ -1,7 +1,7 @@
 import { WebSocket, WebSocketServer } from "ws";
 import WritingSubmission from "../models/WritingSubmission.model.js";
 import { verifyAccessToken } from "../middleware/auth.middleware.js";
-import { closeRedisClient, getRedisClient } from "./writingLiveRoom.redis.js";
+import { createRedisClientInstance, getRedisClient, closeRedisClient } from "./writingLiveRoom.redis.js";
 import { roomStore } from "./writingLiveRoom.rooms.js";
 import { createTeacherEventHandler } from "./writingLiveRoom.events.js";
 import {
@@ -21,9 +21,13 @@ import {
   toPositiveInteger,
   toRoomCodeKey,
 } from "./writingLiveRoom.shared.js";
+
 let wsServer = null;
 let wsAttachedHttpServer = null;
 let wsInitialized = false;
+
+let subClient = null;
+
 const sendWsMessage = (socket, payload = {}) => {
   if (!socket || socket.readyState !== WebSocket.OPEN) return;
   try {
@@ -32,10 +36,69 @@ const sendWsMessage = (socket, payload = {}) => {
     // Ignore socket send failures.
   }
 };
+
 const broadcastRoom = (room, payload = {}, { excludeSocket = null } = {}) => {
+  if (!room?.sockets) return;
   for (const socket of room.sockets.keys()) {
     if (excludeSocket && socket === excludeSocket) continue;
     sendWsMessage(socket, payload);
+  }
+};
+
+const publishRoomEvent = async (roomCode, event) => {
+  const redis = getRedisClient();
+  if (!redis) return;
+  try {
+    const channel = roomStore.toRoomEventChannel(roomCode);
+    const message = JSON.stringify(event);
+    await redis.publish(channel, message);
+  } catch (error) {
+    console.warn("[writing-live] Failed to publish room event:", error.message);
+  }
+};
+
+const initializeSubscription = async () => {
+  if (subClient) return;
+  subClient = createRedisClientInstance();
+  if (!subClient) return;
+
+  try {
+    // Subscribe to all room channels using pattern
+    await subClient.psubscribe("writing-live:room:*");
+
+    subClient.on("pmessage", (pattern, channel, message) => {
+      const roomCode = channel.replace("writing-live:room:", "");
+      const room = roomStore.rooms.get(roomCode);
+      if (!room) return;
+
+      let event = null;
+      try {
+        event = JSON.parse(message);
+      } catch {
+        return;
+      }
+
+      // Special case for room_closed: it should trigger local room cleanup
+      if (event.type === "room_closed") {
+        roomStore.closeRoom(roomCode, {
+          reason: event.data?.reason,
+          initiatedBy: event.data?.initiated_by,
+          onBroadcast: (r, p) => broadcastRoom(r, p),
+          onCloseSocket: closeSocketSafe,
+        }).catch(() => {});
+        return;
+      }
+
+      // Apply to memory
+      const applied = roomStore.applyExternalEvent(room, event);
+      if (applied) {
+        // Broadcast to local sockets
+        broadcastRoom(room, event);
+      }
+    });
+
+  } catch (error) {
+    console.error("[writing-live] Failed to initialize Redis subscription:", error.message);
   }
 };
 const closeSocketSafe = (socket, code, reason) => {
@@ -64,16 +127,25 @@ const closeRoomByCode = async (roomCode, options = {}) => {
     },
     onBroadcast: (room, payload) => {
       broadcastRoom(room, payload);
+      publishRoomEvent(room.roomCode, payload);
     },
     onCloseSocket: closeSocketSafe,
   });
 };
-const handleTeacherEvent = createTeacherEventHandler({
-  sendWsError,
-  broadcastRoom,
-  closeRoomByCode,
-  roomStore,
-});
+const handleTeacherEvent = async (context) => {
+  const handler = createTeacherEventHandler({
+    sendWsError,
+    broadcastRoom: (room, event) => {
+      // Local broadcast
+      broadcastRoom(room, event);
+      // Global publish
+      publishRoomEvent(room.roomCode, event);
+    },
+    closeRoomByCode,
+    roomStore,
+  });
+  await handler(context);
+};
 const resolveWritingLiveRoomInternal = async (roomCode) => {
   const code = normalizeCode(roomCode);
   if (!code) return null;
@@ -227,6 +299,9 @@ const attachSocketConnectionHandler = () => {
     broadcastRoom(room, roomStore.buildPresencePayload(room), {
       excludeSocket: null,
     });
+    // Global presence publish
+    publishRoomEvent(room.roomCode, roomStore.buildPresencePayload(room));
+
     socket.on("message", async (raw) => {
       try {
         await handleSocketMessage({
@@ -254,6 +329,14 @@ const attachSocketConnectionHandler = () => {
 };
 export const closeWritingLiveResources = async () => {
   await roomStore.closeAllRooms();
+  if (subClient) {
+    try {
+      await subClient.quit();
+    } catch {
+      subClient.disconnect();
+    }
+    subClient = null;
+  }
   if (wsServer) {
     await new Promise((resolve) => {
       try {
@@ -389,6 +472,9 @@ export const attachWritingLiveWebSocketServer = (httpServer) => {
   wsAttachedHttpServer = httpServer;
   wsInitialized = true;
   attachSocketConnectionHandler();
+  initializeSubscription().catch((err) => {
+    console.error("[writing-live] Failed to init subscription:", err.message);
+  });
   httpServer.on("upgrade", (request, socket, head) => {
     let parsedUrl = null;
     try {

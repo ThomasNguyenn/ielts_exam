@@ -220,6 +220,50 @@ const closeAllRooms = async () => {
   rooms.clear();
 };
 
+const toRoomEventChannel = (code) => `writing-live:room:${normalizeCode(code)}`;
+
+const applyExternalEvent = (room, { type, data }) => {
+  if (!room || !type || !data) return false;
+
+  if (type === "presence_update") {
+    // Presence is handled by buildPresencePayload naturally when called
+    return true;
+  }
+
+  if (type === "task_changed") {
+    room.activeTaskId = String(data.active_task_id || "").trim();
+    return true;
+  }
+
+  if (type === "highlight_added") {
+    const highlight = data.highlight;
+    if (!highlight?.id) return false;
+    const exists = room.highlights.some((h) => h.id === highlight.id);
+    if (!exists) {
+      room.highlights.push(highlight);
+    }
+    if (data.active_task_id) room.activeTaskId = String(data.active_task_id);
+    if (data.note_counter) room.nextNoteIndex = toPositiveInteger(data.note_counter, room.nextNoteIndex);
+    return true;
+  }
+
+  if (type === "highlight_removed") {
+    const highlightId = String(data.id || "").trim();
+    if (!highlightId) return false;
+    room.highlights = room.highlights.filter((h) => String(h.id || "") !== highlightId);
+    return true;
+  }
+
+  if (type === "highlights_cleared") {
+    const taskId = String(data.task_id || "").trim();
+    if (!taskId) return false;
+    room.highlights = room.highlights.filter((h) => String(h.task_id || "") !== taskId);
+    return true;
+  }
+
+  return false;
+};
+
 export const roomStore = {
   rooms,
   getTeacherOnline,
@@ -235,4 +279,6 @@ export const roomStore = {
   addTeacherSocket,
   unbindSocketFromRoom,
   closeAllRooms,
+  applyExternalEvent,
+  toRoomEventChannel,
 };

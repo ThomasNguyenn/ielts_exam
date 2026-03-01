@@ -22,23 +22,31 @@ const resolveRedisUrl = () => {
   return `redis://${host}:${port}`;
 };
 
-const createRedisClient = () => {
+const createRedisClientInstance = () => {
   const redisUrl = resolveRedisUrl();
-  if (!redisUrl) {
-    isRedisDisabled = true;
-    return null;
-  }
+  if (!redisUrl) return null;
 
   const client = new Redis(redisUrl, {
-    maxRetriesPerRequest: 1,
+    maxRetriesPerRequest: null, // Required for Pub/Sub and blocking commands
     enableReadyCheck: true,
     lazyConnect: true,
   });
 
-  client.on("error", () => {
-    // Keep process alive; callers handle null/redis errors gracefully.
+  client.on("error", (err) => {
+    console.warn("[redis] Client error:", err.message);
   });
 
+  return client;
+};
+
+const createRedisClient = () => {
+  const client = createRedisClientInstance();
+  if (!client) {
+    isRedisDisabled = true;
+    return null;
+  }
+  // For the main client, we might want maxRetriesPerRequest: 1 to fail fast on regular commands
+  // but ioredis default is usually better for general stability.
   return client;
 };
 
@@ -49,6 +57,8 @@ export const getRedisClient = () => {
   redisClient = createRedisClient();
   return redisClient;
 };
+
+export { createRedisClientInstance };
 
 export const closeRedisClient = async () => {
   if (!redisClient) return;

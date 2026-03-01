@@ -953,38 +953,28 @@ export default function Exam() {
         <div className="exam-header-main">
           <div className="exam-header-left">
             <div className="exam-title-group">
-              <p className="exam-title-eyebrow">IELTS Practice Arena</p>
-              <h1 className="exam-title">{exam.title}</h1>
-            </div>
-
-            <div className="exam-header-meta-row">
-              <span className={`exam-header-chip ${isSingleMode ? 'is-single' : 'is-full'}`}>
-                <Layers size={13} />
-                {isSingleMode ? 'Single Part Mode' : 'Full Test Mode'}
-              </span>
-              <span className="exam-header-chip exam-header-chip--muted">
-                <ClipboardList size={13} />
-                {step?.type || 'test'}
-              </span>
-              <span className="exam-header-chip exam-header-chip--muted">
-                <ListChecks size={13} />
-                {questionRangeLabel}
-              </span>
+              <div className="exam-part-main">
+                <span className="exam-part-label">{step.label}</span>
+                <span className="exam-part-title-text">{step.item.title || "Read the text and answer questions"}</span>
+              </div>
             </div>
           </div>
 
           <div className="exam-header-right">
-          <div className="exam-timer-wrapper" role="status" aria-live="polite">
-            {timeRemaining !== null && (
-              <div className={getTimerClass()}>
-                <Clock3 className="exam-timer-icon" size={15} />
-                <span className="exam-timer-text">{formatTime(timeRemaining)} remaining</span>
-              </div>
-            )}
-          </div>
+            <Link to={`/tests/${id}`} className="btn-exit-test">
+              Exit Test
+            </Link>
+            <div className="exam-timer-wrapper" role="status" aria-live="polite">
+              {timeRemaining !== null && (
+                <div className={getTimerClass()}>
+                  <Clock3 className="exam-timer-icon" size={15} />
+                  <span className="exam-timer-text">{formatTime(timeRemaining)} remaining</span>
+                </div>
+              )}
+            </div>
 
-          <Suspense fallback={null}>
-            <IELTSSettings
+            <Suspense fallback={null}>
+              <IELTSSettings
               brightness={brightness}
               setBrightness={setBrightness}
               textSize={textSize}
@@ -1005,22 +995,6 @@ export default function Exam() {
         </div>
         </div>
       </header>
-
-      {/* Part Title Bar (below header, above split content) */}
-      <div className="exam-part-bar">
-        <div className="exam-part-main">
-          <span className="exam-part-label">{step.label}</span>
-          <span className="exam-part-title-text">{step.item.title || "Read the text and answer questions"}</span>
-        </div>
-        <div className="exam-part-progress-stack">
-          <span className="exam-part-progress">
-            Part {currentStep + 1} / {steps.length}
-          </span>
-          <div className="exam-part-progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={currentStepCompletion}>
-            <div className="exam-part-progress-fill" style={{ width: `${currentStepCompletion}%` }} />
-          </div>
-        </div>
-      </div >
 
       {submitError && (
         <div className="exam-submit-error">
@@ -1131,14 +1105,6 @@ export default function Exam() {
 
       {/* Fixed Bottom Footer */}
       <footer className="exam-footer">
-        <div className="exam-footer-left">
-          <span className="footer-part-text">{step.label}</span>
-          <span className="exam-footer-status">
-            <CheckCircle2 size={14} />
-            {currentStepAnswered}/{Math.max(0, currentStepTotal)} answered
-          </span>
-        </div>
-
         <div className="exam-footer-center">
           {footerNavigationItems.length > 0 ? (
             <div className="footer-question-nav">
@@ -1211,10 +1177,6 @@ export default function Exam() {
               </button>
             </>
           )}
-
-          <Link to={`/tests/${id}`} className="btn-exit-test">
-            Exit Test
-          </Link>
         </div>
       </footer>
     </div >
