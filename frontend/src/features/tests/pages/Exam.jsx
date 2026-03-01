@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useParams, Link, useLocation, useNavigate } from 'react-router-dom';
+import { CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Clock3, Layers, ListChecks } from 'lucide-react';
 import { api } from '@/shared/api/client';
 import './Exam.css';
 import StepContent from '../components/exam/StepContent';
@@ -610,6 +611,129 @@ export default function Exam() {
     });
   };
 
+  const writingStepIndices = useMemo(
+    () =>
+      steps.reduce((indices, stepItem, stepIndex) => {
+        if (stepItem?.type === 'writing') {
+          indices.push(stepIndex);
+        }
+        return indices;
+      }, []),
+    [steps]
+  );
+
+  const currentWritingTaskIndex = useMemo(
+    () => writingStepIndices.indexOf(currentStep),
+    [writingStepIndices, currentStep]
+  );
+
+  const stepQuestionIndices = useMemo(() => {
+    if (!step || isWriting) return [];
+    const safeStart = Math.max(0, Number(step.startSlotIndex) || 0);
+    const safeEnd = Math.max(safeStart, Number(step.endSlotIndex) || safeStart);
+    return Array.from({ length: safeEnd - safeStart }, (_, offset) => safeStart + offset);
+  }, [step, isWriting]);
+
+  const currentStepTotal = isWriting ? 1 : stepQuestionIndices.length;
+
+  const currentStepAnswered = useMemo(() => {
+    if (isWriting) {
+      if (currentWritingTaskIndex < 0) return 0;
+      return String(writingAnswers[currentWritingTaskIndex] || '').trim() ? 1 : 0;
+    }
+
+    return stepQuestionIndices.reduce(
+      (count, questionIndex) => count + (String(answers[questionIndex] || '').trim() ? 1 : 0),
+      0
+    );
+  }, [isWriting, currentWritingTaskIndex, writingAnswers, stepQuestionIndices, answers]);
+
+  const currentStepCompletion = currentStepTotal > 0 ? Math.round((currentStepAnswered / currentStepTotal) * 100) : 0;
+  const questionRangeLabel = useMemo(() => {
+    if (!step) return 'No range';
+
+    if (isWriting) {
+      if (currentWritingTaskIndex >= 0) {
+        return `Task ${currentWritingTaskIndex + 1} / ${Math.max(1, writingStepIndices.length)}`;
+      }
+      return step.label || 'Writing task';
+    }
+
+    if (!stepQuestionIndices.length) return 'No questions';
+    const firstIndex = stepQuestionIndices[0];
+    const lastIndex = stepQuestionIndices[stepQuestionIndices.length - 1];
+    const firstQuestion = slots[firstIndex]?.q_number ?? firstIndex + 1;
+    const lastQuestion = slots[lastIndex]?.q_number ?? lastIndex + 1;
+    return `Questions ${firstQuestion} - ${lastQuestion}`;
+  }, [step, isWriting, currentWritingTaskIndex, writingStepIndices.length, stepQuestionIndices, slots]);
+
+  const footerNavigationItems = useMemo(() => {
+    if (!step) return [];
+
+    if (isWriting) {
+      return writingStepIndices.map((stepIndex, index) => ({
+        key: `task-${index}`,
+        label: index + 1,
+        answered: String(writingAnswers[index] || '').trim().length > 0,
+        active: stepIndex === currentStep,
+        stepIndex,
+        ariaLabel: `Task ${index + 1}`,
+      }));
+    }
+
+    return stepQuestionIndices.map((questionIndex) => ({
+      key: `question-${questionIndex}`,
+      label: slots[questionIndex]?.q_number ?? questionIndex + 1,
+      answered: String(answers[questionIndex] || '').trim().length > 0,
+      active: false,
+      questionIndex,
+      ariaLabel: `Question ${slots[questionIndex]?.q_number ?? questionIndex + 1}`,
+    }));
+  }, [
+    step,
+    isWriting,
+    writingStepIndices,
+    writingAnswers,
+    currentStep,
+    stepQuestionIndices,
+    slots,
+    answers,
+  ]);
+
+  const jumpToQuestion = useCallback((questionIndex) => {
+    if (!Number.isFinite(questionIndex)) return false;
+
+    const index = Number(questionIndex);
+    const target =
+      document.querySelector(`[data-question-index="${index}"]`) ||
+      document.getElementById(`q-${index}`);
+
+    if (!target) return false;
+
+    const scrollContainer = target.closest(
+      '.questions-scrollable, .listening-content-area-top-padded, .passage-scrollable'
+    );
+
+    if (scrollContainer) {
+      const targetRect = target.getBoundingClientRect();
+      const containerRect = scrollContainer.getBoundingClientRect();
+      const nextTop =
+        targetRect.top - containerRect.top + scrollContainer.scrollTop - 14;
+      scrollContainer.scrollTo({
+        top: Math.max(0, nextTop),
+        behavior: 'smooth',
+      });
+    } else {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    if (typeof target.focus === 'function') {
+      target.focus({ preventScroll: true });
+    }
+
+    return true;
+  }, []);
+
 
   if (loading) return <div className="page"><p className="muted">Loading exam…</p></div>;
   if (loadError) return <div className="page"><p className="error">{loadError}</p><Link to="/tests">Back to tests</Link></div>;
@@ -826,25 +950,34 @@ export default function Exam() {
         </div>
       )}
       <header className="exam-header">
-        <div className="exam-header-left">
-          <div className="exam-title-group">
-            <p className="exam-title-eyebrow">IELTS Practice</p>
-            <h1 className="exam-title">{exam.title}</h1>
+        <div className="exam-header-main">
+          <div className="exam-header-left">
+            <div className="exam-title-group">
+              <p className="exam-title-eyebrow">IELTS Practice Arena</p>
+              <h1 className="exam-title">{exam.title}</h1>
+            </div>
+
+            <div className="exam-header-meta-row">
+              <span className={`exam-header-chip ${isSingleMode ? 'is-single' : 'is-full'}`}>
+                <Layers size={13} />
+                {isSingleMode ? 'Single Part Mode' : 'Full Test Mode'}
+              </span>
+              <span className="exam-header-chip exam-header-chip--muted">
+                <ClipboardList size={13} />
+                {step?.type || 'test'}
+              </span>
+              <span className="exam-header-chip exam-header-chip--muted">
+                <ListChecks size={13} />
+                {questionRangeLabel}
+              </span>
+            </div>
           </div>
 
-          <div className="exam-header-meta-row">
-            <span className={`exam-header-chip ${isSingleMode ? 'is-single' : 'is-full'}`}>
-              {isSingleMode ? 'Single Part Mode' : 'Full Test Mode'}
-            </span>
-            <span className="exam-header-chip exam-header-chip--muted">{step?.type || 'test'}</span>
-          </div>
-        </div>
-
-        <div className="exam-header-right">
+          <div className="exam-header-right">
           <div className="exam-timer-wrapper" role="status" aria-live="polite">
             {timeRemaining !== null && (
               <div className={getTimerClass()}>
-                <span className="exam-timer-icon">⏱</span>
+                <Clock3 className="exam-timer-icon" size={15} />
                 <span className="exam-timer-text">{formatTime(timeRemaining)} remaining</span>
               </div>
             )}
@@ -869,18 +1002,24 @@ export default function Exam() {
           >
             {submitLoading ? 'Submitting...' : 'Finish Test'}
           </button>
-
-          <Link to={`/tests/${id}`} className="btn-exit-test">
-            Exit Test
-          </Link>
+        </div>
         </div>
       </header>
 
       {/* Part Title Bar (below header, above split content) */}
       <div className="exam-part-bar">
-        <span className="exam-part-label">{step.label}</span>
-        <span className="exam-part-title-text">{step.item.title || "Read the text and answer questions"}</span>
-        <span className="exam-part-progress">Part {currentStep + 1} / {steps.length}</span>
+        <div className="exam-part-main">
+          <span className="exam-part-label">{step.label}</span>
+          <span className="exam-part-title-text">{step.item.title || "Read the text and answer questions"}</span>
+        </div>
+        <div className="exam-part-progress-stack">
+          <span className="exam-part-progress">
+            Part {currentStep + 1} / {steps.length}
+          </span>
+          <div className="exam-part-progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={currentStepCompletion}>
+            <div className="exam-part-progress-fill" style={{ width: `${currentStepCompletion}%` }} />
+          </div>
+        </div>
       </div >
 
       {submitError && (
@@ -994,42 +1133,47 @@ export default function Exam() {
       <footer className="exam-footer">
         <div className="exam-footer-left">
           <span className="footer-part-text">{step.label}</span>
+          <span className="exam-footer-status">
+            <CheckCircle2 size={14} />
+            {currentStepAnswered}/{Math.max(0, currentStepTotal)} answered
+          </span>
         </div>
 
         <div className="exam-footer-center">
-          {/* Question Palette for CURRENT step only (or all? Screenshot implies specific range for part) */}
-          {/* Usually IELTS shows all questions or just current part. Let's show current Part's questions. */}
-          <div className="footer-question-nav">
-            {slots.map((s, idx) => {
-              // Only show questions relevant to current step?
-              // Actually standard UI shows ALL questions 1-40 sometimes, but filtered by visible.
-              // Let's filter by the range of the current step to avoid clutter if test is huge?
-              // Or mapping all is fine. The screenshot shows "Question 1-6" in title, and footer has "1 2 ... 13".
-              // If step has startSlotIndex and endSlotIndex, let's render those.
-              if (idx < step.startSlotIndex || idx >= step.endSlotIndex) return null;
-
-              const isAnswered = !!answers[idx];
-              const qNum = s.q_number;
-              return (
+          {footerNavigationItems.length > 0 ? (
+            <div className="footer-question-nav">
+              {footerNavigationItems.map((item) => (
                 <button
-                  key={idx}
+                  key={item.key}
                   type="button"
-                  className={`footer-q-btn ${isAnswered ? 'answered' : ''}`}
+                  className={`footer-q-btn ${item.answered ? 'answered' : ''} ${item.active ? 'active' : ''}`}
                   onClick={() => {
-                    // Scroll to specific question logic is tricky without refs.
-                    // For now, simple focus interaction or just visual indicator
-                    document.getElementById(`q-${idx}`)?.focus();
+                    if (typeof item.stepIndex === 'number') {
+                      setCurrentStep(item.stepIndex);
+                      return;
+                    }
+
+                    if (typeof item.questionIndex === 'number') {
+                      const didJump = jumpToQuestion(item.questionIndex);
+                      if (!didJump) {
+                        window.requestAnimationFrame(() => {
+                          jumpToQuestion(item.questionIndex);
+                        });
+                      }
+                    }
                   }}
+                  aria-label={item.ariaLabel}
                 >
-                  {qNum}
+                  {item.label}
                 </button>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <span className="exam-footer-empty">No question palette for this part.</span>
+          )}
         </div>
 
         <div className="exam-footer-right">
-          {/* Part Tabs (Previous/Next Part basically) */}
           {!isSingleMode && hasSteps && (
             <div className="footer-step-nav">
               {steps.map((s, i) => (
@@ -1054,7 +1198,7 @@ export default function Exam() {
                 disabled={isFirst}
                 title="Previous Part"
               >
-                ◀
+                <ChevronLeft size={15} />
               </button>
               <button
                 type="button"
@@ -1063,10 +1207,14 @@ export default function Exam() {
                 disabled={isLast}
                 title="Next Part"
               >
-                ▶
+                <ChevronRight size={15} />
               </button>
             </>
           )}
+
+          <Link to={`/tests/${id}`} className="btn-exit-test">
+            Exit Test
+          </Link>
         </div>
       </footer>
     </div >

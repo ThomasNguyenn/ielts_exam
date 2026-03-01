@@ -71,43 +71,45 @@ function QuestionInput({
           ? (dynamicOptions.length ? dynamicOptions : fixedYesNoOptions)
           : dynamicOptions;
     return (
-      <div className="exam-options">
-        {resolvedOptions.map((opt) => {
-          // Unique key for this option's highlighted state
-          const optKey = `opt_${index}_${opt.label}`;
-          // Initial tokenized HTML or persisted state
-          const optionHtml = (passageStates && passageStates[optKey]) || opt.text || '';
-          const isStrikethrough = strikethroughOptions.has(opt.label);
+      <div id={id} data-question-index={index} tabIndex={-1} className="question-slot-anchor">
+        <div className="exam-options">
+          {resolvedOptions.map((opt) => {
+            // Unique key for this option's highlighted state
+            const optKey = `opt_${index}_${opt.label}`;
+            // Initial tokenized HTML or persisted state
+            const optionHtml = (passageStates && passageStates[optKey]) || opt.text || '';
+            const isStrikethrough = strikethroughOptions.has(opt.label);
 
-          return (
-            <label
-              key={opt.label}
-              className={`exam-option-label ${isStrikethrough ? 'eliminated' : ''}`}
-              onContextMenu={(e) => handleRightClick(e, opt.label)}
-              title="Right-click to eliminate this option"
-            >
-              <input
-                type="radio"
-                name={id}
-                checked={(value || '').trim() === (opt.text || '').trim()}
-                onChange={() => !reviewMode && onChange(opt.text)}
-                disabled={reviewMode || isStrikethrough}
-              />
-              <span className="opt-id">{opt.label}.</span>
-              <HighlightableContent
-                id={optKey}
-                htmlContent={optionHtml}
-                onUpdateHtml={(newHtml) => {
-                  if (onHighlightUpdate) {
-                    onHighlightUpdate(optKey, newHtml);
-                  }
-                }}
-                tagName="span"
-                className="opt-text"
-              />
-            </label>
-          );
-        })}
+            return (
+              <label
+                key={opt.label}
+                className={`exam-option-label ${isStrikethrough ? 'eliminated' : ''}`}
+                onContextMenu={(e) => handleRightClick(e, opt.label)}
+                title="Right-click to eliminate this option"
+              >
+                <input
+                  type="radio"
+                  name={id}
+                  checked={(value || '').trim() === (opt.text || '').trim()}
+                  onChange={() => !reviewMode && onChange(opt.text)}
+                  disabled={reviewMode || isStrikethrough}
+                />
+                <span className="opt-id">{opt.label}.</span>
+                <HighlightableContent
+                  id={optKey}
+                  htmlContent={optionHtml}
+                  onUpdateHtml={(newHtml) => {
+                    if (onHighlightUpdate) {
+                      onHighlightUpdate(optKey, newHtml);
+                    }
+                  }}
+                  tagName="span"
+                  className="opt-text"
+                />
+              </label>
+            );
+          })}
+        </div>
       </div>
     );
   }
@@ -116,6 +118,8 @@ function QuestionInput({
   if (slot.type === 'gap_fill' || slot.type === 'note_completion') {
     return (
       <input
+        id={id}
+        data-question-index={index}
         type="text"
         className={`gap-fill-input ${isListening ? 'gap-fill-input-listening' : ''}`}
         placeholder={`${index + 1}`}
@@ -150,7 +154,12 @@ function QuestionInput({
 
     if (reviewMode) {
       return (
-        <div className="matching-dropzone result-mode correct">
+        <div
+          id={id}
+          data-question-index={index}
+          tabIndex={-1}
+          className="matching-dropzone result-mode correct"
+        >
           {selectedOption ? (
             <div className="matching-selected">
               <span className="matching-chip-text">{selectedOption.text}</span>
@@ -213,7 +222,12 @@ function QuestionInput({
       }
 
       return (
-        <div className={`matching-dropzone result-mode ${isCorrect ? 'correct' : 'wrong'}`}>
+        <div
+          id={id}
+          data-question-index={index}
+          tabIndex={-1}
+          className={`matching-dropzone result-mode ${isCorrect ? 'correct' : 'wrong'}`}
+        >
           {selectedOption ? (
             <div className="matching-selected">
               <span className="matching-chip-text">{selectedOption.text}</span>
@@ -234,6 +248,9 @@ function QuestionInput({
 
     return (
       <div
+        id={id}
+        data-question-index={index}
+        tabIndex={-1}
         className={`matching-dropzone ${selectedOption ? 'has-value' : ''}`}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
@@ -262,11 +279,30 @@ function QuestionInput({
   }
 
   // Mặc định (Fallback)
-  return <input type="text" className="exam-input" placeholder="Your answer" {...common} />;
+  return (
+    <input
+      id={id}
+      data-question-index={index}
+      type="text"
+      className="exam-input"
+      placeholder="Your answer"
+      {...common}
+    />
+  );
 }
 
 /** Inline Drop Zone for Summary Completion */
-function SummaryDropZone({ value, onChange, index, options, displayNumber, reviewMode = false }) {
+function SummaryDropZone({
+  value,
+  onChange,
+  index,
+  options,
+  displayNumber,
+  reviewMode = false,
+  questionIndex
+}) {
+  const anchorIndex = Number.isFinite(questionIndex) ? questionIndex : index;
+  const anchorId = `q-${anchorIndex}`;
   const selectedOption = (options || []).find(o => o.id === value);
 
   const handleDrop = (e) => {
@@ -284,7 +320,12 @@ function SummaryDropZone({ value, onChange, index, options, displayNumber, revie
 
   if (reviewMode) {
     return (
-      <span className={`summary-dropzone ${selectedOption ? 'has-value' : ''}`}>
+      <span
+        id={anchorId}
+        data-question-index={anchorIndex}
+        tabIndex={-1}
+        className={`summary-dropzone ${selectedOption ? 'has-value' : ''}`}
+      >
         {selectedOption ? (
           <span className="summary-selected-chip">
             <span className="summary-chip-text">{selectedOption.text}</span>
@@ -298,6 +339,9 @@ function SummaryDropZone({ value, onChange, index, options, displayNumber, revie
 
   return (
     <span
+      id={anchorId}
+      data-question-index={anchorIndex}
+      tabIndex={-1}
       className={`summary-dropzone ${selectedOption ? 'has-value' : ''}`}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
@@ -345,6 +389,12 @@ function ListeningMapGrid({ group, slots, answers, setAnswer, startSlotIndex, re
               return (
                 <tr key={qi}>
                   <td className="row-label">
+                    <span
+                      id={`q-${currentSlotIndex}`}
+                      data-question-index={currentSlotIndex}
+                      tabIndex={-1}
+                      className="question-slot-anchor-marker"
+                    />
                     <strong>{q.q_number}</strong> {q.text}
                   </td>
                   {options.map(opt => {
@@ -474,7 +524,7 @@ function ReadingStepLayout({
                   onChange={(val) => setAnswer(targetSlotIndex, val)}
                   passageStates={passageStates}
                   showResult={showResult}
-                  index={targetQuestion.q_number - 1}
+                  index={targetSlotIndex}
                   isListening={isListening}
                   reviewMode={reviewMode}
                 />
@@ -835,6 +885,7 @@ function StepContent({
                                     <SummaryDropZone
                                       key={realSlotIndex}
                                       index={realSlotIndex}
+                                      questionIndex={realSlotIndex}
                                       displayNumber={qNum}
                                       value={answers[realSlotIndex]}
                                       onChange={(val) => setAnswer(realSlotIndex, val)}
@@ -846,6 +897,8 @@ function StepContent({
                                   return (
                                     <input
                                       key={realSlotIndex}
+                                      id={`q-${realSlotIndex}`}
+                                      data-question-index={realSlotIndex}
                                       type="text"
                                       className={`gap-fill-input ${isListening ? 'gap-fill-input-listening' : ''}`}
                                       placeholder={`${qNum}`}
@@ -988,6 +1041,20 @@ function StepContent({
 
                 return (
                   <div className="exam-multi-select-group mb-6">
+                    <div className="question-slot-anchor-list" aria-hidden="true">
+                      {group.questions.map((_, offset) => {
+                        const anchorIndex = currentGroupStartIndex + offset;
+                        return (
+                          <span
+                            key={`anchor-${anchorIndex}`}
+                            id={`q-${anchorIndex}`}
+                            data-question-index={anchorIndex}
+                            tabIndex={-1}
+                            className="question-slot-anchor-marker"
+                          />
+                        );
+                      })}
+                    </div>
                     <div className="exam-question-label mb-2">
                       <strong>Questions {group.questions[0].q_number}-{group.questions[group.questions.length - 1].q_number}</strong>
                       {group.text && <div className="mt-1 mb-2">{parse(group.text)}</div>}
