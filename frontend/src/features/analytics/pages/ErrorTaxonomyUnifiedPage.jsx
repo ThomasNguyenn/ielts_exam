@@ -98,6 +98,7 @@ const SKILL_FILTER_OPTIONS = [
   { value: 'writing', label: 'Writing' },
   { value: 'speaking', label: 'Speaking' },
 ];
+const VALID_SKILL_FILTERS = new Set(SKILL_FILTER_OPTIONS.map((option) => String(option.value || '').toLowerCase()));
 
 const SKILL_META = {
   reading: {
@@ -302,7 +303,8 @@ const getNormalizedFilters = (searchParams) => {
   const errorCode = cleanText(searchParams.get('errorCode'));
   const pageRaw = Number(searchParams.get('page') || 1);
   const page = Number.isFinite(pageRaw) && pageRaw > 0 ? Math.floor(pageRaw) : 1;
-  const skill = cleanText(searchParams.get('skill') || 'all').toLowerCase();
+  const skillRaw = cleanText(searchParams.get('skill') || 'all').toLowerCase();
+  const skill = VALID_SKILL_FILTERS.has(skillRaw) ? skillRaw : 'all';
   const taskType = cleanText(searchParams.get('taskType') || '');
 
   return {
@@ -661,12 +663,10 @@ export default function ErrorTaxonomyUnifiedPage() {
   const detailsItems = Array.isArray(detailsData?.items) ? detailsData.items : [];
 
   const filteredHeatmapRows = useMemo(() => {
-    const rows = Array.isArray(errorsData?.heatmapData) ? errorsData.heatmapData : [];
-    const selectedSkill = cleanText(filters.skill || 'all').toLowerCase();
-    if (!selectedSkill || selectedSkill === 'all') return rows;
-
-    return rows.filter((row) => inferSkillFromTaskType(row?.taskType) === selectedSkill);
-  }, [errorsData, filters.skill]);
+    // Backend `/errors` already applies `skill` filter when query includes skill.
+    // Avoid client-side re-filtering by inferred task type to prevent accidental data loss.
+    return Array.isArray(errorsData?.heatmapData) ? errorsData.heatmapData : [];
+  }, [errorsData]);
 
   const codeRanking = useMemo(() => {
     const heatmapRows = filteredHeatmapRows;

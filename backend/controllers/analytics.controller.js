@@ -17,6 +17,8 @@ import {
   roundOne,
   toBandScore,
 } from "../services/analyticsKpi.service.js";
+import { loadAnalyticsSourceDataWithDelta } from "../services/analyticsSnapshot.service.js";
+import { loadErrorAnalyticsEntriesWithDelta } from "../services/analyticsErrorSnapshot.service.js";
 import { handleControllerError, sendControllerError } from '../utils/controllerError.js';
 dotenv.config();
 
@@ -37,189 +39,425 @@ const AI_INSIGHTS_CACHE_TTL_SEC = Math.max(
 const AI_INSIGHTS_CACHE_KEY_PREFIX = "analytics:ai-insights:";
 
 const CATEGORY_LABELS_VI = Object.freeze({
-  FORM: "Lỗi hình thức",
-  LEXICAL: "Lỗi từ vựng",
-  INFERENCE: "Lỗi suy luận",
-  DISCOURSE: "Lỗi diễn ngôn",
-  STRATEGY: "Lỗi chiến lược",
-  ATTENTION: "Lỗi tập trung",
-  MEMORY: "Lỗi bộ nhớ",
-  TASK: "Lỗi đáp ứng đề bài",
-  COHESION: "Lỗi liên kết",
+  FORM: "Sai yêu cầu hình thức (số từ, định dạng)",
+
+  LEXICAL: "Lỗi dùng từ",
+
+  INFERENCE: "Hiểu sai ý gián tiếp",
+
+  DISCOURSE: "Chưa theo dõi đúng mạch nội dung",
+
+  STRATEGY: "Cách làm bài chưa phù hợp",
+
+  ATTENTION: "Thiếu tập trung khi làm bài",
+
+  MEMORY: "Quên thông tin vừa nghe/đọc",
+
+  TASK: "Chưa trả lời đúng trọng tâm đề bài",
+
+  COHESION: "Liên kết giữa các câu chưa tốt",
+
   GRAMMAR: "Lỗi ngữ pháp",
-  FLUENCY: "Lỗi độ trôi chảy",
-  COHERENCE: "Lỗi mạch lạc",
-  PRONUNCIATION: "Lỗi phát âm",
-  "Z. Unclassified": "Chưa phân loại",
-  "Legacy (Deprecated)": "Mã cũ (đã ngưng dùng)",
+
+  FLUENCY: "Nói chưa trôi chảy",
+
+  COHERENCE: "Bài chưa mạch lạc, sắp xếp ý chưa rõ",
+
+  PRONUNCIATION: "Phát âm chưa rõ",
+
+  "Z. Unclassified": "Lỗi chưa phân loại",
+
+  "Legacy (Deprecated)": "Mã lỗi cũ (không còn sử dụng)",
 });
 
 const COGNITIVE_LABELS_VI = Object.freeze({
-  Retrieval: "Truy xuất thông tin",
-  "Semantic Mapping": "Ánh xạ ngữ nghĩa",
-  Inference: "Suy luận",
-  "Discourse Tracking": "Theo dõi diễn ngôn",
-  "Scope Monitoring": "Kiểm soát phạm vi",
-  "Exec Control": "Kiểm soát điều hành",
-  Acoustic: "Phân biệt âm thanh",
-  Segmentation: "Phân tách đơn vị nghe",
-  Prediction: "Dự đoán",
-  Attention: "Tập trung chú ý",
-  "Working Memory": "Bộ nhớ làm việc",
-  "Idea Generation": "Tạo ý tưởng",
-  Planning: "Lập ý",
-  "Lexical Retrieval": "Truy xuất từ vựng",
-  "Syntax Construction": "Xây dựng cấu trúc câu",
-  "Monitoring Revision": "Giám sát và chỉnh sửa",
-  "Real-time Planning": "Lập ý thời gian thực",
-  "Lexical Access": "Truy cập từ vựng",
-  "Grammatical Encoding": "Mã hóa ngữ pháp",
-  "Phonological Encoding": "Mã hóa âm vị",
-  Monitoring: "Tự giám sát",
-  General: "Tổng quát",
-  "R1. Literal Comprehension": "Hiểu thông tin trực tiếp",
-  "R2. Paraphrase Recognition": "Nhận diện diễn đạt lại",
-  "R3. Inference": "Suy luận",
-  "R4. Logical Relationship": "Quan hệ logic",
-  "R5. Skimming / Scanning": "Đọc lướt và quét thông tin",
-  "L1. Sound Discrimination": "Phân biệt âm",
-  "L2. Word Boundary Detection": "Nhận diện ranh giới từ",
-  "L3. Connected Speech Recognition": "Nhận diện nối âm",
-  "L4. Number & Spelling Accuracy": "Độ chính xác số và chính tả",
-  "L5. Attention Tracking": "Theo dõi chú ý",
-  "W-TR. Task Response / Achievement": "Đáp ứng yêu cầu đề bài",
-  "W-CC. Coherence & Cohesion": "Mạch lạc và liên kết",
-  "W-LR. Lexical Resource": "Nguồn từ vựng",
-  "W-GRA. Grammatical Range & Accuracy": "Độ phong phú và chính xác ngữ pháp",
-  "S-FC. Fluency & Coherence": "Độ trôi chảy và mạch lạc",
-  "S-LR. Lexical Resource": "Nguồn từ vựng",
-  "S-GRA. Grammatical Range & Accuracy": "Độ phong phú và chính xác ngữ pháp",
-  "S-PR. Pronunciation": "Phát âm",
+  Retrieval: "Tìm thông tin trong bài",
+
+  "Semantic Mapping": "Hiểu các cách diễn đạt khác nhau (paraphrase)",
+
+  Inference: "Hiểu ý gián tiếp",
+
+  "Discourse Tracking": "Theo dõi mạch nội dung trong đoạn",
+
+  "Scope Monitoring": "Hiểu đúng phạm vi và mức độ thông tin",
+
+  "Exec Control": "Quản lý cách làm bài và thời gian",
+
+  Acoustic: "Phân biệt âm khi nghe",
+
+  Segmentation: "Tách được các từ khi người nói nối âm",
+
+  Prediction: "Dự đoán nội dung sắp xuất hiện",
+
+  Attention: "Giữ tập trung khi làm bài",
+
+  "Working Memory": "Ghi nhớ thông tin vừa nghe/đọc",
+
+  "Idea Generation": "Nghĩ và phát triển ý tưởng",
+
+  Planning: "Lập dàn ý trước khi nói/viết",
+
+  "Lexical Retrieval": "Tìm từ phù hợp để dùng",
+
+  "Syntax Construction": "Tạo câu đúng cấu trúc",
+
+  "Monitoring Revision": "Tự kiểm tra và sửa lỗi",
+
+  "Real-time Planning": "Vừa nói vừa sắp xếp ý",
+
+  "Lexical Access": "Gọi đúng từ khi nói",
+
+  "Grammatical Encoding": "Dùng ngữ pháp chính xác",
+
+  "Phonological Encoding": "Phát âm đúng các âm",
+
+  Monitoring: "Tự kiểm soát bài làm",
+
+  General: "Lỗi chung",
+
+  // Reading micro skills
+  "R1. Literal Comprehension": "Hiểu thông tin được nêu trực tiếp",
+
+  "R2. Paraphrase Recognition": "Nhận ra cách diễn đạt tương đương",
+
+  "R3. Inference": "Suy ra ý không nói trực tiếp",
+
+  "R4. Logical Relationship": "Hiểu quan hệ logic giữa các ý",
+
+  "R5. Skimming / Scanning": "Đọc lướt và tìm nhanh thông tin",
+
+  // Listening micro skills
+  "L1. Sound Discrimination": "Phân biệt âm gần giống nhau",
+
+  "L2. Word Boundary Detection": "Nhận ra ranh giới giữa các từ khi nối âm",
+
+  "L3. Connected Speech Recognition": "Hiểu khi người nói nối âm tự nhiên",
+
+  "L4. Number & Spelling Accuracy": "Nghe và ghi đúng số/chính tả",
+
+  "L5. Attention Tracking": "Theo dõi thông tin xuyên suốt bài nghe",
+
+  // Writing bands
+  "W-TR. Task Response / Achievement": "Trả lời đúng và đủ yêu cầu đề bài",
+
+  "W-CC. Coherence & Cohesion": "Sắp xếp ý mạch lạc và liên kết tốt",
+
+  "W-LR. Lexical Resource": "Dùng từ vựng chính xác và đa dạng",
+
+  "W-GRA. Grammatical Range & Accuracy": "Dùng ngữ pháp đúng và đa dạng",
+
+  // Speaking bands
+  "S-FC. Fluency & Coherence": "Nói trôi chảy và có mạch lạc",
+
+  "S-LR. Lexical Resource": "Dùng từ khi nói chính xác và phong phú",
+
+  "S-GRA. Grammatical Range & Accuracy": "Dùng ngữ pháp đúng khi nói",
+
+  "S-PR. Pronunciation": "Phát âm rõ ràng, dễ hiểu",
 });
 
 const DIMENSION_LABELS_VI = Object.freeze({
-  "R.A.EXPLICIT": "Thông tin hiển ngôn",
-  "R.A.INFERENCE": "Ý nghĩa hàm ẩn",
-  "R.A.WRITER_VIEW": "Quan điểm tác giả",
-  "R.A.LOGIC": "Theo dõi lập luận",
-  "R.A.MAIN_IDEA": "Ý chính và chức năng đoạn",
-  "R.A.PARAPHRASE": "Ánh xạ diễn đạt lại",
-  "R.A.FORM": "Tuân thủ hình thức",
-  "R.A.TIME_STRATEGY": "Quản lý thời gian và chiến lược",
-  "L.A.PHONO_LEXICAL": "Nhận diện âm-thành từ vựng",
-  "L.A.CONNECTED_SPEECH": "Giải mã nối âm",
-  "L.A.DISTRACTOR": "Xử lý thông tin gây nhiễu",
-  "L.A.FORM": "Tuân thủ hình thức",
-  "L.A.PREDICTIVE": "Nghe dự đoán",
-  "L.A.WORKING_MEMORY": "Bộ nhớ làm việc",
-  "W.A.TASK_RESPONSE": "Đáp ứng đề bài",
-  "W.A.COHERENCE": "Mạch lạc và liên kết",
-  "W.A.LEXICAL": "Nguồn từ vựng",
-  "W.A.GRAMMAR": "Ngữ pháp",
-  "S.A.FLUENCY_COHERENCE": "Độ trôi chảy và mạch lạc",
-  "S.A.LEXICAL": "Nguồn từ vựng",
-  "S.A.GRAMMAR": "Ngữ pháp",
-  "S.A.PRONUNCIATION": "Phát âm",
-  unclassified: "Chưa phân loại",
-  deprecated_legacy: "Mã cũ (đã ngưng dùng)",
+  // READING
+  "R.A.EXPLICIT": "Thông tin được nói trực tiếp",
+
+  "R.A.INFERENCE": "Ý cần suy ra (không nói trực tiếp)",
+
+  "R.A.WRITER_VIEW": "Quan điểm hoặc thái độ của tác giả",
+
+  "R.A.LOGIC": "Cách các ý được nối và lập luận",
+
+  "R.A.MAIN_IDEA": "Ý chính của đoạn",
+
+  "R.A.PARAPHRASE": "Cách diễn đạt tương đương (paraphrase)",
+
+  "R.A.FORM": "Đúng yêu cầu hình thức",
+
+  "R.A.TIME_STRATEGY": "Quản lý thời gian khi làm bài",
+
+  // LISTENING
+  "L.A.PHONO_LEXICAL": "Nghe và nhận ra từ đúng",
+
+  "L.A.CONNECTED_SPEECH": "Hiểu khi người nói nối âm",
+
+  "L.A.DISTRACTOR": "Tránh bị đánh lừa bởi thông tin gây nhiễu",
+
+  "L.A.FORM": "Đúng yêu cầu hình thức",
+
+  "L.A.PREDICTIVE": "Dự đoán nội dung trước khi nghe",
+
+  "L.A.WORKING_MEMORY": "Ghi nhớ thông tin vừa nghe",
+
+  // WRITING
+  "W.A.TASK_RESPONSE": "Trả lời đúng và đủ yêu cầu đề bài",
+
+  "W.A.COHERENCE": "Sắp xếp ý mạch lạc",
+
+  "W.A.LEXICAL": "Dùng từ chính xác và phù hợp",
+
+  "W.A.GRAMMAR": "Dùng ngữ pháp đúng và đa dạng",
+
+  // SPEAKING
+  "S.A.FLUENCY_COHERENCE": "Nói trôi chảy và rõ ý",
+
+  "S.A.LEXICAL": "Dùng từ khi nói chính xác",
+
+  "S.A.GRAMMAR": "Ngữ pháp khi nói",
+
+  "S.A.PRONUNCIATION": "Phát âm rõ ràng",
+
+  // SYSTEM
+  unclassified: "Lỗi chưa phân loại",
+
+  deprecated_legacy: "Mã lỗi cũ (không còn sử dụng)",
 });
 
 const SUBTYPE_OVERRIDES_VI = Object.freeze({
-  SPELLING: "Lỗi chính tả",
+  SPELLING: "Sai chính tả",
+
   PLURAL_S: "Sai số ít/số nhiều",
-  WORD_FORM: "Sai dạng từ",
-  NUMBER_FORMAT: "Sai định dạng số",
-  PROPER_NOUN_FORMAT: "Sai danh từ riêng",
-  WORD_LIMIT: "Vượt giới hạn số từ",
-  INCOMPLETE_ANSWER: "Bỏ trống câu trả lời",
-  PARAPHRASE_MISS: "Bỏ lỡ paraphrase",
-  NEGATION_TRAP: "Bẫy phủ định",
-  QUANTIFIER_SCOPE: "Sai phạm vi từ chỉ lượng",
-  WRITER_ATTITUDE: "Nhận diện sai thái độ tác giả",
-  WRITING_MISSING_OVERVIEW: "Thiếu overview",
-  WRITING_KEY_FEATURE_SELECTION: "Chọn sai đặc điểm chính",
-  WRITING_INSUFFICIENT_DEVELOPMENT: "Phát triển ý chưa đủ",
-  WRITING_WORD_CHOICE: "Chọn từ chưa chính xác",
-  SPEAKING_FLUENCY_BREAKDOWN: "Gián đoạn độ trôi chảy",
-  SPEAKING_LEX_RANGE_LIMITED: "Vốn từ hạn chế",
-  SPEAKING_PRON_INTELLIGIBILITY: "Độ rõ tiếng phát âm thấp",
-  MCQ_INFERENCE_EXPLICIT: "Suy luận từ thông tin hiển ngôn (trắc nghiệm)",
-  SPEAKING_PRON_VOWEL_CONSONANT: "Lỗi phát âm nguyên âm/phụ âm",
-  CROSS_SENTENCE_LINK_FAIL: "Lỗi liên kết giữa các câu",
-  REFERENCE_CHAIN_MISS: "Bỏ sót chuỗi tham chiếu",
+
+  WORD_FORM: "Sai loại từ (danh/động/tính từ...)",
+
+  NUMBER_FORMAT: "Viết sai số hoặc định dạng số",
+
+  PROPER_NOUN_FORMAT: "Viết sai tên riêng",
+
+  WORD_LIMIT: "Vượt hoặc thiếu số từ quy định",
+
+  INCOMPLETE_ANSWER: "Chưa trả lời đầy đủ",
+
+  PARAPHRASE_MISS: "Không nhận ra cách diễn đạt tương đương",
+
+  NEGATION_TRAP: "Hiểu sai do câu có phủ định",
+
+  QUANTIFIER_SCOPE: "Hiểu sai mức độ (many, some, all…)",
+
+  WRITER_ATTITUDE: "Hiểu sai thái độ/quan điểm của tác giả",
+
+  WRITING_MISSING_OVERVIEW: "Thiếu đoạn tổng quan (overview)",
+
+  WRITING_KEY_FEATURE_SELECTION: "Chọn sai đặc điểm quan trọng",
+
+  WRITING_INSUFFICIENT_DEVELOPMENT: "Ý chưa được giải thích đầy đủ",
+
+  WRITING_WORD_CHOICE: "Dùng từ chưa chính xác",
+
+  SPEAKING_FLUENCY_BREAKDOWN: "Nói bị ngập ngừng hoặc ngắt quãng",
+
+  SPEAKING_LEX_RANGE_LIMITED: "Vốn từ khi nói còn hạn chế",
+
+  SPEAKING_PRON_INTELLIGIBILITY: "Phát âm chưa rõ, người nghe khó hiểu",
+
+  MCQ_INFERENCE_EXPLICIT: "Suy luận sai từ thông tin trực tiếp (trắc nghiệm)",
+
+  SPEAKING_PRON_VOWEL_CONSONANT: "Phát âm sai nguyên âm hoặc phụ âm",
+
+  CROSS_SENTENCE_LINK_FAIL: "Các câu chưa nối với nhau mượt mà",
+
+  REFERENCE_CHAIN_MISS: "Không theo dõi được từ thay thế (he, it, they…)",
+
+  BOUNDARY_SCOPE_DRIFT: "Hiểu sai phạm vi thông tin trong câu",
+
+  WRITING_GR_SVA: "Sai hòa hợp chủ ngữ – động từ",
 });
 
 const TOKEN_VI = Object.freeze({
   MCQ: "trắc nghiệm",
+
   INFERENCE: "suy luận",
-  EXPLICIT: "hiển ngôn",
+
+  EXPLICIT: "thông tin trực tiếp",
+
   TFNG: "true/false/not given",
+
   YNNG: "yes/no/not given",
+
   SPELL: "chính tả",
   SPELLING: "chính tả",
-  PLUR: "số ít-số nhiều",
-  WFORM: "dạng từ",
+
+  PLUR: "số ít và số nhiều",
+
+  WFORM: "loại từ",
+
   WORD: "từ",
+
   FORM: "hình thức",
+
   NUM: "số",
   NUMBER: "số",
-  PN: "danh từ riêng",
+
+  PN: "tên riêng",
+
   WLIM: "giới hạn số từ",
+
   OMIT: "bỏ trống",
+
   KEY: "từ khóa",
+
   SCOPE: "phạm vi",
-  DIST: "gây nhiễu",
-  DISTRACTOR: "gây nhiễu",
+
+  DIST: "thông tin gây nhiễu",
+  DISTRACTOR: "thông tin gây nhiễu",
+
   NEG: "phủ định",
+
   PART: "một phần",
+
   OVER: "quá mức",
-  QNT: "chỉ lượng",
-  OPF: "ý kiến-và-sự thật",
-  PARA: "paraphrase",
+
+  QNT: "mức độ (many, some, all...)",
+
+  OPF: "ý kiến và sự thật",
+
+  PARA: "diễn đạt tương đương",
+
   STEM: "yêu cầu câu hỏi",
+
   TIME: "trình tự thời gian",
-  QUAL: "từ hạn định",
-  EXT: "từ cực đoan",
-  NGF: "not given va false/no",
-  MID: "ý chính-và-chi tiết",
-  PFN: "chức năng đoạn",
+
+  QUAL: "từ chỉ mức độ",
+
+  EXT: "từ mang nghĩa tuyệt đối",
+
+  NGF: "nhầm giữa not given và false/no",
+
+  MID: "ý chính và chi tiết",
+
+  PFN: "chức năng của đoạn",
+
   SIG: "tín hiệu liên kết",
+
   BND: "ranh giới đoạn",
-  ENT: "thực thể-thuộc tính",
-  PRO: "tham chiếu đại từ",
-  TYPE: "loại nhãn",
-  SPAT: "quan hệ không gian",
+
+  ENT: "đối tượng và đặc điểm",
+
+  PRO: "từ thay thế (he, it, they...)",
+
+  TYPE: "dạng câu hỏi",
+
+  SPAT: "vị trí trong không gian",
+
   LAND: "mốc địa điểm",
-  ORI: "định hướng bản đồ",
+
+  ORI: "hướng trên bản đồ",
+
   ROUTE: "tuyến đường",
-  SEQ: "thứ tự bước",
+
+  SEQ: "thứ tự các bước",
+
   VIEW: "đổi góc nhìn",
+
   PREP: "giới từ vị trí",
+
   LINK: "liên kết",
+
   LINKO: "lạm dụng từ nối",
-  LINKM: "nối câu máy móc",
+
+  LINKM: "nối câu chưa tự nhiên",
+
   PARA_BLOCK: "đoạn văn",
-  PROG: "tiến trình ý",
-  RNG: "độ phong phú",
-  CMPX: "cấu trúc phức",
-  SVA: "hòa hợp chủ vị",
+
+  PROG: "tiến trình ý tưởng",
+
+  RNG: "độ đa dạng",
+
+  CMPX: "câu phức",
+
+  SVA: "hòa hợp chủ ngữ – động từ",
+
   TENSE: "thì",
   TEN: "thì",
+
   AP: "mạo từ và giới từ",
+
   CL: "ranh giới mệnh đề",
-  INTEL: "độ rõ tiếng",
+
+  INTEL: "độ rõ khi phát âm",
+
   PRON: "phát âm",
+
   VOWEL: "nguyên âm",
+
   CONSONANT: "phụ âm",
-  SPEAKING: "nói",
+
+  SPEAKING: "bài nói",
+
   WST: "nhấn âm từ",
+
   SST: "nhấn âm câu",
+
   RHY: "nhịp điệu",
+
   CS: "nối âm",
+
   INTN: "ngữ điệu",
-  VC: "nguyên âm-phụ âm",
+
+  VC: "nguyên âm và phụ âm",
+
   CHUNK: "ngắt cụm từ",
+
+  WRITING: "bài viết",
+
+  READING: "bài đọc",
+
+  LISTENING: "bài nghe",
+
+  GR: "ngữ pháp",
+
+  LR: "từ vựng",
+
+  TR: "đáp ứng đề bài",
+
+  CC: "mạch lạc và liên kết",
+
+  FC: "độ trôi chảy",
+
+  PR: "phát âm",
+
+  BOUNDARY: "ranh giới",
+
+  DRIFT: "lệch nghĩa",
 });
+
+const SUBTYPE_PREFIX_FORMATTERS = Object.freeze([
+  { prefix: "WRITING_GR_", label: "Lỗi ngữ pháp bài viết" },
+  { prefix: "WRITING_LR_", label: "Lỗi từ vựng bài viết" },
+  { prefix: "WRITING_TR_", label: "Lỗi đáp ứng đề bài viết" },
+  { prefix: "WRITING_CC_", label: "Lỗi mạch lạc-liên kết bài viết" },
+  { prefix: "SPEAKING_GR_", label: "Lỗi ngữ pháp bài nói" },
+  { prefix: "SPEAKING_LR_", label: "Lỗi từ vựng bài nói" },
+  { prefix: "SPEAKING_FC_", label: "Lỗi độ trôi chảy-mạch lạc bài nói" },
+  { prefix: "SPEAKING_PR_", label: "Lỗi phát âm bài nói" },
+  { prefix: "READING_", label: "Lỗi đọc" },
+  { prefix: "LISTENING_", label: "Lỗi nghe" },
+]);
+
+const humanizeSubtypeTokens = (value = "") => {
+  const compact = String(value || "")
+    .replace(/[.\-/]+/g, "_")
+    .replace(/\s+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+  if (!compact) return "";
+
+  return compact
+    .split("_")
+    .filter(Boolean)
+    .map((token) => TOKEN_VI[token.toUpperCase()] || token.toLowerCase())
+    .join(" ");
+};
+
+const humanizeSubtypeByPrefix = (normalizedSubtypeKey = "") => {
+  if (!normalizedSubtypeKey) return "";
+
+  const matched = SUBTYPE_PREFIX_FORMATTERS.find(({ prefix }) =>
+    normalizedSubtypeKey.startsWith(prefix),
+  );
+  if (!matched) return "";
+
+  const detailLabel = humanizeSubtypeTokens(normalizedSubtypeKey.slice(matched.prefix.length));
+  return detailLabel ? `${matched.label}: ${detailLabel}` : matched.label;
+};
 
 const humanizeTokenizedLabel = (value = "") => {
   const normalized = String(value || "").trim();
@@ -237,18 +475,10 @@ const humanizeTokenizedLabel = (value = "") => {
   if (COGNITIVE_LABELS_VI[normalized]) return COGNITIVE_LABELS_VI[normalized];
   if (DIMENSION_LABELS_VI[normalized]) return DIMENSION_LABELS_VI[normalized];
 
-  const compact = normalized
-    .replace(/[.\-/]+/g, "_")
-    .replace(/\s+/g, "_")
-    .replace(/^_+|_+$/g, "");
+  const prefixedLabel = humanizeSubtypeByPrefix(normalizedSubtypeKey);
+  if (prefixedLabel) return prefixedLabel;
 
-  if (!compact) return normalized;
-  const tokens = compact
-    .split("_")
-    .filter(Boolean)
-    .map((token) => TOKEN_VI[token.toUpperCase()] || token.toLowerCase());
-
-  return tokens.join(" ");
+  return humanizeSubtypeTokens(normalized) || normalized;
 };
 
 const translateCategoryToVi = (value = "") => {
@@ -794,44 +1024,12 @@ const buildAnalyticsPayload = async (targetUserId) => {
     throw error;
   }
 
-  const objectId = new mongoose.Types.ObjectId(targetUserId);
-
-  const [attempts, writingSubmissions, speakingSessions, weaknessRows] = await Promise.all([
-    TestAttempt.find({
-      user_id: objectId,
-      type: { $in: ["reading", "listening"] },
-      score: { $ne: null },
-    })
-      .select("type score total percentage submitted_at time_taken_ms")
-      .lean(),
-    WritingSubmission.find({
-      user_id: objectId,
-      status: { $in: ["scored", "reviewed"] },
-      score: { $ne: null },
-    })
-      .select("score submitted_at")
-      .lean(),
-    SpeakingSession.find({
-      userId: objectId,
-      status: "completed",
-      "analysis.band_score": { $ne: null },
-    })
-      .select("analysis.band_score timestamp")
-      .lean(),
-    TestAttempt.aggregate([
-      { $match: { user_id: objectId, "detailed_answers.0": { $exists: true } } },
-      { $unwind: "$detailed_answers" },
-      {
-        $group: {
-          _id: "$detailed_answers.question_type",
-          totalQuestions: { $sum: 1 },
-          correctQuestions: {
-            $sum: { $cond: [{ $eq: ["$detailed_answers.is_correct", true] }, 1, 0] },
-          },
-        },
-      },
-    ]),
-  ]);
+  const {
+    attempts,
+    writingSubmissions,
+    speakingSessions,
+    weaknessRows,
+  } = await loadAnalyticsSourceDataWithDelta(targetUserId);
 
   let readingCorrectWeighted = 0;
   let readingTotalWeighted = 0;
@@ -1054,7 +1252,7 @@ export const getErrorAnalytics = async (req, res) => {
       return sendControllerError(req, res, { statusCode: 400, message: "Invalid user id"  });
     }
     const filters = parseAnalyticsFilters(req.query);
-    const errorLogs = filterErrorLogs(await aggregateUserErrors(userId), filters);
+    const errorLogs = filterErrorLogs(await loadErrorAnalyticsEntriesWithDelta(userId), filters);
 
     // Grouping logic for Heatmap (Task Type vs Error Category) and Bar Charts (Cognitive Skill frequency)
     const taskTypeVsCategory = {}; // { 'TFNG': { 'R-C4': 5, 'R-C1': 2 } }
@@ -1129,7 +1327,7 @@ export const getErrorAnalyticsDetails = async (req, res) => {
     const pagination = parseDetailsPagination(req.query);
     const totalFilters = normalizeErrorDetailsFilters(req.query);
 
-    const rawDetails = await aggregateUserErrorDetails(userId);
+    const rawDetails = await loadErrorAnalyticsEntriesWithDelta(userId);
     const scopedByTimeSkill = filterErrorLogs(rawDetails, filters);
     const scopedDetails = filterErrorDetails(scopedByTimeSkill, req.query)
       .sort((a, b) => new Date(b.logged_at || 0) - new Date(a.logged_at || 0));
@@ -1138,7 +1336,20 @@ export const getErrorAnalyticsDetails = async (req, res) => {
     const totalPages = Math.max(1, Math.ceil(total / pagination.limit));
     const page = Math.min(pagination.page, totalPages);
     const start = (page - 1) * pagination.limit;
-    const items = scopedDetails.slice(start, start + pagination.limit);
+    const items = scopedDetails
+      .slice(start, start + pagination.limit)
+      .map((item) => {
+        const taxonomyDisplay = resolveTaxonomyDisplay(item);
+        return {
+          ...item,
+          task_type_label: formatQuestionType(item?.task_type || "unknown"),
+          error_label: getErrorLabel(item),
+          error_category: taxonomyDisplay.errorCategory || "",
+          cognitive_skill: taxonomyDisplay.cognitiveSkill || "",
+          taxonomy_dimension: taxonomyDisplay.taxonomyDimension || "",
+          taxonomy_reason: buildTaxonomyReason(item),
+        };
+      });
 
     return res.status(200).json({
       success: true,

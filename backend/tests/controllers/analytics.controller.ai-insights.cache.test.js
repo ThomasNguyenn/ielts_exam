@@ -27,11 +27,33 @@ vi.mock("openai", () => ({
 }));
 
 vi.mock("mongoose", () => ({
+  __esModule: true,
   default: {
-    Types: {
-      ObjectId: {
-        isValid: vi.fn(() => true),
+    Schema: Object.assign(
+      function MockSchema() {},
+      {
+        Types: {
+          ObjectId: class MockSchemaObjectId {},
+          Mixed: class MockMixedType {},
+        },
       },
+    ),
+    models: {},
+    model: vi.fn(() => ({})),
+    Types: {
+      ObjectId: Object.assign(
+        class MockObjectId {
+          constructor(value) {
+            this.value = value;
+          }
+          toString() {
+            return String(this.value || "");
+          }
+        },
+        {
+          isValid: vi.fn(() => true),
+        },
+      ),
     },
   },
 }));
