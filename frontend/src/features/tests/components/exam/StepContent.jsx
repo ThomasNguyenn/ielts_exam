@@ -708,13 +708,22 @@ function StepContent({
           <div key={group.type + slotIndex + groupIdx} className={`exam-group ${group.type === 'summary_completion' ? 'summary-completion' : ''}`}>
             {/* Instructions */}
             {group.instructions && (
-              <HighlightableContent
-                id={`group_inst_${item._id}_${groupIdx}`}
-                htmlContent={(passageStates && passageStates[`group_inst_${item._id}_${groupIdx}`]) || group.instructions}
-                onUpdateHtml={(html) => handleHtmlUpdate(`group_inst_${item._id}_${groupIdx}`, html)}
-                className="exam-instructions"
-                tagName="div"
-              />
+              (isReading || isListening) ? (
+                <div
+                  className="exam-instructions"
+                  dangerouslySetInnerHTML={{
+                    __html: (passageStates && passageStates[`group_inst_${item._id}_${groupIdx}`]) || group.instructions,
+                  }}
+                />
+              ) : (
+                <HighlightableContent
+                  id={`group_inst_${item._id}_${groupIdx}`}
+                  htmlContent={(passageStates && passageStates[`group_inst_${item._id}_${groupIdx}`]) || group.instructions}
+                  onUpdateHtml={(html) => handleHtmlUpdate(`group_inst_${item._id}_${groupIdx}`, html)}
+                  className="exam-instructions"
+                  tagName="div"
+                />
+              )
             )}
 
             {/* Shared options pool for matching questions */}

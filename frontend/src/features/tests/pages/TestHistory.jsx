@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "@/shared/api/client";
+import HourglassTopRoundedIcon from "@mui/icons-material/HourglassTopRounded";
+import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
+import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
+import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
+import EmojiEventsRoundedIcon from "@mui/icons-material/EmojiEventsRounded";
+import QueryStatsRoundedIcon from "@mui/icons-material/QueryStatsRounded";
+import ScheduleRoundedIcon from "@mui/icons-material/ScheduleRounded";
+import AssignmentRoundedIcon from "@mui/icons-material/AssignmentRounded";
 import "./TestHistory.css";
 
 const toNumber = (value, fallback = 0) => {
@@ -162,7 +170,7 @@ export default function TestHistory() {
     return (
       <div className="page test-history">
         <section className="th-state-card">
-          <span className="material-symbols-outlined">hourglass_top</span>
+          <HourglassTopRoundedIcon className="th-state-icon" />
           <h2>Loading history</h2>
           <p>Please wait while we fetch your latest attempts.</p>
         </section>
@@ -174,7 +182,7 @@ export default function TestHistory() {
     return (
       <div className="page test-history">
         <section className="th-state-card th-state-card--error">
-          <span className="material-symbols-outlined">error</span>
+          <ErrorOutlineRoundedIcon className="th-state-icon" />
           <h2>Unable to load test history</h2>
           <p>{error}</p>
           <div className="th-state-actions">
@@ -195,7 +203,7 @@ export default function TestHistory() {
       <section className="th-hero-card">
         <div className="th-hero-top">
           <Link to="/tests" className="th-back-link">
-            <span className="material-symbols-outlined">arrow_back</span>
+            <ArrowBackRoundedIcon className="th-back-icon" />
             All tests
           </Link>
           <span className={`th-test-type ${isWriting ? "writing" : "objective"}`}>{typeLabel}</span>
@@ -219,28 +227,28 @@ export default function TestHistory() {
         <div className="th-kpi-grid">
           <article className="th-kpi-card">
             <div className="th-kpi-icon">
-              <span className="material-symbols-outlined">history</span>
+              <HistoryRoundedIcon className="th-kpi-glyph" />
             </div>
             <p>Total Attempts</p>
             <strong>{summary.totalAttempts}</strong>
           </article>
           <article className="th-kpi-card">
             <div className="th-kpi-icon">
-              <span className="material-symbols-outlined">military_tech</span>
+              <EmojiEventsRoundedIcon className="th-kpi-glyph" />
             </div>
             <p>Best Result</p>
             <strong>{summary.best}</strong>
           </article>
           <article className="th-kpi-card">
             <div className="th-kpi-icon">
-              <span className="material-symbols-outlined">stacked_line_chart</span>
+              <QueryStatsRoundedIcon className="th-kpi-glyph" />
             </div>
             <p>Average Result</p>
             <strong>{summary.average}</strong>
           </article>
           <article className="th-kpi-card">
             <div className="th-kpi-icon">
-              <span className="material-symbols-outlined">schedule</span>
+              <ScheduleRoundedIcon className="th-kpi-glyph" />
             </div>
             <p>Latest</p>
             <strong>{summary.latest}</strong>
@@ -251,7 +259,7 @@ export default function TestHistory() {
 
       {scoredAttempts.length === 0 ? (
         <section className="th-state-card">
-          <span className="material-symbols-outlined">assignment</span>
+          <AssignmentRoundedIcon className="th-state-icon" />
           <h2>No attempts yet</h2>
           <p>Start your first attempt and this page will track all history for this test.</p>
           <div className="th-state-actions">

@@ -63,8 +63,8 @@
     color: #1152d4;
 }
 
-.th-back-link .material-symbols-outlined {
-    font-size: 1.1rem;
+.th-back-icon {
+    font-size: 1.1rem !important;
 }
 
 .th-test-type {
@@ -179,8 +179,8 @@
     margin-bottom: 0.5rem;
 }
 
-.th-kpi-icon .material-symbols-outlined {
-    font-size: 1.05rem;
+.th-kpi-glyph {
+    font-size: 1.05rem !important;
 }
 
 .th-kpi-card p {
@@ -391,8 +391,8 @@
     text-align: center;
 }
 
-.th-state-card .material-symbols-outlined {
-    font-size: 2rem;
+.th-state-icon {
+    font-size: 2rem !important;
     color: #1152d4;
 }
 
@@ -408,7 +408,7 @@
     font-size: 0.92rem;
 }
 
-.th-state-card--error .material-symbols-outlined {
+.th-state-card--error .th-state-icon {
     color: #dc2626;
 }
 

@@ -812,11 +812,12 @@ export default function Exam() {
 
   return (
     <div
-      className={`page exam-page exam-page--stepper text-size-${textSize}`}
+      className={`page exam-page exam-page--stepper exam-page--profile-tone text-size-${textSize}`}
       data-theme={theme}
       style={{
         '--exam-font-size': `${fontSize}%`,
-        filter: `brightness(${brightness}%)`
+        filter: `brightness(${brightness}%)`,
+        fontFamily: 'Lexend, sans-serif'
       }}
     >
       {listeningResumeNotice && (
@@ -826,29 +827,28 @@ export default function Exam() {
       )}
       <header className="exam-header">
         <div className="exam-header-left">
-          <h1 className="exam-title">{exam.title}</h1>
-          <div className="exam-timer-wrapper">
-            {timeRemaining !== null && (
-              <div className={getTimerClass()}>
-                <span className="exam-timer-icon">⏱</span>
-                <span className="exam-timer-text">{formatTime(timeRemaining)} minutes remaining</span>
-              </div>
-            )}
+          <div className="exam-title-group">
+            <p className="exam-title-eyebrow">IELTS Practice</p>
+            <h1 className="exam-title">{exam.title}</h1>
           </div>
-          <Link to={`/tests/${id}`} className="btn-exit-test">
-            Exit Test
-          </Link>
+
+          <div className="exam-header-meta-row">
+            <span className={`exam-header-chip ${isSingleMode ? 'is-single' : 'is-full'}`}>
+              {isSingleMode ? 'Single Part Mode' : 'Full Test Mode'}
+            </span>
+            <span className="exam-header-chip exam-header-chip--muted">{step?.type || 'test'}</span>
+          </div>
         </div>
 
         <div className="exam-header-right">
-          <button
-            type="button"
-            className="btn-finish-test"
-            onClick={handleSubmit}
-            disabled={submitLoading}
-          >
-            {submitLoading ? 'Submitting...' : 'Finish Test'}
-          </button>
+          <div className="exam-timer-wrapper" role="status" aria-live="polite">
+            {timeRemaining !== null && (
+              <div className={getTimerClass()}>
+                <span className="exam-timer-icon">⏱</span>
+                <span className="exam-timer-text">{formatTime(timeRemaining)} remaining</span>
+              </div>
+            )}
+          </div>
 
           <Suspense fallback={null}>
             <IELTSSettings
@@ -860,6 +860,19 @@ export default function Exam() {
               setTheme={setTheme}
             />
           </Suspense>
+
+          <button
+            type="button"
+            className="btn-finish-test"
+            onClick={handleSubmit}
+            disabled={submitLoading}
+          >
+            {submitLoading ? 'Submitting...' : 'Finish Test'}
+          </button>
+
+          <Link to={`/tests/${id}`} className="btn-exit-test">
+            Exit Test
+          </Link>
         </div>
       </header>
 
@@ -867,32 +880,15 @@ export default function Exam() {
       <div className="exam-part-bar">
         <span className="exam-part-label">{step.label}</span>
         <span className="exam-part-title-text">{step.item.title || "Read the text and answer questions"}</span>
+        <span className="exam-part-progress">Part {currentStep + 1} / {steps.length}</span>
       </div >
 
       {submitError && (
-        <div
-          className="exam-submit-error"
-          style={{
-            margin: '10px 0',
-            padding: '10px 14px',
-            borderRadius: '8px',
-            background: '#fff1f2',
-            color: '#9f1239',
-            border: '1px solid #fecdd3'
-          }}
-        >
+        <div className="exam-submit-error">
           <strong>Submit failed:</strong> {submitError}
           <button
             type="button"
-            style={{
-              marginLeft: '12px',
-              padding: '4px 10px',
-              borderRadius: '6px',
-              border: '1px solid #be123c',
-              background: '#fff',
-              color: '#9f1239',
-              cursor: 'pointer'
-            }}
+            className="exam-submit-error__retry"
             onClick={() => performSubmit(false)}
             disabled={submitLoading}
           >

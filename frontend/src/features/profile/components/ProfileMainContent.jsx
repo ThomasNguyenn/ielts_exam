@@ -1,5 +1,19 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import TrendingUpIcon from "@mui/icons-material/TrendingUp";
+import QuizIcon from "@mui/icons-material/Quiz";
+import AnalyticsIcon from "@mui/icons-material/Analytics";
+import ScheduleIcon from "@mui/icons-material/Schedule";
+import TimerIcon from "@mui/icons-material/Timer";
+import EditNoteIcon from "@mui/icons-material/EditNote";
+import HeadphonesIcon from "@mui/icons-material/Headphones";
+import MenuBookIcon from "@mui/icons-material/MenuBook";
+import RecordVoiceOverIcon from "@mui/icons-material/RecordVoiceOver";
+import TaskAltIcon from "@mui/icons-material/TaskAlt";
+import DiamondIcon from "@mui/icons-material/Diamond";
+import WorkspacePremiumIcon from "@mui/icons-material/WorkspacePremium";
+import MilitaryTechIcon from "@mui/icons-material/MilitaryTech";
+import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import {
   formatActivityDate,
   formatActivityType,
@@ -7,6 +21,21 @@ import {
   getActivityVisual,
   scoreBadgeClass,
 } from "../profile.helpers";
+
+const BADGE_ICON_COMPONENTS = {
+  diamond: DiamondIcon,
+  workspace_premium: WorkspacePremiumIcon,
+  military_tech: MilitaryTechIcon,
+  emoji_events: EmojiEventsIcon,
+};
+
+const ACTIVITY_ICON_COMPONENTS = {
+  edit_note: EditNoteIcon,
+  headphones: HeadphonesIcon,
+  book: MenuBookIcon,
+  record_voice_over: RecordVoiceOverIcon,
+  task: TaskAltIcon,
+};
 
 export default function ProfileMainContent({ summary, badges, activities }) {
   const resolveActivityAction = (activity) => {
@@ -49,12 +78,12 @@ export default function ProfileMainContent({ summary, badges, activities }) {
               <p className="text-slate-500 text-sm font-medium">Total Mock Tests</p>
               <p className="text-slate-900 text-3xl font-bold tracking-tight">{summary.totalMockTests}</p>
               <p className="text-green-600 text-sm font-medium flex items-center gap-1 bg-green-50 w-fit px-2 py-0.5 rounded-full mt-1">
-                <span className="material-symbols-outlined text-[16px]">trending_up</span>
+                <TrendingUpIcon className="text-[16px]" />
                 +{summary.weeklyDelta} this month
               </p>
             </div>
             <div className="size-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
-              <span className="material-symbols-outlined">quiz</span>
+              <QuizIcon />
             </div>
           </div>
 
@@ -63,13 +92,13 @@ export default function ProfileMainContent({ summary, badges, activities }) {
               <p className="text-slate-500 text-sm font-medium">Overall Band Score</p>
               <p className="text-slate-900 text-3xl font-bold tracking-tight">{formatBand(summary.averageBandScore)}</p>
               <p className="text-green-600 text-sm font-medium flex items-center gap-1 bg-green-50 w-fit px-2 py-0.5 rounded-full mt-1">
-                <span className="material-symbols-outlined text-[16px]">trending_up</span>
+                <TrendingUpIcon className="text-[16px]" />
                 {summary.averageBandDelta >= 0 ? "+" : ""}
                 {formatBand(summary.averageBandDelta)} since start
               </p>
             </div>
             <div className="size-10 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center group-hover:bg-purple-100 transition-colors">
-              <span className="material-symbols-outlined">analytics</span>
+              <AnalyticsIcon />
             </div>
           </div>
 
@@ -78,12 +107,12 @@ export default function ProfileMainContent({ summary, badges, activities }) {
               <p className="text-slate-500 text-sm font-medium">Total Study Hours</p>
               <p className="text-slate-900 text-3xl font-bold tracking-tight">{summary.totalStudyHours}h</p>
               <p className="text-slate-500 text-sm font-medium flex items-center gap-1 bg-slate-50 w-fit px-2 py-0.5 rounded-full mt-1">
-                <span className="material-symbols-outlined text-[16px]">schedule</span>
+                <ScheduleIcon className="text-[16px]" />
                 +{summary.remainingStudyHours}h this month
               </p>
             </div>
             <div className="size-10 rounded-full bg-orange-50 text-orange-600 flex items-center justify-center group-hover:bg-orange-100 transition-colors">
-              <span className="material-symbols-outlined">timer</span>
+              <TimerIcon />
             </div>
           </div>
         </div>
@@ -99,40 +128,43 @@ export default function ProfileMainContent({ summary, badges, activities }) {
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
           {badges.length ? (
-            badges.map((badge) => (
-              <div key={badge.key} className={badge.wrapperClass}>
-                <div className={badge.shellClass}>
-                  {badge.iconType === "emoji" ? (
-                    <span className={`text-4xl leading-none ${badge.iconClass}`} role="img" aria-label={badge.title}>
-                      {badge.icon}
-                    </span>
-                  ) : (
-                    <span className={`material-symbols-outlined text-4xl ${badge.iconClass}`}>{badge.icon}</span>
-                  )}
-                  {badge.unlocked ? (
-                    <div
-                      className={
-                        badge.levelClass ||
-                        "absolute -bottom-1 bg-[#1152d4] text-white text-[10px] font-bold px-2 py-0.5 rounded-full"
-                      }
-                    >
-                      Lvl {badge.level}
+            badges.map((badge) => {
+              const BadgeIcon = BADGE_ICON_COMPONENTS[badge.icon] || EmojiEventsIcon;
+              return (
+                <div key={badge.key} className={badge.wrapperClass}>
+                  <div className={badge.shellClass}>
+                    {badge.iconType === "emoji" ? (
+                      <span className={`text-4xl leading-none ${badge.iconClass}`} role="img" aria-label={badge.title}>
+                        {badge.icon}
+                      </span>
+                    ) : (
+                      <BadgeIcon className={`text-4xl ${badge.iconClass}`} />
+                    )}
+                    {badge.unlocked ? (
+                      <div
+                        className={
+                          badge.levelClass ||
+                          "absolute -bottom-1 bg-[#1152d4] text-white text-[10px] font-bold px-2 py-0.5 rounded-full"
+                        }
+                      >
+                        Lvl {badge.level}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div>
+                    <p className="text-sm font-bold text-slate-900 leading-tight">{badge.title}</p>
+                    <p className="text-xs text-slate-500">{badge.subtitle}</p>
+                  </div>
+
+                  {!badge.unlocked && badge.tooltip ? (
+                    <div className="absolute bottom-full mb-2 hidden group-hover:block w-32 bg-slate-800 text-white text-xs rounded p-2 z-10 shadow-lg">
+                      {badge.tooltip}
                     </div>
                   ) : null}
                 </div>
-
-                <div>
-                  <p className="text-sm font-bold text-slate-900 leading-tight">{badge.title}</p>
-                  <p className="text-xs text-slate-500">{badge.subtitle}</p>
-                </div>
-
-                {!badge.unlocked && badge.tooltip ? (
-                  <div className="absolute bottom-full mb-2 hidden group-hover:block w-32 bg-slate-800 text-white text-xs rounded p-2 z-10 shadow-lg">
-                    {badge.tooltip}
-                  </div>
-                ) : null}
-              </div>
-            ))
+              );
+            })
           ) : (
             <p className="col-span-full text-sm text-slate-500">No achievements yet.</p>
           )}
@@ -162,12 +194,13 @@ export default function ProfileMainContent({ summary, badges, activities }) {
                   const score = Number(activity?.score);
                   const hasScore = completed && Number.isFinite(score);
                   const action = resolveActivityAction(activity);
+                  const ActivityIcon = ACTIVITY_ICON_COMPONENTS[visual.icon] || TaskAltIcon;
 
                   return (
                     <tr key={String(activity?.id || `activity-${index}`)} className="group hover:bg-slate-50 transition-colors">
                       <td className="py-4 pl-2 font-medium text-slate-900 flex items-center gap-3">
                         <div className={visual.iconWrapClass}>
-                          <span className="material-symbols-outlined text-[18px]">{visual.icon}</span>
+                          <ActivityIcon className="text-[18px]" />
                         </div>
                         {String(activity?.taskName || "Practice Activity")}
                       </td>

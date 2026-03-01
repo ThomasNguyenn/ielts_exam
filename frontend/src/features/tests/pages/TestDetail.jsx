@@ -5,17 +5,13 @@ import {
   ArrowLeft,
   Clock,
   HelpCircle,
-  BarChart3,
   ArrowRight,
-  Layers,
   BookOpen,
   PenTool,
   Headphones,
   Mic,
-  CheckCircle2,
   Target,
   Trophy,
-  Play,
   Sparkles,
 } from 'lucide-react';
 import './TestDetail.css';
@@ -187,41 +183,31 @@ export default function TestDetail() {
   /* Loading Skeleton */
   if (loading) {
     return (
-      <div className="page test-detail">
-        <div className="td-page-container">
-          {/* Back link skeleton */}
-          <div style={{ height: 16, width: 140, background: '#E2E8F0', borderRadius: 8, marginBottom: 24 }} className="td-skeleton-pulse" />
-
-          {/* Hero skeleton */}
-          <div className="td-hero">
-            <div className="td-hero-inner">
-              <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-                <div style={{ height: 28, width: 100, background: '#EEF2FF', borderRadius: 8 }} className="td-skeleton-pulse" />
-                <div style={{ height: 28, width: 90, background: '#ECFDF5', borderRadius: 8 }} className="td-skeleton-pulse" />
-              </div>
-              <div style={{ height: 40, width: '60%', background: '#E2E8F0', borderRadius: 8, marginBottom: 24 }} className="td-skeleton-pulse" />
-              <div style={{ display: 'flex', gap: 24 }}>
-                {[1, 2, 3, 4].map(i => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ width: 40, height: 40, background: '#F1F5F9', borderRadius: 12 }} className="td-skeleton-pulse" />
-                    <div>
-                      <div style={{ height: 10, width: 50, background: '#E2E8F0', borderRadius: 4, marginBottom: 6 }} className="td-skeleton-pulse" />
-                      <div style={{ height: 14, width: 60, background: '#E2E8F0', borderRadius: 4 }} className="td-skeleton-pulse" />
-                    </div>
-                  </div>
-                ))}
-              </div>
+      <div className="test-detail-page">
+        <div className="td-container">
+          <div className="td-skeleton" style={{ height: 20, width: 140, marginBottom: 24 }} />
+          
+          <div className="td-header-card">
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              <div className="td-skeleton" style={{ height: 24, width: 100, borderRadius: 20 }} />
+              <div className="td-skeleton" style={{ height: 24, width: 80, borderRadius: 20 }} />
+            </div>
+            <div className="td-skeleton" style={{ height: 40, width: '60%', marginBottom: 24 }} />
+            <div style={{ display: 'flex', gap: 32 }}>
+              {[1, 2, 3].map(i => (
+                <div key={i} className="td-skeleton" style={{ height: 40, width: 120 }} />
+              ))}
             </div>
           </div>
 
-          {/* Body skeleton */}
-          <div className="td-body">
-            <div className="td-content">
-              <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 16, padding: 32, height: 180 }} className="td-skeleton-pulse" />
-              <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 16, padding: 24, height: 120 }} className="td-skeleton-pulse" />
+          <div className="td-main-grid">
+            <div className="td-content-area">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="td-skeleton" style={{ height: 80, width: '100%', marginBottom: 16, borderRadius: 16 }} />
+              ))}
             </div>
-            <div className="td-sidebar">
-              <div style={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: 16, padding: 24, height: 350 }} className="td-skeleton-pulse" />
+            <div className="td-sidebar-area">
+              <div className="td-skeleton" style={{ height: 300, width: '100%', borderRadius: 16 }} />
             </div>
           </div>
         </div>
@@ -229,18 +215,18 @@ export default function TestDetail() {
     );
   }
 
-  if (error) return <div className="page"><p className="error">Error: {error}</p></div>;
+  if (error) return <div className="test-detail-page"><div className="td-container"><p className="error">Error: {error}</p></div></div>;
   if (!test) {
     return (
-      <div className="page test-detail">
-        <div className="td-page-container" style={{ textAlign: 'center', paddingTop: 80 }}>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#0F172A', marginBottom: 16 }}>
+      <div className="test-detail-page">
+        <div className="td-container" style={{ textAlign: 'center', paddingTop: 80 }}>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0F172A', marginBottom: 16 }}>
             Test Not Found
           </h2>
           <p style={{ color: '#64748B', marginBottom: 32 }}>
             The test you&apos;re looking for doesn&apos;t exist.
           </p>
-          <Link to="/tests" className="td-btn-primary" style={{ display: 'inline-flex', width: 'auto', padding: '0 24px' }}>
+          <Link to="/tests" className="td-btn-main" style={{ display: 'inline-flex', width: 'auto', padding: '0 24px' }}>
             <ArrowLeft size={16} />
             Back to Tests
           </Link>
@@ -253,130 +239,80 @@ export default function TestDetail() {
   const skillSections = getSkillSections(test);
   const totalQuestions = getTotalQuestions(test);
   const duration = getDuration(test);
-  const difficulty = getDifficulty(test);
+  const difficulty = getDifficulty(test) || 'Standard';
   const diffKey = difficulty.toLowerCase();
   const category = (test.category || '').trim() || 'General';
   const sectionCount = skillSections.reduce((s, sec) => s + sec.count, 0);
   const individualParts = getIndividualParts(test);
 
-  const overviewText = `This ${(SKILL_CONFIG[type]?.label || 'practice').toLowerCase()} test contains ${skillSections.map(sec => {
-    const cfg = SKILL_CONFIG[sec.skill];
-    return `${sec.count} ${cfg.unit}${sec.count !== 1 ? 's' : ''}`;
-  }).join(', ')
-    }${totalQuestions > 0 ? ` with a total of ${totalQuestions} questions` : ''}. Complete all sections to get your estimated IELTS band score.`;
-
   const STATS = [
-    { icon: Clock, label: 'Duration', value: duration, colorClass: 'td-stat-icon--indigo' },
-    { icon: HelpCircle, label: 'Questions', value: totalQuestions > 0 ? String(totalQuestions) : '—', colorClass: 'td-stat-icon--amber' },
-    { icon: BarChart3, label: 'Sections', value: String(sectionCount), colorClass: 'td-stat-icon--emerald' },
-    { icon: Target, label: 'Target Band', value: getTargetBand(difficulty), colorClass: 'td-stat-icon--rose' },
-  ];
-
-  const FEATURES = [
-    'Định dạng đề thi thực tế', // Định dạng đề thi thực tế
-    'Chế độ luyện tập có thời gian', // Chế độ luyện tập có thời gian
-    'Ước tính BAND điểm', // Ước tính điểm
+    { icon: Clock, label: 'Duration', value: duration },
+    { icon: HelpCircle, label: 'Questions', value: totalQuestions > 0 ? String(totalQuestions) : '—' },
+    { icon: Target, label: 'Target Band', value: getTargetBand(difficulty) },
   ];
 
   const TIPS = [
-    'Tạo ra điều kiện giống như khi thi thật', // Tạo ra điều kiện giống như khi thi thật
-    'Hoàn thành tất cả các phần trong một nếu có thể', // Hoàn thành tất cả các phần trong một lần ngồi nếu có thể
-    'Kiểm tra lại các câu trả lời sai sau khi hoàn thành', // Kiểm tra lại các câu trả lời sai sau khi hoàn thành
+    'Mô phỏng điều kiện thi thật để rèn phản xạ thời gian.',
+    'Nên hoàn thành toàn bộ bài trong một lần để giữ nhịp làm bài.',
+    'Xem lại đáp án sai sau khi hoàn thành để cải thiện nhanh hơn.',
   ];
 
   return (
-    <div className="page test-detail">
-      <div className="td-page-container">
+    <div className="test-detail-page">
+      <div className="td-container">
         {/* Back Link */}
         <Link to="/tests" className="td-back-link">
           <ArrowLeft size={16} />
           Back to all tests
         </Link>
 
-        {/* Hero Section */}
-        <div className="td-hero">
-          <div className="td-hero-deco-1" />
-          <div className="td-hero-deco-2" />
+        {/* Header Card */}
+        <div className="td-header-card">
+          <div className="td-header-top">
+            <span className="td-badge td-badge-category">{category}</span>
+            <span className="td-badge td-badge-difficulty" data-diff={diffKey}>
+              <span className="td-diff-dot" />
+              {difficulty}
+            </span>
+          </div>
 
-          <div className="td-hero-inner">
-            {/* Tags: Category + Difficulty */}
-            <div className="td-hero-tags">
-              <span className="td-tag td-tag--category">
-                {category}
-              </span>
-              <span className="td-tag td-tag--difficulty" data-diff={diffKey}>
-                <span className="td-diff-dot" />
-                {difficulty}
-              </span>
-            </div>
+          <h1>{test.title}</h1>
 
-            <h1>{test.title}</h1>
-
-            {/* Stats Row */}
-            <div className="td-hero-stats">
-              {STATS.map((stat, i) => (
-                <div key={stat.label} style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
-                  {i > 0 && <div className="td-stat-divider" style={{ marginRight: 12 }} />}
-                  <div className="td-stat">
-                    <div className={`td-stat-icon ${stat.colorClass}`}>
-                      <stat.icon />
-                    </div>
-                    <div className="td-stat-text">
-                      <span className="td-stat-label">{stat.label}</span>
-                      <span className="td-stat-value">{stat.value}</span>
-                    </div>
-                  </div>
+          <div className="td-header-stats">
+            {STATS.map((stat) => (
+              <div key={stat.label} className="td-header-stat-item">
+                <div className="td-stat-icon-box">
+                  <stat.icon />
                 </div>
-              ))}
-            </div>
+                <div className="td-stat-info">
+                  <span className="label">{stat.label}</span>
+                  <span className="value">{stat.value}</span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Two Column Layout */}
-        <div className="td-body">
-          {/* Left Column */}
-          <div className="td-content">
-            {/* Overview */}
-            {/* <div className="td-overview">
-              <div className="td-section-heading">
-                <span className="td-heading-bar" />
-                <h2>Overview</h2>
-              </div>
-              <p>{overviewText}</p>
-
-            
-              <div className="td-features-grid">
-                {FEATURES.map(feature => (
-                  <div key={feature} className="td-feature-item">
-                    <CheckCircle2 />
-                    <span>{feature}</span>
-                  </div>
-                ))}
-              </div>
-            </div> */}
-
-            {/* Section Breakdown — per part rows */}
-            <div className="flex items-center gap-2.5 mb-5">
-              <div className="w-1 h-5 bg-[#6366F1] rounded-full" />
-              <h2
-                className="text-[#0F172A]"
-                style={{ fontSize: "1.25rem", fontWeight: 600 }}
-              >
-                Section Breakdown
-              </h2>
+        {/* Main Content Grid */}
+        <div className="td-main-grid">
+          {/* Main Content */}
+          <div className="td-content-area">
+            <div className="td-section-title">
+              <Sparkles size={20} className="text-orange-500" />
+              <h2>Section Breakdown</h2>
             </div>
+
             <div className="td-parts-list">
               {individualParts.map((part, idx) => {
                 const cfg = SKILL_CONFIG[part.skill];
                 const PartIcon = cfg.Icon;
                 return (
-                  <div key={part.key} className="td-part-row" data-skill={part.skill}>
-                    <div className="td-part-number">{idx + 1}</div>
-                    <div className="td-part-icon">
+                  <div key={part.key} className="td-part-card" data-skill={part.skill}>
+                    <div className="td-part-icon-box">
                       <PartIcon />
                     </div>
                     <div className="td-part-info">
-                      <h4 className="td-part-title">{part.title}</h4>
+                      <h4>{part.title}</h4>
                       <div className="td-part-meta">
                         <span className="td-part-label">{part.label}</span>
                         <span className="td-dot">·</span>
@@ -385,10 +321,9 @@ export default function TestDetail() {
                     </div>
                     <Link
                       to={`/tests/${id}/exam?part=${part.index}&mode=single`}
-                      className="td-part-start-btn"
+                      className="td-part-btn"
                     >
-                      <Play />
-                      Start
+                      Start Part
                     </Link>
                   </div>
                 );
@@ -396,88 +331,39 @@ export default function TestDetail() {
             </div>
           </div>
 
-          {/* Right Column — Sticky Panel */}
-          <div className="td-sidebar">
-            <div className="td-sidebar-sticky">
-              {/* Action Panel */}
-              <div className="td-action-panel">
-                {/* Progress Ring Header */}
-                <div className="td-progress-header">
-                  <div className="td-progress-ring">
-                    <svg viewBox="0 0 64 64">
-                      <circle className="td-ring-bg" cx="32" cy="32" r="28" />
-                      <circle
-                        className="td-ring-fill"
-                        cx="32" cy="32" r="28"
-                        strokeDasharray={`0 ${2 * Math.PI * 28}`}
-                      />
-                    </svg>
-                    <div className="td-progress-icon">
-                      <Trophy />
-                    </div>
-                  </div>
-                  <div className="td-progress-text">
-                    <h4>Sẵn sàng bắt đầu</h4>
-                    <p>Hoàn thành tất cả {sectionCount} sections</p>
-                  </div>
+          {/* Sidebar */}
+          <div className="td-sidebar-area">
+            {/* Ready Card */}
+            <div className="td-sidebar-panel">
+              <div className="td-progress-box">
+                <div className="td-progress-icon">
+                  <Trophy size={24} />
                 </div>
-
-                {/* Summary Rows */}
-                <div className="td-summary-rows">
-                  <div className="td-info-row">
-                    <span className="td-info-label">Thời gian</span>
-                    <span className="td-info-value">{duration}</span>
-                  </div>
-                  <div className="td-info-row">
-                    <span className="td-info-label">Câu hỏi</span>
-                    <span className="td-info-value">{totalQuestions > 0 ? totalQuestions : '—'}</span>
-                  </div>
-                  <div className="td-info-row">
-                    <span className="td-info-label">Sections</span>
-                    <span className="td-info-value">{sectionCount}</span>
-                  </div>
-                  <div className="td-info-row">
-                    <span className="td-info-label">Difficulty</span>
-                    <span className="td-diff-badge" data-diff={diffKey}>
-                      <span className="td-diff-dot" />
-                      {difficulty}
-                    </span>
-                  </div>
-                </div>
-
-                {/* CTA Buttons */}
-                <div className="td-cta-group">
-                  <Link to={`/tests/${id}/exam`} className="td-btn-primary">
-                    Bắt đầu bài kiểm tra
-                    <ArrowRight />
-                  </Link>
+                <div className="td-progress-text">
+                  <h4>Sẵn sàng bắt đầu?</h4>
+                  <p>Hoàn thành tất cả {sectionCount} sections</p>
                 </div>
               </div>
 
-              {/* Tips Card */}
-              <div className="td-tips-card">
-                <div className="td-tips-header">
-                  <Sparkles />
-                  <span>Pro Tips</span>
+              <div className="td-summary-list">
+                <div className="td-summary-item">
+                  <span className="label">Tổng thời gian</span>
+                  <span className="value">{duration}</span>
                 </div>
-                <ul className="td-tips-list">
-                  {TIPS.map(tip => (
-                    <li key={tip}>
-                      <span className="td-tip-dot" />
-                      {tip}
-                    </li>
-                  ))}
-                </ul>
+                <div className="td-summary-item">
+                  <span className="label">Tổng câu hỏi</span>
+                  <span className="value">{totalQuestions > 0 ? totalQuestions : '—'}</span>
+                </div>
+                <div className="td-summary-item">
+                  <span className="label">Độ khó</span>
+                  <span className="value">{difficulty}</span>
+                </div>
               </div>
 
-              {/* Help Card */}
-              <div className="td-help-card">
-                <h4>Chưa sẵn sàng?</h4>
-                <p>Hãy xem các hướng dẫn và chiến lược học tập cho từng phần.</p>
-                <Link to="/practice" className="td-help-btn">
-                  Xem hướng dẫn
-                </Link>
-              </div>
+              <Link to={`/tests/${id}/exam`} className="td-btn-main">
+                Bắt đầu toàn bộ bài thi
+                <ArrowRight size={18} />
+              </Link>
             </div>
           </div>
         </div>

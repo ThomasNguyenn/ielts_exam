@@ -1,5 +1,8 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import EditIcon from "@mui/icons-material/Edit";
+import BarChartIcon from "@mui/icons-material/BarChart";
+import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import { SKILL_META, SKILL_ORDER, formatBand, toNumber } from "../profile.helpers";
 
 export default function ProfileSidebar({
@@ -24,7 +27,7 @@ export default function ProfileSidebar({
             className="absolute bottom-0 right-0 bg-white p-1.5 rounded-full shadow-md border border-slate-100 cursor-pointer hover:text-[#1152d4] transition-colors"
             title="Edit profile"
           >
-            <span className="material-symbols-outlined text-[18px] block">edit</span>
+            <EditIcon className="text-[18px] block" />
           </button>
         </div>
 
@@ -39,7 +42,7 @@ export default function ProfileSidebar({
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
         <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-          <span className="material-symbols-outlined text-[#1152d4]">bar_chart</span>
+          <BarChartIcon className="text-[#1152d4]" />
           Skill Mastery
         </h3>
 
@@ -71,7 +74,7 @@ export default function ProfileSidebar({
             className="text-sm text-[#1152d4] font-medium hover:underline flex items-center gap-1 justify-center"
           >
             View Detailed Analytics
-            <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+            <ArrowForwardIcon className="text-[16px]" />
           </Link>
         </div>
       </div>

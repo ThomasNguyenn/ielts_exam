@@ -15,10 +15,19 @@ const testsDetailCache = createResponseCache({
   namespace: "tests-detail",
   ttlSec: getCacheTtlSec("API_RESPONSE_CACHE_TTL_TESTS_SEC", 180),
   scope: "role",
-  tags: ["catalog:tests"],
+  tags: (req) => {
+    const testId = String(req.params?.id || '').trim();
+    return testId ? ["catalog:tests", `test:${testId}`] : ["catalog:tests"];
+  },
 });
 const invalidateTestsCatalog = createCacheInvalidator({
   tags: ["catalog:tests"],
+});
+const invalidateCurrentTestDetail = createCacheInvalidator({
+  tags: (req) => {
+    const testId = String(req.params?.id || '').trim();
+    return testId ? ["catalog:tests", `test:${testId}`] : ["catalog:tests"];
+  },
 });
 
 router.get("/", testsCatalogCache, getAllTests);
@@ -31,8 +40,8 @@ router.get("/:id/exam", optionalVerifyToken, testsDetailCache, getExamData);
 router.post("/:id/submit", verifyToken, submitExam);
 router.get("/:id/attempts", verifyToken, getMyTestAttempts);
 router.get("/:id", optionalVerifyToken, testsDetailCache, getTheTestById);
-router.put("/:id", verifyToken, isTeacherOrAdmin, invalidateTestsCatalog, updateTest);
-router.post("/:id/renumber", verifyToken, isTeacherOrAdmin, invalidateTestsCatalog, renumberTestQuestions);
-router.delete("/:id", verifyToken, isTeacherOrAdmin, invalidateTestsCatalog, deleteTest);
+router.put("/:id", verifyToken, isTeacherOrAdmin, invalidateCurrentTestDetail, updateTest);
+router.post("/:id/renumber", verifyToken, isTeacherOrAdmin, invalidateCurrentTestDetail, renumberTestQuestions);
+router.delete("/:id", verifyToken, isTeacherOrAdmin, invalidateCurrentTestDetail, deleteTest);
 
 export default router;

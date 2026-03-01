@@ -253,7 +253,19 @@ const getSelectionOffsets = (container) => {
   const text = String(container.textContent || '').slice(start, end);
   if (!text.trim()) return null;
 
-  return { start, end, text };
+  const rect = range.getBoundingClientRect();
+  const anchorRect = rect && Number.isFinite(rect.top) && Number.isFinite(rect.left)
+    ? {
+      top: rect.top,
+      left: rect.left,
+      right: rect.right,
+      bottom: rect.bottom,
+      width: rect.width,
+      height: rect.height,
+    }
+    : null;
+
+  return { start, end, text, rect: anchorRect };
 };
 
 const formatFeedTime = (value) => {
@@ -316,6 +328,7 @@ export function useWritingLiveRoomSession({
   const reconnectTimerRef = useRef(null);
   const socketPathIndexRef = useRef(0);
   const endedByServerRef = useRef(false);
+  const reconnectAttemptsRef = useRef(0);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -464,6 +477,7 @@ export function useWritingLiveRoomSession({
     let disposed = false;
     socketPathIndexRef.current = 0;
     endedByServerRef.current = false;
+    reconnectAttemptsRef.current = 0;
 
     const connectSocket = () => {
       if (disposed || endedByServerRef.current) return;
@@ -483,6 +497,7 @@ export function useWritingLiveRoomSession({
       socket.onopen = () => {
         if (disposed) return;
         hasOpened = true;
+        reconnectAttemptsRef.current = 0;
         setStatus('');
         setWsState('connected');
         sendSocketEvent('request_snapshot', {});
@@ -565,7 +580,9 @@ export function useWritingLiveRoomSession({
           setStatus(reason || 'Realtime connection failed before handshake.');
         }
 
-        reconnectTimerRef.current = setTimeout(connectSocket, 2000);
+        reconnectAttemptsRef.current += 1;
+        const reconnectDelayMs = Math.min(2000 * (2 ** Math.max(0, reconnectAttemptsRef.current - 1)), 30000);
+        reconnectTimerRef.current = setTimeout(connectSocket, reconnectDelayMs);
       };
 
       socket.onerror = () => {

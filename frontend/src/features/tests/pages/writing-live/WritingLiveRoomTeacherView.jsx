@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   SCORE_CRITERIA,
   TEACHER_HIGHLIGHT_OPTIONS,
@@ -68,6 +68,42 @@ export default function WritingLiveRoomTeacherView({
       // Error state is already surfaced in session.status.
     }
   };
+
+  const selectionPopoverStyle = useMemo(() => {
+    const fallbackStyle = {
+      position: 'fixed',
+      right: '24px',
+      bottom: '24px',
+      zIndex: 40,
+    };
+
+    const rect = session.selectionDraft?.rect;
+    if (!rect || typeof window === 'undefined') return fallbackStyle;
+
+    const cardWidth = Math.min(360, Math.max(280, window.innerWidth - 24));
+    const cardHeight = 320;
+    const margin = 12;
+
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    const centeredLeft = rect.left + (rect.width / 2) - (cardWidth / 2);
+    const left = Math.max(margin, Math.min(centeredLeft, viewportWidth - cardWidth - margin));
+
+    const belowTop = rect.bottom + 12;
+    const aboveTop = rect.top - cardHeight - 12;
+    const preferredTop = belowTop + cardHeight <= viewportHeight - margin
+      ? belowTop
+      : aboveTop;
+    const top = Math.max(margin, Math.min(preferredTop, viewportHeight - cardHeight - margin));
+
+    return {
+      position: 'fixed',
+      left: `${left}px`,
+      top: `${top}px`,
+      zIndex: 40,
+    };
+  }, [session.selectionDraft]);
 
   return (
     <div className="writing-live-ui bg-background-light min-h-[calc(100vh-88px)] flex flex-col overflow-hidden text-slate-900">
@@ -209,9 +245,12 @@ export default function WritingLiveRoomTeacherView({
             </div>
           </div>
 
-          <div className="absolute bottom-6 right-6 z-20">
+          <div className="absolute bottom-6 right-6 z-20 pointer-events-none">
             {session.selectionDraft ? (
-              <div className="w-[360px] max-w-[92vw] rounded-2xl border border-slate-200 bg-white shadow-2xl p-4 space-y-3">
+              <div
+                className="w-[360px] max-w-[92vw] rounded-2xl border border-slate-200 bg-white shadow-2xl p-4 space-y-3 pointer-events-auto"
+                style={selectionPopoverStyle}
+              >
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Add Highlight Comment</p>
                   <button

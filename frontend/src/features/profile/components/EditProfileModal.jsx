@@ -1,4 +1,6 @@
 import React from "react";
+import CloseIcon from "@mui/icons-material/Close";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import { SKILL_META, SKILL_ORDER, clampTarget } from "../profile.helpers";
 
 export default function EditProfileModal({
@@ -45,7 +47,7 @@ export default function EditProfileModal({
           </div>
 
           <button type="button" onClick={onClose} className="text-slate-500 hover:text-slate-800" title="Close">
-            <span className="material-symbols-outlined">close</span>
+            <CloseIcon />
           </button>
         </div>
 
@@ -66,7 +68,7 @@ export default function EditProfileModal({
                 onClick={onRegenerateAvatar}
                 className="mt-4 w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-[#eef2fb] hover:bg-blue-100 text-sm font-medium text-[#1152d4]"
               >
-                <span className="material-symbols-outlined text-[18px]">refresh</span>
+                <RefreshIcon className="text-[18px]" />
                 Regenerate Avatar
               </button>
 
