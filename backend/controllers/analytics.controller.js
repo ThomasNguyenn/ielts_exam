@@ -6,6 +6,7 @@ import mongoose from "mongoose";
 import OpenAI from "openai";
 import dotenv from "dotenv";
 import { getErrorCodeMeta, normalizeErrorCode } from "../services/taxonomy.registry.js";
+import { getJson, setJson } from "../services/responseCache.redis.js";
 import {
   average,
   buildAnalyticsHistoryRaw,
@@ -29,9 +30,11 @@ const ANALYTICS_RANGE_DAYS = {
   "30d": 30,
   "90d": 90,
 };
-const AI_INSIGHTS_CACHE_TTL_MS = 30 * 60 * 1000;
-const AI_INSIGHTS_CACHE_MAX_ENTRIES = 200;
-const aiInsightsCache = new Map();
+const AI_INSIGHTS_CACHE_TTL_SEC = Math.max(
+  1,
+  Number.parseInt(process.env.API_RESPONSE_CACHE_TTL_ANALYTICS_INSIGHTS_SEC || "1800", 10) || 1800,
+);
+const AI_INSIGHTS_CACHE_KEY_PREFIX = "analytics:ai-insights:";
 
 const CATEGORY_LABELS_VI = Object.freeze({
   FORM: "Lỗi hình thức",
@@ -306,19 +309,8 @@ const parseAnalyticsFilters = (query = {}) => {
   };
 };
 
-const isCacheEntryFresh = (entry) => (
-  entry &&
-  Number.isFinite(entry.cachedAt) &&
-  Date.now() - entry.cachedAt <= AI_INSIGHTS_CACHE_TTL_MS
-);
-
-const setCachedInsights = (key, value) => {
-  aiInsightsCache.set(key, { cachedAt: Date.now(), value });
-  while (aiInsightsCache.size > AI_INSIGHTS_CACHE_MAX_ENTRIES) {
-    const oldestKey = aiInsightsCache.keys().next().value;
-    aiInsightsCache.delete(oldestKey);
-  }
-};
+const toInsightsCacheKey = (key) =>
+  `${AI_INSIGHTS_CACHE_KEY_PREFIX}${String(key || "").trim()}`;
 
 const buildHeuristicInsightsPayload = (errorLogs = [], filters = {}) => {
   const frequencies = {};
@@ -1202,10 +1194,17 @@ export const getAIInsights = async (req, res) => {
       if (Number.isNaN(ts)) return max;
       return Math.max(max, ts);
     }, 0);
-    const cacheKey = `${userId}|${filters.range}|${filters.skill}|${errorLogs.length}|${latestErrorMs}`;
-    const cachedInsights = aiInsightsCache.get(cacheKey);
-    if (isCacheEntryFresh(cachedInsights)) {
-      return res.status(200).json({ success: true, data: cachedInsights.value });
+    const cacheKey = toInsightsCacheKey(
+      `${userId}|${filters.range}|${filters.skill}|${errorLogs.length}|${latestErrorMs}`,
+    );
+    let cachedInsights = null;
+    try {
+      cachedInsights = await getJson(cacheKey);
+    } catch (cacheError) {
+      console.warn("[analytics] Redis cache read fallback:", cacheError?.message || "Unknown error");
+    }
+    if (cachedInsights && typeof cachedInsights === "object") {
+      return res.status(200).json({ success: true, data: cachedInsights });
     }
 
     const frequencies = {};
@@ -1259,7 +1258,9 @@ export const getAIInsights = async (req, res) => {
       }
     }
 
-    setCachedInsights(cacheKey, normalizedPayload);
+    void setJson(cacheKey, normalizedPayload, AI_INSIGHTS_CACHE_TTL_SEC).catch(() => {
+      // Cache write is best-effort.
+    });
     return res.status(200).json({
       success: true,
       data: normalizedPayload,

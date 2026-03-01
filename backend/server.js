@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 import { connectDB } from "./config/db.js";
 import { validateEnvironment } from "./config/env.validation.js";
 import { closeRateLimitRedisConnection } from "./middleware/rateLimit.middleware.js";
+import { closeResponseCacheRedisConnection } from "./services/responseCache.redis.js";
 import { attachWritingLiveWebSocketServer, closeWritingLiveResources } from "./services/writingLiveRoom.service.js";
 
 dotenv.config();
@@ -28,6 +29,12 @@ const startServer = async () => {
         await closeRateLimitRedisConnection();
       } catch (err) {
         console.error("[shutdown] Error closing rate-limit Redis connection:", err.message);
+      }
+
+      try {
+        await closeResponseCacheRedisConnection();
+      } catch (err) {
+        console.error("[shutdown] Error closing response-cache Redis connection:", err.message);
       }
 
       try {

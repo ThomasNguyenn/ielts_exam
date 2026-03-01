@@ -22,6 +22,7 @@ import {
   uploadImage,
 } from '../controllers/writing.controller.js';
 import { verifyToken, optionalVerifyToken, isTeacherOrAdmin } from '../middleware/auth.middleware.js';
+import { createCacheInvalidator, createResponseCache, getCacheTtlSec } from '../middleware/responseCache.middleware.js';
 import express from 'express';
 import multer from 'multer';
 
@@ -48,7 +49,17 @@ const upload = multer({
   },
 });
 
-router.get("/", optionalVerifyToken, getAllWritings);
+const writingsCatalogCache = createResponseCache({
+  namespace: "writings-catalog",
+  ttlSec: getCacheTtlSec("API_RESPONSE_CACHE_TTL_WRITINGS_SEC", 180),
+  scope: "role",
+  tags: ["catalog:writings"],
+});
+const invalidateWritingsCatalog = createCacheInvalidator({
+  tags: ["catalog:writings"],
+});
+
+router.get("/", optionalVerifyToken, writingsCatalogCache, getAllWritings);
 router.get("/submissions", verifyToken, isTeacherOrAdmin, getSubmissions);
 router.get("/submissions/students", verifyToken, isTeacherOrAdmin, getSubmissionStudents);
 router.get("/submissions/:id", verifyToken, isTeacherOrAdmin, getSubmissionById);
@@ -57,17 +68,17 @@ router.post("/submissions/:id/live-room", verifyToken, isTeacherOrAdmin, createS
 router.post("/live-room/resolve", verifyToken, resolveLiveRoom);
 router.get("/live-room/:roomCode/context", verifyToken, getLiveRoomSharedContext);
 router.post("/live-room/:roomCode/close", verifyToken, isTeacherOrAdmin, closeLiveRoom);
-router.post("/", verifyToken, isTeacherOrAdmin, createWriting);
+router.post("/", verifyToken, isTeacherOrAdmin, invalidateWritingsCatalog, createWriting);
 router.post("/upload-image", verifyToken, isTeacherOrAdmin, upload.single('image'), uploadImage);
-router.get("/:id", optionalVerifyToken, getWritingById);
-router.get("/:id/exam", optionalVerifyToken, getWritingExam);
+router.get("/:id", optionalVerifyToken, writingsCatalogCache, getWritingById);
+router.get("/:id/exam", optionalVerifyToken, writingsCatalogCache, getWritingExam);
 router.post("/:id/submit", verifyToken, submitWriting);
 router.put("/submissions/:id/archive", verifyToken, isTeacherOrAdmin, archiveSubmission);
 router.post("/submissions/:id/score", verifyToken, isTeacherOrAdmin, scoreSubmission);
 router.post("/submissions/:id/ai-fast-score", verifyToken, scoreSubmissionAIFast);
 router.post("/submissions/:id/ai-score", verifyToken, scoreSubmissionAI);
-router.post("/:id/regenerate-id", verifyToken, isTeacherOrAdmin, regenerateWritingId);
-router.put("/:id", verifyToken, isTeacherOrAdmin, updateWriting);
-router.delete("/:id", verifyToken, isTeacherOrAdmin, deleteWriting);
+router.post("/:id/regenerate-id", verifyToken, isTeacherOrAdmin, invalidateWritingsCatalog, regenerateWritingId);
+router.put("/:id", verifyToken, isTeacherOrAdmin, invalidateWritingsCatalog, updateWriting);
+router.delete("/:id", verifyToken, isTeacherOrAdmin, invalidateWritingsCatalog, deleteWriting);
 
 export default router;
