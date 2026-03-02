@@ -70,6 +70,22 @@ const SPEAKING_ANALYSIS_MAX_OUTPUT_TOKENS = Number(
   || process.env.GEMINI_ANALYSIS_MAX_OUTPUT_TOKENS
   || 4000,
 );
+const SPEAKING_PHASE1_PROMPT_TRANSCRIPT_MAX_CHARS = Math.max(
+  1200,
+  Number(process.env.SPEAKING_PHASE1_PROMPT_TRANSCRIPT_MAX_CHARS || 6500),
+);
+const SPEAKING_PHASE1_PROMPT_HEAD_RATIO = Math.min(
+  0.9,
+  Math.max(0.5, Number(process.env.SPEAKING_PHASE1_PROMPT_HEAD_RATIO || 0.7)),
+);
+const SPEAKING_PHASE1_TIMEOUT_MAX_MS = Math.max(
+  SPEAKING_PHASE1_TIMEOUT_MS,
+  Number(process.env.SPEAKING_PHASE1_TIMEOUT_MAX_MS || 60000),
+);
+const SPEAKING_PHASE1_TIMEOUT_EXTRA_PER_1K_CHARS_MS = Math.max(
+  0,
+  Number(process.env.SPEAKING_PHASE1_TIMEOUT_EXTRA_PER_1K_CHARS_MS || 1200),
+);
 
 const isHttpUrl = (value) => /^https?:\/\//i.test(String(value || ""));
 
@@ -250,6 +266,53 @@ const splitTranscriptSentences = (transcript = "") =>
     .split(/[.!?]+/)
     .map((sentence) => sentence.trim())
     .filter(Boolean);
+
+const compactTranscriptForPhase1Prompt = (transcript = "") => {
+  const normalized = String(transcript || "").replace(/\s+/g, " ").trim();
+  const totalChars = normalized.length;
+  const totalWords = splitTranscriptWords(normalized).length;
+
+  if (totalChars <= SPEAKING_PHASE1_PROMPT_TRANSCRIPT_MAX_CHARS) {
+    return {
+      text: normalized,
+      truncated: false,
+      totalChars,
+      totalWords,
+      usedChars: totalChars,
+      omittedChars: 0,
+    };
+  }
+
+  const marker = " [Transcript truncated for scoring prompt] ";
+  const markerLength = marker.length;
+  const budget = Math.max(400, SPEAKING_PHASE1_PROMPT_TRANSCRIPT_MAX_CHARS - markerLength);
+  const headChars = Math.max(200, Math.floor(budget * SPEAKING_PHASE1_PROMPT_HEAD_RATIO));
+  const tailChars = Math.max(120, budget - headChars);
+
+  const head = normalized.slice(0, headChars).trimEnd();
+  const tail = normalized.slice(Math.max(0, normalized.length - tailChars)).trimStart();
+  const compacted = `${head}${marker}${tail}`.trim();
+  const usedChars = compacted.length;
+  const omittedChars = Math.max(0, totalChars - usedChars);
+
+  return {
+    text: compacted,
+    truncated: true,
+    totalChars,
+    totalWords,
+    usedChars,
+    omittedChars,
+  };
+};
+
+const buildPhase1TimeoutMs = (transcriptCharCount = 0) => {
+  const normalizedChars = Math.max(0, Number(transcriptCharCount || 0));
+  if (normalizedChars <= 0) return SPEAKING_PHASE1_TIMEOUT_MS;
+
+  const per1kSteps = Math.ceil(normalizedChars / 1000);
+  const boostedTimeout = SPEAKING_PHASE1_TIMEOUT_MS + (per1kSteps * SPEAKING_PHASE1_TIMEOUT_EXTRA_PER_1K_CHARS_MS);
+  return clamp(boostedTimeout, SPEAKING_PHASE1_TIMEOUT_MS, SPEAKING_PHASE1_TIMEOUT_MAX_MS);
+};
 
 const GRAMMAR_PROXY_RULES = [
   {
@@ -1009,6 +1072,7 @@ const cleanupSessionAudioFromCloudinary = async (session) => {
 
 const buildPhase1Prompt = ({
   transcript,
+  transcriptMeta = {},
 }) => `
 You are a STRICT IELTS Speaking examiner focusing ONLY on:
 1) Lexical Resource
@@ -1016,6 +1080,12 @@ You are a STRICT IELTS Speaking examiner focusing ONLY on:
 
 Student Answer:
 "${transcript || "(none)"}"
+
+TRANSCRIPT META:
+- original_chars: ${Number(transcriptMeta?.totalChars || 0)}
+- original_words: ${Number(transcriptMeta?.totalWords || 0)}
+- used_chars_for_prompt: ${Number(transcriptMeta?.usedChars || 0)}
+- transcript_compacted: ${transcriptMeta?.truncated ? "yes" : "no"}
 
 RULES:
 - Evaluate only lexical_resource and grammatical_range.
@@ -1027,20 +1097,40 @@ RULES:
 - If 3+ concrete grammar errors are found, include all of them in grammar_corrections and error_logs (do not ignore).
 - Provide concise, concrete Vietnamese feedback with transcript evidence.
 - Produce vocabulary_upgrades and grammar_corrections from transcript.
+- Keep output compact to avoid truncation:
+  - vocabulary_upgrades: 3-6 items
+  - grammar_corrections: 3-8 items
+  - error_logs: 4-8 items
+  - keep each snippet short (<=5 words)
 - error_logs MUST only use lexical/grammar codes:
   - Lexical: S-L1, S-L2, S-L3, S-L4
   - Grammar: S-G1, S-G2, S-G3, S-G4
-- Include 4-8 specific error logs.
+- If transcript_compacted=yes, focus on representative recurring mistakes from the shown text.
+- REQUIRED CONTRACT: JSON MUST contain:
+  - "lexical_resource": { "score": number, "feedback": "string (In Vietnamese)" }
+  - "grammatical_range": { "score": number, "feedback": "string (In Vietnamese)" }
+- OPTIONAL CONTRACT (can be omitted if output budget is tight):
+  - vocabulary_upgrades
+  - grammar_corrections
+  - general_feedback
+  - error_logs
 
-Return ONLY valid JSON:
+Return ONLY valid JSON.
+Minimum accepted shape:
+{
+  "lexical_resource": { "score": number, "feedback": "string (In Vietnamese)" },
+  "grammatical_range": { "score": number, "feedback": "string (In Vietnamese)" }
+}
+
+Optional extended shape:
 {
   "lexical_resource": { "score": number, "feedback": "string (In Vietnamese)" },
   "grammatical_range": { "score": number, "feedback": "string (In Vietnamese)" },
   "vocabulary_upgrades": [
-    { "original": "string", "suggestion": "string", "reason": "string (In Vietnamese)" }
+    { "original": "string" (words or noun phrase only), "suggestion": "string", "reason": "string (In Vietnamese)" }
   ],
   "grammar_corrections": [
-    { "original": "string" (words or noun phrase only), "corrected": "string", "reason": "string (In Vietnamese)" }
+    { "original": "string" (words or noun phrase only), "corrected": "string" (words or noun phrase only), "reason": "string (In Vietnamese)" }
   ],
   "general_feedback": "string (In Vietnamese)",
   "error_logs": [
@@ -1051,6 +1141,7 @@ Return ONLY valid JSON:
 
 const buildPhase1RepairPrompt = ({
   transcript = "",
+  transcriptMeta = {},
   previousRaw = "",
   reason = "",
 }) => `
@@ -1068,19 +1159,42 @@ Do not omit any required top-level keys.
 Student Answer:
 "${transcript || "(none)"}"
 
-Return ONLY valid JSON with this exact structure:
+TRANSCRIPT META:
+- original_chars: ${Number(transcriptMeta?.totalChars || 0)}
+- original_words: ${Number(transcriptMeta?.totalWords || 0)}
+- used_chars_for_prompt: ${Number(transcriptMeta?.usedChars || 0)}
+- transcript_compacted: ${transcriptMeta?.truncated ? "yes" : "no"}
+
+REQUIRED CONTRACT:
+- "lexical_resource": { "score": number, "feedback": "string (In Vietnamese)" }
+- "grammatical_range": { "score": number, "feedback": "string (In Vietnamese)" }
+
+OPTIONAL CONTRACT (can be omitted if needed):
+- vocabulary_upgrades
+- grammar_corrections
+- general_feedback
+- error_logs
+
+Return ONLY valid JSON.
+Minimum accepted shape:
 {
-  "lexical_resource": { "score": number, "feedback": "string" },
-  "grammatical_range": { "score": number, "feedback": "string" },
+  "lexical_resource": { "score": number, "feedback": "string (In Vietnamese)" },
+  "grammatical_range": { "score": number, "feedback": "string (In Vietnamese)" }
+}
+
+Optional extended shape:
+{
+  "lexical_resource": { "score": number, "feedback": "string (In Vietnamese)" },
+  "grammatical_range": { "score": number, "feedback": "string (In Vietnamese)" },
   "vocabulary_upgrades": [
-    { "original": "string", "suggestion": "string", "reason": "string" }
+    { "original": "string" (words or noun phrase only), "suggestion": "string", "reason": "string (In Vietnamese)" }
   ],
   "grammar_corrections": [
-    { "original": "string", "corrected": "string", "reason": "string" }
+    { "original": "string" (words or noun phrase only), "corrected": "string" (words or noun phrase only), "reason": "string (In Vietnamese)" }
   ],
-  "general_feedback": "string",
+  "general_feedback": "string (In Vietnamese)",
   "error_logs": [
-    { "code": "string", "snippet": "string", "explanation": "string" }
+    { "code": "string", "snippet": "string", "explanation": "string (In Vietnamese)" }
   ]
 }
 `;
@@ -1151,18 +1265,6 @@ const getPhase1ContractMissingFields = (payload) => {
   }
   if (source?.grammatical_range?.feedback === undefined || source?.grammatical_range?.feedback === null) {
     missing.push("grammatical_range.feedback");
-  }
-  if (!Array.isArray(source?.vocabulary_upgrades)) {
-    missing.push("vocabulary_upgrades");
-  }
-  if (!Array.isArray(source?.grammar_corrections)) {
-    missing.push("grammar_corrections");
-  }
-  if (source?.general_feedback === undefined || source?.general_feedback === null) {
-    missing.push("general_feedback");
-  }
-  if (!Array.isArray(source?.error_logs)) {
-    missing.push("error_logs");
   }
 
   return missing;
@@ -1774,18 +1876,34 @@ export const scoreSpeakingPhase1ById = async ({ sessionId, force = false } = {})
   const phaseStartAt = Date.now();
   const transcriptResult = await resolveCanonicalTranscript(session);
   const transcript = String(transcriptResult?.transcript || "").trim();
+  const phase1PromptTranscript = compactTranscriptForPhase1Prompt(transcript);
+  const phase1TimeoutMs = buildPhase1TimeoutMs(phase1PromptTranscript?.totalChars || transcript.length);
 
   if (transcript) {
     session.transcript = transcript;
   }
 
   const prompt = buildPhase1Prompt({
-    transcript,
+    transcript: phase1PromptTranscript.text,
+    transcriptMeta: phase1PromptTranscript,
   });
-  const phase1IncompleteRetryAttempts = Math.max(
+  const phase1IncompleteRetryAttemptsBase = Math.max(
     1,
     Number(process.env.SPEAKING_PHASE1_INCOMPLETE_RETRY_ATTEMPTS || 2),
   );
+  const phase1IncompleteRetryAttempts = phase1PromptTranscript.truncated
+    ? Math.min(4, phase1IncompleteRetryAttemptsBase + 1)
+    : phase1IncompleteRetryAttemptsBase;
+  if (phase1PromptTranscript.truncated) {
+    console.log(JSON.stringify({
+      event: "speaking_phase1_transcript_compacted",
+      session_id: String(session._id),
+      original_chars: phase1PromptTranscript.totalChars,
+      used_chars_for_prompt: phase1PromptTranscript.usedChars,
+      omitted_chars: phase1PromptTranscript.omittedChars,
+      timeout_ms: phase1TimeoutMs,
+    }));
+  }
 
   let phase1Analysis;
   let phase1Source = "fallback";
@@ -1805,25 +1923,51 @@ export const scoreSpeakingPhase1ById = async ({ sessionId, force = false } = {})
       const attemptPrompt = attempt === 1
         ? prompt
         : buildPhase1RepairPrompt({
-          transcript,
+          transcript: phase1PromptTranscript.text,
+          transcriptMeta: phase1PromptTranscript,
           previousRaw: previousRawResponse,
           reason: lastValidationReason,
         });
 
-      const candidateResponse = await requestGeminiJsonWithFallback({
-        genAI,
-        models: SPEAKING_PHASE1_MODELS,
-        contents: [attemptPrompt],
-        generationConfig: {
-          responseMimeType: "application/json",
-          maxOutputTokens: SPEAKING_PHASE1_MAX_OUTPUT_TOKENS,
-        },
-        timeoutMs: SPEAKING_PHASE1_TIMEOUT_MS,
-        maxAttempts: SPEAKING_GEMINI_MAX_ATTEMPTS,
-      });
+      let candidateResponse = null;
+      try {
+        candidateResponse = await requestGeminiJsonWithFallback({
+          genAI,
+          models: SPEAKING_PHASE1_MODELS,
+          contents: [attemptPrompt],
+          generationConfig: {
+            responseMimeType: "application/json",
+            maxOutputTokens: SPEAKING_PHASE1_MAX_OUTPUT_TOKENS,
+          },
+          timeoutMs: phase1TimeoutMs,
+          maxAttempts: SPEAKING_GEMINI_MAX_ATTEMPTS,
+        });
+      } catch (requestError) {
+        previousRawResponse = String(
+          requestError?.rawPreview
+          || requestError?.cause?.rawPreview
+          || "",
+        );
+        lastValidationReason = requestError?.code
+          ? `model_request_error:${requestError.code}`
+          : `model_request_error:${requestError?.message || "unknown"}`;
+
+        const shouldRetry = attempt < phase1IncompleteRetryAttempts;
+        console.warn("Speaking phase1 AI request failed:", {
+          sessionId: String(session._id),
+          attempt,
+          maxAttempts: phase1IncompleteRetryAttempts,
+          reason: lastValidationReason,
+          retrying: shouldRetry,
+        });
+        if (shouldRetry) {
+          continue;
+        }
+        throw requestError;
+      }
 
       const validation = validatePhase1AiPayload(candidateResponse?.data);
-      previousRawResponse = String(candidateResponse?.rawText || "");
+      previousRawResponse = String(candidateResponse?.rawText || previousRawResponse || "");
 
       if (validation.ok) {
         aiResponse = candidateResponse;
@@ -1832,11 +1976,13 @@ export const scoreSpeakingPhase1ById = async ({ sessionId, force = false } = {})
       }
 
       lastValidationReason = validation.reason || "missing required keys";
+      const missingFields = getPhase1ContractMissingFields(candidateResponse?.data);
       console.warn("Speaking phase1 AI payload incomplete, retrying:", {
         sessionId: String(session._id),
         attempt,
         maxAttempts: phase1IncompleteRetryAttempts,
         reason: lastValidationReason,
+        missing_fields: missingFields,
       });
     }
 

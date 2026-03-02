@@ -33,6 +33,9 @@ This project supports asynchronous AI grading for `writing` and `speaking`.
 
 ### Optional tuning
 - `SPEAKING_FILLER_WORDS=um,uh,like,you know,actually,basically`
+- `SPEAKING_PHASE1_PROMPT_TRANSCRIPT_MAX_CHARS=6500` (compact long transcripts for phase1 prompt to reduce JSON truncation/failures)
+- `SPEAKING_PHASE1_TIMEOUT_EXTRA_PER_1K_CHARS_MS=1200` (auto add timeout for longer responses)
+- `SPEAKING_PHASE1_TIMEOUT_MAX_MS=60000` (hard cap for phase1 adaptive timeout)
 - `AI_QUEUE_REMOVE_ON_COMPLETE=200` (reduce to 50-100 if Redis memory is tight)
 - `AI_QUEUE_REMOVE_ON_FAIL=500` (reduce to 100-300 if Redis memory is tight)
 - `API_RESPONSE_CACHE_TAG_TTL_MULTIPLIER=2`
