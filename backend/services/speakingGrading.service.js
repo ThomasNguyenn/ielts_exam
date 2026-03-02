@@ -80,10 +80,10 @@ const SPEAKING_PHASE2_TIMEOUT_MS = Number(
   process.env.SPEAKING_PHASE2_TIMEOUT_MS || SPEAKING_GEMINI_TIMEOUT_MS || 30000,
 );
 const SPEAKING_PHASE1_MAX_OUTPUT_TOKENS = Number(
-  process.env.SPEAKING_PHASE1_MAX_OUTPUT_TOKENS || 4000,
+  process.env.SPEAKING_PHASE1_MAX_OUTPUT_TOKENS || 2000,
 );
 const SPEAKING_PHASE2_MAX_OUTPUT_TOKENS = Number(
-  process.env.SPEAKING_PHASE2_MAX_OUTPUT_TOKENS || 4000,
+  process.env.SPEAKING_PHASE2_MAX_OUTPUT_TOKENS || 2000,
 );
 const SPEAKING_ERROR_LOGS_MIN_COUNT = Math.max(
   1,
@@ -1139,17 +1139,13 @@ RULES:
 - Run a grammar checklist before scoring: tense consistency, subject-verb agreement, article/preposition usage, sentence completeness.
 - If there are repeated tense/SVA/article/preposition errors, grammatical_range MUST be <= 6.0.
 - If grammar errors appear in multiple sentences and reduce clarity, grammatical_range MUST be <= 5.5.
-- If 3+ concrete grammar errors are found, include all of them in grammar_corrections and error_logs (do not ignore).
+- If 3+ concrete grammar errors are found, include all of them in grammar_corrections (do not ignore).
 - Provide concise, concrete Vietnamese feedback with transcript evidence.
 - Produce vocabulary_upgrades and grammar_corrections from transcript.
 - Keep output compact to avoid truncation:
   - vocabulary_upgrades: 3-6 items
   - grammar_corrections: 3-8 items
-  - error_logs: 4-8 items
   - keep each snippet short (<=5 words)
-- error_logs MUST only use lexical/grammar codes:
-  - Lexical: S-L1, S-L2, S-L3, S-L4
-  - Grammar: S-G1, S-G2, S-G3, S-G4
 - If transcript_compacted=yes, focus on representative recurring mistakes from the shown text.
 - REQUIRED CONTRACT: JSON MUST contain:
   - "lexical_resource": { "score": number, "feedback": "string (In Vietnamese)" }
@@ -1158,7 +1154,6 @@ RULES:
   - vocabulary_upgrades
   - grammar_corrections
   - general_feedback
-  - error_logs
 
 Return ONLY valid JSON.
 Minimum accepted shape:
@@ -1177,10 +1172,7 @@ Optional extended shape:
   "grammar_corrections": [
     { "original": "string" (words or noun phrase only), "corrected": "string" (words or noun phrase only), "reason": "string (In Vietnamese)" }
   ],
-  "general_feedback": "string (In Vietnamese)",
-  "error_logs": [
-    { "code": "string", "snippet": "string", "explanation": "string (In Vietnamese)" }
-  ]
+  "general_feedback": "string (In Vietnamese)"
 }
 `;
 
@@ -1218,7 +1210,6 @@ OPTIONAL CONTRACT (can be omitted if needed):
 - vocabulary_upgrades
 - grammar_corrections
 - general_feedback
-- error_logs
 
 Return ONLY valid JSON.
 Minimum accepted shape:
@@ -1236,10 +1227,6 @@ Optional extended shape:
   ],
   "grammar_corrections": [
     { "original": "string" (words or noun phrase only), "corrected": "string" (words or noun phrase only), "reason": "string (In Vietnamese)" }
-  ],
-  "general_feedback": "string (In Vietnamese)",
-  "error_logs": [
-    { "code": "string", "snippet": "string", "explanation": "string (In Vietnamese)" }
   ]
 }
 `;
@@ -1353,10 +1340,6 @@ RULES:
 - If many words are unclear to understand, pronunciation MUST be <= 5.5.
 - If pronunciation >= 7.5, you MUST provide concrete evidence of intelligibility/stress control and at most 1 minor pronunciation issue.
 - If audio confidence is uncertain or speech is hard to understand, cap pronunciation at <= 6.5.
-- error_logs MUST only use fluency/pronunciation codes:
-  - Fluency: S-F1, S-F2, S-F3, S-F4
-  - Pronunciation: S-P1, S-P2, S-P3, S-P4
-- Include 4-8 specific error logs.
 
 Return ONLY valid JSON:
 {
@@ -1370,10 +1353,6 @@ Return ONLY valid JSON:
   ],
   "intonation_pacing": { "pace_wpm": number, "pitch_variation": "string", "feedback": "string"(In Vietnamese) },
   "next_step": "string"(In Vietnamese),
-  "general_feedback": "string"(In Vietnamese),
-  "error_logs": [
-    { "code": "string", "snippet": "string", "explanation": "string"(In Vietnamese) }
-  ]
 }
 `;
 
@@ -1411,10 +1390,6 @@ SYSTEM METRICS:
 RULES:
 - Be strict and evidence-based. Do not inflate scores.
 - This is fallback mode without audio. If transcript evidence is weak, keep pronunciation conservative.
-- error_logs MUST only use fluency/pronunciation codes:
-  - Fluency: S-F1, S-F2, S-F3, S-F4
-  - Pronunciation: S-P1, S-P2, S-P3, S-P4
-- Include 4-8 specific error logs.
 
 Return ONLY valid JSON:
 {
@@ -1428,10 +1403,7 @@ Return ONLY valid JSON:
   ],
   "intonation_pacing": { "pace_wpm": number, "pitch_variation": "string", "feedback": "string"(In Vietnamese) },
   "next_step": "string"(In Vietnamese),
-  "general_feedback": "string"(In Vietnamese),
-  "error_logs": [
-    { "code": "string", "snippet": "string", "explanation": "string"(In Vietnamese) }
-  ]
+  "general_feedback": "string"(In Vietnamese)
 }
 `;
 
