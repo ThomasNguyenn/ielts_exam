@@ -8,21 +8,14 @@ const DEFAULT_SPEAKING_STT_FALLBACK_MODEL = "whisper-1";
 const DEFAULT_SPEAKING_STT_LANGUAGE = "en";
 const DEFAULT_SPEAKING_STT_PROMPT = [
   "Verbatim transcript only.",
-  "Do not correct grammar, tense, plurality, or word choice.",
-  "Do not rewrite broken English into natural English.",
-  "Never omit spoken words. If uncertain, keep the closest heard token.",
-  "Preserve spoken mistakes exactly as heard.",
-  "Pay close attention to final sounds and endings: -s, -es, -ed, final consonants.",
-  "Keep fillers, repetitions, false starts, and disfluencies when present.",
+  "Do not correct grammar or rewrite broken English.",
+  "Preserve all spoken words, including mistakes, fillers, repetitions, and final sounds (-s, -ed).",
+  "If uncertain, keep the closest heard token.",
 ].join(" ");
 
 const DEFAULT_FILLER_WORDS = [
   "um",
   "uh",
-  "like",
-  "you know",
-  "actually",
-  "basically",
 ];
 
 const toBoolean = (value, fallback = false) => {

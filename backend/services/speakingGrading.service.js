@@ -877,6 +877,20 @@ const normalizePhase1Payload = (rawPhase1, {
   };
 };
 
+const pruneStoredPhase1Analysis = (phase1Analysis) => {
+  if (!phase1Analysis || typeof phase1Analysis !== "object") {
+    return phase1Analysis;
+  }
+
+  const {
+    sample_answer: _sampleAnswer,
+    general_feedback: _generalFeedback,
+    ...rest
+  } = phase1Analysis;
+
+  return rest;
+};
+
 const normalizePhase2Payload = (rawPhase2, {
   transcript = "",
   fallbackWpm = 0,
@@ -1039,17 +1053,17 @@ RULES:
 
 Return ONLY valid JSON:
 {
-  "lexical_resource": { "score": number, "feedback": "string" },
-  "grammatical_range": { "score": number, "feedback": "string" },
+  "lexical_resource": { "score": number, "feedback": "string (In Vietnamese)" },
+  "grammatical_range": { "score": number, "feedback": "string (In Vietnamese)" },
   "vocabulary_upgrades": [
-    { "original": "string", "suggestion": "string", "reason": "string" }
+    { "original": "string", "suggestion": "string", "reason": "string (In Vietnamese)" }
   ]
   "grammar_corrections": [
-    { "original": "string", "corrected": "string", "reason": "string" }
+    { "original": "string" (words or noun phrase only), "corrected": "string", "reason": "string (In Vietnamese)" }
   ],
-  "general_feedback": "string",
+  "general_feedback": "string (In Vietnamese)",
   "error_logs": [
-    { "code": "string", "snippet": "string", "explanation": "string" }
+    { "code": "string", "snippet": "string", "explanation": "string (In Vietnamese)" }
   ]
 }
 `;
@@ -1234,129 +1248,6 @@ Return ONLY valid JSON:
   "error_logs": [
     { "code": "string", "snippet": "string", "explanation": "string" }
   ]
-}
-`;
-
-const buildStrictSpeakingPrompt = ({
-  topicPrompt,
-  topicPart,
-  subQuestions,
-  clientWPM,
-  parsedMetrics,
-  clientTranscript,
-}) => `
-You are both:
-1) A STRICT IELTS Speaking examiner (official IELTS descriptors), and
-2) An ELSA-style pronunciation coach (segmentals + suprasegmentals).
-
-TOPIC / QUESTION:
-"${topicPrompt}"
-
-EXAM PART:
-- Part: ${normalizeSpeakingPart(topicPart) || "unknown"}
-- Cue points / follow-up prompts:
-${formatSubQuestionLines(subQuestions)}
-
-SYSTEM METRICS:
-- WPM: ${clientWPM}
-- Pause count: ${parsedMetrics.pauseCount || 0}
-- Total pause duration (ms): ${parsedMetrics.totalPauseDuration || 0}
-- Longest pause (ms): ${parsedMetrics.longestPause || 0}
-- Avg pause duration (ms): ${parsedMetrics.avgPauseDuration || 0}
-- Client transcript: "${clientTranscript || "(none)"}"
-
-CRITICAL RULES (STRICT SCORING):
-- You MUST listen to the audio first. Transcript is secondary.
-- If transcript conflicts with audio, trust the audio.
-- Score exactly 4 IELTS criteria:
-  Fluency & Coherence, Lexical Resource, Grammatical Range & Accuracy, Pronunciation.
-- Each criterion score must be 0.0 to 9.0 in 0.5 steps only.
-- Overall band_score must be the average of 4 criteria, rounded to nearest 0.5.
-- Do NOT be lenient. Do NOT inflate scores.
-- If pronunciation causes frequent misunderstanding, pronunciation <= 5.5.
-- If fluency has frequent long pauses and broken delivery, fluency_coherence <= 6.0.
-- If grammar errors are frequent and reduce clarity, grammatical_range <= 5.5.
-- If ideas are underdeveloped with short/simple answers, fluency_coherence <= 5.5.
-- Do not award band >= 7.0 unless performance is consistently strong across all 4 criteria.
-
-PRONUNCIATION MUST FOLLOW ELSA-STYLE ANALYSIS:
-- Segmentals: vowel/consonant substitutions and unclear phonemes.
-- Final endings: specifically check missing -s / -es / -ed / final consonants.
-- Word stress errors.
-- Sentence stress and thought-grouping.
-- Intonation and rhythm (flat/unnatural patterns).
-- Connected speech (linking/reduction) issues.
-
-ERROR TAXONOMY BẮT BUỘC (error_logs array):
-Trích xuất lỗi rõ ràng từ transcript và gán đúng mã "code":
-[Fluency] S-F1 Excessive Pause, S-F2 Filler Overuse, S-F3 Self-correction Overuse, S-F4 Disorganized Idea
-[Lexical] S-L1 Repetition, S-L2 Incorrect Word Form, S-L3 Limited Vocabulary, S-L4 Misused Collocation
-[Grammar] S-G1 Tense Error, S-G2 Agreement Error, S-G3 Simple Sentence Overuse, S-G4 Structure Breakdown
-[Pronunciation] S-P1 Word Stress Error, S-P2 Sentence Stress Error, S-P3 Sound Substitution, S-P4 Intonation Flat
-Cần chỉ ra ít nhất 3-5 lỗi cụ thể nhất lưu vào "error_logs".
-
-OUTPUT LANGUAGE:
-- Feedback in Vietnamese.
-- Keep examples concrete from the student's production.
-- sample_answer must be in natural spoken English.
-
-MODEL ANSWER REQUIREMENTS (MUST FOLLOW PART):
-${buildSampleAnswerRequirements({ topicPart, subQuestions })}
-
-RETURN ONLY VALID JSON (no markdown, no extra text):
-{
-  "transcript": "string (best ASR transcript from audio)",
-  "band_score": number,
-  "fluency_coherence": { "score": number, "feedback": "string" },
-  "lexical_resource": { "score": number, "feedback": "string" },
-  "grammatical_range": { "score": number, "feedback": "string" },
-  "pronunciation": {
-    "score": number,
-    "feedback": "string with these sections: Am nguyen am, Am cuoi, Trong am, Ngu dieu, Nhip dieu, Ke hoach hanh dong"
-  },
-  "error_logs": [
-    {
-      "code": "string (e.g. S-F1, S-L2, S-G3, S-P4)",
-      "snippet": "string (extract from transcript)",
-      "explanation": "string (Vietnamese explanation)"
-    }
-  ],
-  "general_feedback": "string (strict overall summary with top priority fixes)",
-  "sample_answer": "string (Band 7.0+ model answer for this topic)",
-  "pronunciation_heatmap": [
-    {
-      "word": "string (word from transcript)",
-      "status": "excellent | needs_work | error | neutral",
-      "note": "string (short reason)"
-    }
-  ],
-  "focus_areas": [
-    {
-      "title": "string",
-      "priority": "high | medium | low",
-      "description": "string"
-    }
-  ],
-  "intonation_pacing": {
-    "pace_wpm": number,
-    "pitch_variation": "string",
-    "feedback": "string"
-  },
-  "vocabulary_upgrades": [
-    {
-      "original": "string",
-      "suggestion": "string",
-      "reason": "string"
-    }
-  ],
-  "grammar_corrections": [
-    {
-      "original": "string",
-      "corrected": "string",
-      "reason": "string"
-    }
-  ],
-  "next_step": "string"
 }
 `;
 
@@ -2118,6 +2009,7 @@ export const scoreSpeakingPhase2ById = async ({ sessionId, force = false } = {})
   const modelTranscript = String(analysis?.transcript || "").trim();
   session.transcript = clientTranscript || modelTranscript || "";
   session.analysis = analysis;
+  session.phase1_analysis = pruneStoredPhase1Analysis(session.phase1_analysis);
   session.phase2_source = phase2Source;
   session.ai_source = phase2Source;
   session.error_logs = extractTaxonomyErrorLogs(analysis, topic.part);

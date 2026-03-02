@@ -82,13 +82,6 @@ const isUnavailableAnalysis = (analysis) => {
   return allZero && !String(analysis?.sample_answer || '').trim();
 };
 
-const splitTranscriptToHeatmap = (transcript = '') => (
-  String(transcript || '')
-    .match(/[A-Za-z0-9']+/g)
-    ?.slice(0, 220)
-    .map((word) => ({ word, status: 'neutral', note: '' })) || []
-);
-
 const toPriorityStyle = (priority) => {
   if (priority === 'high') {
     return {
@@ -122,6 +115,55 @@ const toHeatTokenStyle = (status) => {
     return 'bg-red-100 text-red-800 border-b-2 border-red-500';
   }
   return 'hover:bg-slate-100';
+};
+
+const heatStatusPriority = {
+  error: 4,
+  needs_work: 3,
+  excellent: 2,
+  neutral: 1,
+};
+
+const buildTranscriptTokensWithHeatmap = (transcript = '', heatmapEntries = []) => {
+  const sourceTranscript = String(transcript || '');
+  if (!sourceTranscript) return [];
+
+  const heatByWord = new Map();
+  (Array.isArray(heatmapEntries) ? heatmapEntries : []).forEach((item) => {
+    const word = String(item?.word || '').trim().toLowerCase();
+    if (!word) return;
+    const status = normalizeHeatStatus(item?.status);
+    const note = String(item?.note || '').trim();
+    const existing = heatByWord.get(word);
+    if (!existing || (heatStatusPriority[status] || 0) > (heatStatusPriority[existing.status] || 0)) {
+      heatByWord.set(word, { status, note });
+      return;
+    }
+    if (!existing.note && note) {
+      heatByWord.set(word, { status: existing.status, note });
+    }
+  });
+
+  return (sourceTranscript.match(/([A-Za-z0-9']+|[^A-Za-z0-9']+)/g) || [])
+    .map((part, index) => {
+      const isWord = /^[A-Za-z0-9']+$/.test(part);
+      if (!isWord) {
+        return {
+          key: `sep-${index}`,
+          text: part,
+          status: null,
+          note: '',
+        };
+      }
+
+      const matched = heatByWord.get(String(part).toLowerCase());
+      return {
+        key: `w-${index}-${part}`,
+        text: part,
+        status: matched?.status || 'neutral',
+        note: matched?.note || '',
+      };
+    });
 };
 
 const metricConfig = {
@@ -254,7 +296,8 @@ export default function SpeakingResultPhase({ result, topic, onRetry }) {
     }))
     .filter((item) => item.word)
     .slice(0, 240);
-  const visibleHeatmapTokens = heatmapTokens.length > 0 ? heatmapTokens : splitTranscriptToHeatmap(transcript);
+  const transcriptTokensWithHeatmap = buildTranscriptTokensWithHeatmap(transcript, heatmapTokens);
+  const hasAiHeatmapHighlights = heatmapTokens.some((token) => token.status !== 'neutral');
 
   const focusAreas = safeAnalysis.focus_areas
     .map((item) => ({
@@ -375,8 +418,8 @@ export default function SpeakingResultPhase({ result, topic, onRetry }) {
           <div className="lg:col-span-8 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center gap-3">
               <div>
-                <h3 className="text-lg font-bold text-slate-900">Pronunciation Heatmap</h3>
-                <p className="text-sm text-slate-500">Click colored words to compare with AI.</p>
+                <h3 className="text-lg font-bold text-slate-900">Full Transcript + Pronunciation Heatmap</h3>
+                <p className="text-sm text-slate-500">Shows full STT transcript. AI-highlighted words are colored by pronunciation quality.</p>
               </div>
               <div className="flex gap-2 text-xs font-medium flex-wrap justify-end">
                 <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-green-500" />Excellent</span>
@@ -386,15 +429,30 @@ export default function SpeakingResultPhase({ result, topic, onRetry }) {
             </div>
 
             <div className="p-6 leading-relaxed text-lg text-slate-800 font-light custom-scrollbar max-h-[320px] overflow-y-auto">
-              {visibleHeatmapTokens.length > 0 ? visibleHeatmapTokens.map((token, index) => (
-                <span
-                  key={`${token.word}-${index}`}
-                  className={`cursor-pointer rounded px-1 mx-0.5 ${toHeatTokenStyle(token.status)}`}
-                  title={token.note || token.status}
-                >
-                  {token.word}
-                </span>
-              )) : (
+              {transcriptTokensWithHeatmap.length > 0 ? (
+                <>
+                  {transcriptTokensWithHeatmap.map((token) => {
+                    if (!token.status) {
+                      return <span key={token.key}>{token.text}</span>;
+                    }
+
+                    return (
+                      <span
+                        key={token.key}
+                        className={`cursor-pointer rounded px-0.5 ${toHeatTokenStyle(token.status)}`}
+                        title={token.note || token.status}
+                      >
+                        {token.text}
+                      </span>
+                    );
+                  })}
+                  {!hasAiHeatmapHighlights && (
+                    <p className="mt-4 text-slate-500 text-sm font-normal">
+                      AI heatmap is not available for this attempt yet. Transcript is shown in full.
+                    </p>
+                  )}
+                </>
+              ) : (
                 <span className="text-slate-500 text-sm">No transcript available.</span>
               )}
             </div>
