@@ -230,6 +230,7 @@ export default function SpeakingResultPhase({ result, topic, onRetry }) {
   const hasProvisional = hasAnalysisPayload(provisionalAnalysis);
   const hasPhase1 = hasAnalysisPayload(phase1Analysis);
   const scoringState = String(result?.scoring_state || '').trim().toLowerCase();
+  const hasRenderableFinal = hasFinal && !isUnavailableAnalysis(finalAnalysis);
   const shouldUsePhase1 = scoringState !== 'completed' && hasPhase1 && (!hasFinal || isUnavailableAnalysis(finalAnalysis));
   const shouldUseProvisional = hasProvisional && (!hasFinal || isUnavailableAnalysis(finalAnalysis));
   const activeAnalysis = shouldUsePhase1
@@ -273,12 +274,12 @@ export default function SpeakingResultPhase({ result, topic, onRetry }) {
     ? 'Phase 1 Ready'
     : (shouldUseProvisional
       ? 'Provisional'
-      : (scoringState === 'completed' ? 'Completed' : 'Processing'));
+      : ((scoringState === 'completed' || hasRenderableFinal) ? 'Completed' : 'Processing'));
   const statusClassName = shouldUsePhase1
     ? 'bg-indigo-100 text-indigo-700'
     : (shouldUseProvisional
       ? 'bg-blue-100 text-blue-700'
-      : (scoringState === 'completed'
+      : ((scoringState === 'completed' || hasRenderableFinal)
         ? 'bg-green-100 text-green-700'
         : 'bg-slate-100 text-slate-700'));
 

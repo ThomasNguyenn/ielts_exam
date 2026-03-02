@@ -7,7 +7,7 @@ import {
   enqueueSpeakingAiPhase2Job,
   isAiQueueReady,
 } from "../queues/ai.queue.js";
-import { scoreSpeakingSessionById } from "../services/speakingGrading.service.js";
+import { mergeSpeakingPhaseAnalyses, scoreSpeakingSessionById } from "../services/speakingGrading.service.js";
 import { evaluateSpeakingProvisionalScore } from "../services/speakingFastScore.service.js";
 import { ensurePart3ConversationScript, generatePromptReadAloudPreview } from "../services/speakingReadAloud.service.js";
 import { parsePagination, buildPaginationMeta } from "../utils/pagination.js";
@@ -79,6 +79,7 @@ const normalizeCueCardText = (value = "") => {
 };
 
 const normalizePart2QuestionTitle = (value = "") => String(value || "").trim();
+const hasMeaningfulAnalysis = (value) => Boolean(value) && typeof value === "object" && Object.keys(value).length > 0;
 
 const toPartNumber = (value) => {
   const parsed = Number.parseInt(value, 10);
@@ -381,6 +382,26 @@ export const getSpeakingSession = async (req, res) => {
       return sendControllerError(req, res, { statusCode: 403, message: "Forbidden"  });
     }
 
+    let effectiveAnalysis = session.analysis || null;
+    if (
+      !hasMeaningfulAnalysis(effectiveAnalysis)
+      && hasMeaningfulAnalysis(session.phase1_analysis)
+      && hasMeaningfulAnalysis(session.phase2_analysis)
+    ) {
+      const topic = await Speaking.findById(session.questionId).select("part prompt").lean();
+      effectiveAnalysis = mergeSpeakingPhaseAnalyses({
+        phase1: session.phase1_analysis,
+        phase1Source: session.phase1_source || "",
+        phase2: session.phase2_analysis,
+        phase2Source: session.phase2_source || "",
+        provisional: session.provisional_analysis,
+        topicPart: topic?.part,
+        topicPrompt: topic?.prompt || "",
+        transcript: String(session.transcript || ""),
+        metrics: session.metrics || {},
+      });
+    }
+
     return res.json({
       success: true,
       data: {
@@ -389,8 +410,8 @@ export const getSpeakingSession = async (req, res) => {
         status: session.status,
         scoring_state: deriveScoringState(session),
         transcript: session.transcript || "",
-        analysis: session.analysis || null,
-        ai_source: session.ai_source || null,
+        analysis: effectiveAnalysis,
+        ai_source: session.ai_source || session.phase2_source || null,
         phase2_source: session.phase2_source || null,
         provisional_analysis: session.provisional_analysis || null,
         provisional_source: session.provisional_source || null,

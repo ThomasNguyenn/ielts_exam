@@ -238,11 +238,14 @@ export default function SpeakingFlow() {
       const session = normalizeSpeakingSessionPayload(statusRes);
       const scoringState = normalizeScoringState(session);
       const legacyStatus = String(session?.status || '').trim().toLowerCase();
+      const parsedFinalAnalysis = parseAnalysisObject(session?.analysis);
+      const hasUsableFinalAnalysis =
+        hasMeaningfulAnalysis(parsedFinalAnalysis) && !isUnavailableAnalysisPayload(parsedFinalAnalysis);
 
       syncProvisionalState(session, { notify: true });
       syncPhase1State(session, { notify: false });
 
-      if (scoringState === 'completed' || legacyStatus === 'completed') {
+      if (scoringState === 'completed' || legacyStatus === 'completed' || hasUsableFinalAnalysis) {
         setResult(buildSpeakingResultPayload(session, sessionId));
         setProcessingStartedAt(null);
         setPhase('result');
@@ -285,7 +288,8 @@ export default function SpeakingFlow() {
       const scoringState = normalizeScoringState(submitPayload);
       const statusValue = String(submitPayload?.status || '').toLowerCase().trim();
       const parsedAnalysis = parseAnalysisObject(submitPayload?.analysis);
-      const hasAnalysis = hasMeaningfulAnalysis(parsedAnalysis);
+      const hasUsableFinalAnalysis =
+        hasMeaningfulAnalysis(parsedAnalysis) && !isUnavailableAnalysisPayload(parsedAnalysis);
 
       syncProvisionalState(submitPayload, { notify: true });
       syncPhase1State(submitPayload, { notify: false });
@@ -296,7 +300,7 @@ export default function SpeakingFlow() {
 
       const shouldPoll =
         Boolean(sessionId) &&
-        !hasAnalysis &&
+        !hasUsableFinalAnalysis &&
         (
           submitPayload?.queued === true ||
           scoringState === 'processing' ||
