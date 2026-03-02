@@ -61,6 +61,7 @@ function sectionToForm(section) {
       audio_url: '',
       source: '',
       isActive: true,
+      isSinglePart: false,
       question_groups: [emptyQuestionGroup()],
     };
   }
@@ -101,6 +102,7 @@ function sectionToForm(section) {
     audio_url: section.audio_url || '',
     source: section.source || '',
     isActive: section.is_active ?? true,
+    isSinglePart: section.isSinglePart ?? false,
     createdAt: section.createdAt || section.created_at,
     question_groups: groups,
   };
@@ -157,6 +159,7 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
     audio_url: '',
     source: '',
     isActive: true,
+    isSinglePart: false,
     question_groups: [emptyQuestionGroup()],
   });
   const [loading, setLoading] = useState(true);
@@ -589,6 +592,7 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
         audio_url: form.audio_url?.trim() || undefined,
         source: form.source?.trim() || undefined,
         is_active: asDraft ? false : form.isActive,
+         isSinglePart: Boolean(form.isSinglePart),
         question_groups: form.question_groups.map((group) => ({
           type: canonicalizeQuestionType(group.type),
           group_layout: group.group_layout || 'default',
@@ -826,6 +830,18 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
               <div className="meta-item">
                 <span className="meta-label">Status</span>
                 <span className={`meta-badge ${form.isActive ? 'badge-active' : 'badge-draft'}`}>{form.isActive ? 'Active' : 'Inactive'}</span>
+              </div>
+
+              <div className="meta-item">
+                <span className="meta-label">Standalone Part</span>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={form.isSinglePart}
+                    onChange={(event) => updateForm('isSinglePart', event.target.checked)}
+                  />
+                  <span className="meta-value">Show in Parts view</span>
+                </label>
               </div>
               <div className="meta-item" style={{ background: '#F8FAFC', padding: '0.75rem', borderRadius: '0.6rem' }}>
                 <span className="meta-label">Total Questions</span>

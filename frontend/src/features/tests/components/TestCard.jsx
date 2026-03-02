@@ -147,6 +147,14 @@ export function TestCard({ test, attemptData, isLoggedIn }) {
 export function PartCard({ part }) {
   const type = part.type || "reading";
 
+  const hasTestOrigin = Boolean(part.testTitle);
+  const originLabel = part.originLabel || (hasTestOrigin ? `From ${part.testTitle}` : null);
+
+  let linkTo = part.linkTo;
+  if (!linkTo && part.testId != null && typeof part.partIndex === "number") {
+    linkTo = `/tests/${part.testId}/exam?part=${part.partIndex}&mode=single`;
+  }
+
   return (
     <article className="tc">
       <h3 className="tc-title">{part.title}</h3>
@@ -158,18 +166,28 @@ export function PartCard({ part }) {
         </Badge>
       </div>
 
-      <p className="tc-part-origin">
-        From <strong>{part.testTitle}</strong>
-      </p>
+      {originLabel ? (
+        <p className="tc-part-origin">
+          {part.originLabel ? (
+            originLabel
+          ) : (
+            <>
+              From <strong>{part.testTitle}</strong>
+            </>
+          )}
+        </p>
+      ) : null}
 
       <div className="tc-actions">
-        <Link
-          to={`/tests/${part.testId}/exam?part=${part.partIndex}&mode=single`}
-          className="tc-btn-primary"
-        >
-          Start part
-          <ArrowRight size={14} />
-        </Link>
+        {linkTo ? (
+          <Link
+            to={linkTo}
+            className="tc-btn-primary"
+          >
+            Start part
+            <ArrowRight size={14} />
+          </Link>
+        ) : null}
       </div>
     </article>
   );

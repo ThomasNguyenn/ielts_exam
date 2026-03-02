@@ -44,6 +44,9 @@ export default function TestList() {
   const [overallTotalTests, setOverallTotalTests] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [standalonePassages, setStandalonePassages] = useState([]);
+  const [standaloneSections, setStandaloneSections] = useState([]);
+  const [standaloneWritings, setStandaloneWritings] = useState([]);
 
   const isLoggedIn = api.isAuthenticated();
   const requestedCategory = viewMode === "full" ? selectedCategory : "all";
@@ -74,6 +77,46 @@ export default function TestList() {
   useEffect(() => {
     setCurrentPage(1);
   }, [viewMode]);
+
+  // Load standalone passages/sections/writings that are marked as single-part content
+  useEffect(() => {
+    if (viewMode !== "parts") return;
+
+    let isMounted = true;
+
+    Promise.all([
+      api.getPassages().catch(() => ({ data: [] })),
+      api.getSections().catch(() => ({ data: [] })),
+      api.getWritings().catch(() => ({ data: [] })),
+    ])
+      .then(([passagesRes, sectionsRes, writingsRes]) => {
+        if (!isMounted) return;
+
+        const safePassages = (passagesRes?.data || []).filter(
+          (item) => item?.isSinglePart && item?.is_active !== false,
+        );
+        const safeSections = (sectionsRes?.data || []).filter(
+          (item) => item?.isSinglePart && item?.is_active !== false,
+        );
+        const safeWritings = (writingsRes?.data || []).filter(
+          (item) => item?.isSinglePart && item?.is_active !== false,
+        );
+
+        setStandalonePassages(safePassages);
+        setStandaloneSections(safeSections);
+        setStandaloneWritings(safeWritings);
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setStandalonePassages([]);
+        setStandaloneSections([]);
+        setStandaloneWritings([]);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [viewMode, reloadKey]);
 
   useEffect(() => {
     setError(null);
@@ -234,7 +277,9 @@ export default function TestList() {
   const matchesType = (test) => selectedType === "all" || getType(test) === selectedType;
   const normalizedQuery = searchQuery.trim().toLowerCase();
 
-  const typeFilteredTests = tests.filter(matchesType);
+  // Hide archived tests (where is_active === false)
+  const visibleTests = tests.filter((test) => test.is_active !== false);
+  const typeFilteredTests = visibleTests.filter(matchesType);
   const searchFilteredTests = typeFilteredTests.filter((test) => {
     if (!normalizedQuery) return true;
     return (
@@ -345,9 +390,127 @@ export default function TestList() {
       }
     });
 
+    // Standalone reading passages
+    const standaloneReadingCategory = "Standalone Reading";
+    const standaloneListeningCategory = "Standalone Listening";
+    const standaloneWritingCategory = "Standalone Writing";
+
+    standalonePassages.forEach((passage) => {
+      const cat = standaloneReadingCategory;
+
+      if (selectedType !== "all" && selectedType !== "reading") return;
+
+      const query = normalizedQuery;
+      if (query) {
+        const matchesQuery =
+          passage.title?.toLowerCase().includes(query) ||
+          String(passage._id || "").toLowerCase().includes(query) ||
+          cat.toLowerCase().includes(query);
+        if (!matchesQuery) return;
+      }
+
+      const questionGroupTypes = Array.from(
+        new Set(
+          (passage?.question_groups || [])
+            .map((group) => canonicalizeQuestionGroupType(group?.type))
+            .filter(Boolean),
+        ),
+      );
+
+      flattenedParts.push({
+        uniqueId: `passage_${passage._id}`,
+        testId: null,
+        testTitle: null,
+        title: passage.title,
+        testTitleFallback: passage.title,
+        category: cat,
+        type: "reading",
+        partIndex: 0,
+        label: "Standalone passage",
+        questionGroupTypes,
+        isStandalone: true,
+        linkTo: `/tests/standalone/reading/${encodeURIComponent(passage._id)}`,
+        originLabel: "Standalone reading passage",
+      });
+    });
+
+    // Standalone listening sections
+    standaloneSections.forEach((section) => {
+      const cat = standaloneListeningCategory;
+
+      if (selectedType !== "all" && selectedType !== "listening") return;
+
+      const query = normalizedQuery;
+      if (query) {
+        const matchesQuery =
+          section.title?.toLowerCase().includes(query) ||
+          String(section._id || "").toLowerCase().includes(query) ||
+          cat.toLowerCase().includes(query);
+        if (!matchesQuery) return;
+      }
+
+      const questionGroupTypes = Array.from(
+        new Set(
+          (section?.question_groups || [])
+            .map((group) => canonicalizeQuestionGroupType(group?.type))
+            .filter(Boolean),
+        ),
+      );
+
+      flattenedParts.push({
+        uniqueId: `section_${section._id}`,
+        testId: null,
+        testTitle: null,
+        title: section.title,
+        testTitleFallback: section.title,
+        category: cat,
+        type: "listening",
+        partIndex: 0,
+        label: "Standalone section",
+        questionGroupTypes,
+        isStandalone: true,
+        linkTo: `/tests/standalone/listening/${encodeURIComponent(section._id)}`,
+        originLabel: "Standalone listening section",
+      });
+    });
+
+    // Standalone writing tasks
+    standaloneWritings.forEach((writing) => {
+      const cat = standaloneWritingCategory;
+
+      if (selectedType !== "all" && selectedType !== "writing") return;
+
+      const query = normalizedQuery;
+      if (query) {
+        const matchesQuery =
+          writing.title?.toLowerCase().includes(query) ||
+          String(writing._id || "").toLowerCase().includes(query) ||
+          cat.toLowerCase().includes(query);
+        if (!matchesQuery) return;
+      }
+
+      flattenedParts.push({
+        uniqueId: `writing_${writing._id}`,
+        testId: null,
+        testTitle: null,
+        title: writing.title,
+        testTitleFallback: writing.title,
+        category: cat,
+        type: "writing",
+        partIndex: 0,
+        label: "Standalone writing task",
+        questionGroupTypes: [],
+        isStandalone: true,
+        linkTo: `/tests/writing/${writing._id}`,
+        originLabel: "Standalone writing task",
+      });
+    });
+
     if (selectedPartFilter !== "all") {
       const targetIndex = Number.parseInt(selectedPartFilter.replace("part", ""), 10) - 1;
-      flattenedParts = flattenedParts.filter((part) => part.partIndex === targetIndex);
+      flattenedParts = flattenedParts.filter(
+        (part) => part.isStandalone || part.partIndex === targetIndex,
+      );
     }
 
     if (canUseQuestionGroupFilter) {

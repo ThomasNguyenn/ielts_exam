@@ -50,7 +50,9 @@ const PassageSchema = new mongoose.Schema({
     content: { type: String, required: true }, // Noi dung doan van
     question_groups: [QuestionGroupSchema],
     source: { type: String }, // Mang cac nhom cau hoi thuoc doan van nay
-    is_active: { type: Boolean, default: true }
+    is_active: { type: Boolean, default: true },
+    // Danh dau passage nay la 1 part doc lap (khong thuoc Test nao)
+    isSinglePart: { type: Boolean, default: false }
 }, { timestamps: true });
 
 

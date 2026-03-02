@@ -14,6 +14,8 @@ const Home = lazy(() => import('@/features/home/pages/Home'));
 const TestList = lazy(() => import('@/features/tests/pages/TestList'));
 const TestDetail = lazy(() => import('@/features/tests/pages/TestDetail'));
 const Exam = lazy(() => import('@/features/tests/pages/Exam'));
+const StandaloneReadingExam = lazy(() => import('@/features/tests/pages/StandaloneReadingExam'));
+const StandaloneListeningExam = lazy(() => import('@/features/tests/pages/StandaloneListeningExam'));
 const TestHistory = lazy(() => import('@/features/tests/pages/TestHistory'));
 const TestAttemptResult = lazy(() => import('@/features/tests/pages/TestAttemptResult'));
 const WritingSubmissionView = lazy(() => import('@/features/tests/pages/WritingSubmissionView'));
@@ -167,6 +169,8 @@ export default function App() {
           <Route path="tests/:id/history" element={<ProtectedRoute>{withSuspense(<TestHistory />)}</ProtectedRoute>} />
           <Route path="tests/:testId/attempts/:attemptId/result" element={<ProtectedRoute>{withSuspense(<TestAttemptResult />)}</ProtectedRoute>} />
           <Route path="tests/:id/exam" element={<ProtectedRoute>{withSuspense(<Exam />)}</ProtectedRoute>} />
+          <Route path="tests/standalone/reading/:passageId" element={<ProtectedRoute>{withSuspense(<StandaloneReadingExam />)}</ProtectedRoute>} />
+          <Route path="tests/standalone/listening/:sectionId" element={<ProtectedRoute>{withSuspense(<StandaloneListeningExam />)}</ProtectedRoute>} />
 
           {/* Writing Practice/Test Route */}
           <Route path="tests/writing/:id" element={<ProtectedRoute>{withSuspense(<PracticeFlowContainer />)}</ProtectedRoute>} />

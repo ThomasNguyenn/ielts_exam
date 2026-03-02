@@ -92,7 +92,7 @@ function emptyQuestionGroup() {
 }
 
 function passageToForm(p) {
-  if (!p) return { _id: '', title: '', content: '', source: '', isActive: true, question_groups: [emptyQuestionGroup()] };
+  if (!p) return { _id: '', title: '', content: '', source: '', isActive: true, isSinglePart: false, question_groups: [emptyQuestionGroup()] };
   const groups = p.question_groups && p.question_groups.length
     ? p.question_groups.map((g) => ({
       type: canonicalizeQuestionType(g.type),
@@ -122,6 +122,7 @@ function passageToForm(p) {
     content: p.content || '',
     source: p.source || '',
     isActive: p.is_active ?? p.isActive ?? true,
+    isSinglePart: p.isSinglePart ?? false,
     createdAt: p.createdAt || p.created_at,
     question_groups: groups,
   };
@@ -156,6 +157,7 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
     content: '',
     source: '',
     isActive: true,
+    isSinglePart: false,
     question_groups: [emptyQuestionGroup()],
   });
 
@@ -592,6 +594,7 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
         content: form.content.trim(),
         source: form.source.trim() || undefined,
         is_active: asDraft ? false : form.isActive,
+        isSinglePart: Boolean(form.isSinglePart),
         question_groups: form.question_groups.map((g) => ({
           type: canonicalizeQuestionType(g.type),
           group_layout: g.group_layout,
@@ -947,6 +950,18 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
                 <span className={`meta-badge ${form.isActive ? 'badge-active' : 'badge-draft'}`}>
                   {form.isActive ? 'Active' : 'Inactive'}
                 </span>
+              </div>
+
+              <div className="meta-item">
+                <span className="meta-label">Standalone Part</span>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={form.isSinglePart}
+                    onChange={(e) => updateForm('isSinglePart', e.target.checked)}
+                  />
+                  <span className="meta-value">Show in Parts view</span>
+                </label>
               </div>
 
               <div className="meta-item" style={{ marginTop: '0.5rem', background: '#F8FAFC', padding: '0.75rem', borderRadius: '0.5rem' }}>

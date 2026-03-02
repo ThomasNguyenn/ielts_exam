@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import TrueFalseGroup from './components/TrueFalseGroup';
 import MultipleChoice from './components/MultipleChoice';
 import MatchingGroup from './components/MatchingGroup';
+import MatchingInformationTableGroup from './components/MatchingInformationTableGroup';
 import GapFillGroup from './components/GapFillGroup';
 import TableCompletionGroup from './components/TableCompletionGroup';
 import DiagramLabelGroup from './components/DiagramLabelGroup';
@@ -254,6 +255,7 @@ export default function Exam({
 
   const renderGroup = (group) => {
     const coreType = normalizeGroupType(group);
+    const rawType = String(group?.type || '').trim().toLowerCase();
 
     switch (coreType) {
       case CORE_TYPES.TFNG:
@@ -291,6 +293,17 @@ export default function Exam({
         );
 
       case CORE_TYPES.MATCHING:
+        if (rawType === 'matching_information' || rawType === 'matching_info') {
+          return (
+            <MatchingInformationTableGroup
+              group={group}
+              answers={answers}
+              setAnswer={setAnswer}
+              readOnly={readOnly}
+            />
+          );
+        }
+
         return (
           <MatchingGroup
             group={normalizeMatchingGroup(group)}

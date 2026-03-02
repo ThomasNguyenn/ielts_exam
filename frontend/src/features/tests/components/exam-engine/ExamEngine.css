@@ -109,6 +109,96 @@
   padding: 0.45rem 0.55rem;
 }
 
+.engine-matching-info-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.65rem;
+  background: #ffffff;
+}
+
+.engine-matching-info-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 620px;
+}
+
+.engine-matching-info-table th,
+.engine-matching-info-table td {
+  border: 1px solid #e2e8f0;
+  padding: 0.6rem;
+}
+
+.engine-matching-info-row-header,
+.engine-matching-info-col-header {
+  background: #f8fafc;
+  color: #334155;
+  font-weight: 700;
+  text-align: center;
+}
+
+.engine-matching-info-row-header {
+  text-align: left;
+  min-width: 280px;
+}
+
+.engine-matching-info-row-label {
+  background: #f8fafc;
+  color: #0f172a;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.engine-matching-info-cell {
+  padding: 0;
+  text-align: center;
+}
+
+.engine-matching-info-cell-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  width: 100%;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.engine-matching-info-cell-label:hover {
+  background: #f0f9ff;
+}
+
+.engine-matching-info-checkbox {
+  width: 1.05rem;
+  height: 1.05rem;
+  cursor: pointer;
+  accent-color: #4f46e5;
+}
+
+.engine-matching-info-checkbox:disabled {
+  cursor: not-allowed;
+}
+
+.engine-matching-info-cell-label.is-disabled {
+  cursor: not-allowed;
+  background: #f8fafc;
+}
+
+@media (max-width: 768px) {
+  .engine-matching-info-table {
+    min-width: 520px;
+  }
+
+  .engine-matching-info-row-header {
+    min-width: 220px;
+  }
+
+  .engine-matching-info-table th,
+  .engine-matching-info-table td {
+    padding: 0.5rem;
+  }
+}
+
 .engine-gap-passage {
   margin: 0;
   line-height: 1.8;

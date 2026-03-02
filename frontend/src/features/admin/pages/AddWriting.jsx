@@ -23,6 +23,7 @@ function writingToForm(writing) {
       band_score: '7.0',
       isActive: true,
       is_real_test: false,
+      isSinglePart: false,
       createdAt: null,
     };
   }
@@ -42,6 +43,7 @@ function writingToForm(writing) {
     band_score: String(writing.band_score ?? '7.0'),
     isActive: writing.is_active ?? true,
     is_real_test: writing.is_real_test ?? false,
+    isSinglePart: writing.isSinglePart ?? false,
     createdAt: writing.created_at || writing.createdAt || null,
   };
 }
@@ -147,6 +149,7 @@ export default function AddWriting({ editIdOverride = null, embedded = false, on
         band_score: Number(form.band_score) || undefined,
         is_active: asDraft ? false : form.isActive,
         is_real_test: form.is_real_test,
+        isSinglePart: Boolean(form.isSinglePart),
       };
 
       if (editId) {
@@ -420,6 +423,17 @@ export default function AddWriting({ editIdOverride = null, embedded = false, on
                 <span className={`meta-badge ${form.isActive ? 'badge-active' : 'badge-draft'}`}>
                   {form.isActive ? 'Active' : 'Inactive'}
                 </span>
+              </div>
+              <div className="meta-item">
+                <span className="meta-label">Standalone Part</span>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={form.isSinglePart}
+                    onChange={(event) => updateForm('isSinglePart', event.target.checked)}
+                  />
+                  <span className="meta-value">Show in Parts view</span>
+                </label>
               </div>
               <div className="meta-item" style={{ background: '#F8FAFC', padding: '0.75rem', borderRadius: '0.6rem' }}>
                 <span className="meta-label">Mode</span>

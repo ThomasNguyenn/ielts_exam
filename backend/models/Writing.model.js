@@ -23,6 +23,8 @@ const WritingSchema = new mongoose.Schema({
   created_at: { type: Date, default: Date.now },
   is_active: { type: Boolean, default: true },
   is_real_test: { type: Boolean, default: false }, // Distinguish between Practice and "Real" Writing Tests
+  // Danh dau Writing nay la 1 part doc lap (khong thuoc Test nao)
+  isSinglePart: { type: Boolean, default: false },
 });
 
 const Writing = mongoose.models.Writing || mongoose.model('Writing', WritingSchema);

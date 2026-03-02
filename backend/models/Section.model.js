@@ -51,7 +51,9 @@ const SectionSchema = new mongoose.Schema({
     audio_url: { type: String }, // URL to MP3 audio file for listening section
     question_groups: [QuestionGroupSchema],
     source: { type: String }, // Mang cac nhom cau hoi thuoc doan van nay
-    is_active: { type: Boolean, default: true }
+    is_active: { type: Boolean, default: true },
+    // Danh dau section nay la 1 part doc lap (khong thuoc Test nao)
+    isSinglePart: { type: Boolean, default: false }
 }, { timestamps: true });
 
 
