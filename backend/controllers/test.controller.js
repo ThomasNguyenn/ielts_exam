@@ -636,12 +636,65 @@ export const getExamData = async (req, res) => {
             .lean();
 
         if (!test) {
-            // Fallback: Maybe it's a standalone Writing task ID?
+            const Passage = (await import("../models/Passage.model.js")).default;
+            const Section = (await import("../models/Section.model.js")).default;
             const Writing = (await import("../models/Writing.model.js")).default;
-            const writingTask = await Writing.findById(id).lean();
+
+            const [passage, section, writingTask] = await Promise.all([
+                Passage.findById(id).lean(),
+                Section.findById(id).lean(),
+                Writing.findById(id).lean(),
+            ]);
+
+            if (passage) {
+                if (!privileged && passage.is_active === false) {
+                    return sendControllerError(req, res, { statusCode: 404, message: "Standalone passage not found"  });
+                }
+
+                return res.status(200).json({
+                    success: true,
+                    data: {
+                        testId: passage._id,
+                        title: passage.title,
+                        type: 'reading',
+                        is_real_test: false,
+                        is_standalone: true,
+                        standalone_type: 'reading',
+                        duration: 20,
+                        full_audio: null,
+                        reading: [stripForExam(passage)],
+                        listening: [],
+                        writing: [],
+                    },
+                });
+            }
+
+            if (section) {
+                if (!privileged && section.is_active === false) {
+                    return sendControllerError(req, res, { statusCode: 404, message: "Standalone section not found"  });
+                }
+
+                return res.status(200).json({
+                    success: true,
+                    data: {
+                        testId: section._id,
+                        title: section.title,
+                        type: 'listening',
+                        is_real_test: false,
+                        is_standalone: true,
+                        standalone_type: 'listening',
+                        duration: 10,
+                        full_audio: null,
+                        reading: [],
+                        listening: [stripForExam(section)],
+                        writing: [],
+                    },
+                });
+            }
+
             if (writingTask) {
                 if (!privileged && writingTask.is_active === false) {
-                    return sendControllerError(req, res, { statusCode: 404, message: "Test or Writing task not found"  });
+                    return sendControllerError(req, res, { statusCode: 404, message: "Standalone writing task not found"  });
                 }
                 return res.status(200).json({
                     success: true,
@@ -650,7 +703,10 @@ export const getExamData = async (req, res) => {
                         title: writingTask.title,
                         type: 'writing',
                         is_real_test: writingTask.is_real_test || false,
+                        is_standalone: true,
+                        standalone_type: 'writing',
                         duration: writingTask.time_limit || 60,
+                        full_audio: null,
                         reading: [],
                         listening: [],
                         writing: [{
@@ -663,7 +719,8 @@ export const getExamData = async (req, res) => {
                     },
                 });
             }
-            return sendControllerError(req, res, { statusCode: 404, message: "Test or Writing task not found"  });
+
+            return sendControllerError(req, res, { statusCode: 404, message: "Test not found"  });
         }
         if (!privileged && test.is_active === false) {
             return sendControllerError(req, res, { statusCode: 404, message: "Test or Writing task not found"  });

@@ -24,6 +24,8 @@ import {
 import "./TestList.css";
 
 const PAGE_SIZE = 12;
+const isActiveContent = (item) => item?.is_active !== false && item?.isActive !== false;
+const isStandaloneContent = (item) => item?.isSinglePart === true;
 
 export default function TestList() {
   const [tests, setTests] = useState([]);
@@ -93,13 +95,13 @@ export default function TestList() {
         if (!isMounted) return;
 
         const safePassages = (passagesRes?.data || []).filter(
-          (item) => item?.isSinglePart && item?.is_active !== false,
+          (item) => isStandaloneContent(item) && isActiveContent(item),
         );
         const safeSections = (sectionsRes?.data || []).filter(
-          (item) => item?.isSinglePart && item?.is_active !== false,
+          (item) => isStandaloneContent(item) && isActiveContent(item),
         );
         const safeWritings = (writingsRes?.data || []).filter(
-          (item) => item?.isSinglePart && item?.is_active !== false,
+          (item) => isStandaloneContent(item) && isActiveContent(item),
         );
 
         setStandalonePassages(safePassages);
@@ -259,6 +261,51 @@ export default function TestList() {
       });
     });
 
+    const standaloneReadingCategory = "Standalone Reading";
+    const standaloneListeningCategory = "Standalone Listening";
+
+    if (selectedType === "reading") {
+      standalonePassages.forEach((passage) => {
+        if (!isStandaloneContent(passage) || !isActiveContent(passage)) return;
+        if (targetPartIndex !== null && targetPartIndex !== 0) return;
+        if (selectedCategory !== "all" && selectedCategory !== standaloneReadingCategory) return;
+
+        if (query) {
+          const matchesQuery =
+            String(passage?.title || "").toLowerCase().includes(query) ||
+            String(passage?._id || "").toLowerCase().includes(query) ||
+            standaloneReadingCategory.toLowerCase().includes(query);
+          if (!matchesQuery) return;
+        }
+
+        (passage?.question_groups || []).forEach((group) => {
+          const canonicalType = canonicalizeQuestionGroupType(group?.type);
+          if (canonicalType) availableTypes.add(canonicalType);
+        });
+      });
+    }
+
+    if (selectedType === "listening") {
+      standaloneSections.forEach((section) => {
+        if (!isStandaloneContent(section) || !isActiveContent(section)) return;
+        if (targetPartIndex !== null && targetPartIndex !== 0) return;
+        if (selectedCategory !== "all" && selectedCategory !== standaloneListeningCategory) return;
+
+        if (query) {
+          const matchesQuery =
+            String(section?.title || "").toLowerCase().includes(query) ||
+            String(section?._id || "").toLowerCase().includes(query) ||
+            standaloneListeningCategory.toLowerCase().includes(query);
+          if (!matchesQuery) return;
+        }
+
+        (section?.question_groups || []).forEach((group) => {
+          const canonicalType = canonicalizeQuestionGroupType(group?.type);
+          if (canonicalType) availableTypes.add(canonicalType);
+        });
+      });
+    }
+
     if (selectedQuestionGroupFilter !== "all" && !availableTypes.has(selectedQuestionGroupFilter)) {
       setSelectedQuestionGroupFilter("all");
     }
@@ -268,6 +315,8 @@ export default function TestList() {
     selectedQuestionGroupFilter,
     selectedType,
     searchQuery,
+    standalonePassages,
+    standaloneSections,
     tests,
     viewMode,
   ]);
@@ -324,11 +373,23 @@ export default function TestList() {
       return acc;
     }, {});
   } else {
+    const standalonePassageIds = new Set(
+      standalonePassages.map((item) => String(item?._id || "")).filter(Boolean),
+    );
+    const standaloneSectionIds = new Set(
+      standaloneSections.map((item) => String(item?._id || "")).filter(Boolean),
+    );
+    const standaloneWritingIds = new Set(
+      standaloneWritings.map((item) => String(item?._id || "")).filter(Boolean),
+    );
+
     searchFilteredTests.forEach((test) => {
       const cat = getCategory(test);
 
       if (test.type === "reading" && test.reading_passages) {
         test.reading_passages.forEach((passage, index) => {
+          const passageId = String(passage?._id || "");
+          if (standalonePassageIds.has(passageId)) return;
           const questionGroupTypes = Array.from(
             new Set(
               (passage?.question_groups || [])
@@ -352,6 +413,8 @@ export default function TestList() {
 
       if (test.type === "listening" && test.listening_sections) {
         test.listening_sections.forEach((section, index) => {
+          const sectionId = String(section?._id || "");
+          if (standaloneSectionIds.has(sectionId)) return;
           const questionGroupTypes = Array.from(
             new Set(
               (section?.question_groups || [])
@@ -375,6 +438,8 @@ export default function TestList() {
 
       if (test.type === "writing" && test.writing_tasks) {
         test.writing_tasks.forEach((task, index) => {
+          const writingId = String(task?._id || "");
+          if (standaloneWritingIds.has(writingId)) return;
           flattenedParts.push({
             uniqueId: `${test._id}_w${index}`,
             testId: test._id,
@@ -426,10 +491,10 @@ export default function TestList() {
         category: cat,
         type: "reading",
         partIndex: 0,
-        label: "Standalone passage",
+        label: "Passage 1",
         questionGroupTypes,
         isStandalone: true,
-        linkTo: `/tests/standalone/reading/${encodeURIComponent(passage._id)}`,
+        linkTo: `/tests/${encodeURIComponent(passage._id)}/exam?mode=single&part=0&standalone=reading`,
         originLabel: "Standalone reading passage",
       });
     });
@@ -466,10 +531,10 @@ export default function TestList() {
         category: cat,
         type: "listening",
         partIndex: 0,
-        label: "Standalone section",
+        label: "Section 1",
         questionGroupTypes,
         isStandalone: true,
-        linkTo: `/tests/standalone/listening/${encodeURIComponent(section._id)}`,
+        linkTo: `/tests/${encodeURIComponent(section._id)}/exam?mode=single&part=0&standalone=listening`,
         originLabel: "Standalone listening section",
       });
     });
@@ -498,19 +563,17 @@ export default function TestList() {
         category: cat,
         type: "writing",
         partIndex: 0,
-        label: "Standalone writing task",
+        label: "Task 1",
         questionGroupTypes: [],
         isStandalone: true,
-        linkTo: `/tests/writing/${writing._id}`,
+        linkTo: `/tests/${encodeURIComponent(writing._id)}/exam?mode=single&part=0&standalone=writing`,
         originLabel: "Standalone writing task",
       });
     });
 
     if (selectedPartFilter !== "all") {
       const targetIndex = Number.parseInt(selectedPartFilter.replace("part", ""), 10) - 1;
-      flattenedParts = flattenedParts.filter(
-        (part) => part.isStandalone || part.partIndex === targetIndex,
-      );
+      flattenedParts = flattenedParts.filter((part) => part.partIndex === targetIndex);
     }
 
     if (canUseQuestionGroupFilter) {

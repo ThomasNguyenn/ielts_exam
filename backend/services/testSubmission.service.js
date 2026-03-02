@@ -74,10 +74,38 @@ export async function loadExamData(testId) {
         return test;
     }
 
+    const Passage = (await import("../models/Passage.model.js")).default;
+    const Section = (await import("../models/Section.model.js")).default;
     const Writing = (await import("../models/Writing.model.js")).default;
-    const standaloneWritingTask = await Writing.findById(testId).lean();
+
+    const [standalonePassage, standaloneSection, standaloneWritingTask] = await Promise.all([
+        Passage.findById(testId).lean(),
+        Section.findById(testId).lean(),
+        Writing.findById(testId).lean(),
+    ]);
+
+    if (standalonePassage) {
+        return {
+            _id: standalonePassage._id,
+            type: "reading",
+            reading_passages: [standalonePassage],
+            listening_sections: [],
+            writing_tasks: [],
+        };
+    }
+
+    if (standaloneSection) {
+        return {
+            _id: standaloneSection._id,
+            type: "listening",
+            reading_passages: [],
+            listening_sections: [standaloneSection],
+            writing_tasks: [],
+        };
+    }
+
     if (!standaloneWritingTask) {
-        throw new SubmissionError(404, "Test or Writing task not found");
+        throw new SubmissionError(404, "Test not found");
     }
 
     test = {

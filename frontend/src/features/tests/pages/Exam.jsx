@@ -86,9 +86,16 @@ export default function Exam() {
   const location = useLocation();
   const navigate = useNavigate();
   const searchParams = new URLSearchParams(location.search);
+  const standaloneTypeFromQuery = searchParams.get('standalone');
   // Determine single mode based on params. 
   // We strictly require 'part' param to be present for Single Mode to avoid "Full Test bug" where mode=single is always present.
   const isSingleMode = searchParams.get('mode') === 'single' && searchParams.get('part') !== null;
+  const isStandaloneExam =
+    Boolean(exam?.is_standalone) ||
+    standaloneTypeFromQuery === 'reading' ||
+    standaloneTypeFromQuery === 'listening' ||
+    standaloneTypeFromQuery === 'writing';
+  const exitTestPath = isStandaloneExam ? '/tests' : `/tests/${id}`;
   const draftKey = useMemo(() => {
     const part = searchParams.get('part') ?? 'full';
     const mode = searchParams.get('mode') ?? 'full';
@@ -961,7 +968,7 @@ export default function Exam() {
           </div>
 
           <div className="exam-header-right">
-            <Link to={`/tests/${id}`} className="btn-exit-test">
+            <Link to={exitTestPath} className="btn-exit-test">
               Exit Test
             </Link>
             <div className="exam-timer-wrapper" role="status" aria-live="polite">

@@ -8,6 +8,8 @@ const userFindByIdMock = vi.fn();
 const writingSubmissionCreateMock = vi.fn();
 const writingSubmissionDeleteManyMock = vi.fn();
 const writingFindByIdMock = vi.fn();
+const passageFindByIdMock = vi.fn();
+const sectionFindByIdMock = vi.fn();
 const addXPMock = vi.fn();
 const checkAchievementsMock = vi.fn();
 const evaluateObjectiveErrorsAsyncMock = vi.fn();
@@ -58,6 +60,18 @@ vi.mock("../../models/Writing.model.js", () => ({
   },
 }));
 
+vi.mock("../../models/Passage.model.js", () => ({
+  default: {
+    findById: passageFindByIdMock,
+  },
+}));
+
+vi.mock("../../models/Section.model.js", () => ({
+  default: {
+    findById: sectionFindByIdMock,
+  },
+}));
+
 vi.mock("../../services/gamification.service.js", () => ({
   XP_TEST_COMPLETION: 15,
   addXP: addXPMock,
@@ -85,6 +99,8 @@ beforeEach(() => {
 
   testFindByIdMock.mockImplementation(() => createPopulateChain(null));
   writingFindByIdMock.mockImplementation(() => createLeanChain(null));
+  passageFindByIdMock.mockImplementation(() => createLeanChain(null));
+  sectionFindByIdMock.mockImplementation(() => createLeanChain(null));
 
   testAttemptCreateMock.mockResolvedValue(undefined);
   testAttemptDeleteManyMock.mockResolvedValue({ deletedCount: 0 });
@@ -293,9 +309,11 @@ describe("submitExamFlow", () => {
     });
   });
 
-  it("throws SubmissionError(404) when both test and standalone writing task are missing", async () => {
+  it("throws SubmissionError(404) when both test and standalone items are missing", async () => {
     testFindByIdMock.mockImplementation(() => createPopulateChain(null));
     writingFindByIdMock.mockImplementation(() => createLeanChain(null));
+    passageFindByIdMock.mockImplementation(() => createLeanChain(null));
+    sectionFindByIdMock.mockImplementation(() => createLeanChain(null));
 
     let thrown;
     try {
@@ -313,7 +331,7 @@ describe("submitExamFlow", () => {
     expect(thrown).toBeInstanceOf(SubmissionError);
     expect(thrown).toMatchObject({
       statusCode: 404,
-      message: "Test or Writing task not found",
+      message: "Test not found",
     });
   });
 });
