@@ -22,6 +22,27 @@ const toTimeValue = (value) => {
 
 const ONLINE_WINDOW_MINUTES = 5;
 const ONLINE_WINDOW_MS = ONLINE_WINDOW_MINUTES * 60 * 1000;
+const SPEAKING_STUCK_THRESHOLD_MS = Math.max(
+    1000,
+    Number(process.env.SPEAKING_STUCK_THRESHOLD_MS || 60_000),
+);
+const SPEAKING_REPAIR_DEFAULT_WINDOW_HOURS = 24;
+const SPEAKING_REPAIR_DEFAULT_LIMIT = 200;
+const SPEAKING_REPAIR_MAX_LIMIT = 1000;
+
+const toBoolean = (value, fallback = false) => {
+    if (value === undefined || value === null) return fallback;
+    const normalized = String(value).trim().toLowerCase();
+    if (["1", "true", "yes", "on"].includes(normalized)) return true;
+    if (["0", "false", "no", "off"].includes(normalized)) return false;
+    return fallback;
+};
+
+const toPositiveInt = (value, fallback, max = Number.MAX_SAFE_INTEGER) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+    return Math.min(Math.floor(parsed), max);
+};
 
 const buildOnlineThreshold = (now = new Date()) =>
     new Date(now.getTime() - ONLINE_WINDOW_MS);
@@ -343,6 +364,219 @@ export const getOnlineStudents = async (req, res) => {
             pagination: buildPaginationMeta({ page, limit, totalItems }),
             online_window_minutes: ONLINE_WINDOW_MINUTES,
             as_of: now.toISOString(),
+        });
+    } catch (error) {
+        return handleControllerError(req, res, error);
+    }
+};
+
+export const repairStuckSpeakingSessions = async (req, res) => {
+    try {
+        res.set("Cache-Control", "no-store");
+        const body = req.body || {};
+        const windowHours = toPositiveInt(
+            body.window_hours,
+            SPEAKING_REPAIR_DEFAULT_WINDOW_HOURS,
+            24 * 30,
+        );
+        const limit = toPositiveInt(
+            body.limit,
+            SPEAKING_REPAIR_DEFAULT_LIMIT,
+            SPEAKING_REPAIR_MAX_LIMIT,
+        );
+        const dryRun = toBoolean(body.dry_run, false);
+        const now = new Date();
+        const thresholdDate = new Date(now.getTime() - windowHours * 60 * 60 * 1000);
+
+        const [speakingService, speakingQueue] = await Promise.all([
+            import("../services/speakingGrading.service.js"),
+            import("../queues/ai.queue.js"),
+        ]);
+
+        const sessions = await SpeakingSession.find({
+            $or: [
+                { timestamp: { $gte: thresholdDate } },
+                { createdAt: { $gte: thresholdDate } },
+            ],
+        })
+            .sort({ timestamp: -1 })
+            .limit(limit)
+            .lean();
+
+        const summary = {
+            scanned: 0,
+            finalized: 0,
+            requeued_phase1: 0,
+            requeued_phase2: 0,
+            skipped_guardrail: 0,
+            skipped_not_stuck: 0,
+            errors: [],
+        };
+
+        for (let index = 0; index < sessions.length; index += 1) {
+            const session = sessions[index] || {};
+            const sessionId = String(session?._id || "");
+            summary.scanned += 1;
+
+            if (!sessionId) {
+                summary.skipped_not_stuck += 1;
+                continue;
+            }
+
+            const hasFinal = speakingService.isUsableSpeakingAnalysis(session?.analysis);
+            const hasPhase1 = speakingService.isUsableSpeakingAnalysis(session?.phase1_analysis);
+            const hasPhase2 = speakingService.isUsableSpeakingAnalysis(session?.phase2_analysis);
+            const ageMs = Math.max(0, Date.now() - toTimeValue(session?.timestamp || session?.createdAt || now));
+
+            if (hasFinal || (!hasPhase1 && !hasPhase2) || ageMs < SPEAKING_STUCK_THRESHOLD_MS) {
+                summary.skipped_not_stuck += 1;
+                continue;
+            }
+
+            try {
+                if (hasPhase1 && hasPhase2) {
+                    if (dryRun) {
+                        summary.finalized += 1;
+                    } else {
+                        const finalizeResult = await speakingService.finalizeSpeakingSessionById({ sessionId });
+                        if (
+                            finalizeResult?.finalized
+                            || speakingService.isUsableSpeakingAnalysis(finalizeResult?.session?.analysis)
+                        ) {
+                            summary.finalized += 1;
+                        } else {
+                            summary.skipped_not_stuck += 1;
+                        }
+                    }
+                    continue;
+                }
+
+                if (hasPhase2 && !hasPhase1) {
+                    const phase1Count = Number(session?.phase1_auto_requeue_count || 0);
+                    if (phase1Count >= 1) {
+                        summary.skipped_guardrail += 1;
+                        continue;
+                    }
+
+                    if (dryRun) {
+                        summary.requeued_phase1 += 1;
+                        continue;
+                    }
+
+                    const guarded = await SpeakingSession.findOneAndUpdate(
+                        {
+                            _id: sessionId,
+                            status: { $ne: "completed" },
+                            $or: [
+                                { phase1_auto_requeue_count: { $exists: false } },
+                                { phase1_auto_requeue_count: { $lt: 1 } },
+                            ],
+                        },
+                        {
+                            $inc: { phase1_auto_requeue_count: 1 },
+                            $set: { phase1_last_requeue_at: new Date() },
+                        },
+                        { new: true },
+                    ).lean();
+
+                    if (!guarded) {
+                        summary.skipped_guardrail += 1;
+                        continue;
+                    }
+
+                    const repairTag = `backfill-${Date.now()}-${index}-p1`;
+                    const queueResult = await speakingQueue.enqueueSpeakingAiPhase1Job({
+                        sessionId,
+                        force: true,
+                        repairTag,
+                    });
+                    if (queueResult?.queued) {
+                        summary.requeued_phase1 += 1;
+                    } else {
+                        summary.errors.push({
+                            session_id: sessionId,
+                            action: "requeue_phase1",
+                            reason: queueResult?.reason || "queue_not_ready",
+                        });
+                    }
+                    continue;
+                }
+
+                if (hasPhase1 && !hasPhase2) {
+                    const uploadState = String(session?.audio_upload_state || "").trim().toLowerCase();
+                    if (!["ready", "failed"].includes(uploadState)) {
+                        summary.skipped_not_stuck += 1;
+                        continue;
+                    }
+
+                    const phase2Count = Number(session?.phase2_auto_requeue_count || 0);
+                    if (phase2Count >= 1) {
+                        summary.skipped_guardrail += 1;
+                        continue;
+                    }
+
+                    if (dryRun) {
+                        summary.requeued_phase2 += 1;
+                        continue;
+                    }
+
+                    const guarded = await SpeakingSession.findOneAndUpdate(
+                        {
+                            _id: sessionId,
+                            status: { $ne: "completed" },
+                            $or: [
+                                { phase2_auto_requeue_count: { $exists: false } },
+                                { phase2_auto_requeue_count: { $lt: 1 } },
+                            ],
+                        },
+                        {
+                            $inc: { phase2_auto_requeue_count: 1 },
+                            $set: { phase2_last_requeue_at: new Date() },
+                        },
+                        { new: true },
+                    ).lean();
+
+                    if (!guarded) {
+                        summary.skipped_guardrail += 1;
+                        continue;
+                    }
+
+                    const repairTag = `backfill-${Date.now()}-${index}-p2`;
+                    const queueResult = await speakingQueue.enqueueSpeakingAiPhase2Job({
+                        sessionId,
+                        force: true,
+                        repairTag,
+                    });
+                    if (queueResult?.queued) {
+                        summary.requeued_phase2 += 1;
+                    } else {
+                        summary.errors.push({
+                            session_id: sessionId,
+                            action: "requeue_phase2",
+                            reason: queueResult?.reason || "queue_not_ready",
+                        });
+                    }
+                    continue;
+                }
+
+                summary.skipped_not_stuck += 1;
+            } catch (repairError) {
+                summary.errors.push({
+                    session_id: sessionId,
+                    error: repairError?.message || String(repairError),
+                });
+            }
+        }
+
+        return res.json({
+            success: true,
+            data: {
+                ...summary,
+                dry_run: dryRun,
+                window_hours: windowHours,
+                stuck_threshold_ms: SPEAKING_STUCK_THRESHOLD_MS,
+                as_of: now.toISOString(),
+            },
         });
     } catch (error) {
         return handleControllerError(req, res, error);

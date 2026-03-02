@@ -54,7 +54,7 @@ const SPEAKING_GEMINI_MAX_ATTEMPTS = Number(
   process.env.SPEAKING_GEMINI_MAX_ATTEMPTS || process.env.GEMINI_MAX_ATTEMPTS || 2,
 );
 const SPEAKING_PHASE1_TIMEOUT_MS = Number(
-  process.env.SPEAKING_PHASE1_TIMEOUT_MS || 20000,
+  process.env.SPEAKING_PHASE1_TIMEOUT_MS || 30000,
 );
 const SPEAKING_PHASE2_TIMEOUT_MS = Number(
   process.env.SPEAKING_PHASE2_TIMEOUT_MS || SPEAKING_GEMINI_TIMEOUT_MS || 30000,
@@ -764,9 +764,42 @@ const buildFallbackAnalysis = (
   pauseCount,
 });
 
-const hasUsableAnalysisPayload = (analysis) => (
-  Boolean(analysis) && typeof analysis === "object" && Object.keys(analysis).length > 0
-);
+export const isUsableSpeakingAnalysis = (analysis) => {
+  if (!analysis || typeof analysis !== "object") return false;
+  if (Object.keys(analysis).length === 0) return false;
+
+  const scoreCandidates = [
+    analysis?.band_score,
+    analysis?.fluency_coherence?.score,
+    analysis?.lexical_resource?.score,
+    analysis?.grammatical_range?.score,
+    analysis?.pronunciation?.score,
+  ];
+  if (scoreCandidates.some((score) => Number.isFinite(Number(score)) && Number(score) > 0)) {
+    return true;
+  }
+
+  const textCandidates = [
+    analysis?.general_feedback,
+    analysis?.sample_answer,
+    analysis?.next_step,
+  ];
+  if (textCandidates.some((value) => String(value || "").trim().length > 0)) {
+    return true;
+  }
+
+  const arrayCandidates = [
+    analysis?.error_logs,
+    analysis?.pronunciation_heatmap,
+    analysis?.focus_areas,
+    analysis?.vocabulary_upgrades,
+    analysis?.grammar_corrections,
+  ];
+
+  return arrayCandidates.some((value) => Array.isArray(value) && value.length > 0);
+};
+
+const hasUsableAnalysisPayload = (analysis) => isUsableSpeakingAnalysis(analysis);
 
 const filterErrorLogsByPrefixes = (errorLogs = [], prefixes = []) => {
   const normalizedPrefixes = (Array.isArray(prefixes) ? prefixes : [])
@@ -2091,6 +2124,14 @@ export const scoreSpeakingPhase2ById = async ({ sessionId, force = false } = {})
     skipped: false,
     phase2FallbackUsed,
   };
+};
+
+export const finalizeSpeakingSessionById = async ({ sessionId } = {}) => {
+  const { session, topic } = await getSessionAndTopic(sessionId);
+  return finalizeSpeakingIfReady({
+    sessionId: String(session._id),
+    topic,
+  });
 };
 
 export const scoreSpeakingSessionById = async ({ sessionId, force = false } = {}) => {

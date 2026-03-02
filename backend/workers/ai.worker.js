@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 import { Worker } from "bullmq";
 import { connectDB } from "../config/db.js";
 import { validateWorkerEnvironment } from "../config/env.validation.js";
+import SpeakingSession from "../models/SpeakingSession.js";
 import {
   createRedisConnection,
   getSpeakingWorkerConcurrency,
@@ -10,6 +11,8 @@ import {
   isAiAsyncModeEnabled,
 } from "../config/queue.config.js";
 import {
+  enqueueSpeakingAiPhase1Job,
+  enqueueSpeakingAiPhase2Job,
   SPEAKING_PHASE1_JOB,
   SPEAKING_PHASE2_JOB,
   SPEAKING_SCORE_JOB,
@@ -29,6 +32,18 @@ const log = (message, extra = {}) => {
   }));
 };
 
+const SPEAKING_STUCK_THRESHOLD_MS = Math.max(
+  1_000,
+  Number(process.env.SPEAKING_STUCK_THRESHOLD_MS || 60_000),
+);
+const SPEAKING_AUTO_REQUEUE_LIMIT_PER_PHASE = 1;
+
+const getSessionAgeMs = (session = {}) => {
+  const timestamp = new Date(session?.timestamp || session?.createdAt || Date.now()).getTime();
+  if (!Number.isFinite(timestamp)) return 0;
+  return Math.max(0, Date.now() - timestamp);
+};
+
 const main = async () => {
   validateWorkerEnvironment();
 
@@ -46,11 +61,156 @@ const main = async () => {
   const writingConcurrency = getWritingWorkerConcurrency();
   const speakingConcurrency = getSpeakingWorkerConcurrency();
   const taxonomyConcurrency = getTaxonomyWorkerConcurrency();
-  const [{ scoreWritingSubmissionById }, { scoreSpeakingSessionById, scoreSpeakingPhase1ById, scoreSpeakingPhase2ById }, { enrichWritingTaxonomyBySubmissionId }] = await Promise.all([
+  const [{ scoreWritingSubmissionById }, {
+    finalizeSpeakingSessionById,
+    isUsableSpeakingAnalysis,
+    scoreSpeakingSessionById,
+    scoreSpeakingPhase1ById,
+    scoreSpeakingPhase2ById,
+  }, { enrichWritingTaxonomyBySubmissionId }] = await Promise.all([
     import("../services/writingSubmissionScoring.service.js"),
     import("../services/speakingGrading.service.js"),
     import("../services/writingTaxonomyEnrichment.service.js"),
   ]);
+
+  const consumeAutoRequeueAllowance = async ({ sessionId, phase }) => {
+    const normalizedPhase = String(phase || "").trim().toLowerCase();
+    if (!["phase1", "phase2"].includes(normalizedPhase)) return null;
+
+    const countField = normalizedPhase === "phase1"
+      ? "phase1_auto_requeue_count"
+      : "phase2_auto_requeue_count";
+    const lastField = normalizedPhase === "phase1"
+      ? "phase1_last_requeue_at"
+      : "phase2_last_requeue_at";
+
+    return SpeakingSession.findOneAndUpdate(
+      {
+        _id: sessionId,
+        status: { $ne: "completed" },
+        $or: [
+          { [countField]: { $exists: false } },
+          { [countField]: { $lt: SPEAKING_AUTO_REQUEUE_LIMIT_PER_PHASE } },
+        ],
+      },
+      {
+        $inc: { [countField]: 1 },
+        $set: { [lastField]: new Date() },
+      },
+      { new: true },
+    );
+  };
+
+  const runSpeakingAutoHeal = async ({
+    sessionId,
+    fromStage,
+    sessionSnapshot,
+  } = {}) => {
+    const stage = String(fromStage || "").trim().toLowerCase();
+    if (!sessionId || !["phase1", "phase2"].includes(stage)) return;
+
+    let latestSession = sessionSnapshot || await SpeakingSession.findById(sessionId);
+    if (!latestSession) return;
+
+    const hasPhase1 = isUsableSpeakingAnalysis(latestSession?.phase1_analysis);
+    const hasPhase2 = isUsableSpeakingAnalysis(latestSession?.phase2_analysis);
+    const hasFinalAnalysis = isUsableSpeakingAnalysis(latestSession?.analysis);
+
+    if (hasPhase1 && hasPhase2 && !hasFinalAnalysis) {
+      const finalizeResult = await finalizeSpeakingSessionById({ sessionId });
+      latestSession = finalizeResult?.session || latestSession;
+      log("speaking_finalize_repair_triggered", {
+        sessionId,
+        from_stage: stage,
+        finalized: Boolean(finalizeResult?.finalized),
+        reason: finalizeResult?.reason || null,
+      });
+    }
+
+    const refreshedHasPhase1 = isUsableSpeakingAnalysis(latestSession?.phase1_analysis);
+    const refreshedHasPhase2 = isUsableSpeakingAnalysis(latestSession?.phase2_analysis);
+    if (refreshedHasPhase1 && refreshedHasPhase2) return;
+
+    const sessionAgeMs = getSessionAgeMs(latestSession);
+    if (sessionAgeMs < SPEAKING_STUCK_THRESHOLD_MS) {
+      log("speaking_auto_requeue_skipped_guardrail", {
+        sessionId,
+        from_stage: stage,
+        reason: "below_stuck_threshold",
+        session_age_ms: sessionAgeMs,
+        threshold_ms: SPEAKING_STUCK_THRESHOLD_MS,
+      });
+      return;
+    }
+
+    if (stage === "phase2" && !refreshedHasPhase1) {
+      const allowance = await consumeAutoRequeueAllowance({ sessionId, phase: "phase1" });
+      if (!allowance) {
+        log("speaking_auto_requeue_skipped_guardrail", {
+          sessionId,
+          from_stage: stage,
+          reason: "phase1_guardrail_exhausted",
+          phase1_auto_requeue_count: latestSession?.phase1_auto_requeue_count || 0,
+        });
+        return;
+      }
+
+      const repairTag = `autoheal-${Date.now()}`;
+      const queueResult = await enqueueSpeakingAiPhase1Job({
+        sessionId,
+        force: true,
+        repairTag,
+      });
+      log("speaking_auto_requeue_phase1_triggered", {
+        sessionId,
+        from_stage: stage,
+        repair_tag: repairTag,
+        queued: Boolean(queueResult?.queued),
+        job_id: queueResult?.jobId || null,
+        reason: queueResult?.reason || null,
+      });
+      return;
+    }
+
+    if (stage === "phase1" && !refreshedHasPhase2) {
+      const uploadState = String(latestSession?.audio_upload_state || "").trim().toLowerCase();
+      if (!["ready", "failed"].includes(uploadState)) {
+        log("speaking_auto_requeue_skipped_guardrail", {
+          sessionId,
+          from_stage: stage,
+          reason: "phase2_audio_not_ready",
+          audio_upload_state: uploadState || null,
+        });
+        return;
+      }
+
+      const allowance = await consumeAutoRequeueAllowance({ sessionId, phase: "phase2" });
+      if (!allowance) {
+        log("speaking_auto_requeue_skipped_guardrail", {
+          sessionId,
+          from_stage: stage,
+          reason: "phase2_guardrail_exhausted",
+          phase2_auto_requeue_count: latestSession?.phase2_auto_requeue_count || 0,
+        });
+        return;
+      }
+
+      const repairTag = `autoheal-${Date.now()}`;
+      const queueResult = await enqueueSpeakingAiPhase2Job({
+        sessionId,
+        force: true,
+        repairTag,
+      });
+      log("speaking_auto_requeue_phase2_triggered", {
+        sessionId,
+        from_stage: stage,
+        repair_tag: repairTag,
+        queued: Boolean(queueResult?.queued),
+        job_id: queueResult?.jobId || null,
+        reason: queueResult?.reason || null,
+      });
+    }
+  };
 
   const writingWorker = new Worker(
     WRITING_AI_QUEUE,
@@ -101,6 +261,17 @@ const main = async () => {
             }
             : null,
         });
+        await runSpeakingAutoHeal({
+          sessionId,
+          fromStage: "phase1",
+          sessionSnapshot: phase1Result?.session || null,
+        }).catch((autoHealError) => {
+          log("speaking_autoheal_error", {
+            sessionId,
+            from_stage: "phase1",
+            error: autoHealError?.message || null,
+          });
+        });
         return { sessionId, stage: "phase1" };
       }
 
@@ -108,6 +279,7 @@ const main = async () => {
         const phase2Result = await scoreSpeakingPhase2ById({ sessionId, force });
         const analysis = phase2Result?.analysis || phase2Result?.session?.analysis || null;
         const phase2Session = phase2Result?.session || null;
+        const hasUsableFinalAnalysis = isUsableSpeakingAnalysis(analysis);
         log("Speaking phase2 result", {
           jobId: job.id,
           sessionId,
@@ -116,10 +288,10 @@ const main = async () => {
           fallbackUsed: Boolean(phase2Result?.phase2FallbackUsed),
           status: phase2Session?.status || null,
           scoring_state: phase2Session?.scoring_state || null,
-          phase1_ready: Boolean(phase2Session?.phase1_analysis),
-          phase2_ready: Boolean(phase2Session?.phase2_analysis),
-          finalized: Boolean(analysis) && String(phase2Session?.status || "").toLowerCase() === "completed",
-          final_scores: analysis
+          phase1_ready: isUsableSpeakingAnalysis(phase2Session?.phase1_analysis),
+          phase2_ready: isUsableSpeakingAnalysis(phase2Session?.phase2_analysis),
+          finalized: hasUsableFinalAnalysis && String(phase2Session?.status || "").toLowerCase() === "completed",
+          final_scores: hasUsableFinalAnalysis
             ? {
               band_score: analysis?.band_score ?? null,
               fluency_coherence: analysis?.fluency_coherence?.score ?? null,
@@ -128,6 +300,17 @@ const main = async () => {
               pronunciation: analysis?.pronunciation?.score ?? null,
             }
             : null,
+        });
+        await runSpeakingAutoHeal({
+          sessionId,
+          fromStage: "phase2",
+          sessionSnapshot: phase2Session,
+        }).catch((autoHealError) => {
+          log("speaking_autoheal_error", {
+            sessionId,
+            from_stage: "phase2",
+            error: autoHealError?.message || null,
+          });
         });
         return { sessionId, stage: "phase2" };
       }

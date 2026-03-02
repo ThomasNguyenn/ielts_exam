@@ -7,7 +7,11 @@ import {
   enqueueSpeakingAiPhase2Job,
   isAiQueueReady,
 } from "../queues/ai.queue.js";
-import { mergeSpeakingPhaseAnalyses, scoreSpeakingSessionById } from "../services/speakingGrading.service.js";
+import {
+  isUsableSpeakingAnalysis,
+  mergeSpeakingPhaseAnalyses,
+  scoreSpeakingSessionById,
+} from "../services/speakingGrading.service.js";
 import { evaluateSpeakingProvisionalScore } from "../services/speakingFastScore.service.js";
 import { ensurePart3ConversationScript, generatePromptReadAloudPreview } from "../services/speakingReadAloud.service.js";
 import { parsePagination, buildPaginationMeta } from "../utils/pagination.js";
@@ -79,7 +83,6 @@ const normalizeCueCardText = (value = "") => {
 };
 
 const normalizePart2QuestionTitle = (value = "") => String(value || "").trim();
-const hasMeaningfulAnalysis = (value) => Boolean(value) && typeof value === "object" && Object.keys(value).length > 0;
 
 const toPartNumber = (value) => {
   const parsed = Number.parseInt(value, 10);
@@ -384,9 +387,9 @@ export const getSpeakingSession = async (req, res) => {
 
     let effectiveAnalysis = session.analysis || null;
     if (
-      !hasMeaningfulAnalysis(effectiveAnalysis)
-      && hasMeaningfulAnalysis(session.phase1_analysis)
-      && hasMeaningfulAnalysis(session.phase2_analysis)
+      !isUsableSpeakingAnalysis(effectiveAnalysis)
+      && isUsableSpeakingAnalysis(session.phase1_analysis)
+      && isUsableSpeakingAnalysis(session.phase2_analysis)
     ) {
       const topic = await Speaking.findById(session.questionId).select("part prompt").lean();
       effectiveAnalysis = mergeSpeakingPhaseAnalyses({

@@ -38,6 +38,10 @@ const SpeakingSessionSchema = new mongoose.Schema({
   phase1_ready_at: { type: Date, default: null },
   phase2_source: { type: String, default: null },
   phase2_ready_at: { type: Date, default: null },
+  phase1_auto_requeue_count: { type: Number, default: 0 },
+  phase2_auto_requeue_count: { type: Number, default: 0 },
+  phase1_last_requeue_at: { type: Date, default: null },
+  phase2_last_requeue_at: { type: Date, default: null },
 
   // AI Analysis (Groq Llama 3)
   analysis: {

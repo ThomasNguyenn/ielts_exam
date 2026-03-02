@@ -67,6 +67,8 @@ vi.mock("../../queues/ai.queue.js", () => ({
 }));
 
 vi.mock("../../services/speakingGrading.service.js", () => ({
+  isUsableSpeakingAnalysis: (value) => Boolean(value) && typeof value === "object" && Object.keys(value).length > 0,
+  mergeSpeakingPhaseAnalyses: vi.fn(),
   scoreSpeakingSessionById: vi.fn(),
 }));
 

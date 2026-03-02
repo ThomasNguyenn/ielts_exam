@@ -599,6 +599,8 @@ export const api = {
     const query = toQueryString(params);
     return request(`/api/admin/students/online${query ? `?${query}` : ''}`);
   },
+  repairStuckSpeakingSessions: (body = {}) =>
+    request('/api/admin/speaking/sessions/repair-stuck', { method: 'POST', body: JSON.stringify(body) }),
   approveStudent: (userId) => request(`/api/admin/students/${userId}/approve`, { method: 'PUT' }),
 
   // Admin - Users

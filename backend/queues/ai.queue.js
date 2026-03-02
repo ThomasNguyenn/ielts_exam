@@ -79,6 +79,14 @@ const buildSafeJobId = (prefix, rawId) => {
   return `${prefix}-${normalizedId}`;
 };
 
+const appendRepairTagToJobId = (baseJobId, repairTag) => {
+  const normalizedTag = String(repairTag || "")
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]/g, "_");
+  if (!normalizedTag) return baseJobId;
+  return `${baseJobId}-${normalizedTag}`;
+};
+
 export const enqueueWritingAiScoreJob = async ({ submissionId, force = false }) => {
   const state = ensureQueues();
   if (!state.ready) {
@@ -131,7 +139,7 @@ export const enqueueSpeakingAiScoreJob = async ({ sessionId, force = false }) =>
   };
 };
 
-export const enqueueSpeakingAiPhase1Job = async ({ sessionId, force = false }) => {
+export const enqueueSpeakingAiPhase1Job = async ({ sessionId, force = false, repairTag = "" }) => {
   const state = ensureQueues();
   if (!state.ready) {
     return {
@@ -142,11 +150,12 @@ export const enqueueSpeakingAiPhase1Job = async ({ sessionId, force = false }) =
     };
   }
 
-  const jobId = buildSafeJobId("speaking-session-phase1", sessionId);
+  const baseJobId = buildSafeJobId("speaking-session-phase1", sessionId);
+  const jobId = appendRepairTagToJobId(baseJobId, repairTag);
   const job = await addUniqueJob(
     speakingQueue,
     SPEAKING_PHASE1_JOB,
-    { sessionId, force },
+    { sessionId, force, repairTag: String(repairTag || "") || null },
     jobId,
   );
 
@@ -157,7 +166,7 @@ export const enqueueSpeakingAiPhase1Job = async ({ sessionId, force = false }) =
   };
 };
 
-export const enqueueSpeakingAiPhase2Job = async ({ sessionId, force = false }) => {
+export const enqueueSpeakingAiPhase2Job = async ({ sessionId, force = false, repairTag = "" }) => {
   const state = ensureQueues();
   if (!state.ready) {
     return {
@@ -168,11 +177,12 @@ export const enqueueSpeakingAiPhase2Job = async ({ sessionId, force = false }) =
     };
   }
 
-  const jobId = buildSafeJobId("speaking-session-phase2", sessionId);
+  const baseJobId = buildSafeJobId("speaking-session-phase2", sessionId);
+  const jobId = appendRepairTagToJobId(baseJobId, repairTag);
   const job = await addUniqueJob(
     speakingQueue,
     SPEAKING_PHASE2_JOB,
-    { sessionId, force },
+    { sessionId, force, repairTag: String(repairTag || "") || null },
     jobId,
   );
 
