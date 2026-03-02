@@ -10,9 +10,13 @@ import {
   isAiAsyncModeEnabled,
 } from "../config/queue.config.js";
 import {
+  SPEAKING_PHASE1_JOB,
+  SPEAKING_PHASE2_JOB,
+  SPEAKING_SCORE_JOB,
   SPEAKING_AI_QUEUE,
   WRITING_AI_QUEUE,
   WRITING_TAXONOMY_QUEUE,
+  enqueueSpeakingAiPhase2Job,
 } from "../queues/ai.queue.js";
 
 dotenv.config();
@@ -43,7 +47,7 @@ const main = async () => {
   const writingConcurrency = getWritingWorkerConcurrency();
   const speakingConcurrency = getSpeakingWorkerConcurrency();
   const taxonomyConcurrency = getTaxonomyWorkerConcurrency();
-  const [{ scoreWritingSubmissionById }, { scoreSpeakingSessionById }, { enrichWritingTaxonomyBySubmissionId }] = await Promise.all([
+  const [{ scoreWritingSubmissionById }, { scoreSpeakingSessionById, scoreSpeakingPhase1ById, scoreSpeakingPhase2ById }, { enrichWritingTaxonomyBySubmissionId }] = await Promise.all([
     import("../services/writingSubmissionScoring.service.js"),
     import("../services/speakingGrading.service.js"),
     import("../services/writingTaxonomyEnrichment.service.js"),
@@ -65,6 +69,26 @@ const main = async () => {
     async (job) => {
       const { sessionId, force = false } = job.data || {};
       if (!sessionId) throw new Error("Missing sessionId");
+
+      if (job.name === SPEAKING_PHASE1_JOB) {
+        const phase1Result = await scoreSpeakingPhase1ById({ sessionId, force });
+        const shouldRunPhase2 = String(phase1Result?.session?.status || "").toLowerCase() !== "completed";
+        if (shouldRunPhase2) {
+          await enqueueSpeakingAiPhase2Job({ sessionId, force });
+        }
+        return { sessionId, stage: "phase1" };
+      }
+
+      if (job.name === SPEAKING_PHASE2_JOB) {
+        await scoreSpeakingPhase2ById({ sessionId, force });
+        return { sessionId, stage: "phase2" };
+      }
+
+      if (job.name === SPEAKING_SCORE_JOB) {
+        await scoreSpeakingSessionById({ sessionId, force });
+        return { sessionId, stage: "legacy_full" };
+      }
+
       await scoreSpeakingSessionById({ sessionId, force });
       return { sessionId };
     },

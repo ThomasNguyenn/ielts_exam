@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   speakingFindById: vi.fn(),
   enqueueSpeakingAiScoreJob: vi.fn(),
+  enqueueSpeakingAiPhase1Job: vi.fn(),
   isAiAsyncModeEnabled: vi.fn(),
   isAiQueueReady: vi.fn(),
   scoreSpeakingSessionById: vi.fn(),
@@ -47,6 +48,7 @@ vi.mock("../../config/queue.config.js", () => ({
 }));
 
 vi.mock("../../queues/ai.queue.js", () => ({
+  enqueueSpeakingAiPhase1Job: (...args) => mocks.enqueueSpeakingAiPhase1Job(...args),
   enqueueSpeakingAiScoreJob: (...args) => mocks.enqueueSpeakingAiScoreJob(...args),
   isAiQueueReady: (...args) => mocks.isAiQueueReady(...args),
 }));
@@ -98,6 +100,7 @@ describe("submitSpeaking fast-score behavior", () => {
 
     mocks.isAiAsyncModeEnabled.mockReturnValue(true);
     mocks.isAiQueueReady.mockReturnValue(true);
+    mocks.enqueueSpeakingAiPhase1Job.mockResolvedValue({ queued: true, jobId: "job-phase1-1" });
     mocks.enqueueSpeakingAiScoreJob.mockResolvedValue({ queued: true, jobId: "job-1" });
     mocks.scoreSpeakingSessionById.mockResolvedValue(null);
     mocks.addXP.mockResolvedValue({ xpGained: 150, currentXP: 150, currentLevel: 1, levelUp: false });

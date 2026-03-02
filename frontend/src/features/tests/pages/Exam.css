@@ -2474,6 +2474,86 @@
     position: sticky;
     top: 0;
     z-index: 100;
+    margin: 0.75rem 0.85rem 0;
+    padding: 0.72rem 1rem;
+    border-radius: 14px;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+}
+
+.review-layout .exam-header-left {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.review-layout .exam-header-right {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-left: auto;
+}
+
+.review-layout .exam-timer-wrapper {
+    padding: 0.36rem 0.7rem;
+    border-radius: 10px;
+    border: 1px solid #dbeafe;
+    background: #f8fbff;
+}
+
+.review-layout .exam-timer {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.review-layout .btn-finish-test,
+.review-layout .btn-exit-test {
+    height: 36px;
+    border-radius: 10px;
+    padding: 0 0.9rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    font-size: 0.78rem;
+    font-weight: 700;
+    border: 1px solid transparent;
+}
+
+.review-layout .btn-finish-test {
+    background: linear-gradient(135deg, #2563eb 0%, #6366f1 100%);
+    color: #ffffff;
+    box-shadow: 0 8px 18px rgba(37, 99, 235, 0.24);
+}
+
+.review-layout .btn-finish-test:hover {
+    background: linear-gradient(135deg, #1d4ed8 0%, #4f46e5 100%);
+}
+
+.review-layout .btn-exit-test {
+    background: #ffffff;
+    color: #334155;
+    border-color: #dbe4f4;
+}
+
+.review-layout .btn-exit-test:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+    color: #0f172a;
+}
+
+@media (max-width: 860px) {
+    .review-layout .exam-header {
+        margin: 0.62rem 0.62rem 0;
+        padding: 0.68rem 0.75rem;
+    }
+
+    .review-layout .exam-header-right {
+        width: 100%;
+        justify-content: flex-start;
+    }
 }
 
 .review-group-status-list {

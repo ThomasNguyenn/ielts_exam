@@ -3,6 +3,7 @@ const DEFAULT_MAX_ATTEMPTS = Number(process.env.AI_REQUEST_MAX_ATTEMPTS || 3);
 const DEFAULT_BASE_DELAY_MS = Number(process.env.AI_RETRY_BASE_DELAY_MS || 500);
 const MODEL_DEMOTE_ERROR_THRESHOLD = Number(process.env.AI_MODEL_DEMOTE_ERROR_THRESHOLD || 3);
 const MODEL_DEMOTE_WINDOW_MS = Number(process.env.AI_MODEL_DEMOTE_WINDOW_MS || 300000);
+const JSON_REPAIR_MAX_TRIM_CHARS = Number(process.env.AI_JSON_REPAIR_MAX_TRIM_CHARS || 800);
 const modelHealthState = new Map();
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -264,24 +265,138 @@ const sanitizeJsonCandidate = (value) => {
   return output.replace(/,\s*([}\]])/g, "$1");
 };
 
+const parseJsonSafe = (value) => {
+  try {
+    return {
+      ok: true,
+      data: JSON.parse(value),
+      error: null,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      data: null,
+      error,
+    };
+  }
+};
+
+const closeJsonContainers = (stack = []) => stack
+  .slice()
+  .reverse()
+  .map((token) => (token === "{" ? "}" : "]"))
+  .join("");
+
+const repairTruncatedJsonCandidate = (value) => {
+  const raw = String(value || "");
+  let output = "";
+  let inString = false;
+  let escaped = false;
+  const stack = [];
+
+  for (let i = 0; i < raw.length; i += 1) {
+    const char = raw[i];
+
+    if (inString) {
+      output += char;
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (char === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === "\"") {
+      inString = true;
+      output += char;
+      continue;
+    }
+
+    if (char === "{" || char === "[") {
+      stack.push(char);
+      output += char;
+      continue;
+    }
+
+    if (char === "}" || char === "]") {
+      const previous = stack[stack.length - 1];
+      const isMatch = (previous === "{" && char === "}") || (previous === "[" && char === "]");
+      if (isMatch) {
+        stack.pop();
+        output += char;
+      }
+      continue;
+    }
+
+    output += char;
+  }
+
+  let repaired = output.trimEnd();
+  if (inString) {
+    repaired += "\"";
+  }
+
+  while (/[,:]\s*$/.test(repaired)) {
+    repaired = repaired.replace(/[,:]\s*$/, "").trimEnd();
+  }
+
+  repaired += closeJsonContainers(stack);
+  repaired = repaired.replace(/,\s*([}\]])/g, "$1");
+
+  return repaired;
+};
+
 export const parseModelJson = (rawText) => {
   const candidate = extractJsonCandidate(rawText);
-
-  try {
-    return JSON.parse(candidate);
-  } catch (parseError) {
-    try {
-      const repaired = sanitizeJsonCandidate(candidate);
-      return JSON.parse(repaired);
-    } catch (repairError) {
-      const error = new SyntaxError(`Failed to parse model JSON: ${repairError.message}`);
-      error.code = "MODEL_JSON_PARSE_FAILED";
-      error.statusCode = 502;
-      error.cause = parseError;
-      error.rawPreview = candidate.slice(0, 500);
-      throw error;
-    }
+  const directResult = parseJsonSafe(candidate);
+  if (directResult.ok) {
+    return directResult.data;
   }
+
+  const sanitized = sanitizeJsonCandidate(candidate);
+  const sanitizedResult = parseJsonSafe(sanitized);
+  if (sanitizedResult.ok) {
+    return sanitizedResult.data;
+  }
+
+  const maxTrim = Math.max(
+    0,
+    Math.min(
+      Number.isFinite(JSON_REPAIR_MAX_TRIM_CHARS) ? JSON_REPAIR_MAX_TRIM_CHARS : 0,
+      Math.max(0, sanitized.length - 2),
+    ),
+  );
+  let lastRepairError = sanitizedResult.error || directResult.error;
+
+  for (let trimChars = 0; trimChars <= maxTrim; trimChars += 1) {
+    const partial = trimChars === 0
+      ? sanitized
+      : sanitized.slice(0, sanitized.length - trimChars).trimEnd();
+    if (!partial) {
+      break;
+    }
+
+    const repaired = repairTruncatedJsonCandidate(partial);
+    const repairedResult = parseJsonSafe(repaired);
+    if (repairedResult.ok) {
+      return repairedResult.data;
+    }
+    lastRepairError = repairedResult.error || lastRepairError;
+  }
+
+  const error = new SyntaxError(`Failed to parse model JSON: ${lastRepairError?.message || "Unknown parser error"}`);
+  error.code = "MODEL_JSON_PARSE_FAILED";
+  error.statusCode = 502;
+  error.cause = directResult.error || sanitizedResult.error || lastRepairError;
+  error.rawPreview = candidate.slice(0, 500);
+  throw error;
 };
 
 export const runWithRetry = async ({

@@ -6,6 +6,7 @@ import SpeakingSession from "../models/SpeakingSession.js";
 import cloudinary from "../utils/cloudinary.js";
 import { requestGeminiJsonWithFallback } from "../utils/aiClient.js";
 import { createTaxonomyErrorLog } from "./taxonomy.registry.js";
+import { transcribeWithWhisper } from "./speakingFastScore.service.js";
 
 dotenv.config();
 
@@ -35,14 +36,39 @@ const fallbackModel = normalizeGeminiModel(
 const GEMINI_MODELS = [primaryModel, fallbackModel].filter(
   (model, index, list) => Boolean(model) && list.indexOf(model) === index,
 );
+const phase1PrimaryModel = normalizeGeminiModel(
+  process.env.SPEAKING_PHASE1_PRIMARY_MODEL,
+  "gemini-2.5-flash",
+);
+const phase1FallbackModel = normalizeGeminiModel(
+  process.env.SPEAKING_PHASE1_FALLBACK_MODEL,
+  fallbackModel,
+);
+const SPEAKING_PHASE1_MODELS = [phase1PrimaryModel, phase1FallbackModel].filter(
+  (model, index, list) => Boolean(model) && list.indexOf(model) === index,
+);
 const SPEAKING_GEMINI_TIMEOUT_MS = Number(
   process.env.SPEAKING_GEMINI_TIMEOUT_MS || process.env.GEMINI_TIMEOUT_MS || 30000,
 );
 const SPEAKING_GEMINI_MAX_ATTEMPTS = Number(
   process.env.SPEAKING_GEMINI_MAX_ATTEMPTS || process.env.GEMINI_MAX_ATTEMPTS || 2,
 );
+const SPEAKING_PHASE1_TIMEOUT_MS = Number(
+  process.env.SPEAKING_PHASE1_TIMEOUT_MS || 20000,
+);
+const SPEAKING_PHASE2_TIMEOUT_MS = Number(
+  process.env.SPEAKING_PHASE2_TIMEOUT_MS || SPEAKING_GEMINI_TIMEOUT_MS || 30000,
+);
+const SPEAKING_PHASE1_MAX_OUTPUT_TOKENS = Number(
+  process.env.SPEAKING_PHASE1_MAX_OUTPUT_TOKENS || 700,
+);
+const SPEAKING_PHASE2_MAX_OUTPUT_TOKENS = Number(
+  process.env.SPEAKING_PHASE2_MAX_OUTPUT_TOKENS || 1000,
+);
 const SPEAKING_ANALYSIS_MAX_OUTPUT_TOKENS = Number(
-  process.env.SPEAKING_ANALYSIS_MAX_OUTPUT_TOKENS || 800,
+  process.env.SPEAKING_ANALYSIS_MAX_OUTPUT_TOKENS
+  || process.env.GEMINI_ANALYSIS_MAX_OUTPUT_TOKENS
+  || 1600,
 );
 const SPEAKING_MOCK_MAX_OUTPUT_TOKENS = Number(
   process.env.SPEAKING_MOCK_MAX_OUTPUT_TOKENS || 220,
@@ -68,7 +94,7 @@ const normalizeGeminiAudioMimeType = (preferredMimeType, fetchedContentType) => 
   return "audio/webm";
 };
 
-const toAudioPart = async (audioSource, mimeType) => {
+const readAudioSourceBuffer = async (audioSource) => {
   let fileBuffer;
   let fetchedContentType = "";
 
@@ -79,12 +105,20 @@ const toAudioPart = async (audioSource, mimeType) => {
     }
 
     fetchedContentType = response.headers.get("content-type") || "";
-
     const arrayBuffer = await response.arrayBuffer();
     fileBuffer = Buffer.from(arrayBuffer);
   } else {
     fileBuffer = await fs.promises.readFile(audioSource);
   }
+
+  return {
+    fileBuffer,
+    fetchedContentType,
+  };
+};
+
+const toAudioPart = async (audioSource, mimeType) => {
+  const { fileBuffer, fetchedContentType } = await readAudioSourceBuffer(audioSource);
 
   const resolvedMimeType = normalizeGeminiAudioMimeType(mimeType, fetchedContentType);
 
@@ -93,6 +127,14 @@ const toAudioPart = async (audioSource, mimeType) => {
       data: fileBuffer.toString("base64"),
       mimeType: resolvedMimeType,
     },
+  };
+};
+
+const toAudioBufferWithMime = async (audioSource, mimeType) => {
+  const { fileBuffer, fetchedContentType } = await readAudioSourceBuffer(audioSource);
+  return {
+    fileBuffer,
+    mimeType: normalizeGeminiAudioMimeType(mimeType, fetchedContentType),
   };
 };
 
@@ -474,6 +516,168 @@ const hasUsableAnalysisPayload = (analysis) => (
   Boolean(analysis) && typeof analysis === "object" && Object.keys(analysis).length > 0
 );
 
+const filterErrorLogsByPrefixes = (errorLogs = [], prefixes = []) => {
+  const normalizedPrefixes = (Array.isArray(prefixes) ? prefixes : [])
+    .map((prefix) => String(prefix || "").trim().toUpperCase())
+    .filter(Boolean);
+
+  if (normalizedPrefixes.length === 0) return [];
+
+  return (Array.isArray(errorLogs) ? errorLogs : [])
+    .filter((log) => {
+      const code = String(log?.code || log?.error_code || "").trim().toUpperCase();
+      return normalizedPrefixes.some((prefix) => code.startsWith(prefix));
+    });
+};
+
+const dedupeErrorLogs = (errorLogs = []) => {
+  const seen = new Set();
+  const output = [];
+
+  (Array.isArray(errorLogs) ? errorLogs : []).forEach((log) => {
+    const code = String(log?.code || log?.error_code || "").trim().toUpperCase();
+    const snippet = String(log?.snippet || log?.text_snippet || "").trim().toLowerCase();
+    const key = `${code}::${snippet}`;
+    if (!code || seen.has(key)) return;
+    seen.add(key);
+    output.push(log);
+  });
+
+  return output;
+};
+
+const normalizePhase1Payload = (rawPhase1, {
+  topicPart = 0,
+  topicPrompt = "",
+} = {}) => {
+  const source = rawPhase1 && typeof rawPhase1 === "object" ? rawPhase1 : {};
+  const lexicalScore = roundHalf(clamp(safeNumber(source?.lexical_resource?.score, 0), 0, 9));
+  const grammarScore = roundHalf(clamp(safeNumber(source?.grammatical_range?.score, 0), 0, 9));
+
+  return {
+    lexical_resource: {
+      score: lexicalScore,
+      feedback: String(source?.lexical_resource?.feedback || "No lexical feedback.").trim(),
+    },
+    grammatical_range: {
+      score: grammarScore,
+      feedback: String(source?.grammatical_range?.feedback || "No grammar feedback.").trim(),
+    },
+    vocabulary_upgrades: normalizeVocabularyUpgrades(source?.vocabulary_upgrades),
+    grammar_corrections: normalizeGrammarCorrections(source?.grammar_corrections),
+    sample_answer: String(
+      source?.sample_answer || buildPartAwareFallbackSampleAnswer({ topicPart, topicPrompt }),
+    ).trim(),
+    general_feedback: String(source?.general_feedback || "Phase 1 analysis ready.").trim(),
+    error_logs: dedupeErrorLogs(filterErrorLogsByPrefixes(source?.error_logs, ["S-L", "S-G"])),
+  };
+};
+
+const normalizePhase2Payload = (rawPhase2, {
+  transcript = "",
+  fallbackWpm = 0,
+  pauseCount = 0,
+} = {}) => {
+  const source = rawPhase2 && typeof rawPhase2 === "object" ? rawPhase2 : {};
+  const fluencyScore = roundHalf(clamp(safeNumber(source?.fluency_coherence?.score, 0), 0, 9));
+  const pronunciationScore = roundHalf(clamp(safeNumber(source?.pronunciation?.score, 0), 0, 9));
+  const errorLogs = dedupeErrorLogs(filterErrorLogsByPrefixes(source?.error_logs, ["S-F", "S-P"]));
+
+  const modelHeatmap = normalizeHeatmapEntries(source?.pronunciation_heatmap);
+  const heatmap = modelHeatmap.length > 0
+    ? modelHeatmap
+    : buildHeatmapFromTranscript(transcript, errorLogs);
+  const modelFocus = normalizeFocusAreas(source?.focus_areas);
+  const focusAreas = modelFocus.length > 0
+    ? modelFocus
+    : buildFocusAreasFromErrorLogs(errorLogs);
+
+  const normalizedPace = Math.round(Math.max(0, safeNumber(source?.intonation_pacing?.pace_wpm, fallbackWpm)));
+  const pitchVariation = String(
+    source?.intonation_pacing?.pitch_variation || derivePitchVariationLabel(pronunciationScore, pauseCount),
+  ).trim();
+
+  const nextStepFallback = focusAreas[0]?.description
+    || "Practice this topic one more time with slower pacing and clearer stress.";
+
+  return {
+    fluency_coherence: {
+      score: fluencyScore,
+      feedback: String(source?.fluency_coherence?.feedback || "No fluency feedback.").trim(),
+    },
+    pronunciation: {
+      score: pronunciationScore,
+      feedback: String(source?.pronunciation?.feedback || "No pronunciation feedback.").trim(),
+    },
+    pronunciation_heatmap: heatmap,
+    focus_areas: focusAreas,
+    intonation_pacing: {
+      pace_wpm: normalizedPace,
+      pitch_variation: pitchVariation || "Needs Work",
+      feedback: String(source?.intonation_pacing?.feedback || "").trim(),
+    },
+    next_step: String(source?.next_step || nextStepFallback).trim(),
+    general_feedback: String(source?.general_feedback || "Phase 2 analysis ready.").trim(),
+    error_logs: errorLogs,
+  };
+};
+
+const extractTaxonomyErrorLogs = (analysis, topicPart) => {
+  if (!Array.isArray(analysis?.error_logs) || analysis.error_logs.length === 0) {
+    return [];
+  }
+
+  const taskType = topicPart ? `part${topicPart}` : "speaking";
+  const speakingFallbackByPrefix = {
+    "S-F": {
+      cognitiveSkill: "S-FC. Fluency & Coherence",
+      errorCategory: "Fluency & Coherence",
+      taxonomyDimension: "fluency_coherence",
+    },
+    "S-L": {
+      cognitiveSkill: "S-LR. Lexical Resource",
+      errorCategory: "Lexical Resource",
+      taxonomyDimension: "lexical",
+    },
+    "S-G": {
+      cognitiveSkill: "S-GRA. Grammatical Range & Accuracy",
+      errorCategory: "Grammar",
+      taxonomyDimension: "grammar",
+    },
+    "S-P": {
+      cognitiveSkill: "S-PR. Pronunciation",
+      errorCategory: "Pronunciation",
+      taxonomyDimension: "pronunciation",
+    },
+  };
+
+  return analysis.error_logs
+    .map((log) => {
+      const sourceCode = String(log?.code || log?.error_code || "").trim().toUpperCase();
+      const normalizedLog = createTaxonomyErrorLog({
+        skillDomain: "speaking",
+        taskType,
+        questionType: taskType,
+        errorCode: sourceCode || "S-UNCLASSIFIED",
+        textSnippet: String(log?.snippet || log?.text_snippet || ""),
+        explanation: String(log?.explanation || ""),
+        detectionMethod: "llm",
+        confidence: log?.confidence,
+        secondaryErrorCodes: log?.secondary_error_codes,
+      });
+
+      if (normalizedLog.error_code === "S-UNCLASSIFIED") {
+        const fallback = speakingFallbackByPrefix[sourceCode.slice(0, 3)] || null;
+        normalizedLog.cognitive_skill = fallback?.cognitiveSkill || normalizedLog.cognitive_skill;
+        normalizedLog.error_category = fallback?.errorCategory || normalizedLog.error_category;
+        normalizedLog.taxonomy_dimension = fallback?.taxonomyDimension || normalizedLog.taxonomy_dimension;
+      }
+
+      return normalizedLog;
+    })
+    .filter(Boolean);
+};
+
 const cleanupSessionAudioFromCloudinary = async (session) => {
   const publicId = String(session?.audioPublicId || "").trim();
   if (!publicId) return;
@@ -503,6 +707,117 @@ const cleanupSessionAudioFromCloudinary = async (session) => {
     });
   }
 };
+
+const buildPhase1Prompt = ({
+  topicPrompt,
+  topicPart,
+  subQuestions,
+  transcript,
+}) => `
+You are a STRICT IELTS Speaking examiner focusing ONLY on:
+1) Lexical Resource
+2) Grammatical Range & Accuracy
+
+TOPIC / QUESTION:
+"${topicPrompt}"
+
+EXAM PART:
+- Part: ${normalizeSpeakingPart(topicPart) || "unknown"}
+- Cue points / follow-up prompts:
+${formatSubQuestionLines(subQuestions)}
+
+TRANSCRIPT (canonical STT):
+"${transcript || "(none)"}"
+
+RULES:
+- Evaluate only lexical_resource and grammatical_range.
+- Score each criterion in 0.5 steps from 0.0 to 9.0.
+- Provide concise, concrete Vietnamese feedback with transcript evidence.
+- Produce vocabulary_upgrades and grammar_corrections from transcript.
+- error_logs MUST only use lexical/grammar codes:
+  - Lexical: S-L1, S-L2, S-L3, S-L4
+  - Grammar: S-G1, S-G2, S-G3, S-G4
+- Include 3-6 specific error logs.
+- sample_answer must be natural spoken English and fit IELTS part style.
+
+MODEL ANSWER REQUIREMENTS:
+${buildSampleAnswerRequirements({ topicPart, subQuestions })}
+
+Return ONLY valid JSON:
+{
+  "lexical_resource": { "score": number, "feedback": "string" },
+  "grammatical_range": { "score": number, "feedback": "string" },
+  "vocabulary_upgrades": [
+    { "original": "string", "suggestion": "string", "reason": "string" }
+  ],
+  "grammar_corrections": [
+    { "original": "string", "corrected": "string", "reason": "string" }
+  ],
+  "sample_answer": "string",
+  "general_feedback": "string",
+  "error_logs": [
+    { "code": "string", "snippet": "string", "explanation": "string" }
+  ]
+}
+`;
+
+const buildPhase2Prompt = ({
+  topicPrompt,
+  topicPart,
+  subQuestions,
+  transcript,
+  clientWPM,
+  parsedMetrics,
+}) => `
+You are a STRICT IELTS Speaking examiner and pronunciation coach focusing ONLY on:
+1) Fluency & Coherence
+2) Pronunciation
+
+TOPIC / QUESTION:
+"${topicPrompt}"
+
+EXAM PART:
+- Part: ${normalizeSpeakingPart(topicPart) || "unknown"}
+- Cue points / follow-up prompts:
+${formatSubQuestionLines(subQuestions)}
+
+SYSTEM METRICS:
+- WPM: ${clientWPM}
+- Pause count: ${parsedMetrics.pauseCount || 0}
+- Total pause duration (ms): ${parsedMetrics.totalPauseDuration || 0}
+- Longest pause (ms): ${parsedMetrics.longestPause || 0}
+- Avg pause duration (ms): ${parsedMetrics.avgPauseDuration || 0}
+- Transcript: "${transcript || "(none)"}"
+
+RULES:
+- Listen to audio first. Transcript is secondary.
+- Evaluate only fluency_coherence and pronunciation.
+- Score each criterion in 0.5 steps from 0.0 to 9.0.
+- Fluency judgment must include pacing, pause pattern, coherence flow.
+- Pronunciation judgment must include stress, final sounds, intonation, intelligibility.
+- error_logs MUST only use fluency/pronunciation codes:
+  - Fluency: S-F1, S-F2, S-F3, S-F4
+  - Pronunciation: S-P1, S-P2, S-P3, S-P4
+- Include 3-6 specific error logs.
+
+Return ONLY valid JSON:
+{
+  "fluency_coherence": { "score": number, "feedback": "string" },
+  "pronunciation": { "score": number, "feedback": "string" },
+  "pronunciation_heatmap": [
+    { "word": "string", "status": "excellent | needs_work | error | neutral", "note": "string" }
+  ],
+  "focus_areas": [
+    { "title": "string", "priority": "high | medium | low", "description": "string" }
+  ],
+  "intonation_pacing": { "pace_wpm": number, "pitch_variation": "string", "feedback": "string" },
+  "next_step": "string",
+  "general_feedback": "string",
+  "error_logs": [
+    { "code": "string", "snippet": "string", "explanation": "string" }
+  ]
+}
+`;
 
 const buildStrictSpeakingPrompt = ({
   topicPrompt,
@@ -773,21 +1088,12 @@ export const generateMockExaminerFollowUp = async ({
   }
 };
 
-export const scoreSpeakingSessionById = async ({ sessionId, force = false } = {}) => {
+const getSessionAndTopic = async (sessionId) => {
   const session = await SpeakingSession.findById(sessionId);
   if (!session) {
     const error = new Error("Speaking session not found");
     error.statusCode = 404;
     throw error;
-  }
-
-  if (session.status === "completed" && session.analysis?.band_score !== undefined && !force) {
-    return {
-      session,
-      aiSource: session.ai_source || "cached",
-      analysis: session.analysis,
-      skipped: true,
-    };
   }
 
   const topic = await Speaking.findById(session.questionId);
@@ -797,21 +1103,293 @@ export const scoreSpeakingSessionById = async ({ sessionId, force = false } = {}
     throw error;
   }
 
-  const clientTranscript = String(session.transcript || "").trim();
-  const clientWPM = Number(session?.metrics?.wpm || 0);
-  const parsedMetrics = session?.metrics?.pauses || {};
+  return { session, topic };
+};
+
+const resolveCanonicalTranscript = async (session) => {
+  const existing = String(session?.transcript || "").trim();
+  if (existing) {
+    return {
+      transcript: existing,
+      source: "session",
+    };
+  }
+
+  try {
+    const { fileBuffer, mimeType } = await toAudioBufferWithMime(
+      session.audioUrl,
+      session.audioMimeType || "audio/webm",
+    );
+    const sttResult = await transcribeWithWhisper({
+      audioBuffer: fileBuffer,
+      mimeType,
+    });
+    const transcript = String(sttResult?.transcript || "").trim();
+    return {
+      transcript,
+      source: sttResult?.source || "stt",
+    };
+  } catch (error) {
+    return {
+      transcript: "",
+      source: `stt_error:${error?.message || "unknown"}`,
+    };
+  }
+};
+
+export const mergeSpeakingPhaseAnalyses = ({
+  phase1,
+  phase2,
+  provisional,
+  topicPart = 0,
+  topicPrompt = "",
+  transcript = "",
+  metrics = {},
+} = {}) => {
+  const fallbackWpm = Number(metrics?.wpm || 0);
+  const pauseCount = Number(metrics?.pauses?.pauseCount || 0);
+  const provisionalNormalized = hasUsableAnalysisPayload(provisional)
+    ? normalizeAnalysisPayload(provisional, {
+      topicPart,
+      topicPrompt,
+      transcriptFallback: transcript,
+      fallbackWpm,
+      pauseCount,
+    })
+    : buildFallbackAnalysis(transcript, {
+      topicPart,
+      topicPrompt,
+      fallbackWpm,
+      pauseCount,
+    });
+
+  const phase1Normalized = normalizePhase1Payload(phase1, {
+    topicPart,
+    topicPrompt,
+  });
+  const phase2Normalized = normalizePhase2Payload(phase2, {
+    transcript,
+    fallbackWpm,
+    pauseCount,
+  });
+
+  const lexicalScore = safeNumber(
+    phase1Normalized?.lexical_resource?.score,
+    safeNumber(provisionalNormalized?.lexical_resource?.score, 0),
+  );
+  const grammarScore = safeNumber(
+    phase1Normalized?.grammatical_range?.score,
+    safeNumber(provisionalNormalized?.grammatical_range?.score, 0),
+  );
+  const fluencyScore = safeNumber(
+    phase2Normalized?.fluency_coherence?.score,
+    safeNumber(provisionalNormalized?.fluency_coherence?.score, 0),
+  );
+  const pronunciationScore = safeNumber(
+    phase2Normalized?.pronunciation?.score,
+    safeNumber(provisionalNormalized?.pronunciation?.score, 0),
+  );
+  const mergedBand = roundHalf((lexicalScore + grammarScore + fluencyScore + pronunciationScore) / 4);
+
+  const phase1Feedback = String(phase1Normalized?.general_feedback || "").trim();
+  const phase2Feedback = String(phase2Normalized?.general_feedback || "").trim();
+  const mergedGeneralFeedback = [phase1Feedback, phase2Feedback]
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+
+  const mergedErrorLogs = dedupeErrorLogs([
+    ...(Array.isArray(phase1Normalized?.error_logs) ? phase1Normalized.error_logs : []),
+    ...(Array.isArray(phase2Normalized?.error_logs) ? phase2Normalized.error_logs : []),
+  ]);
+
+  return normalizeAnalysisPayload({
+    transcript: String(transcript || provisionalNormalized?.transcript || "").trim(),
+    band_score: mergedBand,
+    fluency_coherence: phase2Normalized?.fluency_coherence || provisionalNormalized?.fluency_coherence,
+    lexical_resource: phase1Normalized?.lexical_resource || provisionalNormalized?.lexical_resource,
+    grammatical_range: phase1Normalized?.grammatical_range || provisionalNormalized?.grammatical_range,
+    pronunciation: phase2Normalized?.pronunciation || provisionalNormalized?.pronunciation,
+    general_feedback: mergedGeneralFeedback || provisionalNormalized?.general_feedback,
+    sample_answer: phase1Normalized?.sample_answer || provisionalNormalized?.sample_answer,
+    pronunciation_heatmap: Array.isArray(phase2Normalized?.pronunciation_heatmap) && phase2Normalized.pronunciation_heatmap.length > 0
+      ? phase2Normalized.pronunciation_heatmap
+      : provisionalNormalized?.pronunciation_heatmap,
+    focus_areas: Array.isArray(phase2Normalized?.focus_areas) && phase2Normalized.focus_areas.length > 0
+      ? phase2Normalized.focus_areas
+      : provisionalNormalized?.focus_areas,
+    intonation_pacing: phase2Normalized?.intonation_pacing || provisionalNormalized?.intonation_pacing,
+    vocabulary_upgrades: Array.isArray(phase1Normalized?.vocabulary_upgrades) && phase1Normalized.vocabulary_upgrades.length > 0
+      ? phase1Normalized.vocabulary_upgrades
+      : provisionalNormalized?.vocabulary_upgrades,
+    grammar_corrections: Array.isArray(phase1Normalized?.grammar_corrections) && phase1Normalized.grammar_corrections.length > 0
+      ? phase1Normalized.grammar_corrections
+      : provisionalNormalized?.grammar_corrections,
+    next_step: phase2Normalized?.next_step || provisionalNormalized?.next_step,
+    error_logs: mergedErrorLogs,
+  }, {
+    topicPart,
+    topicPrompt,
+    transcriptFallback: transcript,
+    fallbackWpm,
+    pauseCount,
+  });
+};
+
+export const scoreSpeakingPhase1ById = async ({ sessionId, force = false } = {}) => {
+  const { session, topic } = await getSessionAndTopic(sessionId);
+  if (
+    !force
+    && ["phase1_ready", "completed"].includes(String(session?.scoring_state || "").trim())
+    && hasUsableAnalysisPayload(session?.phase1_analysis)
+  ) {
+    return {
+      session,
+      phase1Analysis: session.phase1_analysis,
+      phase1Source: session.phase1_source || "cached",
+      skipped: true,
+      fallbackUsed: false,
+    };
+  }
+
+  const phaseStartAt = Date.now();
   const cuePoints = resolveTopicCuePoints(topic);
-  const prompt = buildStrictSpeakingPrompt({
+  const transcriptResult = await resolveCanonicalTranscript(session);
+  const transcript = String(transcriptResult?.transcript || "").trim();
+
+  if (transcript) {
+    session.transcript = transcript;
+  }
+
+  const prompt = buildPhase1Prompt({
     topicPrompt: topic.prompt,
     topicPart: topic.part,
     subQuestions: cuePoints,
-    clientWPM,
-    parsedMetrics,
-    clientTranscript,
+    transcript,
   });
 
-  let analysis;
-  let aiSource = "fallback";
+  let phase1Analysis;
+  let phase1Source = "fallback";
+  let fallbackUsed = false;
+
+  try {
+    if (!genAI) {
+      throw new Error("Gemini API key is not configured");
+    }
+    const aiResponse = await requestGeminiJsonWithFallback({
+      genAI,
+      models: SPEAKING_PHASE1_MODELS,
+      contents: [prompt],
+      generationConfig: {
+        responseMimeType: "application/json",
+        maxOutputTokens: SPEAKING_PHASE1_MAX_OUTPUT_TOKENS,
+      },
+      timeoutMs: SPEAKING_PHASE1_TIMEOUT_MS,
+      maxAttempts: SPEAKING_GEMINI_MAX_ATTEMPTS,
+    });
+    phase1Analysis = normalizePhase1Payload(aiResponse.data, {
+      topicPart: topic.part,
+      topicPrompt: topic.prompt,
+    });
+    phase1Source = aiResponse.model;
+  } catch (error) {
+    fallbackUsed = true;
+    console.warn("Speaking phase1 fallback triggered:", {
+      error: error.message,
+      code: error.code || "",
+      models: SPEAKING_PHASE1_MODELS,
+    });
+
+    if (hasUsableAnalysisPayload(session?.provisional_analysis)) {
+      phase1Analysis = normalizePhase1Payload(session.provisional_analysis, {
+        topicPart: topic.part,
+        topicPrompt: topic.prompt,
+      });
+      phase1Source = session?.provisional_source
+        ? `provisional:${session.provisional_source}`
+        : "provisional_fallback";
+    } else {
+      const fallbackAnalysis = buildFallbackAnalysis(transcript, {
+        topicPart: topic.part,
+        topicPrompt: topic.prompt,
+        fallbackWpm: Number(session?.metrics?.wpm || 0),
+        pauseCount: Number(session?.metrics?.pauses?.pauseCount || 0),
+      });
+      phase1Analysis = normalizePhase1Payload(fallbackAnalysis, {
+        topicPart: topic.part,
+        topicPrompt: topic.prompt,
+      });
+    }
+  }
+
+  session.phase1_analysis = phase1Analysis;
+  session.phase1_source = phase1Source;
+  session.phase1_ready_at = new Date();
+  if (String(session.status || "").trim().toLowerCase() !== "completed") {
+    session.status = "processing";
+  }
+  if (String(session.scoring_state || "").trim().toLowerCase() !== "completed") {
+    session.scoring_state = "phase1_ready";
+  }
+  await session.save();
+
+  const submitTs = new Date(session.timestamp || session.createdAt || Date.now()).getTime();
+  const submitToPhase1Ms = Number.isFinite(submitTs) ? Math.max(0, Date.now() - submitTs) : null;
+  console.log(JSON.stringify({
+    event: "speaking_phase1_ready",
+    session_id: String(session._id),
+    submit_to_phase1_ms: submitToPhase1Ms,
+    phase1_latency_ms: Date.now() - phaseStartAt,
+    model: phase1Source,
+    fallback_used: fallbackUsed,
+    transcript_source: transcriptResult?.source || null,
+  }));
+
+  return {
+    session,
+    phase1Analysis,
+    phase1Source,
+    fallbackUsed,
+    skipped: false,
+  };
+};
+
+export const scoreSpeakingPhase2ById = async ({ sessionId, force = false } = {}) => {
+  const initial = await getSessionAndTopic(sessionId);
+  let session = initial.session;
+  const topic = initial.topic;
+  if (session.status === "completed" && session.analysis?.band_score !== undefined && !force) {
+    return {
+      session,
+      aiSource: session.ai_source || "cached",
+      analysis: session.analysis,
+      skipped: true,
+      phase2FallbackUsed: false,
+    };
+  }
+
+  if (!hasUsableAnalysisPayload(session?.phase1_analysis)) {
+    const phase1Result = await scoreSpeakingPhase1ById({ sessionId, force: false });
+    session = phase1Result?.session || session;
+  }
+
+  const phaseStartAt = Date.now();
+  const cuePoints = resolveTopicCuePoints(topic);
+  const clientTranscript = String(session.transcript || "").trim();
+  const clientWPM = Number(session?.metrics?.wpm || 0);
+  const parsedMetrics = session?.metrics?.pauses || {};
+  const prompt = buildPhase2Prompt({
+    topicPrompt: topic.prompt,
+    topicPart: topic.part,
+    subQuestions: cuePoints,
+    transcript: clientTranscript,
+    clientWPM,
+    parsedMetrics,
+  });
+
+  let phase2Analysis;
+  let phase2Source = "fallback";
+  let phase2FallbackUsed = false;
   let usedMimeType = session.audioMimeType || "audio/webm";
   let audioBytes = 0;
 
@@ -831,119 +1409,95 @@ export const scoreSpeakingSessionById = async ({ sessionId, force = false } = {}
       contents: [prompt, audioPart],
       generationConfig: {
         responseMimeType: "application/json",
-        maxOutputTokens: SPEAKING_ANALYSIS_MAX_OUTPUT_TOKENS,
+        maxOutputTokens: SPEAKING_PHASE2_MAX_OUTPUT_TOKENS || SPEAKING_ANALYSIS_MAX_OUTPUT_TOKENS,
       },
-      timeoutMs: SPEAKING_GEMINI_TIMEOUT_MS,
+      timeoutMs: SPEAKING_PHASE2_TIMEOUT_MS,
       maxAttempts: SPEAKING_GEMINI_MAX_ATTEMPTS,
     });
-    analysis = normalizeAnalysisPayload(aiResponse.data, {
-      topicPart: topic.part,
-      topicPrompt: topic.prompt,
-      transcriptFallback: clientTranscript,
+    phase2Analysis = normalizePhase2Payload(aiResponse.data, {
+      transcript: clientTranscript,
       fallbackWpm: clientWPM,
       pauseCount: parsedMetrics.pauseCount || 0,
     });
-    aiSource = aiResponse.model;
+    phase2Source = aiResponse.model;
   } catch (aiError) {
-    console.error("Speaking AI fallback triggered:", {
+    phase2FallbackUsed = true;
+    console.error("Speaking phase2 fallback triggered:", {
       error: aiError.message,
+      code: aiError.code || "",
       models: GEMINI_MODELS,
       mimeType: usedMimeType,
       audioBytes,
     });
+
     if (hasUsableAnalysisPayload(session?.provisional_analysis)) {
-      analysis = normalizeAnalysisPayload(session.provisional_analysis, {
-        topicPart: topic.part,
-        topicPrompt: topic.prompt,
-        transcriptFallback: clientTranscript,
+      phase2Analysis = normalizePhase2Payload(session.provisional_analysis, {
+        transcript: clientTranscript,
         fallbackWpm: clientWPM,
         pauseCount: parsedMetrics.pauseCount || 0,
       });
-      aiSource = session?.provisional_source
+      phase2Source = session?.provisional_source
         ? `provisional:${session.provisional_source}`
         : "provisional_fallback";
     } else {
-      analysis = buildFallbackAnalysis(clientTranscript, {
+      const fallbackAnalysis = buildFallbackAnalysis(clientTranscript, {
         topicPart: topic.part,
         topicPrompt: topic.prompt,
+        fallbackWpm: clientWPM,
+        pauseCount: parsedMetrics.pauseCount || 0,
+      });
+      phase2Analysis = normalizePhase2Payload(fallbackAnalysis, {
+        transcript: clientTranscript,
         fallbackWpm: clientWPM,
         pauseCount: parsedMetrics.pauseCount || 0,
       });
     }
   }
 
-  // Keep the canonical session transcript if it already exists (typically from STT),
-  // and only fall back to model-returned transcript when no transcript is available.
+  const analysis = mergeSpeakingPhaseAnalyses({
+    phase1: session.phase1_analysis,
+    phase2: phase2Analysis,
+    provisional: session.provisional_analysis,
+    topicPart: topic.part,
+    topicPrompt: topic.prompt,
+    transcript: clientTranscript,
+    metrics: session.metrics || {},
+  });
+
   const modelTranscript = String(analysis?.transcript || "").trim();
   session.transcript = clientTranscript || modelTranscript || "";
   session.analysis = analysis;
-
-  // Extract Error Taxonomy Logs
-  if (Array.isArray(analysis.error_logs) && analysis.error_logs.length > 0) {
-    const taskType = topic.part ? `part${topic.part}` : "speaking";
-    const speakingFallbackByPrefix = {
-      "S-F": {
-        cognitiveSkill: "S-FC. Fluency & Coherence",
-        errorCategory: "Fluency & Coherence",
-        taxonomyDimension: "fluency_coherence",
-      },
-      "S-L": {
-        cognitiveSkill: "S-LR. Lexical Resource",
-        errorCategory: "Lexical Resource",
-        taxonomyDimension: "lexical",
-      },
-      "S-G": {
-        cognitiveSkill: "S-GRA. Grammatical Range & Accuracy",
-        errorCategory: "Grammar",
-        taxonomyDimension: "grammar",
-      },
-      "S-P": {
-        cognitiveSkill: "S-PR. Pronunciation",
-        errorCategory: "Pronunciation",
-        taxonomyDimension: "pronunciation",
-      },
-    };
-
-    session.error_logs = analysis.error_logs
-      .map((log) => {
-        const sourceCode = String(log?.code || log?.error_code || "").trim().toUpperCase();
-        const normalizedLog = createTaxonomyErrorLog({
-          skillDomain: "speaking",
-          taskType,
-          questionType: taskType,
-          errorCode: sourceCode || "S-UNCLASSIFIED",
-          textSnippet: String(log?.snippet || log?.text_snippet || ""),
-          explanation: String(log?.explanation || ""),
-          detectionMethod: "llm",
-          confidence: log?.confidence,
-          secondaryErrorCodes: log?.secondary_error_codes,
-        });
-
-        if (normalizedLog.error_code === "S-UNCLASSIFIED") {
-          const fallback =
-            speakingFallbackByPrefix[sourceCode.slice(0, 3)] || null;
-          normalizedLog.cognitive_skill = fallback?.cognitiveSkill || normalizedLog.cognitive_skill;
-          normalizedLog.error_category = fallback?.errorCategory || normalizedLog.error_category;
-          normalizedLog.taxonomy_dimension = fallback?.taxonomyDimension || normalizedLog.taxonomy_dimension;
-        }
-
-        return normalizedLog;
-      })
-      .filter(Boolean);
-  }
-
+  session.phase2_source = phase2Source;
+  session.ai_source = phase2Source;
+  session.error_logs = extractTaxonomyErrorLogs(analysis, topic.part);
   session.status = "completed";
   session.scoring_state = "completed";
-  session.ai_source = aiSource;
   await session.save();
 
+  const phase1ReadyTs = new Date(session.phase1_ready_at || session.timestamp || Date.now()).getTime();
   const submitTs = new Date(session.timestamp || session.createdAt || Date.now()).getTime();
   const submitToFinalMs = Number.isFinite(submitTs) ? Math.max(0, Date.now() - submitTs) : null;
+  const phase1ToPhase2Ms = Number.isFinite(phase1ReadyTs) ? Math.max(0, Date.now() - phase1ReadyTs) : null;
   const provisionalBand = Number(session?.provisional_analysis?.band_score);
   const finalBand = Number(analysis?.band_score);
   const bandDiff = Number.isFinite(provisionalBand) && Number.isFinite(finalBand)
     ? Math.abs(finalBand - provisionalBand)
     : null;
+  console.log(JSON.stringify({
+    event: "speaking_phase2_ready",
+    session_id: String(session._id),
+    phase1_to_phase2_ms: phase1ToPhase2Ms,
+    phase2_latency_ms: Date.now() - phaseStartAt,
+    model: phase2Source,
+    fallback_used: phase2FallbackUsed,
+  }));
+  console.log(JSON.stringify({
+    event: "speaking_pipeline_completed",
+    session_id: String(session._id),
+    submit_to_final_ms: submitToFinalMs,
+    provisional_final_band_diff: bandDiff,
+    phase2_fallback_used: phase2FallbackUsed,
+  }));
   console.log(JSON.stringify({
     event: "speaking_final_score_ready",
     session_id: String(session._id),
@@ -957,8 +1511,14 @@ export const scoreSpeakingSessionById = async ({ sessionId, force = false } = {}
 
   return {
     session,
-    aiSource,
+    aiSource: phase2Source,
     analysis,
     skipped: false,
+    phase2FallbackUsed,
   };
+};
+
+export const scoreSpeakingSessionById = async ({ sessionId, force = false } = {}) => {
+  await scoreSpeakingPhase1ById({ sessionId, force });
+  return scoreSpeakingPhase2ById({ sessionId, force });
 };

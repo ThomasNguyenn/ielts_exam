@@ -58,6 +58,7 @@ vi.mock("../../config/queue.config.js", () => ({
 }));
 
 vi.mock("../../queues/ai.queue.js", () => ({
+  enqueueSpeakingAiPhase1Job: vi.fn(),
   enqueueSpeakingAiScoreJob: vi.fn(),
   isAiQueueReady: vi.fn(() => false),
 }));
@@ -201,4 +202,3 @@ describe("speaking.controller Part 2 question title", () => {
     expect(filter.$or.some((entry) => Object.prototype.hasOwnProperty.call(entry, "part2_question_title"))).toBe(true);
   });
 });
-

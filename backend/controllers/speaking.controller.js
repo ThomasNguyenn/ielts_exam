@@ -2,7 +2,11 @@ import Speaking from "../models/Speaking.model.js";
 import SpeakingSession from "../models/SpeakingSession.js";
 import cloudinary from "../utils/cloudinary.js";
 import { isAiAsyncModeEnabled } from "../config/queue.config.js";
-import { enqueueSpeakingAiScoreJob, isAiQueueReady } from "../queues/ai.queue.js";
+import {
+  enqueueSpeakingAiPhase1Job,
+  enqueueSpeakingAiScoreJob,
+  isAiQueueReady,
+} from "../queues/ai.queue.js";
 import { scoreSpeakingSessionById, generateMockExaminerFollowUp } from "../services/speakingGrading.service.js";
 import { evaluateSpeakingProvisionalScore } from "../services/speakingFastScore.service.js";
 import { ensurePart3ConversationScript, generatePromptReadAloudPreview } from "../services/speakingReadAloud.service.js";
@@ -50,6 +54,9 @@ const normalizeMockExaminerTurns = (turns = []) =>
 
 const MAX_CANDIDATE_ANSWER_CHARS = Number(process.env.SPEAKING_MOCK_MAX_ANSWER_CHARS || 2000);
 const SPEAKING_FAST_SCORE_TIMEOUT_MS = Number(process.env.SPEAKING_FAST_SCORE_TIMEOUT_MS || 3500);
+const SPEAKING_TWO_PHASE_PIPELINE = ["1", "true", "yes", "on"].includes(
+  String(process.env.SPEAKING_TWO_PHASE_PIPELINE ?? "true").trim().toLowerCase(),
+);
 
 const deriveScoringState = (session) => {
   const explicitState = String(session?.scoring_state || "").trim();
@@ -390,9 +397,13 @@ export const getSpeakingSession = async (req, res) => {
         transcript: session.transcript || "",
         analysis: session.analysis || null,
         ai_source: session.ai_source || null,
+        phase2_source: session.phase2_source || null,
         provisional_analysis: session.provisional_analysis || null,
         provisional_source: session.provisional_source || null,
         provisional_ready_at: session.provisional_ready_at || null,
+        phase1_analysis: session.phase1_analysis || null,
+        phase1_source: session.phase1_source || null,
+        phase1_ready_at: session.phase1_ready_at || null,
         metrics: session.metrics || { wpm: 0, pauses: {} },
         timestamp: session.timestamp || session.createdAt || null,
         audio_deleted_at: session.audioDeletedAt || null,
@@ -679,7 +690,9 @@ export const submitSpeaking = async (req, res) => {
 
     if (canUseAsyncQueue) {
       try {
-        const queueResult = await enqueueSpeakingAiScoreJob({ sessionId: String(session._id) });
+        const queueResult = SPEAKING_TWO_PHASE_PIPELINE
+          ? await enqueueSpeakingAiPhase1Job({ sessionId: String(session._id) })
+          : await enqueueSpeakingAiScoreJob({ sessionId: String(session._id) });
         if (queueResult.queued) {
           return res.status(202).json({
             success: true,
@@ -693,6 +706,10 @@ export const submitSpeaking = async (req, res) => {
             provisional_analysis: session.provisional_analysis || null,
             provisional_source: session.provisional_source || null,
             provisional_ready_at: session.provisional_ready_at || null,
+            phase2_source: session.phase2_source || null,
+            phase1_analysis: session.phase1_analysis || null,
+            phase1_source: session.phase1_source || null,
+            phase1_ready_at: session.phase1_ready_at || null,
             metrics: session.metrics || { wpm: 0, pauses: {} },
             timestamp: session.timestamp || session.createdAt || null,
             xpResult,
@@ -714,9 +731,13 @@ export const submitSpeaking = async (req, res) => {
       transcript: grading.session?.transcript || grading.analysis?.transcript || "",
       analysis: grading.analysis || null,
       ai_source: grading.aiSource,
+      phase2_source: grading.session?.phase2_source || null,
       provisional_analysis: grading.session?.provisional_analysis || null,
       provisional_source: grading.session?.provisional_source || null,
       provisional_ready_at: grading.session?.provisional_ready_at || null,
+      phase1_analysis: grading.session?.phase1_analysis || null,
+      phase1_source: grading.session?.phase1_source || null,
+      phase1_ready_at: grading.session?.phase1_ready_at || null,
       metrics: grading.session?.metrics || { wpm: 0, pauses: {} },
       timestamp: grading.session?.timestamp || grading.session?.createdAt || null,
       queued: false,

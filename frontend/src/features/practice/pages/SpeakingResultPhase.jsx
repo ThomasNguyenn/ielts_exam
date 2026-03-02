@@ -183,12 +183,16 @@ export default function SpeakingResultPhase({ result, topic, onRetry }) {
 
   const finalAnalysis = parseAnalysisPayload(result?.analysis);
   const provisionalAnalysis = parseAnalysisPayload(result?.provisional_analysis);
+  const phase1Analysis = parseAnalysisPayload(result?.phase1_analysis);
   const hasFinal = hasAnalysisPayload(finalAnalysis);
   const hasProvisional = hasAnalysisPayload(provisionalAnalysis);
+  const hasPhase1 = hasAnalysisPayload(phase1Analysis);
+  const scoringState = String(result?.scoring_state || '').trim().toLowerCase();
+  const shouldUsePhase1 = scoringState !== 'completed' && hasPhase1 && (!hasFinal || isUnavailableAnalysis(finalAnalysis));
   const shouldUseProvisional = hasProvisional && (!hasFinal || isUnavailableAnalysis(finalAnalysis));
-  const activeAnalysis = shouldUseProvisional
-    ? provisionalAnalysis
-    : (hasFinal ? finalAnalysis : provisionalAnalysis);
+  const activeAnalysis = shouldUsePhase1
+    ? phase1Analysis
+    : (shouldUseProvisional ? provisionalAnalysis : (hasFinal ? finalAnalysis : provisionalAnalysis));
 
   const safeAnalysis = {
     band_score: toScoreNumber(activeAnalysis?.band_score, 0),
@@ -215,7 +219,6 @@ export default function SpeakingResultPhase({ result, topic, onRetry }) {
     next_step: String(activeAnalysis?.next_step || '').trim(),
   };
 
-  const scoringState = String(result?.scoring_state || '').trim().toLowerCase();
   const finalBand = toScoreNumber(finalAnalysis?.band_score);
   const provisionalBand = toScoreNumber(provisionalAnalysis?.band_score);
   const bandDelta = (
@@ -224,14 +227,18 @@ export default function SpeakingResultPhase({ result, topic, onRetry }) {
       : null
   );
 
-  const statusLabel = shouldUseProvisional
-    ? 'Provisional'
-    : (scoringState === 'completed' ? 'Completed' : 'Processing');
-  const statusClassName = shouldUseProvisional
-    ? 'bg-blue-100 text-blue-700'
-    : (scoringState === 'completed'
+  const statusLabel = shouldUsePhase1
+    ? 'Phase 1 Ready'
+    : (shouldUseProvisional
+      ? 'Provisional'
+      : (scoringState === 'completed' ? 'Completed' : 'Processing'));
+  const statusClassName = shouldUsePhase1
+    ? 'bg-indigo-100 text-indigo-700'
+    : (shouldUseProvisional
+      ? 'bg-blue-100 text-blue-700'
+      : (scoringState === 'completed'
       ? 'bg-green-100 text-green-700'
-      : 'bg-slate-100 text-slate-700');
+      : 'bg-slate-100 text-slate-700'));
 
   const topicTitle = String(topic?.title || topic?.prompt || 'Speaking Topic').trim();
   const topicLabel = normalizedPart ? `Part ${normalizedPart}` : 'Speaking';

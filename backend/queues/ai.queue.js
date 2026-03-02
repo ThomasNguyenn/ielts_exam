@@ -9,6 +9,9 @@ import {
 export const WRITING_AI_QUEUE = "writing-ai-grading";
 export const SPEAKING_AI_QUEUE = "speaking-ai-grading";
 export const WRITING_TAXONOMY_QUEUE = "writing-taxonomy-enrichment";
+export const SPEAKING_SCORE_JOB = "score-speaking-session";
+export const SPEAKING_PHASE1_JOB = "score-speaking-phase1";
+export const SPEAKING_PHASE2_JOB = "score-speaking-phase2";
 
 let redisConnection = null;
 let writingQueue = null;
@@ -112,7 +115,59 @@ export const enqueueSpeakingAiScoreJob = async ({ sessionId, force = false }) =>
   const jobId = buildSafeJobId("speaking-session", sessionId);
   const job = await addUniqueJob(
     speakingQueue,
-    "score-speaking-session",
+    SPEAKING_SCORE_JOB,
+    { sessionId, force },
+    jobId,
+  );
+
+  return {
+    queued: true,
+    queue: SPEAKING_AI_QUEUE,
+    jobId: String(job.id),
+  };
+};
+
+export const enqueueSpeakingAiPhase1Job = async ({ sessionId, force = false }) => {
+  const state = ensureQueues();
+  if (!state.ready) {
+    return {
+      queued: false,
+      reason: state.reason,
+      queue: SPEAKING_AI_QUEUE,
+      jobId: null,
+    };
+  }
+
+  const jobId = buildSafeJobId("speaking-session-phase1", sessionId);
+  const job = await addUniqueJob(
+    speakingQueue,
+    SPEAKING_PHASE1_JOB,
+    { sessionId, force },
+    jobId,
+  );
+
+  return {
+    queued: true,
+    queue: SPEAKING_AI_QUEUE,
+    jobId: String(job.id),
+  };
+};
+
+export const enqueueSpeakingAiPhase2Job = async ({ sessionId, force = false }) => {
+  const state = ensureQueues();
+  if (!state.ready) {
+    return {
+      queued: false,
+      reason: state.reason,
+      queue: SPEAKING_AI_QUEUE,
+      jobId: null,
+    };
+  }
+
+  const jobId = buildSafeJobId("speaking-session-phase2", sessionId);
+  const job = await addUniqueJob(
+    speakingQueue,
+    SPEAKING_PHASE2_JOB,
     { sessionId, force },
     jobId,
   );

@@ -132,6 +132,7 @@ const buildFallbackAnalysis = () => ({
 const buildSpeakingResultPayload = (payload = {}, fallbackSessionId = null) => {
   const parsedAnalysis = parseAnalysisObject(payload?.analysis);
   const parsedProvisional = parseAnalysisObject(payload?.provisional_analysis);
+  const parsedPhase1 = parseAnalysisObject(payload?.phase1_analysis);
   const usableFinalAnalysis = hasMeaningfulAnalysis(parsedAnalysis) && !isUnavailableAnalysisPayload(parsedAnalysis);
   const activeAnalysis = usableFinalAnalysis
     ? parsedAnalysis
@@ -147,6 +148,9 @@ const buildSpeakingResultPayload = (payload = {}, fallbackSessionId = null) => {
     provisional_analysis: parsedProvisional || null,
     provisional_source: payload?.provisional_source || null,
     provisional_ready_at: payload?.provisional_ready_at || null,
+    phase1_analysis: parsedPhase1 || null,
+    phase1_source: payload?.phase1_source || null,
+    phase1_ready_at: payload?.phase1_ready_at || null,
   };
 };
 
@@ -158,6 +162,7 @@ export default function SpeakingFlow() {
   const [phase, setPhase] = useState('recording');
   const [result, setResult] = useState(null);
   const [provisionalSnapshot, setProvisionalSnapshot] = useState(null);
+  const [phase1Snapshot, setPhase1Snapshot] = useState(null);
   const [processingStartedAt, setProcessingStartedAt] = useState(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const { showNotification } = useNotification();
@@ -208,6 +213,23 @@ export default function SpeakingFlow() {
     }
   };
 
+  const syncPhase1State = (payload = {}, { notify = false } = {}) => {
+    const parsedPhase1 = parseAnalysisObject(payload?.phase1_analysis);
+    if (!hasMeaningfulAnalysis(parsedPhase1)) return;
+
+    setPhase1Snapshot({
+      session_id: getSpeakingSessionId(payload),
+      analysis: parsedPhase1,
+      source: payload?.phase1_source || null,
+      ready_at: payload?.phase1_ready_at || null,
+      scoring_state: normalizeScoringState(payload),
+    });
+
+    if (notify) {
+      showNotification('AI Phase 1 is ready. Fluency and pronunciation scoring is still running.', 'info');
+    }
+  };
+
   const pollSpeakingResult = async (sessionId) => {
     const maxAttempts = 45;
 
@@ -218,6 +240,7 @@ export default function SpeakingFlow() {
       const legacyStatus = String(session?.status || '').trim().toLowerCase();
 
       syncProvisionalState(session, { notify: true });
+      syncPhase1State(session, { notify: false });
 
       if (scoringState === 'completed' || legacyStatus === 'completed') {
         setResult(buildSpeakingResultPayload(session, sessionId));
@@ -239,6 +262,7 @@ export default function SpeakingFlow() {
   const handleRecordingComplete = async (audioBlob, extraData = {}) => {
     const startedAt = Date.now();
     setProvisionalSnapshot(null);
+    setPhase1Snapshot(null);
     provisionalNoticeShownRef.current = false;
     setProcessingStartedAt(startedAt);
     setElapsedSeconds(0);
@@ -264,6 +288,7 @@ export default function SpeakingFlow() {
       const hasAnalysis = hasMeaningfulAnalysis(parsedAnalysis);
 
       syncProvisionalState(submitPayload, { notify: true });
+      syncPhase1State(submitPayload, { notify: false });
 
       if (scoringState === 'failed' || statusValue === 'failed') {
         throw new Error('AI grading failed. Please retry.');
@@ -276,6 +301,7 @@ export default function SpeakingFlow() {
           submitPayload?.queued === true ||
           scoringState === 'processing' ||
           scoringState === 'provisional_ready' ||
+          scoringState === 'phase1_ready' ||
           statusValue === 'processing' ||
           statusValue === 'queued' ||
           statusValue === 'pending' ||
@@ -393,6 +419,37 @@ export default function SpeakingFlow() {
                 </p>
               </div>
             )}
+            {phase1Snapshot?.analysis && (
+              <div style={{
+                marginTop: '1rem',
+                background: '#eef2ff',
+                border: '1px solid #c7d2fe',
+                borderRadius: '14px',
+                padding: '1rem 1.25rem',
+                textAlign: 'left',
+                maxWidth: '640px',
+                marginInline: 'auto',
+              }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  <strong style={{ color: '#312e81' }}>AI Phase 1 Ready (Lexical + Grammar)</strong>
+                  <span style={{
+                    background: '#312e81',
+                    color: '#fff',
+                    fontWeight: 700,
+                    borderRadius: '999px',
+                    padding: '0.15rem 0.6rem',
+                    fontSize: '0.8rem',
+                  }}
+                  >
+                    L {phase1Snapshot.analysis?.lexical_resource?.score ?? '-'} / G {phase1Snapshot.analysis?.grammatical_range?.score ?? '-'}
+                  </span>
+                </div>
+                <p className="muted" style={{ marginTop: '0.5rem', marginBottom: 0 }}>
+                  Phase 2 (Fluency + Pronunciation) is processing.
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -403,6 +460,7 @@ export default function SpeakingFlow() {
             onRetry={() => {
               setResult(null);
               setProvisionalSnapshot(null);
+              setPhase1Snapshot(null);
               provisionalNoticeShownRef.current = false;
               setProcessingStartedAt(null);
               setElapsedSeconds(0);
