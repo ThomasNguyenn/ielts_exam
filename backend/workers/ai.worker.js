@@ -69,9 +69,39 @@ const main = async () => {
     async (job) => {
       const { sessionId, force = false } = job.data || {};
       if (!sessionId) throw new Error("Missing sessionId");
+      log("Speaking job started", {
+        jobId: job.id,
+        jobName: job.name,
+        sessionId,
+        force: Boolean(force),
+      });
 
       if (job.name === SPEAKING_PHASE1_JOB) {
         const phase1Result = await scoreSpeakingPhase1ById({ sessionId, force });
+        const phase1Analysis = phase1Result?.phase1Analysis || phase1Result?.session?.phase1_analysis || null;
+        log("Speaking phase1 result", {
+          jobId: job.id,
+          sessionId,
+          phase1Source: phase1Result?.phase1Source || phase1Result?.session?.phase1_source || null,
+          fallbackUsed: Boolean(phase1Result?.fallbackUsed),
+          skipped: Boolean(phase1Result?.skipped),
+          phase1_contract_payload: phase1Analysis
+            ? {
+              lexical_resource: {
+                score: phase1Analysis?.lexical_resource?.score ?? null,
+                feedback: phase1Analysis?.lexical_resource?.feedback ?? null,
+              },
+              grammatical_range: {
+                score: phase1Analysis?.grammatical_range?.score ?? null,
+                feedback: phase1Analysis?.grammatical_range?.feedback ?? null,
+              },
+              vocabulary_upgrades: Array.isArray(phase1Analysis?.vocabulary_upgrades) ? phase1Analysis.vocabulary_upgrades : [],
+              grammar_corrections: Array.isArray(phase1Analysis?.grammar_corrections) ? phase1Analysis.grammar_corrections : [],
+              general_feedback: phase1Analysis?.general_feedback ?? null,
+              error_logs: Array.isArray(phase1Analysis?.error_logs) ? phase1Analysis.error_logs : [],
+            }
+            : null,
+        });
         const shouldRunPhase2 = String(phase1Result?.session?.status || "").toLowerCase() !== "completed";
         if (shouldRunPhase2) {
           await enqueueSpeakingAiPhase2Job({ sessionId, force });
@@ -80,7 +110,24 @@ const main = async () => {
       }
 
       if (job.name === SPEAKING_PHASE2_JOB) {
-        await scoreSpeakingPhase2ById({ sessionId, force });
+        const phase2Result = await scoreSpeakingPhase2ById({ sessionId, force });
+        const analysis = phase2Result?.analysis || phase2Result?.session?.analysis || null;
+        log("Speaking phase2 result", {
+          jobId: job.id,
+          sessionId,
+          aiSource: phase2Result?.aiSource || phase2Result?.session?.ai_source || null,
+          skipped: Boolean(phase2Result?.skipped),
+          fallbackUsed: Boolean(phase2Result?.phase2FallbackUsed),
+          final_scores: analysis
+            ? {
+              band_score: analysis?.band_score ?? null,
+              fluency_coherence: analysis?.fluency_coherence?.score ?? null,
+              lexical_resource: analysis?.lexical_resource?.score ?? null,
+              grammatical_range: analysis?.grammatical_range?.score ?? null,
+              pronunciation: analysis?.pronunciation?.score ?? null,
+            }
+            : null,
+        });
         return { sessionId, stage: "phase2" };
       }
 

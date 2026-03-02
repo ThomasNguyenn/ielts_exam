@@ -8,6 +8,23 @@ const modelHealthState = new Map();
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const toNumberOrNull = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const normalizeGeminiUsage = (usageMetadata) => {
+  const source = usageMetadata && typeof usageMetadata === "object" ? usageMetadata : {};
+  return {
+    input_tokens: toNumberOrNull(source.promptTokenCount),
+    output_tokens: toNumberOrNull(source.candidatesTokenCount),
+    total_tokens: toNumberOrNull(source.totalTokenCount),
+    cached_input_tokens: toNumberOrNull(source.cachedContentTokenCount),
+    thoughts_tokens: toNumberOrNull(source.thoughtsTokenCount),
+    raw: source,
+  };
+};
+
 const toModelErrorSignature = (error) => {
   const code = String(error?.code || "").toUpperCase();
   const message = String(error?.message || "").toLowerCase();
@@ -557,9 +574,11 @@ export const requestGeminiJsonWithFallback = async ({
           if (!rawText.trim()) {
             throw new Error(`Gemini returned empty content for model ${modelName}`);
           }
+          const usage = normalizeGeminiUsage(response?.usageMetadata);
           return {
             rawText,
             parsed: parseModelJson(rawText),
+            usage,
           };
         },
       });
@@ -568,6 +587,7 @@ export const requestGeminiJsonWithFallback = async ({
         model: modelName,
         data: result.parsed,
         rawText: result.rawText,
+        usage: result.usage || null,
       };
     } catch (error) {
       lastError = error;

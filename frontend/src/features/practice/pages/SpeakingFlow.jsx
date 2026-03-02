@@ -318,7 +318,9 @@ export default function SpeakingFlow() {
       setPhase('result');
     } catch (error) {
       console.error('Submission failed:', error);
-      showNotification('Error while processing audio. Please try again.', 'error');
+      const backendMessage = String(error?.message || '').trim();
+      const message = backendMessage || 'Error while processing audio. Please try again.';
+      showNotification(message, 'error');
       setProcessingStartedAt(null);
       setPhase('recording');
     }

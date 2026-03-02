@@ -681,11 +681,27 @@ export const submitSpeaking = async (req, res) => {
       newlyUnlocked = await checkAchievements(userId);
     }
 
-    const shouldQueue = isAiAsyncModeEnabled() && isAiQueueReady();
-    const canUseAsyncQueue = shouldQueue && Boolean(userId);
+    const asyncModeEnabled = isAiAsyncModeEnabled();
+    const queueReady = isAiQueueReady();
+    const shouldQueue = asyncModeEnabled && queueReady;
+    const hasUserId = Boolean(userId);
+    const canUseAsyncQueue = shouldQueue && hasUserId;
+    let syncFallbackReason = "";
+
+    console.log(JSON.stringify({
+      event: "speaking_queue_decision",
+      session_id: String(session._id),
+      async_mode_enabled: asyncModeEnabled,
+      queue_ready: queueReady,
+      should_queue: shouldQueue,
+      has_user_id: hasUserId,
+      can_use_async_queue: canUseAsyncQueue,
+      two_phase_pipeline: SPEAKING_TWO_PHASE_PIPELINE,
+    }));
 
     if (shouldQueue && !userId) {
       console.warn("Speaking async queue skipped: missing authenticated user, falling back to sync scoring");
+      syncFallbackReason = "missing_user_id";
     }
 
     if (canUseAsyncQueue) {
@@ -693,6 +709,14 @@ export const submitSpeaking = async (req, res) => {
         const queueResult = SPEAKING_TWO_PHASE_PIPELINE
           ? await enqueueSpeakingAiPhase1Job({ sessionId: String(session._id) })
           : await enqueueSpeakingAiScoreJob({ sessionId: String(session._id) });
+        console.log(JSON.stringify({
+          event: "speaking_queue_enqueue_result",
+          session_id: String(session._id),
+          queued: Boolean(queueResult?.queued),
+          queue: queueResult?.queue || null,
+          job_id: queueResult?.jobId || null,
+          reason: queueResult?.reason || null,
+        }));
         if (queueResult.queued) {
           return res.status(202).json({
             success: true,
@@ -716,11 +740,22 @@ export const submitSpeaking = async (req, res) => {
             achievements: newlyUnlocked
           });
         }
+        syncFallbackReason = queueResult?.reason
+          ? `queue_not_queued:${queueResult.reason}`
+          : "queue_not_queued";
       } catch (queueError) {
         console.warn("Speaking enqueue failed, falling back to sync scoring:", queueError.message);
+        syncFallbackReason = `enqueue_error:${queueError.message}`;
       }
+    } else if (!syncFallbackReason) {
+      syncFallbackReason = shouldQueue ? "queue_ineligible" : "queue_disabled_or_unready";
     }
 
+    console.log(JSON.stringify({
+      event: "speaking_sync_fallback_scoring",
+      session_id: String(session._id),
+      reason: syncFallbackReason || "unknown",
+    }));
     const grading = await scoreSpeakingSessionById({ sessionId: String(session._id), force: true });
     return res.json({
       success: true,
@@ -748,7 +783,19 @@ export const submitSpeaking = async (req, res) => {
     if (session?._id) {
       await SpeakingSession.findByIdAndUpdate(session._id, { status: "failed", scoring_state: "failed" }).catch(() => { });
     }
-    return handleControllerError(req, res, error);
+    const statusCode = Number(error?.statusCode || error?.status || 500);
+    const message = String(error?.message || "").trim() || "Error when processing audio";
+    console.error(JSON.stringify({
+      event: "speaking_submit_error",
+      session_id: session?._id ? String(session._id) : null,
+      status_code: statusCode,
+      message,
+      code: String(error?.code || ""),
+    }));
+    return handleControllerError(req, res, error, {
+      statusCode,
+      message,
+    });
   }
 };
 

@@ -60,10 +60,10 @@ const SPEAKING_PHASE2_TIMEOUT_MS = Number(
   process.env.SPEAKING_PHASE2_TIMEOUT_MS || SPEAKING_GEMINI_TIMEOUT_MS || 30000,
 );
 const SPEAKING_PHASE1_MAX_OUTPUT_TOKENS = Number(
-  process.env.SPEAKING_PHASE1_MAX_OUTPUT_TOKENS || 700,
+  process.env.SPEAKING_PHASE1_MAX_OUTPUT_TOKENS || 6000,
 );
 const SPEAKING_PHASE2_MAX_OUTPUT_TOKENS = Number(
-  process.env.SPEAKING_PHASE2_MAX_OUTPUT_TOKENS || 1000,
+  process.env.SPEAKING_PHASE2_MAX_OUTPUT_TOKENS || 6000,
 );
 const SPEAKING_ANALYSIS_MAX_OUTPUT_TOKENS = Number(
   process.env.SPEAKING_ANALYSIS_MAX_OUTPUT_TOKENS
@@ -1013,28 +1013,14 @@ const cleanupSessionAudioFromCloudinary = async (session) => {
 };
 
 const buildPhase1Prompt = ({
-  topicPrompt,
-  topicPart,
-  subQuestions,
   transcript,
 }) => `
 You are a STRICT IELTS Speaking examiner focusing ONLY on:
 1) Lexical Resource
 2) Grammatical Range & Accuracy
 
-TOPIC / QUESTION:
-"${topicPrompt}"
-
-EXAM PART:
-- Part: ${normalizeSpeakingPart(topicPart) || "unknown"}
-- Cue points / follow-up prompts:
-${formatSubQuestionLines(subQuestions)}
-
-TRANSCRIPT (canonical STT):
+Student Answer:
 "${transcript || "(none)"}"
-
-AUTO-DETECTED POSSIBLE GRAMMAR ISSUES (rule-based hints, must verify):
-${buildGrammarProxyHintLines(transcript)}
 
 RULES:
 - Evaluate only lexical_resource and grammatical_range.
@@ -1050,12 +1036,44 @@ RULES:
   - Lexical: S-L1, S-L2, S-L3, S-L4
   - Grammar: S-G1, S-G2, S-G3, S-G4
 - Include 4-8 specific error logs.
-- sample_answer must be natural spoken English and fit IELTS part style.
-
-MODEL ANSWER REQUIREMENTS:
-${buildSampleAnswerRequirements({ topicPart, subQuestions })}
 
 Return ONLY valid JSON:
+{
+  "lexical_resource": { "score": number, "feedback": "string" },
+  "grammatical_range": { "score": number, "feedback": "string" },
+  "vocabulary_upgrades": [
+    { "original": "string", "suggestion": "string", "reason": "string" }
+  ]
+  "grammar_corrections": [
+    { "original": "string", "corrected": "string", "reason": "string" }
+  ],
+  "general_feedback": "string",
+  "error_logs": [
+    { "code": "string", "snippet": "string", "explanation": "string" }
+  ]
+}
+`;
+
+const buildPhase1RepairPrompt = ({
+  transcript = "",
+  previousRaw = "",
+  reason = "",
+}) => `
+Your previous response for IELTS Speaking Phase 1 JSON was incomplete or invalid.
+
+ISSUE:
+${String(reason || "Missing required fields").trim()}
+
+PREVIOUS RAW OUTPUT (for reference only):
+${String(previousRaw || "").slice(0, 1500)}
+
+Now regenerate the response from the same student answer below.
+Do not omit any required top-level keys.
+
+Student Answer:
+"${transcript || "(none)"}"
+
+Return ONLY valid JSON with this exact structure:
 {
   "lexical_resource": { "score": number, "feedback": "string" },
   "grammatical_range": { "score": number, "feedback": "string" },
@@ -1065,13 +1083,95 @@ Return ONLY valid JSON:
   "grammar_corrections": [
     { "original": "string", "corrected": "string", "reason": "string" }
   ],
-  "sample_answer": "string",
   "general_feedback": "string",
   "error_logs": [
     { "code": "string", "snippet": "string", "explanation": "string" }
   ]
 }
 `;
+
+const validatePhase1AiPayload = (payload) => {
+  const source = payload && typeof payload === "object" ? payload : {};
+  const lexicalScore = toBandScoreOrNull(source?.lexical_resource?.score);
+  const grammarScore = toBandScoreOrNull(source?.grammatical_range?.score);
+  const lexicalFeedback = String(source?.lexical_resource?.feedback || "").trim();
+  const grammarFeedback = String(source?.grammatical_range?.feedback || "").trim();
+
+  if (lexicalScore === null) {
+    return { ok: false, reason: "missing lexical_resource.score" };
+  }
+  if (!lexicalFeedback) {
+    return { ok: false, reason: "missing lexical_resource.feedback" };
+  }
+  if (grammarScore === null) {
+    return { ok: false, reason: "missing grammatical_range.score" };
+  }
+  if (!grammarFeedback) {
+    return { ok: false, reason: "missing grammatical_range.feedback" };
+  }
+
+  return {
+    ok: true,
+    reason: "",
+    data: {
+      ...source,
+      vocabulary_upgrades: Array.isArray(source?.vocabulary_upgrades) ? source.vocabulary_upgrades : [],
+      grammar_corrections: Array.isArray(source?.grammar_corrections) ? source.grammar_corrections : [],
+      error_logs: Array.isArray(source?.error_logs) ? source.error_logs : [],
+      general_feedback: String(source?.general_feedback || "").trim(),
+    },
+  };
+};
+
+const toPhase1ContractLogPayload = (payload) => {
+  const source = payload && typeof payload === "object" ? payload : {};
+  return {
+    lexical_resource: {
+      score: source?.lexical_resource?.score ?? null,
+      feedback: source?.lexical_resource?.feedback ?? null,
+    },
+    grammatical_range: {
+      score: source?.grammatical_range?.score ?? null,
+      feedback: source?.grammatical_range?.feedback ?? null,
+    },
+    vocabulary_upgrades: Array.isArray(source?.vocabulary_upgrades) ? source.vocabulary_upgrades : [],
+    grammar_corrections: Array.isArray(source?.grammar_corrections) ? source.grammar_corrections : [],
+    general_feedback: source?.general_feedback ?? null,
+    error_logs: Array.isArray(source?.error_logs) ? source.error_logs : [],
+  };
+};
+
+const getPhase1ContractMissingFields = (payload) => {
+  const source = payload && typeof payload === "object" ? payload : {};
+  const missing = [];
+
+  if (source?.lexical_resource?.score === undefined || source?.lexical_resource?.score === null) {
+    missing.push("lexical_resource.score");
+  }
+  if (source?.lexical_resource?.feedback === undefined || source?.lexical_resource?.feedback === null) {
+    missing.push("lexical_resource.feedback");
+  }
+  if (source?.grammatical_range?.score === undefined || source?.grammatical_range?.score === null) {
+    missing.push("grammatical_range.score");
+  }
+  if (source?.grammatical_range?.feedback === undefined || source?.grammatical_range?.feedback === null) {
+    missing.push("grammatical_range.feedback");
+  }
+  if (!Array.isArray(source?.vocabulary_upgrades)) {
+    missing.push("vocabulary_upgrades");
+  }
+  if (!Array.isArray(source?.grammar_corrections)) {
+    missing.push("grammar_corrections");
+  }
+  if (source?.general_feedback === undefined || source?.general_feedback === null) {
+    missing.push("general_feedback");
+  }
+  if (!Array.isArray(source?.error_logs)) {
+    missing.push("error_logs");
+  }
+
+  return missing;
+};
 
 const buildPhase2Prompt = ({
   topicPrompt,
@@ -1690,11 +1790,24 @@ export const mergeSpeakingPhaseAnalyses = ({
 
 export const scoreSpeakingPhase1ById = async ({ sessionId, force = false } = {}) => {
   const { session, topic } = await getSessionAndTopic(sessionId);
+  console.log(JSON.stringify({
+    event: "speaking_phase1_start",
+    session_id: String(session?._id || sessionId),
+    force: Boolean(force),
+    scoring_state: String(session?.scoring_state || ""),
+    status: String(session?.status || ""),
+  }));
   if (
     !force
     && ["phase1_ready", "completed"].includes(String(session?.scoring_state || "").trim())
     && hasUsableAnalysisPayload(session?.phase1_analysis)
   ) {
+    console.log(JSON.stringify({
+      event: "speaking_phase1_skip_cached",
+      session_id: String(session?._id || sessionId),
+      scoring_state: String(session?.scoring_state || ""),
+      phase1_source: String(session?.phase1_source || "cached"),
+    }));
     return {
       session,
       phase1Analysis: session.phase1_analysis,
@@ -1705,7 +1818,6 @@ export const scoreSpeakingPhase1ById = async ({ sessionId, force = false } = {})
   }
 
   const phaseStartAt = Date.now();
-  const cuePoints = resolveTopicCuePoints(topic);
   const transcriptResult = await resolveCanonicalTranscript(session);
   const transcript = String(transcriptResult?.transcript || "").trim();
 
@@ -1714,11 +1826,12 @@ export const scoreSpeakingPhase1ById = async ({ sessionId, force = false } = {})
   }
 
   const prompt = buildPhase1Prompt({
-    topicPrompt: topic.prompt,
-    topicPart: topic.part,
-    subQuestions: cuePoints,
     transcript,
   });
+  const phase1IncompleteRetryAttempts = Math.max(
+    1,
+    Number(process.env.SPEAKING_PHASE1_INCOMPLETE_RETRY_ATTEMPTS || 2),
+  );
 
   let phase1Analysis;
   let phase1Source = "fallback";
@@ -1728,18 +1841,85 @@ export const scoreSpeakingPhase1ById = async ({ sessionId, force = false } = {})
     if (!genAI) {
       throw new Error("Gemini API key is not configured");
     }
-    const aiResponse = await requestGeminiJsonWithFallback({
-      genAI,
-      models: SPEAKING_PHASE1_MODELS,
-      contents: [prompt],
-      generationConfig: {
-        responseMimeType: "application/json",
-        maxOutputTokens: SPEAKING_PHASE1_MAX_OUTPUT_TOKENS,
-      },
-      timeoutMs: SPEAKING_PHASE1_TIMEOUT_MS,
-      maxAttempts: SPEAKING_GEMINI_MAX_ATTEMPTS,
-    });
-    phase1Analysis = normalizePhase1Payload(aiResponse.data, {
+
+    let aiResponse = null;
+    let acceptedPhase1Payload = null;
+    let lastValidationReason = "";
+    let previousRawResponse = "";
+
+    for (let attempt = 1; attempt <= phase1IncompleteRetryAttempts; attempt += 1) {
+      const attemptPrompt = attempt === 1
+        ? prompt
+        : buildPhase1RepairPrompt({
+          transcript,
+          previousRaw: previousRawResponse,
+          reason: lastValidationReason,
+        });
+
+      const candidateResponse = await requestGeminiJsonWithFallback({
+        genAI,
+        models: SPEAKING_PHASE1_MODELS,
+        contents: [attemptPrompt],
+        generationConfig: {
+          responseMimeType: "application/json",
+          maxOutputTokens: SPEAKING_PHASE1_MAX_OUTPUT_TOKENS,
+        },
+        timeoutMs: SPEAKING_PHASE1_TIMEOUT_MS,
+        maxAttempts: SPEAKING_GEMINI_MAX_ATTEMPTS,
+      });
+
+      const validation = validatePhase1AiPayload(candidateResponse?.data);
+      const parsedKeys = Object.keys(candidateResponse?.data || {});
+      previousRawResponse = String(candidateResponse?.rawText || "");
+      const contractPayload = toPhase1ContractLogPayload(candidateResponse?.data);
+      const missingContractFields = getPhase1ContractMissingFields(candidateResponse?.data);
+      const parsedDataPreview = JSON.stringify(candidateResponse?.data || {}).slice(0, 1500);
+
+      console.log(JSON.stringify({
+        event: "speaking_phase1_raw_ai_response",
+        session_id: String(session._id),
+        attempt,
+        max_attempts: phase1IncompleteRetryAttempts,
+        model: candidateResponse?.model || null,
+        token_usage: candidateResponse?.usage || null,
+        input_tokens: candidateResponse?.usage?.input_tokens ?? null,
+        output_tokens: candidateResponse?.usage?.output_tokens ?? null,
+        total_tokens: candidateResponse?.usage?.total_tokens ?? null,
+        raw_text_length: previousRawResponse.length,
+        raw_text_preview: previousRawResponse.slice(0, 1500),
+        parsed_keys: parsedKeys,
+        payload_valid: validation.ok,
+        invalid_reason: validation.ok ? null : validation.reason,
+        missing_contract_fields: missingContractFields,
+        phase1_contract_payload: contractPayload,
+        parsed_data_preview: parsedDataPreview,
+      }));
+
+      if (validation.ok) {
+        aiResponse = candidateResponse;
+        acceptedPhase1Payload = validation.data;
+        break;
+      }
+
+      lastValidationReason = validation.reason || "missing required keys";
+      console.warn("Speaking phase1 AI payload incomplete, retrying:", {
+        sessionId: String(session._id),
+        attempt,
+        maxAttempts: phase1IncompleteRetryAttempts,
+        reason: lastValidationReason,
+        parsedKeys,
+      });
+    }
+
+    if (!acceptedPhase1Payload || !aiResponse) {
+      const error = new Error(
+        `Phase1 AI payload incomplete after ${phase1IncompleteRetryAttempts} attempt(s): ${lastValidationReason || "unknown"}`,
+      );
+      error.code = "MODEL_INCOMPLETE_PHASE1_PAYLOAD";
+      throw error;
+    }
+
+    phase1Analysis = normalizePhase1Payload(acceptedPhase1Payload, {
       topicPart: topic.part,
       topicPrompt: topic.prompt,
     });
@@ -1751,6 +1931,12 @@ export const scoreSpeakingPhase1ById = async ({ sessionId, force = false } = {})
       code: error.code || "",
       models: SPEAKING_PHASE1_MODELS,
     });
+    console.log(JSON.stringify({
+      event: "speaking_phase1_ai_error",
+      session_id: String(session._id),
+      error: String(error?.message || ""),
+      code: String(error?.code || ""),
+    }));
 
     if (hasUsableAnalysisPayload(session?.provisional_analysis)) {
       phase1Analysis = normalizePhase1Payload(session.provisional_analysis, {
@@ -1866,6 +2052,17 @@ export const scoreSpeakingPhase2ById = async ({ sessionId, force = false } = {})
       timeoutMs: SPEAKING_PHASE2_TIMEOUT_MS,
       maxAttempts: SPEAKING_GEMINI_MAX_ATTEMPTS,
     });
+    console.log(JSON.stringify({
+      event: "speaking_phase2_raw_ai_response",
+      session_id: String(session._id),
+      model: aiResponse?.model || null,
+      token_usage: aiResponse?.usage || null,
+      input_tokens: aiResponse?.usage?.input_tokens ?? null,
+      output_tokens: aiResponse?.usage?.output_tokens ?? null,
+      total_tokens: aiResponse?.usage?.total_tokens ?? null,
+      raw_text_length: String(aiResponse?.rawText || "").length,
+      parsed_keys: Object.keys(aiResponse?.data || {}),
+    }));
     phase2Analysis = normalizePhase2Payload(aiResponse.data, {
       transcript: clientTranscript,
       fallbackWpm: clientWPM,

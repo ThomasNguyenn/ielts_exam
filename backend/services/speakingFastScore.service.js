@@ -4,10 +4,13 @@ import { toFile } from "openai/uploads";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.OPEN_API_KEY;
 const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
 const DEFAULT_SPEAKING_STT_MODEL = "gpt-4o-mini-transcribe";
+const DEFAULT_SPEAKING_STT_FALLBACK_MODEL = "whisper-1";
 const DEFAULT_SPEAKING_STT_LANGUAGE = "en";
 const DEFAULT_SPEAKING_STT_PROMPT = [
   "Verbatim transcript only.",
   "Do not correct grammar, tense, plurality, or word choice.",
+  "Do not rewrite broken English into natural English.",
+  "Never omit spoken words. If uncertain, keep the closest heard token.",
   "Preserve spoken mistakes exactly as heard.",
   "Pay close attention to final sounds and endings: -s, -es, -ed, final consonants.",
   "Keep fillers, repetitions, false starts, and disfluencies when present.",
@@ -53,6 +56,21 @@ const resolveAudioFilename = (mimeType = "audio/webm") => {
 const safeNumber = (value, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const getSttLowCoverageMinDurationSec = () =>
+  Math.max(0, Number(process.env.SPEAKING_STT_LOW_COVERAGE_MIN_DURATION_SEC || 18));
+
+const getSttLowCoverageMinWords = () =>
+  Math.max(1, Number(process.env.SPEAKING_STT_LOW_COVERAGE_MIN_WORDS || 22));
+
+const getSttLowCoverageMinWpm = () =>
+  Math.max(1, Number(process.env.SPEAKING_STT_LOW_COVERAGE_MIN_WPM || 55));
+
+const getSttClientOverrideRatio = () => {
+  const ratio = Number(process.env.SPEAKING_STT_CLIENT_OVERRIDE_RATIO || 0.6);
+  if (!Number.isFinite(ratio)) return 0.6;
+  return clamp(ratio, 0.2, 0.95);
 };
 
 const is4oTranscribeModel = (modelName = "") => {
@@ -203,44 +221,101 @@ export const transcribeWithWhisper = async ({ audioBuffer, mimeType }) => {
   }
 
   const sttModel = String(process.env.SPEAKING_STT_MODEL || DEFAULT_SPEAKING_STT_MODEL).trim() || DEFAULT_SPEAKING_STT_MODEL;
+  const sttFallbackModel = String(
+    process.env.SPEAKING_STT_FALLBACK_MODEL || DEFAULT_SPEAKING_STT_FALLBACK_MODEL,
+  ).trim();
+  const sttFallbackEnabled = toBoolean(process.env.SPEAKING_STT_ENABLE_FALLBACK_RETRY, true);
   const sttLanguage = String(process.env.SPEAKING_STT_LANGUAGE || DEFAULT_SPEAKING_STT_LANGUAGE).trim() || DEFAULT_SPEAKING_STT_LANGUAGE;
   const sttPrompt = String(process.env.SPEAKING_STT_PROMPT || DEFAULT_SPEAKING_STT_PROMPT).trim() || DEFAULT_SPEAKING_STT_PROMPT;
-  const use4oTranscribeJson = is4oTranscribeModel(sttModel);
   const uploadable = await toFile(audioBuffer, resolveAudioFilename(mimeType), {
     type: String(mimeType || "audio/webm"),
   });
 
-  const requestPayload = {
-    file: uploadable,
-    model: sttModel,
-    language: sttLanguage,
-    prompt: sttPrompt,
-    temperature: 0,
-    ...(use4oTranscribeJson
-      ? {
-        response_format: "json",
-        include: ["logprobs"],
-      }
-      : {
-        response_format: "verbose_json",
-        timestamp_granularities: ["segment", "word"],
-      }),
+  const runTranscription = async (modelName) => {
+    const use4oTranscribeJson = is4oTranscribeModel(modelName);
+    const requestPayload = {
+      file: uploadable,
+      model: modelName,
+      language: sttLanguage,
+      prompt: sttPrompt,
+      temperature: 0,
+      ...(use4oTranscribeJson
+        ? {
+          response_format: "json",
+          include: ["logprobs"],
+        }
+        : {
+          response_format: "verbose_json",
+          timestamp_granularities: ["segment", "word"],
+        }),
+    };
+
+    const response = await openai.audio.transcriptions.create(requestPayload);
+    const usageDuration = safeNumber(response?.usage?.seconds, 0);
+    const resolvedDuration = safeNumber(response?.duration, usageDuration);
+    const transcript = String(response?.text || "").trim();
+    const wordCount = tokenizeWords(transcript).length;
+    const duration = Math.max(0, resolvedDuration);
+    const wpm = duration > 0 ? (wordCount / duration) * 60 : 0;
+    const lowCoverage = duration >= getSttLowCoverageMinDurationSec()
+      && (wordCount < getSttLowCoverageMinWords() || (wpm > 0 && wpm < getSttLowCoverageMinWpm()));
+
+    return {
+      transcript,
+      sttMeta: {
+        language: response?.language || null,
+        duration,
+        segments: Array.isArray(response?.segments) ? response.segments : [],
+        words: Array.isArray(response?.words) ? response.words : [],
+        logprobs: Array.isArray(response?.logprobs) ? response.logprobs : [],
+      },
+      source: `openai:${modelName}`,
+      stats: {
+        wordCount,
+        duration,
+        wpm,
+        lowCoverage,
+      },
+    };
   };
 
-  const response = await openai.audio.transcriptions.create(requestPayload);
-  const usageDuration = safeNumber(response?.usage?.seconds, 0);
-  const resolvedDuration = safeNumber(response?.duration, usageDuration);
+  const primary = await runTranscription(sttModel);
+  let chosen = primary;
+
+  if (
+    sttFallbackEnabled
+    && sttFallbackModel
+    && sttFallbackModel !== sttModel
+    && (primary.stats.lowCoverage || !primary.transcript)
+  ) {
+    try {
+      const secondary = await runTranscription(sttFallbackModel);
+      const shouldPromoteSecondary = Boolean(secondary.transcript)
+        && (
+          !chosen.transcript
+          || secondary.stats.wordCount >= Math.max(chosen.stats.wordCount + 8, Math.floor(chosen.stats.wordCount * 1.2))
+          || (!secondary.stats.lowCoverage && chosen.stats.lowCoverage)
+        );
+
+      if (shouldPromoteSecondary) {
+        chosen = {
+          ...secondary,
+          source: `${secondary.source}:fallback_retry`,
+        };
+      }
+    } catch (fallbackError) {
+      console.warn("Speaking STT fallback model failed:", {
+        primaryModel: sttModel,
+        fallbackModel: sttFallbackModel,
+        error: fallbackError?.message || String(fallbackError),
+      });
+    }
+  }
 
   return {
-    transcript: String(response?.text || "").trim(),
-    sttMeta: {
-      language: response?.language || null,
-      duration: resolvedDuration,
-      segments: Array.isArray(response?.segments) ? response.segments : [],
-      words: Array.isArray(response?.words) ? response.words : [],
-      logprobs: Array.isArray(response?.logprobs) ? response.logprobs : [],
-    },
-    source: `openai:${sttModel}`,
+    transcript: chosen.transcript,
+    sttMeta: chosen.sttMeta,
+    source: chosen.source,
   };
 };
 
@@ -486,7 +561,35 @@ export const evaluateSpeakingProvisionalScore = async ({
     };
   }
 
-  const transcript = whisperResult?.transcript || String(fallbackTranscript || "").trim();
+  let transcript = whisperResult?.transcript || "";
+  const normalizedFallbackTranscript = String(fallbackTranscript || "").trim();
+  if (normalizedFallbackTranscript) {
+    const sttWordCount = tokenizeWords(transcript).length;
+    const clientWordCount = tokenizeWords(normalizedFallbackTranscript).length;
+    const ratio = clientWordCount > 0 ? sttWordCount / clientWordCount : 1;
+    const canOverrideWithClient =
+      clientWordCount >= 8
+      && sttWordCount > 0
+      && ratio < getSttClientOverrideRatio();
+
+    if (canOverrideWithClient) {
+      console.log(JSON.stringify({
+        event: "speaking_stt_client_override",
+        stt_word_count: sttWordCount,
+        client_word_count: clientWordCount,
+        ratio,
+        stt_source: whisperResult?.source || null,
+      }));
+      transcript = normalizedFallbackTranscript;
+      whisperResult = {
+        ...(whisperResult || {}),
+        transcript,
+        source: `${String(whisperResult?.source || "openai:stt")}:client_override_short_stt`,
+      };
+    }
+  }
+
+  transcript = transcript || normalizedFallbackTranscript;
   if (!transcript) {
     return null;
   }
