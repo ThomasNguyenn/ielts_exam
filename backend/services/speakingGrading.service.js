@@ -68,7 +68,7 @@ const SPEAKING_PHASE2_MAX_OUTPUT_TOKENS = Number(
 const SPEAKING_ANALYSIS_MAX_OUTPUT_TOKENS = Number(
   process.env.SPEAKING_ANALYSIS_MAX_OUTPUT_TOKENS
   || process.env.GEMINI_ANALYSIS_MAX_OUTPUT_TOKENS
-  || 2000,
+  || 4000,
 );
 
 const isHttpUrl = (value) => /^https?:\/\//i.test(String(value || ""));
