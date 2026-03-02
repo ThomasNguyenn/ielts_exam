@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   speakingFindById: vi.fn(),
-  enqueueSpeakingAiScoreJob: vi.fn(),
   enqueueSpeakingAiPhase1Job: vi.fn(),
   enqueueSpeakingAiPhase2Job: vi.fn(),
   isAiAsyncModeEnabled: vi.fn(),
@@ -50,7 +49,6 @@ vi.mock("../../config/queue.config.js", () => ({
 vi.mock("../../queues/ai.queue.js", () => ({
   enqueueSpeakingAiPhase1Job: (...args) => mocks.enqueueSpeakingAiPhase1Job(...args),
   enqueueSpeakingAiPhase2Job: (...args) => mocks.enqueueSpeakingAiPhase2Job(...args),
-  enqueueSpeakingAiScoreJob: (...args) => mocks.enqueueSpeakingAiScoreJob(...args),
   isAiQueueReady: (...args) => mocks.isAiQueueReady(...args),
 }));
 
@@ -102,7 +100,6 @@ describe("submitSpeaking fast-score behavior", () => {
     mocks.isAiQueueReady.mockReturnValue(true);
     mocks.enqueueSpeakingAiPhase1Job.mockResolvedValue({ queued: true, jobId: "job-phase1-1" });
     mocks.enqueueSpeakingAiPhase2Job.mockResolvedValue({ queued: true, jobId: "job-phase2-1" });
-    mocks.enqueueSpeakingAiScoreJob.mockResolvedValue({ queued: true, jobId: "job-1" });
     mocks.scoreSpeakingSessionById.mockResolvedValue(null);
     mocks.addXP.mockResolvedValue({ xpGained: 150, currentXP: 150, currentLevel: 1, levelUp: false });
     mocks.checkAchievements.mockResolvedValue([]);
@@ -151,6 +148,8 @@ describe("submitSpeaking fast-score behavior", () => {
     expect(payload.provisional_source).toBe("formula_v1");
     expect(payload.provisional_analysis?.band_score).toBe(6.5);
     expect(payload.queued).toBe(true);
+    expect(payload.job_id).toBe("job-phase1-1");
+    expect(mocks.enqueueSpeakingAiPhase1Job).toHaveBeenCalledTimes(1);
   });
 
   it("keeps processing state when fast-score errors (timeout/failure)", async () => {
@@ -181,5 +180,52 @@ describe("submitSpeaking fast-score behavior", () => {
     expect(payload.scoring_state).toBe("processing");
     expect(payload.provisional_analysis).toBeNull();
     expect(payload.provisional_source).toBeNull();
+    expect(payload.job_id).toBe("job-phase1-1");
+    expect(mocks.enqueueSpeakingAiPhase1Job).toHaveBeenCalledTimes(1);
+  });
+
+  it("still enqueues phase2 when cloud upload fails in background", async () => {
+    mocks.uploadStreamFactory.mockImplementation((_options, callback) => ({
+      on: vi.fn(),
+      end: vi.fn(() => callback(new Error("cloudinary timeout"), null)),
+    }));
+    mocks.evaluateSpeakingProvisionalScore.mockResolvedValue({
+      transcript: "Sample transcript",
+      provisionalAnalysis: {
+        band_score: 6.0,
+        fluency_coherence: { score: 6.0, feedback: "Fast metric" },
+        lexical_resource: { score: 6.0, feedback: "Fast metric" },
+        grammatical_range: { score: 6.0, feedback: "Fast metric" },
+        pronunciation: { score: 6.0, feedback: "Fast metric" },
+        general_feedback: "Provisional",
+        sample_answer: "Pending",
+      },
+      provisionalSource: "formula_v1",
+      sttSource: "openai:whisper-1",
+    });
+
+    const { submitSpeaking } = await import("../../controllers/speaking.controller.js");
+
+    const req = {
+      body: {
+        questionId: "topic-1",
+        transcript: "",
+        wpm: 110,
+        metrics: JSON.stringify({ pauseCount: 6, totalPauseDuration: 2700 }),
+      },
+      file: {
+        buffer: Buffer.from("audio-data"),
+        mimetype: "audio/webm",
+      },
+      user: { userId: "user-1", role: "student" },
+    };
+    const res = buildRes();
+
+    await submitSpeaking(req, res);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(res.status).toHaveBeenCalledWith(202);
+    expect(mocks.enqueueSpeakingAiPhase1Job).toHaveBeenCalledTimes(1);
+    expect(mocks.enqueueSpeakingAiPhase2Job).toHaveBeenCalledTimes(1);
   });
 });

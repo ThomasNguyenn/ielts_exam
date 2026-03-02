@@ -11,7 +11,7 @@ export default function ManageUsers() {
   const [pagination, setPagination] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [roleFilter, setRoleFilter] = useState(''); // '' = all, 'student', 'teacher'
+  const [roleFilter, setRoleFilter] = useState(''); // '' = all, 'student', 'teacher', 'online'
   const [searchTerm, setSearchTerm] = useState('');
   const [confirmModal, setConfirmModal] = useState({
     isOpen: false,
@@ -33,7 +33,9 @@ export default function ManageUsers() {
   const fetchUsers = async (page = 1) => {
     try {
       setLoading(true);
-      const res = await api.getUsers({ role: roleFilter, page, limit: PAGE_SIZE });
+      const res = roleFilter === 'online'
+        ? await api.getOnlineStudents({ page, limit: PAGE_SIZE })
+        : await api.getUsers({ role: roleFilter, page, limit: PAGE_SIZE });
       if (res.success) {
         setUsers(res.data);
         setPagination(res.pagination || null);
@@ -70,8 +72,8 @@ export default function ManageUsers() {
   };
 
   const filteredUsers = users.filter(user =>
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
+    String(user?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    String(user?.email || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -104,6 +106,13 @@ export default function ManageUsers() {
             >
               Teachers
             </button>
+            <button
+              className={`btn btn-sm ${roleFilter === 'online' ? 'btn-primary' : 'btn-outline'}`}
+              onClick={() => setRoleFilter('online')}
+              style={{ background: roleFilter === 'online' ? '#16a34a' : 'transparent', color: roleFilter === 'online' ? 'white' : '#64748b', border: '1px solid #e2e8f0', padding: '0.5rem 1rem', borderRadius: '0.5rem', fontWeight: 600, cursor: 'pointer' }}
+            >
+              Online Students
+            </button>
           </div>
 
           <input
@@ -113,6 +122,16 @@ export default function ManageUsers() {
             onChange={(e) => setSearchTerm(e.target.value)}
             style={{ flex: 1, padding: '0.5rem 1rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}
           />
+          {roleFilter === 'online' && (
+            <button
+              className="btn btn-sm btn-outline"
+              onClick={() => fetchUsers(currentPage)}
+              disabled={loading}
+              style={{ border: '1px solid #16a34a', color: '#16a34a', padding: '0.5rem 1rem', borderRadius: '0.5rem', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', background: 'transparent' }}
+            >
+              Refresh
+            </button>
+          )}
         </div>
 
         {loading ? (
@@ -130,6 +149,11 @@ export default function ManageUsers() {
                       <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: user.role === 'admin' ? '#fee2e2' : user.role === 'teacher' ? '#e0f2fe' : '#f1f5f9', color: user.role === 'admin' ? '#ef4444' : user.role === 'teacher' ? '#0ea5e9' : '#64748b' }}>
                         {user.role}
                       </span>
+                      {user.role === 'student' && user.is_online && (
+                        <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: '#dcfce7', color: '#15803d' }}>
+                          Online
+                        </span>
+                      )}
                     </span>
                     <span className="item-meta">{user.email}</span>
                   </div>

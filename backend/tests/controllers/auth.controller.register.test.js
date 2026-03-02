@@ -113,6 +113,7 @@ describe("register", () => {
     expect(res.cookies).toHaveLength(1);
     expect(userDeleteOneMock).not.toHaveBeenCalled();
     expect(createdUsers[0]?.refreshTokenHash).toBeTruthy();
+    expect(createdUsers[0]?.lastSeenAt).toBeInstanceOf(Date);
   });
 
   it("rolls back created user when verification email delivery fails", async () => {

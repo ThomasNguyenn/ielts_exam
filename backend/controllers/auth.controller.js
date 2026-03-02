@@ -221,6 +221,7 @@ export const register = async (req, res) => {
       studentSessionId = createStudentSessionId();
       user.activeSessionId = studentSessionId;
       user.activeSessionIssuedAt = new Date();
+      user.lastSeenAt = new Date();
     }
 
     const accessToken = issueAccessTokenForUser(user, studentSessionId);
@@ -375,6 +376,7 @@ export const resetPassword = async (req, res) => {
     if (user.role === "student") {
       user.activeSessionId = createStudentSessionId();
       user.activeSessionIssuedAt = new Date();
+      user.lastSeenAt = null;
     }
     await user.save();
 
@@ -413,6 +415,7 @@ export const login = async (req, res) => {
       studentSessionId = createStudentSessionId();
       user.activeSessionId = studentSessionId;
       user.activeSessionIssuedAt = new Date();
+      user.lastSeenAt = new Date();
     }
 
     const accessToken = issueAccessTokenForUser(user, studentSessionId);
@@ -492,6 +495,9 @@ export const refreshAccessToken = async (req, res) => {
     user.refreshTokenHash = hashToken(nextRefresh.token);
     user.refreshTokenIssuedAt = new Date();
     user.refreshTokenExpiresAt = nextRefresh.expiresAt;
+    if (user.role === "student") {
+      user.lastSeenAt = new Date();
+    }
     await user.save();
 
     setRefreshTokenCookie(res, nextRefresh.token);
@@ -524,6 +530,7 @@ export const logout = async (req, res) => {
           if (decoded.role === "student") {
             updatePayload.activeSessionId = createStudentSessionId();
             updatePayload.activeSessionIssuedAt = new Date();
+            updatePayload.lastSeenAt = null;
           }
 
           await User.findByIdAndUpdate(decoded.userId, {

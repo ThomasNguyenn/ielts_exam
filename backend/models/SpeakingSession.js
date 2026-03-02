@@ -21,14 +21,23 @@ const SpeakingSessionSchema = new mongoose.Schema({
   ai_source: { type: String, default: null },
   scoring_state: {
     type: String,
-    enum: ["processing", "provisional_ready", "phase1_ready", "completed", "failed"],
+    enum: ["processing", "provisional_ready", "phase1_ready", "phase2_ready", "completed", "failed"],
     default: "processing",
   },
+  audio_upload_state: {
+    type: String,
+    enum: ["uploading", "ready", "failed"],
+    default: "uploading",
+  },
+  audio_upload_started_at: { type: Date, default: null },
+  audio_uploaded_at: { type: Date, default: null },
+  audio_upload_error: { type: String, default: null },
   provisional_source: { type: String, default: null },
   provisional_ready_at: { type: Date, default: null },
   phase1_source: { type: String, default: null },
   phase1_ready_at: { type: Date, default: null },
   phase2_source: { type: String, default: null },
+  phase2_ready_at: { type: Date, default: null },
 
   // AI Analysis (Groq Llama 3)
   analysis: {
@@ -142,6 +151,7 @@ const SpeakingSessionSchema = new mongoose.Schema({
     next_step: { type: String },
   },
   phase1_analysis: { type: mongoose.Schema.Types.Mixed, default: null },
+  phase2_analysis: { type: mongoose.Schema.Types.Mixed, default: null },
 
   metrics: {
     wpm: { type: Number, default: 0 },

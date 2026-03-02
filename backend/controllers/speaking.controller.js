@@ -5,7 +5,6 @@ import { isAiAsyncModeEnabled } from "../config/queue.config.js";
 import {
   enqueueSpeakingAiPhase1Job,
   enqueueSpeakingAiPhase2Job,
-  enqueueSpeakingAiScoreJob,
   isAiQueueReady,
 } from "../queues/ai.queue.js";
 import { scoreSpeakingSessionById } from "../services/speakingGrading.service.js";
@@ -177,6 +176,12 @@ const uploadSpeakingAudio = async (audioFile) => {
     url: result.secure_url,
     publicId: result.public_id,
   };
+};
+
+const sanitizeUploadErrorMessage = (error) => {
+  const raw = String(error?.message || "").trim();
+  if (!raw) return "upload_failed";
+  return raw.slice(0, 180);
 };
 
 export const getRandomSpeaking = async (req, res) => {
@@ -393,6 +398,10 @@ export const getSpeakingSession = async (req, res) => {
         phase1_analysis: session.phase1_analysis || null,
         phase1_source: session.phase1_source || null,
         phase1_ready_at: session.phase1_ready_at || null,
+        audio_upload_state: session.audio_upload_state || null,
+        audio_uploaded_at: session.audio_uploaded_at || null,
+        audio_upload_error: session.audio_upload_error || null,
+        phase2_ready_at: session.phase2_ready_at || null,
         metrics: session.metrics || { wpm: 0, pauses: {} },
         timestamp: session.timestamp || session.createdAt || null,
         audio_deleted_at: session.audioDeletedAt || null,
@@ -471,78 +480,11 @@ export const submitSpeaking = async (req, res) => {
       return sendControllerError(req, res, { statusCode: 404, message: "Speaking topic not found"  });
     }
 
-    const uploadedAudio = await uploadSpeakingAudio(audioFile);
-
     let parsedMetrics = {};
     try {
       parsedMetrics = typeof metrics === "string" ? JSON.parse(metrics) : (metrics || {});
     } catch {
       parsedMetrics = {};
-    }
-
-    session = new SpeakingSession({
-      questionId,
-      userId: userId || undefined,
-      audioUrl: uploadedAudio.url,
-      audioPublicId: uploadedAudio.publicId || null,
-      audioMimeType: audioFile.mimetype || "audio/webm",
-      transcript: clientTranscript || "",
-      analysis: undefined,
-      metrics: {
-        wpm: Number(wpm || 0),
-        pauses: parsedMetrics,
-      },
-      status: "processing",
-    });
-    await session.save();
-
-    const provisionalStartAt = Date.now();
-    try {
-      const fastScoreResult = await withTimeout(
-        evaluateSpeakingProvisionalScore({
-          audioBuffer: audioFile.buffer,
-          mimeType: audioFile.mimetype || "audio/webm",
-          metrics: parsedMetrics,
-          wpm: Number(wpm || 0),
-          fallbackTranscript: clientTranscript || "",
-        }),
-        SPEAKING_FAST_SCORE_TIMEOUT_MS,
-        `Fast score timed out after ${SPEAKING_FAST_SCORE_TIMEOUT_MS}ms`,
-      );
-
-      if (fastScoreResult?.provisionalAnalysis) {
-        session.provisional_analysis = fastScoreResult.provisionalAnalysis;
-        session.provisional_source = fastScoreResult.provisionalSource || "formula_v1";
-        session.provisional_ready_at = new Date();
-        session.scoring_state = "provisional_ready";
-        const fastTranscript = String(fastScoreResult.transcript || "").trim();
-        const sttSource = String(fastScoreResult.sttSource || "").trim();
-        const isClientFallbackSource = sttSource === "client_transcript_fallback";
-
-        // Prefer backend STT transcript as canonical transcript.
-        // Only avoid overwrite when fast pipeline itself fell back to client transcript.
-        if (fastTranscript && (!isClientFallbackSource || !String(session.transcript || "").trim())) {
-          session.transcript = fastTranscript;
-        }
-        await session.save();
-
-        console.log(JSON.stringify({
-          event: "speaking_fast_score_ready",
-          session_id: String(session._id),
-          submit_to_provisional_ms: Date.now() - provisionalStartAt,
-          stt_source: fastScoreResult.sttSource || null,
-          stt_error_rate: 0,
-        }));
-      }
-    } catch (fastScoreError) {
-      console.warn("Speaking fast score skipped:", fastScoreError.message);
-      console.log(JSON.stringify({
-        event: "speaking_fast_score_error",
-        session_id: String(session._id),
-        submit_to_provisional_ms: Date.now() - provisionalStartAt,
-        stt_error_rate: 1,
-        error: fastScoreError.message,
-      }));
     }
 
     let xpResult = null;
@@ -564,7 +506,7 @@ export const submitSpeaking = async (req, res) => {
 
     console.log(JSON.stringify({
       event: "speaking_queue_decision",
-      session_id: String(session._id),
+      session_id: session?._id ? String(session._id) : null,
       async_mode_enabled: asyncModeEnabled,
       queue_ready: queueReady,
       should_queue: shouldQueue,
@@ -573,77 +515,229 @@ export const submitSpeaking = async (req, res) => {
       two_phase_pipeline: SPEAKING_TWO_PHASE_PIPELINE,
     }));
 
+    const createProcessingSession = async ({ withUploadLifecycle }) => {
+      const baseSession = new SpeakingSession({
+        questionId,
+        userId: userId || undefined,
+        audioUrl: withUploadLifecycle ? null : undefined,
+        audioPublicId: withUploadLifecycle ? null : undefined,
+        audioMimeType: audioFile.mimetype || "audio/webm",
+        transcript: clientTranscript || "",
+        analysis: undefined,
+        metrics: {
+          wpm: Number(wpm || 0),
+          pauses: parsedMetrics,
+        },
+        status: "processing",
+        scoring_state: "processing",
+        ...(withUploadLifecycle
+          ? {
+            audio_upload_state: "uploading",
+            audio_upload_started_at: new Date(),
+            audio_uploaded_at: null,
+            audio_upload_error: null,
+          }
+          : {}),
+      });
+      await baseSession.save();
+      return baseSession;
+    };
+
+    const runFastPipelineAndPersist = async ({ targetSession }) => {
+      const provisionalStartAt = Date.now();
+      try {
+        const fastScoreResult = await withTimeout(
+          evaluateSpeakingProvisionalScore({
+            audioBuffer: audioFile.buffer,
+            mimeType: audioFile.mimetype || "audio/webm",
+            metrics: parsedMetrics,
+            wpm: Number(wpm || 0),
+            fallbackTranscript: clientTranscript || "",
+          }),
+          SPEAKING_FAST_SCORE_TIMEOUT_MS,
+          `Fast score timed out after ${SPEAKING_FAST_SCORE_TIMEOUT_MS}ms`,
+        );
+
+        const updatePayload = {};
+        const fastTranscript = String(fastScoreResult?.transcript || "").trim();
+        const sttSource = String(fastScoreResult?.sttSource || "").trim();
+        const isClientFallbackSource = sttSource === "client_transcript_fallback";
+        if (fastTranscript && (!isClientFallbackSource || !String(targetSession.transcript || "").trim())) {
+          updatePayload.transcript = fastTranscript;
+        }
+        if (fastScoreResult?.provisionalAnalysis) {
+          updatePayload.provisional_analysis = fastScoreResult.provisionalAnalysis;
+          updatePayload.provisional_source = fastScoreResult.provisionalSource || "formula_v1";
+          updatePayload.provisional_ready_at = new Date();
+          updatePayload.scoring_state = "provisional_ready";
+        }
+
+        if (Object.keys(updatePayload).length > 0) {
+          await SpeakingSession.findByIdAndUpdate(targetSession._id, {
+            $set: updatePayload,
+          }).catch(() => { });
+          Object.assign(targetSession, updatePayload);
+        }
+
+        console.log(JSON.stringify({
+          event: "speaking_fast_score_ready",
+          session_id: String(targetSession._id),
+          submit_to_provisional_ms: Date.now() - provisionalStartAt,
+          stt_source: fastScoreResult?.sttSource || null,
+          stt_error_rate: fastScoreResult?.provisionalAnalysis ? 0 : 1,
+        }));
+      } catch (fastScoreError) {
+        console.warn("Speaking fast score skipped:", fastScoreError.message);
+        console.log(JSON.stringify({
+          event: "speaking_fast_score_error",
+          session_id: String(targetSession._id),
+          submit_to_provisional_ms: Date.now() - provisionalStartAt,
+          stt_error_rate: 1,
+          error: fastScoreError.message,
+        }));
+      }
+    };
+
+    const runCloudinaryUploadLifecycle = async ({ targetSession, enqueuePhase2WhenDone }) => {
+      const sessionId = String(targetSession._id);
+      const uploadStartedAt = Date.now();
+      console.log(JSON.stringify({
+        event: "speaking_cloudinary_upload_started",
+        session_id: sessionId,
+      }));
+      try {
+        const uploadedAudio = await uploadSpeakingAudio(audioFile);
+        const updatePayload = {
+          audioUrl: uploadedAudio.url,
+          audioPublicId: uploadedAudio.publicId || null,
+          audio_upload_state: "ready",
+          audio_uploaded_at: new Date(),
+          audio_upload_error: null,
+        };
+        await SpeakingSession.findByIdAndUpdate(targetSession._id, { $set: updatePayload }).catch(() => { });
+        Object.assign(targetSession, updatePayload);
+        console.log(JSON.stringify({
+          event: "speaking_cloudinary_upload_ready",
+          session_id: sessionId,
+          submit_to_cloud_ready_ms: Date.now() - uploadStartedAt,
+        }));
+
+        if (enqueuePhase2WhenDone) {
+          const phase2QueueResult = await enqueueSpeakingAiPhase2Job({ sessionId });
+          console.log(JSON.stringify({
+            event: "speaking_phase2_enqueued_from_upload",
+            session_id: sessionId,
+            queued: Boolean(phase2QueueResult?.queued),
+            job_id: phase2QueueResult?.jobId || null,
+            reason: phase2QueueResult?.reason || null,
+          }));
+        }
+        return { ok: true, uploadedAudio };
+      } catch (uploadError) {
+        const uploadMessage = sanitizeUploadErrorMessage(uploadError);
+        const updatePayload = {
+          audio_upload_state: "failed",
+          audio_uploaded_at: null,
+          audio_upload_error: uploadMessage,
+        };
+        await SpeakingSession.findByIdAndUpdate(targetSession._id, { $set: updatePayload }).catch(() => { });
+        Object.assign(targetSession, updatePayload);
+        console.warn("Speaking cloudinary upload failed:", uploadMessage);
+        console.log(JSON.stringify({
+          event: "speaking_cloudinary_upload_failed",
+          session_id: sessionId,
+          submit_to_cloud_ready_ms: Date.now() - uploadStartedAt,
+          error: uploadMessage,
+        }));
+
+        if (enqueuePhase2WhenDone) {
+          const phase2QueueResult = await enqueueSpeakingAiPhase2Job({ sessionId });
+          console.log(JSON.stringify({
+            event: "speaking_phase2_enqueued_from_upload",
+            session_id: sessionId,
+            queued: Boolean(phase2QueueResult?.queued),
+            job_id: phase2QueueResult?.jobId || null,
+            reason: phase2QueueResult?.reason || "cloudinary_failed_phase2_text_fallback",
+          }));
+        }
+
+        return {
+          ok: false,
+          error: uploadError,
+          message: uploadMessage,
+        };
+      }
+    };
+
+    if (canUseAsyncQueue) {
+      session = await createProcessingSession({ withUploadLifecycle: true });
+
+      const uploadTask = runCloudinaryUploadLifecycle({
+        targetSession: session,
+        enqueuePhase2WhenDone: true,
+      }).catch((backgroundError) => {
+        console.warn("Speaking background upload orchestration failed:", backgroundError?.message || backgroundError);
+        return null;
+      });
+
+      await runFastPipelineAndPersist({ targetSession: session });
+
+      const phase1QueueResult = await enqueueSpeakingAiPhase1Job({ sessionId: String(session._id) });
+      console.log(JSON.stringify({
+        event: "speaking_phase1_enqueued_from_stt",
+        session_id: String(session._id),
+        queued: Boolean(phase1QueueResult?.queued),
+        job_id: phase1QueueResult?.jobId || null,
+        reason: phase1QueueResult?.reason || null,
+      }));
+
+      void uploadTask;
+
+      return res.status(202).json({
+        success: true,
+        session_id: session._id,
+        question_id: session.questionId || null,
+        status: "processing",
+        scoring_state: deriveScoringState(session),
+        queued: Boolean(phase1QueueResult?.queued),
+        job_id: phase1QueueResult?.jobId || null,
+        phase2_job_id: null,
+        transcript: session.transcript || "",
+        provisional_analysis: session.provisional_analysis || null,
+        provisional_source: session.provisional_source || null,
+        provisional_ready_at: session.provisional_ready_at || null,
+        phase2_source: session.phase2_source || null,
+        phase1_analysis: session.phase1_analysis || null,
+        phase1_source: session.phase1_source || null,
+        phase1_ready_at: session.phase1_ready_at || null,
+        audio_upload_state: session.audio_upload_state || null,
+        audio_uploaded_at: session.audio_uploaded_at || null,
+        audio_upload_error: session.audio_upload_error || null,
+        phase2_ready_at: session.phase2_ready_at || null,
+        metrics: session.metrics || { wpm: 0, pauses: {} },
+        timestamp: session.timestamp || session.createdAt || null,
+        xpResult,
+        achievements: newlyUnlocked
+      });
+    }
+
     if (shouldQueue && !userId) {
       console.warn("Speaking async queue skipped: missing authenticated user, falling back to sync scoring");
       syncFallbackReason = "missing_user_id";
-    }
-
-    if (canUseAsyncQueue) {
-      try {
-        const sessionId = String(session._id);
-        let queueResult = null;
-        let phase1QueueResult = null;
-        let phase2QueueResult = null;
-        if (SPEAKING_TWO_PHASE_PIPELINE) {
-          [phase1QueueResult, phase2QueueResult] = await Promise.all([
-            enqueueSpeakingAiPhase1Job({ sessionId }),
-            enqueueSpeakingAiPhase2Job({ sessionId }),
-          ]);
-          queueResult = {
-            queued: Boolean(phase1QueueResult?.queued) && Boolean(phase2QueueResult?.queued),
-            queue: phase1QueueResult?.queue || phase2QueueResult?.queue || null,
-            jobId: phase1QueueResult?.jobId || null,
-            phase2JobId: phase2QueueResult?.jobId || null,
-            reason: phase1QueueResult?.reason || phase2QueueResult?.reason || null,
-          };
-        } else {
-          queueResult = await enqueueSpeakingAiScoreJob({ sessionId });
-        }
-        console.log(JSON.stringify({
-          event: "speaking_queue_enqueue_result",
-          session_id: sessionId,
-          queued: Boolean(queueResult?.queued),
-          queue: queueResult?.queue || null,
-          job_id: queueResult?.jobId || null,
-          phase2_job_id: queueResult?.phase2JobId || null,
-          phase1_queued: SPEAKING_TWO_PHASE_PIPELINE ? Boolean(phase1QueueResult?.queued) : null,
-          phase2_queued: SPEAKING_TWO_PHASE_PIPELINE ? Boolean(phase2QueueResult?.queued) : null,
-          reason: queueResult?.reason || null,
-        }));
-        if (queueResult.queued) {
-          return res.status(202).json({
-            success: true,
-            session_id: session._id,
-            question_id: session.questionId || null,
-            status: "processing",
-            scoring_state: deriveScoringState(session),
-            queued: true,
-            job_id: queueResult.jobId,
-            phase2_job_id: queueResult.phase2JobId || null,
-            transcript: session.transcript || "",
-            provisional_analysis: session.provisional_analysis || null,
-            provisional_source: session.provisional_source || null,
-            provisional_ready_at: session.provisional_ready_at || null,
-            phase2_source: session.phase2_source || null,
-            phase1_analysis: session.phase1_analysis || null,
-            phase1_source: session.phase1_source || null,
-            phase1_ready_at: session.phase1_ready_at || null,
-            metrics: session.metrics || { wpm: 0, pauses: {} },
-            timestamp: session.timestamp || session.createdAt || null,
-            xpResult,
-            achievements: newlyUnlocked
-          });
-        }
-        syncFallbackReason = queueResult?.reason
-          ? `queue_not_queued:${queueResult.reason}`
-          : "queue_not_queued";
-      } catch (queueError) {
-        console.warn("Speaking enqueue failed, falling back to sync scoring:", queueError.message);
-        syncFallbackReason = `enqueue_error:${queueError.message}`;
-      }
     } else if (!syncFallbackReason) {
       syncFallbackReason = shouldQueue ? "queue_ineligible" : "queue_disabled_or_unready";
     }
+
+    session = await createProcessingSession({ withUploadLifecycle: true });
+    const uploadResult = await runCloudinaryUploadLifecycle({
+      targetSession: session,
+      enqueuePhase2WhenDone: false,
+    });
+    if (!uploadResult?.ok) {
+      const uploadError = uploadResult?.error || new Error(uploadResult?.message || "Cloudinary upload failed");
+      throw uploadError;
+    }
+    await runFastPipelineAndPersist({ targetSession: session });
 
     console.log(JSON.stringify({
       event: "speaking_sync_fallback_scoring",
@@ -667,6 +761,10 @@ export const submitSpeaking = async (req, res) => {
       phase1_analysis: grading.session?.phase1_analysis || null,
       phase1_source: grading.session?.phase1_source || null,
       phase1_ready_at: grading.session?.phase1_ready_at || null,
+      audio_upload_state: grading.session?.audio_upload_state || null,
+      audio_uploaded_at: grading.session?.audio_uploaded_at || null,
+      audio_upload_error: grading.session?.audio_upload_error || null,
+      phase2_ready_at: grading.session?.phase2_ready_at || null,
       metrics: grading.session?.metrics || { wpm: 0, pauses: {} },
       timestamp: grading.session?.timestamp || grading.session?.createdAt || null,
       queued: false,

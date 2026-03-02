@@ -20,6 +20,24 @@ const toTimeValue = (value) => {
     return Number.isFinite(parsed) ? parsed : 0;
 };
 
+const ONLINE_WINDOW_MINUTES = 5;
+const ONLINE_WINDOW_MS = ONLINE_WINDOW_MINUTES * 60 * 1000;
+
+const buildOnlineThreshold = (now = new Date()) =>
+    new Date(now.getTime() - ONLINE_WINDOW_MS);
+
+const withOnlineFlag = (user = {}, thresholdTimeMs = 0) => {
+    const isStudent = String(user?.role || "") === "student";
+    const isOnline = isStudent && toTimeValue(user?.lastSeenAt) >= thresholdTimeMs;
+    return {
+        ...user,
+        is_online: Boolean(isOnline),
+    };
+};
+
+const escapeRegex = (value = "") =>
+    String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 const mapWritingSubmissionToAttempt = (submission = {}) => {
     const taskTitles = (Array.isArray(submission?.writing_answers) ? submission.writing_answers : [])
         .map((item) => String(item?.task_title || "").trim())
@@ -266,17 +284,65 @@ export const getUsers = async (req, res) => {
         }
 
         const totalItems = await User.countDocuments(filter);
+        const threshold = buildOnlineThreshold();
+        const thresholdTimeMs = threshold.getTime();
         
         const users = await User.find(filter)
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit)
-            .select('-password');
+            .select('-password')
+            .lean();
+
+        const usersWithOnlineFlag = users.map((user) => withOnlineFlag(user, thresholdTimeMs));
             
         res.json({
             success: true,
-            data: users,
+            data: usersWithOnlineFlag,
             pagination: buildPaginationMeta({ page, limit, totalItems }),
+        });
+    } catch (error) {
+        return handleControllerError(req, res, error);
+    }
+};
+
+export const getOnlineStudents = async (req, res) => {
+    try {
+        res.set("Cache-Control", "no-store");
+        const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 20, maxLimit: 100 });
+        const now = new Date();
+        const threshold = buildOnlineThreshold(now);
+        const thresholdTimeMs = threshold.getTime();
+        const queryText = String(req.query?.q || "").trim();
+
+        const filter = {
+            role: "student",
+            lastSeenAt: { $gte: threshold },
+        };
+
+        if (queryText) {
+            const safeRegex = new RegExp(escapeRegex(queryText), "i");
+            filter.$or = [
+                { name: safeRegex },
+                { email: safeRegex },
+            ];
+        }
+
+        const totalItems = await User.countDocuments(filter);
+        const students = await User.find(filter)
+            .sort({ lastSeenAt: -1, createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .select("-password")
+            .lean();
+        const studentsWithOnlineFlag = students.map((user) => withOnlineFlag(user, thresholdTimeMs));
+
+        return res.json({
+            success: true,
+            data: studentsWithOnlineFlag,
+            pagination: buildPaginationMeta({ page, limit, totalItems }),
+            online_window_minutes: ONLINE_WINDOW_MINUTES,
+            as_of: now.toISOString(),
         });
     } catch (error) {
         return handleControllerError(req, res, error);

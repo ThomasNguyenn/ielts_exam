@@ -1139,7 +1139,6 @@ const buildPhase2Prompt = ({
   topicPrompt,
   topicPart,
   subQuestions,
-  transcript,
   clientWPM,
   parsedMetrics,
 }) => `
@@ -1161,7 +1160,6 @@ SYSTEM METRICS:
 - Total pause duration (ms): ${parsedMetrics.totalPauseDuration || 0}
 - Longest pause (ms): ${parsedMetrics.longestPause || 0}
 - Avg pause duration (ms): ${parsedMetrics.avgPauseDuration || 0}
-- Transcript: "${transcript || "(none)"}"
 
 RULES:
 - Listen to audio first. Transcript is secondary.
@@ -1175,6 +1173,64 @@ RULES:
 - If many words are unclear to understand, pronunciation MUST be <= 5.5.
 - If pronunciation >= 7.5, you MUST provide concrete evidence of intelligibility/stress control and at most 1 minor pronunciation issue.
 - If audio confidence is uncertain or speech is hard to understand, cap pronunciation at <= 6.5.
+- error_logs MUST only use fluency/pronunciation codes:
+  - Fluency: S-F1, S-F2, S-F3, S-F4
+  - Pronunciation: S-P1, S-P2, S-P3, S-P4
+- Include 4-8 specific error logs.
+
+Return ONLY valid JSON:
+{
+  "fluency_coherence": { "score": number, "feedback": "string"(In Vietnamese)},
+  "pronunciation": { "score": number, "feedback": "string"(In Vietnamese)},
+  "pronunciation_heatmap": [
+    { "word": "string", "status": "excellent | needs_work | error | neutral", "note": "string"(In Vietnamese) }
+  ],
+  "focus_areas": [
+    { "title": "string", "priority": "high | medium | low", "description": "string"(In Vietnamese) }
+  ],
+  "intonation_pacing": { "pace_wpm": number, "pitch_variation": "string", "feedback": "string"(In Vietnamese) },
+  "next_step": "string"(In Vietnamese),
+  "general_feedback": "string"(In Vietnamese),
+  "error_logs": [
+    { "code": "string", "snippet": "string", "explanation": "string"(In Vietnamese) }
+  ]
+}
+`;
+
+const buildPhase2TextFallbackPrompt = ({
+  topicPrompt,
+  topicPart,
+  subQuestions,
+  transcript,
+  clientWPM,
+  parsedMetrics,
+}) => `
+You are a STRICT IELTS Speaking examiner and pronunciation coach.
+Cloud audio is unavailable for this attempt, so evaluate using transcript + metrics only.
+
+Focus ONLY on:
+1) Fluency & Coherence
+2) Pronunciation
+
+TOPIC / QUESTION:
+"${topicPrompt}"
+
+EXAM PART:
+- Part: ${normalizeSpeakingPart(topicPart) || "unknown"}
+- Cue points / follow-up prompts:
+${formatSubQuestionLines(subQuestions)}
+
+SYSTEM METRICS:
+- WPM: ${clientWPM}
+- Pause count: ${parsedMetrics.pauseCount || 0}
+- Total pause duration (ms): ${parsedMetrics.totalPauseDuration || 0}
+- Longest pause (ms): ${parsedMetrics.longestPause || 0}
+- Avg pause duration (ms): ${parsedMetrics.avgPauseDuration || 0}
+- Transcript: "${transcript || "(none)"}"
+
+RULES:
+- Be strict and evidence-based. Do not inflate scores.
+- This is fallback mode without audio. If transcript evidence is weak, keep pronunciation conservative.
 - error_logs MUST only use fluency/pronunciation codes:
   - Fluency: S-F1, S-F2, S-F3, S-F4
   - Pronunciation: S-P1, S-P2, S-P3, S-P4
@@ -1481,17 +1537,165 @@ export const mergeSpeakingPhaseAnalyses = ({
   });
 };
 
+const hasUsablePhaseAnalysis = (analysis) =>
+  Boolean(analysis) && typeof analysis === "object" && Object.keys(analysis).length > 0;
+
+const ensureScoringStateWhileProcessing = (session, { phase1Ready, phase2Ready }) => {
+  if (String(session?.status || "").trim().toLowerCase() === "completed") return;
+  session.status = "processing";
+  if (phase1Ready && phase2Ready) return;
+  if (phase2Ready) {
+    session.scoring_state = "phase2_ready";
+    return;
+  }
+  if (phase1Ready) {
+    session.scoring_state = "phase1_ready";
+    return;
+  }
+  if (!["provisional_ready"].includes(String(session?.scoring_state || "").trim().toLowerCase())) {
+    session.scoring_state = "processing";
+  }
+};
+
+const finalizeSpeakingIfReady = async ({
+  sessionId,
+  topic,
+} = {}) => {
+  const latestSession = await SpeakingSession.findById(sessionId);
+  if (!latestSession) {
+    const error = new Error("Speaking session not found while finalizing");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (latestSession.status === "completed" && hasUsableAnalysisPayload(latestSession.analysis)) {
+    return {
+      session: latestSession,
+      finalized: false,
+      reason: "already_completed",
+      analysis: latestSession.analysis,
+    };
+  }
+
+  const phase1Ready = hasUsablePhaseAnalysis(latestSession.phase1_analysis);
+  const phase2Ready = hasUsablePhaseAnalysis(latestSession.phase2_analysis);
+  if (!phase1Ready || !phase2Ready) {
+    ensureScoringStateWhileProcessing(latestSession, { phase1Ready, phase2Ready });
+    await latestSession.save();
+    console.log(JSON.stringify({
+      event: "speaking_finalize_waiting_other_phase",
+      session_id: String(latestSession._id),
+      phase1_ready: phase1Ready,
+      phase2_ready: phase2Ready,
+      scoring_state: latestSession.scoring_state || "processing",
+    }));
+    return {
+      session: latestSession,
+      finalized: false,
+      reason: "waiting_other_phase",
+      analysis: latestSession.analysis || null,
+    };
+  }
+
+  const clientTranscript = String(latestSession.transcript || "").trim();
+  const analysis = mergeSpeakingPhaseAnalyses({
+    phase1: latestSession.phase1_analysis,
+    phase1Source: latestSession.phase1_source || "",
+    phase2: latestSession.phase2_analysis,
+    phase2Source: latestSession.phase2_source || "",
+    provisional: latestSession.provisional_analysis,
+    topicPart: topic.part,
+    topicPrompt: topic.prompt,
+    transcript: clientTranscript,
+    metrics: latestSession.metrics || {},
+  });
+
+  const modelTranscript = String(analysis?.transcript || "").trim();
+  const mergedTranscript = clientTranscript || modelTranscript || "";
+  const payloadToSet = {
+    transcript: mergedTranscript,
+    analysis,
+    phase1_analysis: pruneStoredPhase1Analysis(latestSession.phase1_analysis),
+    ai_source: latestSession.phase2_source || latestSession.ai_source || null,
+    error_logs: extractTaxonomyErrorLogs(analysis, topic.part),
+    status: "completed",
+    scoring_state: "completed",
+  };
+
+  const finalizedSession = await SpeakingSession.findOneAndUpdate(
+    {
+      _id: latestSession._id,
+      status: { $ne: "completed" },
+    },
+    { $set: payloadToSet },
+    { new: true },
+  );
+
+  if (!finalizedSession) {
+    const alreadyDone = await SpeakingSession.findById(latestSession._id);
+    return {
+      session: alreadyDone || latestSession,
+      finalized: false,
+      reason: "already_completed",
+      analysis: alreadyDone?.analysis || latestSession.analysis || null,
+    };
+  }
+
+  const phase1ReadyTs = new Date(finalizedSession.phase1_ready_at || finalizedSession.timestamp || Date.now()).getTime();
+  const submitTs = new Date(finalizedSession.timestamp || finalizedSession.createdAt || Date.now()).getTime();
+  const submitToFinalMs = Number.isFinite(submitTs) ? Math.max(0, Date.now() - submitTs) : null;
+  const phase1ToPhase2Ms = Number.isFinite(phase1ReadyTs) ? Math.max(0, Date.now() - phase1ReadyTs) : null;
+  const provisionalBand = Number(finalizedSession?.provisional_analysis?.band_score);
+  const finalBand = Number(analysis?.band_score);
+  const bandDiff = Number.isFinite(provisionalBand) && Number.isFinite(finalBand)
+    ? Math.abs(finalBand - provisionalBand)
+    : null;
+
+  console.log(JSON.stringify({
+    event: "speaking_finalize_completed",
+    session_id: String(finalizedSession._id),
+    submit_to_final_ms: submitToFinalMs,
+    phase1_to_phase2_ms: phase1ToPhase2Ms,
+    provisional_final_band_diff: bandDiff,
+  }));
+  console.log(JSON.stringify({
+    event: "speaking_pipeline_completed",
+    session_id: String(finalizedSession._id),
+    submit_to_final_ms: submitToFinalMs,
+    provisional_final_band_diff: bandDiff,
+    phase2_fallback_used:
+      isProvisionalLikeSource(finalizedSession.phase2_source)
+      || String(finalizedSession.phase2_source || "").toLowerCase().includes("text_fallback"),
+  }));
+  console.log(JSON.stringify({
+    event: "speaking_final_score_ready",
+    session_id: String(finalizedSession._id),
+    submit_to_final_ms: submitToFinalMs,
+    provisional_final_band_diff: bandDiff,
+  }));
+
+  void cleanupSessionAudioFromCloudinary(finalizedSession).catch((cleanupError) => {
+    console.warn("Cloudinary async cleanup wrapper failed:", cleanupError?.message || cleanupError);
+  });
+
+  return {
+    session: finalizedSession,
+    finalized: true,
+    reason: "completed",
+    analysis,
+  };
+};
+
 export const scoreSpeakingPhase1ById = async ({ sessionId, force = false } = {}) => {
   const { session, topic } = await getSessionAndTopic(sessionId);
-  if (
-    !force
-    && ["phase1_ready", "completed"].includes(String(session?.scoring_state || "").trim())
-    && hasUsableAnalysisPayload(session?.phase1_analysis)
-  ) {
+  const scoringState = String(session?.scoring_state || "").trim();
+  const phase1Cached = hasUsableAnalysisPayload(session?.phase1_analysis);
+  if (!force && phase1Cached && ["phase1_ready", "phase2_ready", "completed"].includes(scoringState)) {
+    const finalizeResult = await finalizeSpeakingIfReady({ sessionId: String(session._id), topic });
     return {
-      session,
-      phase1Analysis: session.phase1_analysis,
-      phase1Source: session.phase1_source || "cached",
+      session: finalizeResult?.session || session,
+      phase1Analysis: finalizeResult?.session?.phase1_analysis || session.phase1_analysis,
+      phase1Source: finalizeResult?.session?.phase1_source || session.phase1_source || "cached",
       skipped: true,
       fallbackUsed: false,
     };
@@ -1549,11 +1753,7 @@ export const scoreSpeakingPhase1ById = async ({ sessionId, force = false } = {})
       });
 
       const validation = validatePhase1AiPayload(candidateResponse?.data);
-      const parsedKeys = Object.keys(candidateResponse?.data || {});
       previousRawResponse = String(candidateResponse?.rawText || "");
-      const contractPayload = toPhase1ContractLogPayload(candidateResponse?.data);
-      const missingContractFields = getPhase1ContractMissingFields(candidateResponse?.data);
-      const parsedDataPreview = JSON.stringify(candidateResponse?.data || {}).slice(0, 1500);
 
       if (validation.ok) {
         aiResponse = candidateResponse;
@@ -1567,7 +1767,6 @@ export const scoreSpeakingPhase1ById = async ({ sessionId, force = false } = {})
         attempt,
         maxAttempts: phase1IncompleteRetryAttempts,
         reason: lastValidationReason,
-        parsedKeys,
       });
     }
 
@@ -1617,11 +1816,11 @@ export const scoreSpeakingPhase1ById = async ({ sessionId, force = false } = {})
   session.phase1_analysis = phase1Analysis;
   session.phase1_source = phase1Source;
   session.phase1_ready_at = new Date();
-  if (String(session.status || "").trim().toLowerCase() !== "completed") {
-    session.status = "processing";
-  }
   if (String(session.scoring_state || "").trim().toLowerCase() !== "completed") {
     session.scoring_state = "phase1_ready";
+  }
+  if (String(session.status || "").trim().toLowerCase() !== "completed") {
+    session.status = "processing";
   }
   await session.save();
 
@@ -1637,8 +1836,10 @@ export const scoreSpeakingPhase1ById = async ({ sessionId, force = false } = {})
     transcript_source: transcriptResult?.source || null,
   }));
 
+  const finalizeResult = await finalizeSpeakingIfReady({ sessionId: String(session._id), topic });
+
   return {
-    session,
+    session: finalizeResult?.session || session,
     phase1Analysis,
     phase1Source,
     fallbackUsed,
@@ -1647,9 +1848,7 @@ export const scoreSpeakingPhase1ById = async ({ sessionId, force = false } = {})
 };
 
 export const scoreSpeakingPhase2ById = async ({ sessionId, force = false } = {}) => {
-  const initial = await getSessionAndTopic(sessionId);
-  let session = initial.session;
-  const topic = initial.topic;
+  const { session, topic } = await getSessionAndTopic(sessionId);
   if (session.status === "completed" && session.analysis?.band_score !== undefined && !force) {
     return {
       session,
@@ -1660,24 +1859,25 @@ export const scoreSpeakingPhase2ById = async ({ sessionId, force = false } = {})
     };
   }
 
-  if (!hasUsableAnalysisPayload(session?.phase1_analysis)) {
-    const phase1Result = await scoreSpeakingPhase1ById({ sessionId, force: false });
-    session = phase1Result?.session || session;
-  }
-
   const phaseStartAt = Date.now();
   const cuePoints = resolveTopicCuePoints(topic);
   const clientWPM = Number(session?.metrics?.wpm || 0);
   const parsedMetrics = session?.metrics?.pauses || {};
   const clientTranscript = String(session.transcript || "").trim();
-  const prompt = buildPhase2Prompt({
-    topicPrompt: topic.prompt,
-    topicPart: topic.part,
-    subQuestions: cuePoints,
-    transcript: clientTranscript,
-    clientWPM,
-    parsedMetrics,
-  });
+  const uploadStateRaw = String(session?.audio_upload_state || "").trim().toLowerCase();
+  const uploadState = uploadStateRaw || (session?.audioUrl ? "ready" : "failed");
+
+  if (uploadState === "uploading" && !force) {
+    const waitingError = new Error("Phase2 audio not ready yet");
+    waitingError.code = "PHASE2_AUDIO_NOT_READY";
+    waitingError.statusCode = 409;
+    console.log(JSON.stringify({
+      event: "speaking_phase2_waiting_audio_retry",
+      session_id: String(session._id),
+      audio_upload_state: uploadState,
+    }));
+    throw waitingError;
+  }
 
   let phase2Analysis;
   let phase2Source = "fallback";
@@ -1689,40 +1889,82 @@ export const scoreSpeakingPhase2ById = async ({ sessionId, force = false } = {})
     if (!genAI) {
       throw new Error("Gemini API key is not configured");
     }
-    const audioPart = await toAudioPart(
-      session.audioUrl,
-      session.audioMimeType || "audio/webm",
-    );
-    usedMimeType = audioPart.inlineData.mimeType;
-    audioBytes = Buffer.byteLength(audioPart.inlineData.data || "", "base64");
-    const aiResponse = await requestGeminiJsonWithFallback({
-      genAI,
-      models: GEMINI_MODELS,
-      contents: [prompt, audioPart],
-      generationConfig: {
-        responseMimeType: "application/json",
-        maxOutputTokens: SPEAKING_PHASE2_MAX_OUTPUT_TOKENS || SPEAKING_ANALYSIS_MAX_OUTPUT_TOKENS,
-      },
-      timeoutMs: SPEAKING_PHASE2_TIMEOUT_MS,
-      maxAttempts: SPEAKING_GEMINI_MAX_ATTEMPTS,
-    });
-    console.log(JSON.stringify({
-      event: "speaking_phase2_raw_ai_response",
-      session_id: String(session._id),
-      model: aiResponse?.model || null,
-      token_usage: aiResponse?.usage || null,
-      input_tokens: aiResponse?.usage?.input_tokens ?? null,
-      output_tokens: aiResponse?.usage?.output_tokens ?? null,
-      total_tokens: aiResponse?.usage?.total_tokens ?? null,
-      raw_text_length: String(aiResponse?.rawText || "").length,
-      parsed_keys: Object.keys(aiResponse?.data || {}),
-    }));
-    phase2Analysis = normalizePhase2Payload(aiResponse.data, {
-      transcript: clientTranscript,
-      fallbackWpm: clientWPM,
-      pauseCount: parsedMetrics.pauseCount || 0,
-    });
-    phase2Source = aiResponse.model;
+
+    if (uploadState === "ready" && String(session?.audioUrl || "").trim()) {
+      const prompt = buildPhase2Prompt({
+        topicPrompt: topic.prompt,
+        topicPart: topic.part,
+        subQuestions: cuePoints,
+        clientWPM,
+        parsedMetrics,
+      });
+      const audioPart = await toAudioPart(
+        session.audioUrl,
+        session.audioMimeType || "audio/webm",
+      );
+      usedMimeType = audioPart.inlineData.mimeType;
+      audioBytes = Buffer.byteLength(audioPart.inlineData.data || "", "base64");
+      const aiResponse = await requestGeminiJsonWithFallback({
+        genAI,
+        models: GEMINI_MODELS,
+        contents: [prompt, audioPart],
+        generationConfig: {
+          responseMimeType: "application/json",
+          maxOutputTokens: SPEAKING_PHASE2_MAX_OUTPUT_TOKENS || SPEAKING_ANALYSIS_MAX_OUTPUT_TOKENS,
+        },
+        timeoutMs: SPEAKING_PHASE2_TIMEOUT_MS,
+        maxAttempts: SPEAKING_GEMINI_MAX_ATTEMPTS,
+      });
+      console.log(JSON.stringify({
+        event: "speaking_phase2_raw_ai_response",
+        session_id: String(session._id),
+        model: aiResponse?.model || null,
+        token_usage: aiResponse?.usage || null,
+        input_tokens: aiResponse?.usage?.input_tokens ?? null,
+        output_tokens: aiResponse?.usage?.output_tokens ?? null,
+        total_tokens: aiResponse?.usage?.total_tokens ?? null,
+        raw_text_length: String(aiResponse?.rawText || "").length,
+        parsed_keys: Object.keys(aiResponse?.data || {}),
+      }));
+      phase2Analysis = normalizePhase2Payload(aiResponse.data, {
+        transcript: clientTranscript,
+        fallbackWpm: clientWPM,
+        pauseCount: parsedMetrics.pauseCount || 0,
+      });
+      phase2Source = aiResponse.model;
+    } else {
+      phase2FallbackUsed = true;
+      console.log(JSON.stringify({
+        event: "speaking_phase2_text_fallback_from_stt",
+        session_id: String(session._id),
+        audio_upload_state: uploadState,
+      }));
+      const prompt = buildPhase2TextFallbackPrompt({
+        topicPrompt: topic.prompt,
+        topicPart: topic.part,
+        subQuestions: cuePoints,
+        transcript: clientTranscript,
+        clientWPM,
+        parsedMetrics,
+      });
+      const aiResponse = await requestGeminiJsonWithFallback({
+        genAI,
+        models: GEMINI_MODELS,
+        contents: [prompt],
+        generationConfig: {
+          responseMimeType: "application/json",
+          maxOutputTokens: SPEAKING_PHASE2_MAX_OUTPUT_TOKENS || SPEAKING_ANALYSIS_MAX_OUTPUT_TOKENS,
+        },
+        timeoutMs: SPEAKING_PHASE2_TIMEOUT_MS,
+        maxAttempts: SPEAKING_GEMINI_MAX_ATTEMPTS,
+      });
+      phase2Analysis = normalizePhase2Payload(aiResponse.data, {
+        transcript: clientTranscript,
+        fallbackWpm: clientWPM,
+        pauseCount: parsedMetrics.pauseCount || 0,
+      });
+      phase2Source = `${aiResponse.model}:text_fallback`;
+    }
   } catch (aiError) {
     phase2FallbackUsed = true;
     console.error("Speaking phase2 fallback triggered:", {
@@ -1731,6 +1973,7 @@ export const scoreSpeakingPhase2ById = async ({ sessionId, force = false } = {})
       models: GEMINI_MODELS,
       mimeType: usedMimeType,
       audioBytes,
+      uploadState,
     });
 
     if (hasUsableAnalysisPayload(session?.provisional_analysis)) {
@@ -1757,38 +2000,19 @@ export const scoreSpeakingPhase2ById = async ({ sessionId, force = false } = {})
     }
   }
 
-  const analysis = mergeSpeakingPhaseAnalyses({
-    phase1: session.phase1_analysis,
-    phase1Source: session.phase1_source || "",
-    phase2: phase2Analysis,
-    phase2Source,
-    provisional: session.provisional_analysis,
-    topicPart: topic.part,
-    topicPrompt: topic.prompt,
-    transcript: clientTranscript,
-    metrics: session.metrics || {},
-  });
-
-  const modelTranscript = String(analysis?.transcript || "").trim();
-  session.transcript = clientTranscript || modelTranscript || "";
-  session.analysis = analysis;
-  session.phase1_analysis = pruneStoredPhase1Analysis(session.phase1_analysis);
+  session.phase2_analysis = phase2Analysis;
   session.phase2_source = phase2Source;
-  session.ai_source = phase2Source;
-  session.error_logs = extractTaxonomyErrorLogs(analysis, topic.part);
-  session.status = "completed";
-  session.scoring_state = "completed";
+  session.phase2_ready_at = new Date();
+  if (String(session.scoring_state || "").trim().toLowerCase() !== "completed") {
+    session.scoring_state = "phase2_ready";
+  }
+  if (String(session.status || "").trim().toLowerCase() !== "completed") {
+    session.status = "processing";
+  }
   await session.save();
 
   const phase1ReadyTs = new Date(session.phase1_ready_at || session.timestamp || Date.now()).getTime();
-  const submitTs = new Date(session.timestamp || session.createdAt || Date.now()).getTime();
-  const submitToFinalMs = Number.isFinite(submitTs) ? Math.max(0, Date.now() - submitTs) : null;
   const phase1ToPhase2Ms = Number.isFinite(phase1ReadyTs) ? Math.max(0, Date.now() - phase1ReadyTs) : null;
-  const provisionalBand = Number(session?.provisional_analysis?.band_score);
-  const finalBand = Number(analysis?.band_score);
-  const bandDiff = Number.isFinite(provisionalBand) && Number.isFinite(finalBand)
-    ? Math.abs(finalBand - provisionalBand)
-    : null;
   console.log(JSON.stringify({
     event: "speaking_phase2_ready",
     session_id: String(session._id),
@@ -1797,28 +2021,13 @@ export const scoreSpeakingPhase2ById = async ({ sessionId, force = false } = {})
     model: phase2Source,
     fallback_used: phase2FallbackUsed,
   }));
-  console.log(JSON.stringify({
-    event: "speaking_pipeline_completed",
-    session_id: String(session._id),
-    submit_to_final_ms: submitToFinalMs,
-    provisional_final_band_diff: bandDiff,
-    phase2_fallback_used: phase2FallbackUsed,
-  }));
-  console.log(JSON.stringify({
-    event: "speaking_final_score_ready",
-    session_id: String(session._id),
-    submit_to_final_ms: submitToFinalMs,
-    provisional_final_band_diff: bandDiff,
-  }));
 
-  void cleanupSessionAudioFromCloudinary(session).catch((cleanupError) => {
-    console.warn("Cloudinary async cleanup wrapper failed:", cleanupError?.message || cleanupError);
-  });
+  const finalizeResult = await finalizeSpeakingIfReady({ sessionId: String(session._id), topic });
 
   return {
-    session,
-    aiSource: phase2Source,
-    analysis,
+    session: finalizeResult?.session || session,
+    aiSource: finalizeResult?.session?.ai_source || phase2Source,
+    analysis: finalizeResult?.analysis || finalizeResult?.session?.analysis || null,
     skipped: false,
     phase2FallbackUsed,
   };
@@ -1828,4 +2037,3 @@ export const scoreSpeakingSessionById = async ({ sessionId, force = false } = {}
   await scoreSpeakingPhase1ById({ sessionId, force });
   return scoreSpeakingPhase2ById({ sessionId, force });
 };
-

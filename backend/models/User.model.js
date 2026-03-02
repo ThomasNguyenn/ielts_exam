@@ -53,6 +53,10 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  lastSeenAt: {
+    type: Date,
+    default: null,
+  },
   verificationToken: { type: String, default: null },
   verificationTokenExpires: { type: Date, default: null },
   resetPasswordToken: { type: String, default: null },
@@ -72,6 +76,7 @@ const userSchema = new mongoose.Schema({
 userSchema.index({ role: 1, createdAt: -1 });
 userSchema.index({ role: 1, isConfirmed: 1, createdAt: -1 });
 userSchema.index({ role: 1, xp: -1 }); // Leaderboard
+userSchema.index({ role: 1, lastSeenAt: -1 });
 
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 export default User;

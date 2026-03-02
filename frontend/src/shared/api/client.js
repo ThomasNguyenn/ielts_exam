@@ -595,6 +595,10 @@ export const api = {
     const query = toQueryString(params);
     return request(`/api/admin/students/pending${query ? `?${query}` : ''}`);
   },
+  getOnlineStudents: (params = {}) => {
+    const query = toQueryString(params);
+    return request(`/api/admin/students/online${query ? `?${query}` : ''}`);
+  },
   approveStudent: (userId) => request(`/api/admin/students/${userId}/approve`, { method: 'PUT' }),
 
   // Admin - Users

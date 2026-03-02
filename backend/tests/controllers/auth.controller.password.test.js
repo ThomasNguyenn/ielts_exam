@@ -163,6 +163,7 @@ describe("auth password recovery flows", () => {
     expect(user.refreshTokenHash).toBeNull();
     expect(user.refreshTokenIssuedAt).toBeNull();
     expect(user.refreshTokenExpiresAt).toBeNull();
+    expect(user.lastSeenAt).toBeNull();
     expect(typeof user.activeSessionId).toBe("string");
     expect(user.activeSessionIssuedAt).toBeInstanceOf(Date);
     expect(user.save).toHaveBeenCalledTimes(1);

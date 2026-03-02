@@ -132,6 +132,7 @@ describe("auth session flows", () => {
     expect(user.refreshTokenHash).toBe(hashToken("refresh.jwt.token"));
     expect(user.refreshTokenExpiresAt).toBeInstanceOf(Date);
     expect(typeof user.activeSessionId).toBe("string");
+    expect(user.lastSeenAt).toBeInstanceOf(Date);
   });
 
   it("refresh returns 401 and clears cookie when refresh token is missing", async () => {
@@ -181,6 +182,7 @@ describe("auth session flows", () => {
     expect(res.body?.data?.token).toBe("next.access.token");
     expect(user.save).toHaveBeenCalledTimes(1);
     expect(user.refreshTokenHash).toBe(hashToken("next.refresh.token"));
+    expect(user.lastSeenAt).toBeInstanceOf(Date);
     expect(res.cookies).toHaveLength(1);
     expect(res.cookies[0]?.[1]).toBe("next.refresh.token");
   });
@@ -208,6 +210,7 @@ describe("auth session flows", () => {
       refreshTokenHash: null,
       refreshTokenIssuedAt: null,
       refreshTokenExpiresAt: null,
+      lastSeenAt: null,
     });
     expect(typeof update.$set.activeSessionId).toBe("string");
     expect(update.$set.activeSessionIssuedAt).toBeInstanceOf(Date);

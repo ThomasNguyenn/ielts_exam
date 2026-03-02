@@ -60,3 +60,13 @@ This project supports asynchronous AI grading for `writing` and `speaking`.
 - If queue mode is off:
   - API falls back to synchronous grading.
 
+## Speaking 2-phase async flow (current)
+When `AI_ASYNC_MODE=true`:
+1. API receives audio and creates `SpeakingSession` immediately (`audio_upload_state=uploading`).
+2. Fast STT/provisional scoring runs first from in-memory audio.
+3. API enqueues `score-speaking-phase1` right after STT/provisional is persisted.
+4. Cloudinary upload runs in parallel. When upload finishes:
+   - success: mark `audio_upload_state=ready`, enqueue `score-speaking-phase2` (audio-first)
+   - fail: mark `audio_upload_state=failed`, enqueue `score-speaking-phase2` (text fallback from STT transcript)
+5. Final report is completed only after both phase1 + phase2 results are ready.
+

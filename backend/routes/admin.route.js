@@ -1,5 +1,5 @@
 import express from "express";
-import { getAllUsersWithLatestScores, getUserAttempts, getPendingStudents, approveStudent, getUsers, deleteUser, changeUserRole, inviteUser, getInvitations } from "../controllers/admin.controller.js";
+import { getAllUsersWithLatestScores, getUserAttempts, getPendingStudents, approveStudent, getUsers, getOnlineStudents, deleteUser, changeUserRole, inviteUser, getInvitations } from "../controllers/admin.controller.js";
 import { verifyToken, isTeacherOrAdmin, isAdmin } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
@@ -10,6 +10,7 @@ router.use(verifyToken, isTeacherOrAdmin);
 router.get("/scores", getAllUsersWithLatestScores);
 router.get("/users/:userId/attempts", getUserAttempts);
 router.get("/students/pending", getPendingStudents);
+router.get("/students/online", isAdmin, getOnlineStudents);
 router.put("/students/:userId/approve", approveStudent);
 router.get("/users", getUsers);
 router.delete("/users/:userId", deleteUser);
