@@ -60,10 +60,10 @@ const SPEAKING_PHASE2_TIMEOUT_MS = Number(
   process.env.SPEAKING_PHASE2_TIMEOUT_MS || SPEAKING_GEMINI_TIMEOUT_MS || 30000,
 );
 const SPEAKING_PHASE1_MAX_OUTPUT_TOKENS = Number(
-  process.env.SPEAKING_PHASE1_MAX_OUTPUT_TOKENS || 3000,
+  process.env.SPEAKING_PHASE1_MAX_OUTPUT_TOKENS || 4000,
 );
 const SPEAKING_PHASE2_MAX_OUTPUT_TOKENS = Number(
-  process.env.SPEAKING_PHASE2_MAX_OUTPUT_TOKENS || 3000,
+  process.env.SPEAKING_PHASE2_MAX_OUTPUT_TOKENS || 4000,
 );
 const SPEAKING_ANALYSIS_MAX_OUTPUT_TOKENS = Number(
   process.env.SPEAKING_ANALYSIS_MAX_OUTPUT_TOKENS
@@ -1581,19 +1581,38 @@ const finalizeSpeakingIfReady = async ({
   const phase2Ready = hasUsablePhaseAnalysis(latestSession.phase2_analysis);
   if (!phase1Ready || !phase2Ready) {
     ensureScoringStateWhileProcessing(latestSession, { phase1Ready, phase2Ready });
-    await latestSession.save();
+    const waitingSetPayload = {};
+    if (String(latestSession.status || "").trim().toLowerCase() !== "processing") {
+      waitingSetPayload.status = "processing";
+    }
+    if (latestSession.scoring_state) {
+      waitingSetPayload.scoring_state = latestSession.scoring_state;
+    }
+
+    const waitingSession = Object.keys(waitingSetPayload).length > 0
+      ? await SpeakingSession.findOneAndUpdate(
+        {
+          _id: latestSession._id,
+          status: { $ne: "completed" },
+        },
+        { $set: waitingSetPayload },
+        { new: true },
+      )
+      : latestSession;
+    const effectiveWaitingSession = waitingSession || await SpeakingSession.findById(latestSession._id) || latestSession;
+
     console.log(JSON.stringify({
       event: "speaking_finalize_waiting_other_phase",
-      session_id: String(latestSession._id),
+      session_id: String(effectiveWaitingSession._id),
       phase1_ready: phase1Ready,
       phase2_ready: phase2Ready,
-      scoring_state: latestSession.scoring_state || "processing",
+      scoring_state: effectiveWaitingSession.scoring_state || "processing",
     }));
     return {
-      session: latestSession,
+      session: effectiveWaitingSession,
       finalized: false,
       reason: "waiting_other_phase",
-      analysis: latestSession.analysis || null,
+      analysis: effectiveWaitingSession.analysis || null,
     };
   }
 
@@ -1813,22 +1832,32 @@ export const scoreSpeakingPhase1ById = async ({ sessionId, force = false } = {})
     }
   }
 
-  session.phase1_analysis = phase1Analysis;
-  session.phase1_source = phase1Source;
-  session.phase1_ready_at = new Date();
-  if (String(session.scoring_state || "").trim().toLowerCase() !== "completed") {
-    session.scoring_state = "phase1_ready";
+  const phase1SetPayload = {
+    phase1_analysis: phase1Analysis,
+    phase1_source: phase1Source,
+    phase1_ready_at: new Date(),
+    status: "processing",
+    scoring_state: "phase1_ready",
+  };
+  if (transcript) {
+    phase1SetPayload.transcript = transcript;
   }
-  if (String(session.status || "").trim().toLowerCase() !== "completed") {
-    session.status = "processing";
-  }
-  await session.save();
+  const persistedPhase1Session = await SpeakingSession.findOneAndUpdate(
+    {
+      _id: session._id,
+      status: { $ne: "completed" },
+    },
+    { $set: phase1SetPayload },
+    { new: true },
+  ) || await SpeakingSession.findById(session._id) || session;
 
-  const submitTs = new Date(session.timestamp || session.createdAt || Date.now()).getTime();
+  const submitTs = new Date(
+    persistedPhase1Session.timestamp || persistedPhase1Session.createdAt || Date.now(),
+  ).getTime();
   const submitToPhase1Ms = Number.isFinite(submitTs) ? Math.max(0, Date.now() - submitTs) : null;
   console.log(JSON.stringify({
     event: "speaking_phase1_ready",
-    session_id: String(session._id),
+    session_id: String(persistedPhase1Session._id),
     submit_to_phase1_ms: submitToPhase1Ms,
     phase1_latency_ms: Date.now() - phaseStartAt,
     model: phase1Source,
@@ -1836,10 +1865,13 @@ export const scoreSpeakingPhase1ById = async ({ sessionId, force = false } = {})
     transcript_source: transcriptResult?.source || null,
   }));
 
-  const finalizeResult = await finalizeSpeakingIfReady({ sessionId: String(session._id), topic });
+  const finalizeResult = await finalizeSpeakingIfReady({
+    sessionId: String(persistedPhase1Session._id),
+    topic,
+  });
 
   return {
-    session: finalizeResult?.session || session,
+    session: finalizeResult?.session || persistedPhase1Session,
     phase1Analysis,
     phase1Source,
     fallbackUsed,
@@ -2000,32 +2032,42 @@ export const scoreSpeakingPhase2ById = async ({ sessionId, force = false } = {})
     }
   }
 
-  session.phase2_analysis = phase2Analysis;
-  session.phase2_source = phase2Source;
-  session.phase2_ready_at = new Date();
-  if (String(session.scoring_state || "").trim().toLowerCase() !== "completed") {
-    session.scoring_state = "phase2_ready";
-  }
-  if (String(session.status || "").trim().toLowerCase() !== "completed") {
-    session.status = "processing";
-  }
-  await session.save();
+  const phase2SetPayload = {
+    phase2_analysis: phase2Analysis,
+    phase2_source: phase2Source,
+    phase2_ready_at: new Date(),
+    status: "processing",
+    scoring_state: "phase2_ready",
+  };
+  const persistedPhase2Session = await SpeakingSession.findOneAndUpdate(
+    {
+      _id: session._id,
+      status: { $ne: "completed" },
+    },
+    { $set: phase2SetPayload },
+    { new: true },
+  ) || await SpeakingSession.findById(session._id) || session;
 
-  const phase1ReadyTs = new Date(session.phase1_ready_at || session.timestamp || Date.now()).getTime();
+  const phase1ReadyTs = new Date(
+    persistedPhase2Session.phase1_ready_at || persistedPhase2Session.timestamp || Date.now(),
+  ).getTime();
   const phase1ToPhase2Ms = Number.isFinite(phase1ReadyTs) ? Math.max(0, Date.now() - phase1ReadyTs) : null;
   console.log(JSON.stringify({
     event: "speaking_phase2_ready",
-    session_id: String(session._id),
+    session_id: String(persistedPhase2Session._id),
     phase1_to_phase2_ms: phase1ToPhase2Ms,
     phase2_latency_ms: Date.now() - phaseStartAt,
     model: phase2Source,
     fallback_used: phase2FallbackUsed,
   }));
 
-  const finalizeResult = await finalizeSpeakingIfReady({ sessionId: String(session._id), topic });
+  const finalizeResult = await finalizeSpeakingIfReady({
+    sessionId: String(persistedPhase2Session._id),
+    topic,
+  });
 
   return {
-    session: finalizeResult?.session || session,
+    session: finalizeResult?.session || persistedPhase2Session,
     aiSource: finalizeResult?.session?.ai_source || phase2Source,
     analysis: finalizeResult?.analysis || finalizeResult?.session?.analysis || null,
     skipped: false,

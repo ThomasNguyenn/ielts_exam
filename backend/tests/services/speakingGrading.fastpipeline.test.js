@@ -94,7 +94,7 @@ describe("speaking grading fast-pipeline compatibility", () => {
       expect(result.session.status).toBe("completed");
       expect(result.session.scoring_state).toBe("completed");
       expect(result.session.analysis).toBeTruthy();
-      expect(result.session.save).toHaveBeenCalled();
+      expect(mocks.sessionFindOneAndUpdate).toHaveBeenCalled();
     },
   );
 

@@ -107,12 +107,18 @@ const main = async () => {
       if (job.name === SPEAKING_PHASE2_JOB) {
         const phase2Result = await scoreSpeakingPhase2ById({ sessionId, force });
         const analysis = phase2Result?.analysis || phase2Result?.session?.analysis || null;
+        const phase2Session = phase2Result?.session || null;
         log("Speaking phase2 result", {
           jobId: job.id,
           sessionId,
           aiSource: phase2Result?.aiSource || phase2Result?.session?.ai_source || null,
           skipped: Boolean(phase2Result?.skipped),
           fallbackUsed: Boolean(phase2Result?.phase2FallbackUsed),
+          status: phase2Session?.status || null,
+          scoring_state: phase2Session?.scoring_state || null,
+          phase1_ready: Boolean(phase2Session?.phase1_analysis),
+          phase2_ready: Boolean(phase2Session?.phase2_analysis),
+          finalized: Boolean(analysis) && String(phase2Session?.status || "").toLowerCase() === "completed",
           final_scores: analysis
             ? {
               band_score: analysis?.band_score ?? null,
