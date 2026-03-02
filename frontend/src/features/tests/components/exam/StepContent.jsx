@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import { PanelGroup, Panel, PanelResizeHandle } from 'react-resizable-panels';
 import parse from 'html-react-parser';
 import HighlightableContent, { HighlightableWrapper, tokenizeHtml } from '@/shared/components/HighlightableContent';
+import { toSanitizedInnerHtml } from '@/shared/utils/safeHtml';
 
 const IELTSAudioPlayer = lazy(() => import('@/shared/components/IELTSAudioPlayer'));
 
@@ -761,9 +762,9 @@ function StepContent({
               (isReading || isListening) ? (
                 <div
                   className="exam-instructions"
-                  dangerouslySetInnerHTML={{
-                    __html: (passageStates && passageStates[`group_inst_${item._id}_${groupIdx}`]) || group.instructions,
-                  }}
+                  dangerouslySetInnerHTML={toSanitizedInnerHtml(
+                    (passageStates && passageStates[`group_inst_${item._id}_${groupIdx}`]) || group.instructions,
+                  )}
                 />
               ) : (
                 <HighlightableContent
