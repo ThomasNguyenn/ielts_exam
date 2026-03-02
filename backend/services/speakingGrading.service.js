@@ -1263,11 +1263,29 @@ const getSessionAndTopic = async (sessionId) => {
     throw error;
   }
 
-  const topic = await Speaking.findById(session.questionId);
+  let topic = null;
+  try {
+    topic = await Speaking.findById(session.questionId);
+  } catch (topicLookupError) {
+    console.warn("Speaking topic lookup failed, using fallback topic context:", {
+      sessionId: String(session?._id || ""),
+      questionId: String(session?.questionId || ""),
+      error: topicLookupError?.message || String(topicLookupError),
+    });
+  }
+
   if (!topic) {
-    const error = new Error("Speaking topic not found");
-    error.statusCode = 404;
-    throw error;
+    console.warn("Speaking topic not found, using fallback topic context:", {
+      sessionId: String(session?._id || ""),
+      questionId: String(session?.questionId || ""),
+    });
+    topic = {
+      _id: null,
+      part: 0,
+      prompt: "",
+      cue_card: "",
+      sub_questions: [],
+    };
   }
 
   return { session, topic };

@@ -164,7 +164,15 @@ const main = async () => {
     log("Speaking job completed", { jobId: job.id });
   });
   speakingWorker.on("failed", (job, err) => {
-    log("Speaking job failed", { jobId: job?.id, error: err?.message });
+    log("Speaking job failed", {
+      jobId: job?.id,
+      jobName: job?.name || null,
+      sessionId: job?.data?.sessionId || null,
+      error: err?.message || null,
+      code: err?.code || null,
+      name: err?.name || null,
+      stack: err?.stack || null,
+    });
   });
   writingTaxonomyWorker.on("completed", (job) => {
     log("Writing taxonomy job completed", { jobId: job.id });
