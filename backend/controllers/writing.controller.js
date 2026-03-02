@@ -143,18 +143,26 @@ const pickWritingPayload = (body = {}, { allowId = false } = {}) => {
         "band_score",
         "is_active",
         "is_real_test",
+        "isSinglePart",
     ];
 
     if (allowId) {
         allowedFields.push("_id");
     }
 
-    return allowedFields.reduce((acc, field) => {
+    const payload = allowedFields.reduce((acc, field) => {
         if (Object.prototype.hasOwnProperty.call(body, field)) {
             acc[field] = body[field];
         }
         return acc;
     }, {});
+
+    // Normalize isSinglePart to boolean when present
+    if (Object.prototype.hasOwnProperty.call(payload, "isSinglePart")) {
+        payload.isSinglePart = Boolean(payload.isSinglePart);
+    }
+
+    return payload;
 };
 
 const escapeRegexForQuery = (value = "") =>

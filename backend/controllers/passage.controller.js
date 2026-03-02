@@ -3,7 +3,7 @@ import { generatePassageQuestionInsights } from "../services/passageInsight.serv
 import { handleControllerError, sendControllerError } from '../utils/controllerError.js';
 
 const pickPassagePayload = (body = {}, { allowId = false } = {}) => {
-    const allowed = ["title", "content", "question_groups", "source", "is_active"];
+    const allowed = ["title", "content", "question_groups", "source", "is_active", "isSinglePart"];
     if (allowId) {
         allowed.push("_id");
     }
@@ -18,6 +18,11 @@ const pickPassagePayload = (body = {}, { allowId = false } = {}) => {
     // Backward-compatible alias from older frontend payloads
     if (!Object.prototype.hasOwnProperty.call(payload, "is_active") && Object.prototype.hasOwnProperty.call(body, "isActive")) {
         payload.is_active = body.isActive;
+    }
+
+    // Normalize isSinglePart to boolean when present
+    if (Object.prototype.hasOwnProperty.call(payload, "isSinglePart")) {
+        payload.isSinglePart = Boolean(payload.isSinglePart);
     }
 
     return payload;
