@@ -8,6 +8,7 @@ const mockedControllers = vi.hoisted(() => ({
   getPendingStudents: vi.fn((_req, res) => res.status(200).json({ route: "pending" })),
   getOnlineStudents: vi.fn((_req, res) => res.status(200).json({ route: "online-students" })),
   repairStuckSpeakingSessions: vi.fn((_req, res) => res.status(200).json({ route: "repair-stuck" })),
+  retrySpeakingErrorLogs: vi.fn((_req, res) => res.status(200).json({ route: "retry-error-logs" })),
   approveStudent: vi.fn((_req, res) => res.status(200).json({ route: "approve" })),
   getUsers: vi.fn((_req, res) => res.status(200).json({ route: "users" })),
   deleteUser: vi.fn((_req, res) => res.status(200).json({ route: "delete" })),
@@ -83,5 +84,26 @@ describe("admin online student routes", () => {
 
     expect(res.status).toBe(403);
     expect(mockedControllers.repairStuckSpeakingSessions).not.toHaveBeenCalled();
+  });
+
+  it("routes /speaking/sessions/:id/retry-error-logs to retry controller for admin", async () => {
+    const res = await request(app)
+      .post("/api/admin/speaking/sessions/507f1f77bcf86cd799439011/retry-error-logs")
+      .set("x-test-role", "admin")
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body.route).toBe("retry-error-logs");
+    expect(mockedControllers.retrySpeakingErrorLogs).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects teacher on /speaking/sessions/:id/retry-error-logs (admin-only)", async () => {
+    const res = await request(app)
+      .post("/api/admin/speaking/sessions/507f1f77bcf86cd799439011/retry-error-logs")
+      .set("x-test-role", "teacher")
+      .send({});
+
+    expect(res.status).toBe(403);
+    expect(mockedControllers.retrySpeakingErrorLogs).not.toHaveBeenCalled();
   });
 });

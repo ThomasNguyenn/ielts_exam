@@ -14,6 +14,7 @@ export const WRITING_TAXONOMY_QUEUE = "writing-taxonomy-enrichment";
 export const SPEAKING_SCORE_JOB = "score-speaking-session";
 export const SPEAKING_PHASE1_JOB = "score-speaking-phase1";
 export const SPEAKING_PHASE2_JOB = "score-speaking-phase2";
+export const SPEAKING_ERROR_LOGS_JOB = "score-speaking-error-logs";
 
 let redisConnection = null;
 let writingQueue = null;
@@ -182,6 +183,33 @@ export const enqueueSpeakingAiPhase2Job = async ({ sessionId, force = false, rep
   const job = await addUniqueJob(
     speakingQueue,
     SPEAKING_PHASE2_JOB,
+    { sessionId, force, repairTag: String(repairTag || "") || null },
+    jobId,
+  );
+
+  return {
+    queued: true,
+    queue: SPEAKING_AI_QUEUE,
+    jobId: String(job.id),
+  };
+};
+
+export const enqueueSpeakingErrorLogsJob = async ({ sessionId, force = false, repairTag = "" }) => {
+  const state = ensureQueues();
+  if (!state.ready) {
+    return {
+      queued: false,
+      reason: state.reason,
+      queue: SPEAKING_AI_QUEUE,
+      jobId: null,
+    };
+  }
+
+  const baseJobId = buildSafeJobId("speaking-session-errorlogs", sessionId);
+  const jobId = appendRepairTagToJobId(baseJobId, repairTag);
+  const job = await addUniqueJob(
+    speakingQueue,
+    SPEAKING_ERROR_LOGS_JOB,
     { sessionId, force, repairTag: String(repairTag || "") || null },
     jobId,
   );

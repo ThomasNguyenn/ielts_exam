@@ -3,6 +3,7 @@ import Invitation from "../models/Invitation.model.js";
 import { sendInvitationEmail } from "../services/email.service.js";
 import TestAttempt from "../models/TestAttempt.model.js";
 import WritingSubmission from "../models/WritingSubmission.model.js";
+import Speaking from "../models/Speaking.model.js";
 import PracticeSession from "../models/PracticeSession.js";
 import SpeakingSession from "../models/SpeakingSession.js";
 import Vocabulary from "../models/Vocabulary.model.js";
@@ -85,6 +86,35 @@ const mapWritingSubmissionToAttempt = (submission = {}) => {
     };
 };
 
+const mapSpeakingSessionToAttempt = (session = {}, topicTitleById = {}) => {
+    const sessionId = String(session?._id || "");
+    const questionId = String(session?.questionId || "");
+    const topicTitle = String(topicTitleById?.[questionId] || "").trim();
+    const title = topicTitle || "Speaking Session";
+    const bandScore = Number(session?.analysis?.band_score);
+    const hasBandScore = Number.isFinite(bandScore);
+    const percentage = hasBandScore ? Math.round((bandScore / 9) * 1000) / 10 : null;
+
+    return {
+        _id: `speaking_session:${sessionId}`,
+        source_id: sessionId,
+        source_type: "speaking_session",
+        type: "speaking",
+        test_id: { title },
+        submitted_at: session?.timestamp || session?.createdAt || null,
+        score: hasBandScore ? bandScore : null,
+        total: 9,
+        wrong: null,
+        skipped: null,
+        percentage,
+        time_taken_ms: null,
+        status: session?.status || "processing",
+        scoring_state: session?.scoring_state || "processing",
+        error_logs_state: session?.error_logs_state || null,
+        error_logs_error: session?.error_logs_error || null,
+    };
+};
+
 export const getAllUsersWithLatestScores = async (req, res) => {
     try {
         res.set("Cache-Control", "no-store");
@@ -150,6 +180,23 @@ export const getAllUsersWithLatestScores = async (req, res) => {
                 },
             },
         ]);
+        const latestSpeakingSessions = await SpeakingSession.aggregate([
+            { $match: { userId: { $in: userIds }, "analysis.band_score": { $ne: null } } },
+            { $sort: { timestamp: -1, createdAt: -1, updatedAt: -1 } },
+            {
+                $group: {
+                    _id: "$userId",
+                    latest: { $first: "$$ROOT" },
+                },
+            },
+            {
+                $project: {
+                    _id: 1,
+                    score: "$latest.analysis.band_score",
+                    submitted_at: { $ifNull: ["$latest.timestamp", "$latest.createdAt"] },
+                },
+            },
+        ]);
 
         // Map attempts back to users
         const userScoreMap = {};
@@ -159,6 +206,17 @@ export const getAllUsersWithLatestScores = async (req, res) => {
         const writingScoreMap = {};
         latestWritingSubmissions.forEach((item) => {
             writingScoreMap[String(item?._id || "")] = {
+                score: Number(item?.score),
+                total: 9,
+                submitted_at: item?.submitted_at || null,
+                percentage: Number.isFinite(Number(item?.score))
+                    ? Math.round((Number(item.score) / 9) * 1000) / 10
+                    : null,
+            };
+        });
+        const speakingScoreMap = {};
+        latestSpeakingSessions.forEach((item) => {
+            speakingScoreMap[String(item?._id || "")] = {
                 score: Number(item?.score),
                 total: 9,
                 submitted_at: item?.submitted_at || null,
@@ -186,6 +244,15 @@ export const getAllUsersWithLatestScores = async (req, res) => {
                 const currentTs = toTimeValue(currentWriting?.submitted_at);
                 if (!currentWriting || incomingTs >= currentTs) {
                     scoresObj.writing = latestWriting;
+                }
+            }
+            const latestSpeaking = speakingScoreMap[user._id.toString()];
+            if (latestSpeaking) {
+                const currentSpeaking = scoresObj.speaking || null;
+                const incomingTs = toTimeValue(latestSpeaking.submitted_at);
+                const currentTs = toTimeValue(currentSpeaking?.submitted_at);
+                if (!currentSpeaking || incomingTs >= currentTs) {
+                    scoresObj.speaking = latestSpeaking;
                 }
             }
 
@@ -218,13 +285,14 @@ export const getUserAttempts = async (req, res) => {
 
         const includeObjectiveAttempts = ["all", "reading", "listening", "writing"].includes(normalizedType);
         const includeWritingSubmissions = normalizedType === "all" || normalizedType === "writing";
+        const includeSpeakingSessions = normalizedType === "all" || normalizedType === "speaking";
 
         const objectiveFilter = { user_id: userId };
         if (normalizedType !== "all") {
             objectiveFilter.type = normalizedType;
         }
 
-        const [objectiveAttempts, writingSubmissions] = await Promise.all([
+        const [objectiveAttempts, writingSubmissions, speakingSessions] = await Promise.all([
             includeObjectiveAttempts
                 ? TestAttempt.find(objectiveFilter)
                     .sort({ submitted_at: -1 })
@@ -238,11 +306,34 @@ export const getUserAttempts = async (req, res) => {
                     .select("_id writing_answers score status submitted_at createdAt time_taken_ms")
                     .lean()
                 : Promise.resolve([]),
+            includeSpeakingSessions
+                ? SpeakingSession.find({ userId })
+                    .sort({ timestamp: -1, createdAt: -1 })
+                    .select("_id questionId analysis.band_score status scoring_state timestamp createdAt error_logs_state error_logs_error")
+                    .lean()
+                : Promise.resolve([]),
         ]);
+
+        const topicIdSet = new Set(
+            (Array.isArray(speakingSessions) ? speakingSessions : [])
+                .map((item) => String(item?.questionId || "").trim())
+                .filter(Boolean),
+        );
+        const topicIdList = Array.from(topicIdSet).filter((id) => mongoose.Types.ObjectId.isValid(id));
+        const speakingTopics = topicIdList.length > 0
+            ? await Speaking.find({ _id: { $in: topicIdList } }).select("_id title").lean()
+            : [];
+        const topicTitleById = (Array.isArray(speakingTopics) ? speakingTopics : []).reduce((acc, item) => {
+            const id = String(item?._id || "").trim();
+            if (!id) return acc;
+            acc[id] = String(item?.title || "").trim();
+            return acc;
+        }, {});
 
         const merged = [
             ...(Array.isArray(objectiveAttempts) ? objectiveAttempts : []),
             ...(Array.isArray(writingSubmissions) ? writingSubmissions.map(mapWritingSubmissionToAttempt) : []),
+            ...(Array.isArray(speakingSessions) ? speakingSessions.map((item) => mapSpeakingSessionToAttempt(item, topicTitleById)) : []),
         ].sort((a, b) => toTimeValue(b?.submitted_at) - toTimeValue(a?.submitted_at));
 
         const totalItems = merged.length;
@@ -575,6 +666,131 @@ export const repairStuckSpeakingSessions = async (req, res) => {
                 dry_run: dryRun,
                 window_hours: windowHours,
                 stuck_threshold_ms: SPEAKING_STUCK_THRESHOLD_MS,
+                as_of: now.toISOString(),
+            },
+        });
+    } catch (error) {
+        return handleControllerError(req, res, error);
+    }
+};
+
+export const retrySpeakingErrorLogs = async (req, res) => {
+    try {
+        const sessionId = String(req.params?.id || "").trim();
+        if (!mongoose.Types.ObjectId.isValid(sessionId)) {
+            return sendControllerError(req, res, { statusCode: 400, message: "Invalid speaking session id" });
+        }
+
+        const session = await SpeakingSession.findById(sessionId)
+            .select("_id status scoring_state error_logs_state")
+            .lean();
+        if (!session) {
+            return sendControllerError(req, res, { statusCode: 404, message: "Speaking session not found" });
+        }
+
+        const { enqueueSpeakingErrorLogsJob } = await import("../queues/ai.queue.js");
+        const repairTag = `manual-${Date.now()}`;
+        const queueResult = await enqueueSpeakingErrorLogsJob({
+            sessionId,
+            force: true,
+            repairTag,
+        });
+
+        return res.json({
+            success: true,
+            data: {
+                session_id: sessionId,
+                queued: Boolean(queueResult?.queued),
+                job_id: queueResult?.jobId || null,
+                queue: queueResult?.queue || null,
+                reason: queueResult?.reason || null,
+                repair_tag: repairTag,
+                status: session?.status || null,
+                scoring_state: session?.scoring_state || null,
+                error_logs_state: session?.error_logs_state || null,
+            },
+        });
+    } catch (error) {
+        return handleControllerError(req, res, error);
+    }
+};
+
+export const retryFailedSpeakingErrorLogsBulk = async (req, res) => {
+    try {
+        const body = req.body || {};
+        const windowHours = toPositiveInt(
+            body.window_hours,
+            SPEAKING_REPAIR_DEFAULT_WINDOW_HOURS,
+            24 * 30,
+        );
+        const limit = toPositiveInt(
+            body.limit,
+            SPEAKING_REPAIR_DEFAULT_LIMIT,
+            SPEAKING_REPAIR_MAX_LIMIT,
+        );
+        const now = new Date();
+        const thresholdDate = new Date(now.getTime() - windowHours * 60 * 60 * 1000);
+
+        const sessions = await SpeakingSession.find({
+            error_logs_state: "failed",
+            $or: [
+                { timestamp: { $gte: thresholdDate } },
+                { createdAt: { $gte: thresholdDate } },
+            ],
+        })
+            .sort({ timestamp: -1, createdAt: -1 })
+            .limit(limit)
+            .select("_id error_logs_state status scoring_state")
+            .lean();
+
+        const { enqueueSpeakingErrorLogsJob } = await import("../queues/ai.queue.js");
+
+        const summary = {
+            scanned: Array.isArray(sessions) ? sessions.length : 0,
+            requeued: 0,
+            skipped: 0,
+            errors: [],
+        };
+
+        for (let index = 0; index < sessions.length; index += 1) {
+            const session = sessions[index] || {};
+            const sessionId = String(session?._id || "");
+            if (!sessionId) {
+                summary.skipped += 1;
+                continue;
+            }
+
+            try {
+                const repairTag = `bulk-${Date.now()}-${index}`;
+                const queueResult = await enqueueSpeakingErrorLogsJob({
+                    sessionId,
+                    force: true,
+                    repairTag,
+                });
+
+                if (queueResult?.queued) {
+                    summary.requeued += 1;
+                } else {
+                    summary.skipped += 1;
+                    summary.errors.push({
+                        session_id: sessionId,
+                        reason: queueResult?.reason || "queue_not_ready",
+                    });
+                }
+            } catch (queueError) {
+                summary.errors.push({
+                    session_id: sessionId,
+                    error: queueError?.message || String(queueError),
+                });
+            }
+        }
+
+        return res.json({
+            success: true,
+            data: {
+                ...summary,
+                window_hours: windowHours,
+                limit,
                 as_of: now.toISOString(),
             },
         });

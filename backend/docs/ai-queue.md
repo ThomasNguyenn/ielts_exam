@@ -24,6 +24,12 @@ This project supports asynchronous AI grading for `writing` and `speaking`.
 - `SPEAKING_GEMINI_TIMEOUT_MS=25000` (speaking-specific timeout)
 - `SPEAKING_GEMINI_MAX_ATTEMPTS=2` (speaking-specific retry cap)
 - `SPEAKING_ANALYSIS_MAX_OUTPUT_TOKENS=1200` (reduce long responses)
+- `SPEAKING_ASYNC_ERROR_LOGS=true` (defer speaking error logs after final scores)
+- `SPEAKING_ERROR_LOGS_MIN_COUNT=4`
+- `SPEAKING_ERROR_LOGS_TIMEOUT_MS=15000`
+- `SPEAKING_ERROR_LOGS_MAX_OUTPUT_TOKENS=500`
+- `SPEAKING_ERROR_LOGS_PRIMARY_MODEL=gemini-2.5-flash`
+- `SPEAKING_ERROR_LOGS_FALLBACK_MODEL=gemini-2.5-flash`
 
 ### Fast provisional pipeline (feature-flagged)
 - `SPEAKING_FAST_PIPELINE=true` (enable provisional fast-score pipeline)
@@ -72,4 +78,9 @@ When `AI_ASYNC_MODE=true`:
    - success: mark `audio_upload_state=ready`, enqueue `score-speaking-phase2` (audio-first)
    - fail: mark `audio_upload_state=failed`, enqueue `score-speaking-phase2` (text fallback from STT transcript)
 5. Final report is completed only after both phase1 + phase2 results are ready.
+6. `analysis.error_logs` and taxonomy `SpeakingSession.error_logs` are processed in background:
+   - finalize step stores `analysis.error_logs=[]` and `error_logs_state=pending`
+   - worker enqueues `score-speaking-error-logs`
+   - success: `error_logs_state=ready`, logs are written back
+   - fail: `error_logs_state=failed` (session stays `completed`)
 

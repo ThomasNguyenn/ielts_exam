@@ -7,6 +7,8 @@ import {
   getUsers,
   getOnlineStudents,
   repairStuckSpeakingSessions,
+  retrySpeakingErrorLogs,
+  retryFailedSpeakingErrorLogsBulk,
   deleteUser,
   changeUserRole,
   inviteUser,
@@ -24,6 +26,8 @@ router.get("/users/:userId/attempts", getUserAttempts);
 router.get("/students/pending", getPendingStudents);
 router.get("/students/online", isAdmin, getOnlineStudents);
 router.post("/speaking/sessions/repair-stuck", isAdmin, repairStuckSpeakingSessions);
+router.post("/speaking/sessions/:id/retry-error-logs", isAdmin, retrySpeakingErrorLogs);
+router.post("/speaking/error-logs/retry-failed", isAdmin, retryFailedSpeakingErrorLogsBulk);
 router.put("/students/:userId/approve", approveStudent);
 router.get("/users", getUsers);
 router.delete("/users/:userId", deleteUser);

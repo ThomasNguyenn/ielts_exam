@@ -426,6 +426,10 @@ export const getSpeakingSession = async (req, res) => {
         audio_uploaded_at: session.audio_uploaded_at || null,
         audio_upload_error: session.audio_upload_error || null,
         phase2_ready_at: session.phase2_ready_at || null,
+        error_logs_state: session.error_logs_state || null,
+        error_logs_ready_at: session.error_logs_ready_at || null,
+        error_logs_error: session.error_logs_error || null,
+        error_logs_source: session.error_logs_source || null,
         metrics: session.metrics || { wpm: 0, pauses: {} },
         timestamp: session.timestamp || session.createdAt || null,
         audio_deleted_at: session.audioDeletedAt || null,
@@ -738,6 +742,10 @@ export const submitSpeaking = async (req, res) => {
         audio_uploaded_at: session.audio_uploaded_at || null,
         audio_upload_error: session.audio_upload_error || null,
         phase2_ready_at: session.phase2_ready_at || null,
+        error_logs_state: session.error_logs_state || null,
+        error_logs_ready_at: session.error_logs_ready_at || null,
+        error_logs_error: session.error_logs_error || null,
+        error_logs_source: session.error_logs_source || null,
         metrics: session.metrics || { wpm: 0, pauses: {} },
         timestamp: session.timestamp || session.createdAt || null,
         xpResult,
@@ -768,7 +776,11 @@ export const submitSpeaking = async (req, res) => {
       session_id: String(session._id),
       reason: syncFallbackReason || "unknown",
     }));
-    const grading = await scoreSpeakingSessionById({ sessionId: String(session._id), force: true });
+    const grading = await scoreSpeakingSessionById({
+      sessionId: String(session._id),
+      force: true,
+      deferErrorLogs: false,
+    });
     return res.json({
       success: true,
       session_id: grading.session._id,
@@ -789,6 +801,10 @@ export const submitSpeaking = async (req, res) => {
       audio_uploaded_at: grading.session?.audio_uploaded_at || null,
       audio_upload_error: grading.session?.audio_upload_error || null,
       phase2_ready_at: grading.session?.phase2_ready_at || null,
+      error_logs_state: grading.session?.error_logs_state || null,
+      error_logs_ready_at: grading.session?.error_logs_ready_at || null,
+      error_logs_error: grading.session?.error_logs_error || null,
+      error_logs_source: grading.session?.error_logs_source || null,
       metrics: grading.session?.metrics || { wpm: 0, pauses: {} },
       timestamp: grading.session?.timestamp || grading.session?.createdAt || null,
       queued: false,

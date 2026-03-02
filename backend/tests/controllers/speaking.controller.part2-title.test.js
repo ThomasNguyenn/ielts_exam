@@ -217,6 +217,10 @@ describe("speaking.controller Part 2 question title", () => {
       analysis: null,
       provisional_analysis: null,
       phase1_analysis: null,
+      error_logs_state: "pending",
+      error_logs_ready_at: null,
+      error_logs_error: null,
+      error_logs_source: null,
       metrics: { wpm: 90, pauses: {} },
       mockExaminerTurns: [{ role: "examiner", message: "Old data" }],
       mockExaminerMeta: { ai_source: "legacy", isCompleted: true },
@@ -238,5 +242,9 @@ describe("speaking.controller Part 2 question title", () => {
     const payload = res.json.mock.calls[0][0]?.data || {};
     expect(payload).not.toHaveProperty("mock_examiner_turns");
     expect(payload).not.toHaveProperty("mock_examiner_meta");
+    expect(payload.error_logs_state).toBe("pending");
+    expect(payload).toHaveProperty("error_logs_ready_at");
+    expect(payload).toHaveProperty("error_logs_error");
+    expect(payload).toHaveProperty("error_logs_source");
   });
 });

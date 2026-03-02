@@ -4,6 +4,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import Speaking from "../models/Speaking.model.js";
 import SpeakingSession from "../models/SpeakingSession.js";
 import cloudinary from "../utils/cloudinary.js";
+import { isAiAsyncModeEnabled } from "../config/queue.config.js";
 import { requestGeminiJsonWithFallback } from "../utils/aiClient.js";
 import { createTaxonomyErrorLog } from "./taxonomy.registry.js";
 import { transcribeWithWhisper } from "./speakingFastScore.service.js";
@@ -25,6 +26,14 @@ const normalizeGeminiModel = (modelName, fallbackModel) => {
   return normalized;
 };
 
+const toBoolean = (value, fallback = false) => {
+  if (value === undefined || value === null) return fallback;
+  const normalized = String(value).trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "off"].includes(normalized)) return false;
+  return fallback;
+};
+
 const primaryModel = normalizeGeminiModel(
   process.env.GEMINI_PRIMARY_MODEL,
   "gemini-3-flash-preview",
@@ -44,7 +53,18 @@ const phase1FallbackModel = normalizeGeminiModel(
   process.env.SPEAKING_PHASE1_FALLBACK_MODEL,
   fallbackModel,
 );
+const errorLogsPrimaryModel = normalizeGeminiModel(
+  process.env.SPEAKING_ERROR_LOGS_PRIMARY_MODEL,
+  "gemini-2.5-flash",
+);
+const errorLogsFallbackModel = normalizeGeminiModel(
+  process.env.SPEAKING_ERROR_LOGS_FALLBACK_MODEL,
+  errorLogsPrimaryModel,
+);
 const SPEAKING_PHASE1_MODELS = [phase1PrimaryModel, phase1FallbackModel].filter(
+  (model, index, list) => Boolean(model) && list.indexOf(model) === index,
+);
+const SPEAKING_ERROR_LOGS_MODELS = [errorLogsPrimaryModel, errorLogsFallbackModel].filter(
   (model, index, list) => Boolean(model) && list.indexOf(model) === index,
 );
 const SPEAKING_GEMINI_TIMEOUT_MS = Number(
@@ -65,11 +85,22 @@ const SPEAKING_PHASE1_MAX_OUTPUT_TOKENS = Number(
 const SPEAKING_PHASE2_MAX_OUTPUT_TOKENS = Number(
   process.env.SPEAKING_PHASE2_MAX_OUTPUT_TOKENS || 4000,
 );
+const SPEAKING_ERROR_LOGS_MIN_COUNT = Math.max(
+  1,
+  Number(process.env.SPEAKING_ERROR_LOGS_MIN_COUNT || 4),
+);
+const SPEAKING_ERROR_LOGS_TIMEOUT_MS = Number(
+  process.env.SPEAKING_ERROR_LOGS_TIMEOUT_MS || 15000,
+);
+const SPEAKING_ERROR_LOGS_MAX_OUTPUT_TOKENS = Number(
+  process.env.SPEAKING_ERROR_LOGS_MAX_OUTPUT_TOKENS || 500,
+);
 const SPEAKING_ANALYSIS_MAX_OUTPUT_TOKENS = Number(
   process.env.SPEAKING_ANALYSIS_MAX_OUTPUT_TOKENS
   || process.env.GEMINI_ANALYSIS_MAX_OUTPUT_TOKENS
   || 4000,
 );
+const SPEAKING_ASYNC_ERROR_LOGS = toBoolean(process.env.SPEAKING_ASYNC_ERROR_LOGS, true);
 const SPEAKING_PHASE1_PROMPT_TRANSCRIPT_MAX_CHARS = Math.max(
   1200,
   Number(process.env.SPEAKING_PHASE1_PROMPT_TRANSCRIPT_MAX_CHARS || 6500),
@@ -894,6 +925,20 @@ const dedupeErrorLogs = (errorLogs = []) => {
   return output;
 };
 
+const SPEAKING_ERROR_LOG_PREFIXES = ["S-L", "S-G", "S-F", "S-P"];
+
+const sanitizeErrorLogsErrorMessage = (error) => {
+  const raw = String(error?.message || "").trim();
+  if (!raw) return "error_logs_failed";
+  return raw.slice(0, 180);
+};
+
+const isAsyncErrorLogsPipelineEnabled = () =>
+  SPEAKING_ASYNC_ERROR_LOGS && isAiAsyncModeEnabled();
+
+export const mergeAndNormalizeSpeakingErrorLogs = (...sources) =>
+  dedupeErrorLogs(filterErrorLogsByPrefixes(sources.flat(), SPEAKING_ERROR_LOG_PREFIXES));
+
 const normalizePhase1Payload = (rawPhase1, {
   topicPart = 0,
   topicPrompt = "",
@@ -1390,6 +1435,44 @@ Return ONLY valid JSON:
 }
 `;
 
+export const buildSpeakingErrorLogsSupplementPrompt = ({
+  transcript = "",
+  topicPart = 0,
+  baseErrorLogs = [],
+  minCount = SPEAKING_ERROR_LOGS_MIN_COUNT,
+} = {}) => {
+  const normalizedLogs = mergeAndNormalizeSpeakingErrorLogs(baseErrorLogs);
+  const baseJson = JSON.stringify(normalizedLogs, null, 2);
+  return `
+You are an IELTS Speaking error taxonomy assistant.
+Your job is to complete missing error_logs only. Do NOT score.
+
+INPUT:
+- Part: ${normalizeSpeakingPart(topicPart) || "unknown"}
+- Transcript: "${String(transcript || "").slice(0, 3500) || "(none)"}"
+- Existing error_logs:
+${baseJson}
+
+RULES:
+- Keep all existing valid logs. Only add missing ones.
+- Return total ${Math.max(minCount, 1)} to 10 logs if evidence exists.
+- Allowed codes only:
+  - Lexical: S-L1, S-L2, S-L3, S-L4
+  - Grammar: S-G1, S-G2, S-G3, S-G4
+  - Fluency: S-F1, S-F2, S-F3, S-F4
+  - Pronunciation: S-P1, S-P2, S-P3, S-P4
+- Keep snippet short (<= 7 words), and evidence-based.
+- explanation must be Vietnamese and concise.
+
+Return ONLY valid JSON:
+{
+  "error_logs": [
+    { "code": "string", "snippet": "string", "explanation": "string (In Vietnamese)" }
+  ]
+}
+`;
+};
+
 const getSessionAndTopic = async (sessionId) => {
   const session = await SpeakingSession.findById(sessionId);
   if (!session) {
@@ -1713,6 +1796,7 @@ const ensureScoringStateWhileProcessing = (session, { phase1Ready, phase2Ready }
 const finalizeSpeakingIfReady = async ({
   sessionId,
   topic,
+  deferErrorLogs = isAsyncErrorLogsPipelineEnabled(),
 } = {}) => {
   const latestSession = await SpeakingSession.findById(sessionId);
   if (!latestSession) {
@@ -1784,14 +1868,29 @@ const finalizeSpeakingIfReady = async ({
 
   const modelTranscript = String(analysis?.transcript || "").trim();
   const mergedTranscript = clientTranscript || modelTranscript || "";
+  const useAsyncErrorLogsPipeline = Boolean(deferErrorLogs) && isAsyncErrorLogsPipelineEnabled();
+  const analysisForStorage = useAsyncErrorLogsPipeline
+    ? {
+      ...analysis,
+      error_logs: [],
+    }
+    : analysis;
+  const taxonomyErrorLogs = useAsyncErrorLogsPipeline
+    ? []
+    : extractTaxonomyErrorLogs(analysis, topic.part);
   const payloadToSet = {
     transcript: mergedTranscript,
-    analysis,
+    analysis: analysisForStorage,
     phase1_analysis: pruneStoredPhase1Analysis(latestSession.phase1_analysis),
     ai_source: latestSession.phase2_source || latestSession.ai_source || null,
-    error_logs: extractTaxonomyErrorLogs(analysis, topic.part),
+    error_logs: taxonomyErrorLogs,
     status: "completed",
     scoring_state: "completed",
+    error_logs_state: useAsyncErrorLogsPipeline ? "pending" : "ready",
+    error_logs_started_at: null,
+    error_logs_ready_at: useAsyncErrorLogsPipeline ? null : new Date(),
+    error_logs_error: null,
+    error_logs_source: useAsyncErrorLogsPipeline ? null : "finalize_inline",
   };
 
   const finalizedSession = await SpeakingSession.findOneAndUpdate(
@@ -1854,16 +1953,20 @@ const finalizeSpeakingIfReady = async ({
     session: finalizedSession,
     finalized: true,
     reason: "completed",
-    analysis,
+    analysis: analysisForStorage,
   };
 };
 
-export const scoreSpeakingPhase1ById = async ({ sessionId, force = false } = {}) => {
+export const scoreSpeakingPhase1ById = async ({ sessionId, force = false, deferErrorLogs } = {}) => {
   const { session, topic } = await getSessionAndTopic(sessionId);
   const scoringState = String(session?.scoring_state || "").trim();
   const phase1Cached = hasUsableAnalysisPayload(session?.phase1_analysis);
   if (!force && phase1Cached && ["phase1_ready", "phase2_ready", "completed"].includes(scoringState)) {
-    const finalizeResult = await finalizeSpeakingIfReady({ sessionId: String(session._id), topic });
+    const finalizeResult = await finalizeSpeakingIfReady({
+      sessionId: String(session._id),
+      topic,
+      deferErrorLogs,
+    });
     return {
       session: finalizeResult?.session || session,
       phase1Analysis: finalizeResult?.session?.phase1_analysis || session.phase1_analysis,
@@ -2065,6 +2168,7 @@ export const scoreSpeakingPhase1ById = async ({ sessionId, force = false } = {})
   const finalizeResult = await finalizeSpeakingIfReady({
     sessionId: String(persistedPhase1Session._id),
     topic,
+    deferErrorLogs,
   });
 
   return {
@@ -2076,7 +2180,7 @@ export const scoreSpeakingPhase1ById = async ({ sessionId, force = false } = {})
   };
 };
 
-export const scoreSpeakingPhase2ById = async ({ sessionId, force = false } = {}) => {
+export const scoreSpeakingPhase2ById = async ({ sessionId, force = false, deferErrorLogs } = {}) => {
   const { session, topic } = await getSessionAndTopic(sessionId);
   if (session.status === "completed" && session.analysis?.band_score !== undefined && !force) {
     return {
@@ -2261,6 +2365,7 @@ export const scoreSpeakingPhase2ById = async ({ sessionId, force = false } = {})
   const finalizeResult = await finalizeSpeakingIfReady({
     sessionId: String(persistedPhase2Session._id),
     topic,
+    deferErrorLogs,
   });
 
   return {
@@ -2272,6 +2377,155 @@ export const scoreSpeakingPhase2ById = async ({ sessionId, force = false } = {})
   };
 };
 
+export const scoreSpeakingErrorLogsById = async ({ sessionId, force = false } = {}) => {
+  const { session, topic } = await getSessionAndTopic(sessionId);
+  const hasPhase1 = hasUsablePhaseAnalysis(session?.phase1_analysis);
+  const hasPhase2 = hasUsablePhaseAnalysis(session?.phase2_analysis);
+  const isCompleted = String(session?.status || "").trim().toLowerCase() === "completed";
+
+  if (!isCompleted || !hasPhase1 || !hasPhase2) {
+    return {
+      session,
+      skipped: true,
+      reason: "prerequisite_not_ready",
+      errorLogsState: String(session?.error_logs_state || "").trim().toLowerCase() || null,
+    };
+  }
+
+  const existingState = String(session?.error_logs_state || "").trim().toLowerCase();
+  if (!force && existingState === "ready") {
+    return {
+      session,
+      skipped: true,
+      reason: "already_ready",
+      errorLogsState: "ready",
+    };
+  }
+  if (!force && existingState === "processing") {
+    return {
+      session,
+      skipped: true,
+      reason: "already_processing",
+      errorLogsState: "processing",
+    };
+  }
+
+  const processingSession = await SpeakingSession.findByIdAndUpdate(
+    session._id,
+    {
+      $set: {
+        error_logs_state: "processing",
+        error_logs_started_at: new Date(),
+        error_logs_ready_at: null,
+        error_logs_error: null,
+      },
+    },
+    { new: true },
+  ) || await SpeakingSession.findById(session._id) || session;
+
+  const baseErrorLogs = mergeAndNormalizeSpeakingErrorLogs(
+    processingSession?.phase1_analysis?.error_logs,
+    processingSession?.phase2_analysis?.error_logs,
+    processingSession?.analysis?.error_logs,
+  );
+
+  let supplementedErrorLogs = [];
+  let errorLogsSource = "phase_payload";
+
+  try {
+    if (baseErrorLogs.length < SPEAKING_ERROR_LOGS_MIN_COUNT && genAI) {
+      const prompt = buildSpeakingErrorLogsSupplementPrompt({
+        transcript: String(processingSession?.transcript || "").trim(),
+        topicPart: topic?.part,
+        baseErrorLogs,
+        minCount: SPEAKING_ERROR_LOGS_MIN_COUNT,
+      });
+      const aiResponse = await requestGeminiJsonWithFallback({
+        genAI,
+        models: SPEAKING_ERROR_LOGS_MODELS,
+        contents: [prompt],
+        generationConfig: {
+          responseMimeType: "application/json",
+          maxOutputTokens: SPEAKING_ERROR_LOGS_MAX_OUTPUT_TOKENS,
+        },
+        timeoutMs: SPEAKING_ERROR_LOGS_TIMEOUT_MS,
+        maxAttempts: SPEAKING_GEMINI_MAX_ATTEMPTS,
+      });
+      const rawErrorLogs = Array.isArray(aiResponse?.data)
+        ? aiResponse.data
+        : aiResponse?.data?.error_logs;
+      supplementedErrorLogs = mergeAndNormalizeSpeakingErrorLogs(rawErrorLogs);
+      errorLogsSource = aiResponse?.model || "ai_supplement";
+    }
+
+    const mergedErrorLogs = mergeAndNormalizeSpeakingErrorLogs(baseErrorLogs, supplementedErrorLogs);
+    const analysisSource = processingSession?.analysis && typeof processingSession.analysis === "object"
+      ? processingSession.analysis
+      : {};
+    const nextAnalysis = {
+      ...analysisSource,
+      error_logs: mergedErrorLogs,
+    };
+    const taxonomyErrorLogs = extractTaxonomyErrorLogs({ error_logs: mergedErrorLogs }, topic.part);
+
+    const updatedSession = await SpeakingSession.findByIdAndUpdate(
+      processingSession._id,
+      {
+        $set: {
+          analysis: nextAnalysis,
+          error_logs: taxonomyErrorLogs,
+          error_logs_state: "ready",
+          error_logs_ready_at: new Date(),
+          error_logs_error: null,
+          error_logs_source: errorLogsSource,
+        },
+      },
+      { new: true },
+    ) || await SpeakingSession.findById(processingSession._id) || processingSession;
+
+    return {
+      session: updatedSession,
+      skipped: false,
+      reason: "ready",
+      errorLogsSource,
+      errorLogsCount: mergedErrorLogs.length,
+    };
+  } catch (error) {
+    const fallbackErrorLogs = mergeAndNormalizeSpeakingErrorLogs(baseErrorLogs);
+    const partialAnalysisSource = processingSession?.analysis && typeof processingSession.analysis === "object"
+      ? processingSession.analysis
+      : {};
+    const partialAnalysis = {
+      ...partialAnalysisSource,
+      error_logs: fallbackErrorLogs,
+    };
+    const partialTaxonomyLogs = extractTaxonomyErrorLogs({ error_logs: fallbackErrorLogs }, topic.part);
+
+    const failureSet = {
+      error_logs_state: "failed",
+      error_logs_ready_at: null,
+      error_logs_error: sanitizeErrorLogsErrorMessage(error),
+      error_logs_source: errorLogsSource,
+    };
+    if (fallbackErrorLogs.length > 0) {
+      failureSet.analysis = partialAnalysis;
+      failureSet.error_logs = partialTaxonomyLogs;
+    }
+
+    const failedSession = await SpeakingSession.findByIdAndUpdate(
+      processingSession._id,
+      { $set: failureSet },
+      { new: true },
+    ) || await SpeakingSession.findById(processingSession._id) || processingSession;
+    const failure = new Error(`Speaking error logs failed: ${failureSet.error_logs_error}`);
+    failure.code = "SPEAKING_ERROR_LOGS_FAILED";
+    failure.sessionId = String(failedSession?._id || processingSession?._id || sessionId || "");
+    failure.errorLogsSource = errorLogsSource;
+    failure.errorLogsCount = fallbackErrorLogs.length;
+    throw failure;
+  }
+};
+
 export const finalizeSpeakingSessionById = async ({ sessionId } = {}) => {
   const { session, topic } = await getSessionAndTopic(sessionId);
   return finalizeSpeakingIfReady({
@@ -2280,7 +2534,7 @@ export const finalizeSpeakingSessionById = async ({ sessionId } = {}) => {
   });
 };
 
-export const scoreSpeakingSessionById = async ({ sessionId, force = false } = {}) => {
-  await scoreSpeakingPhase1ById({ sessionId, force });
-  return scoreSpeakingPhase2ById({ sessionId, force });
+export const scoreSpeakingSessionById = async ({ sessionId, force = false, deferErrorLogs } = {}) => {
+  await scoreSpeakingPhase1ById({ sessionId, force, deferErrorLogs });
+  return scoreSpeakingPhase2ById({ sessionId, force, deferErrorLogs });
 };

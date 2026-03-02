@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { api } from '@/shared/api/client';
+import { useNotification } from '@/shared/context/NotificationContext';
 import PaginationControls from '@/shared/components/PaginationControls';
 import './ScoreDashboard.css';
 
@@ -15,6 +16,10 @@ export default function UserScoreDetail() {
     const [currentPage, setCurrentPage] = useState(1);
     const [loading, setLoading] = useState(true);
     const [activeFilter, setActiveFilter] = useState('all');
+    const [retryingSessionId, setRetryingSessionId] = useState('');
+    const { showNotification } = useNotification();
+    const currentUser = api.getUser() || {};
+    const isAdmin = String(currentUser?.role || '').toLowerCase() === 'admin';
 
     useEffect(() => {
         setCurrentPage(1);
@@ -65,9 +70,50 @@ export default function UserScoreDetail() {
         ];
 
         if (type === 'writing') return null;
+        if (type === 'speaking') {
+            const speakingScore = Number(score);
+            if (!Number.isFinite(speakingScore)) return null;
+            return speakingScore.toFixed(1);
+        }
         const mapping = type === 'listening' ? listeningMap : readingMap;
         const band = mapping.find(m => score >= m.min);
         return band ? band.band.toFixed(1) : '0.0';
+    };
+
+    const toErrorLogsStateLabel = (value) => {
+        const normalized = String(value || '').trim().toLowerCase();
+        if (!normalized) return null;
+        if (normalized === 'pending') return 'Error Logs Pending';
+        if (normalized === 'processing') return 'Error Logs Processing';
+        if (normalized === 'failed') return 'Error Logs Failed';
+        if (normalized === 'ready') return 'Error Logs Ready';
+        return normalized;
+    };
+
+    const retryErrorLogs = async (sessionId) => {
+        const normalizedSessionId = String(sessionId || '').trim();
+        if (!normalizedSessionId || retryingSessionId) return;
+        try {
+            setRetryingSessionId(normalizedSessionId);
+            const res = await api.retrySpeakingErrorLogs(normalizedSessionId);
+            const queued = Boolean(res?.data?.queued ?? res?.queued);
+            if (!queued) {
+                throw new Error(res?.data?.reason || res?.reason || 'Retry enqueue failed');
+            }
+            showNotification('Queued speaking error-log retry.', 'success');
+            setAttempts((prev) => (Array.isArray(prev) ? prev.map((item) => {
+                if (String(item?.source_id || '') !== normalizedSessionId) return item;
+                return {
+                    ...item,
+                    error_logs_state: 'processing',
+                    error_logs_error: null,
+                };
+            }) : prev));
+        } catch (error) {
+            showNotification(error?.message || 'Failed to retry speaking error logs', 'error');
+        } finally {
+            setRetryingSessionId('');
+        }
     };
 
     if (loading) {
@@ -107,7 +153,7 @@ export default function UserScoreDetail() {
             </div>
 
             <div className="filter-tabs" style={{ marginBottom: '2rem', display: 'flex', gap: '0.5rem' }}>
-                {['all', 'reading', 'listening', 'writing'].map(filter => (
+                {['all', 'reading', 'listening', 'writing', 'speaking'].map(filter => (
                     <button
                         key={filter}
                         className={`filter-tab ${activeFilter === filter ? 'active' : ''}`}
@@ -130,7 +176,7 @@ export default function UserScoreDetail() {
                                 <span className={`attempt-type type-${attempt.type}`}>
                                     {attempt.type}
                                 </span>
-                                {(attempt.type === 'reading' || attempt.type === 'listening') && attempt.score !== null && (
+                                {(attempt.type === 'reading' || attempt.type === 'listening' || attempt.type === 'speaking') && attempt.score !== null && (
                                     <span className="band-badge">
                                         Band {calculateBandScore(attempt.score, attempt.type)}
                                     </span>
@@ -147,7 +193,9 @@ export default function UserScoreDetail() {
                                 <div className="stat-item">
                                     <span className="stat-label">Score</span>
                                     <span className="stat-value">
-                                        {attempt.score !== null ? `${attempt.score}/${attempt.total}` : 'Pending grading'}
+                                        {attempt.type === 'speaking'
+                                            ? (attempt.score !== null ? `Band ${calculateBandScore(attempt.score, 'speaking')}` : 'Pending grading')
+                                            : (attempt.score !== null ? `${attempt.score}/${attempt.total}` : 'Pending grading')}
                                     </span>
                                 </div>
                                 <div className="stat-item">
@@ -169,6 +217,28 @@ export default function UserScoreDetail() {
                                     </span>
                                 </div>
                             </div>
+                            {attempt.type === 'speaking' && (
+                                <div className="attempt-speaking-tools">
+                                    {toErrorLogsStateLabel(attempt.error_logs_state) && (
+                                        <span className={`attempt-speaking-logs-state logs-${String(attempt.error_logs_state || '').toLowerCase()}`}>
+                                            {toErrorLogsStateLabel(attempt.error_logs_state)}
+                                        </span>
+                                    )}
+                                    {isAdmin && attempt.error_logs_state === 'failed' && (
+                                        <button
+                                            type="button"
+                                            className="attempt-speaking-retry"
+                                            onClick={() => retryErrorLogs(attempt.source_id)}
+                                            disabled={retryingSessionId === String(attempt.source_id || '')}
+                                        >
+                                            {retryingSessionId === String(attempt.source_id || '') ? 'Retrying...' : 'Retry Error Logs'}
+                                        </button>
+                                    )}
+                                    {attempt.error_logs_error && (
+                                        <p className="attempt-speaking-error">{attempt.error_logs_error}</p>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     ))
                 )}

@@ -13,6 +13,8 @@ import {
 import {
   enqueueSpeakingAiPhase1Job,
   enqueueSpeakingAiPhase2Job,
+  enqueueSpeakingErrorLogsJob,
+  SPEAKING_ERROR_LOGS_JOB,
   SPEAKING_PHASE1_JOB,
   SPEAKING_PHASE2_JOB,
   SPEAKING_SCORE_JOB,
@@ -64,6 +66,7 @@ const main = async () => {
   const [{ scoreWritingSubmissionById }, {
     finalizeSpeakingSessionById,
     isUsableSpeakingAnalysis,
+    scoreSpeakingErrorLogsById,
     scoreSpeakingSessionById,
     scoreSpeakingPhase1ById,
     scoreSpeakingPhase2ById,
@@ -212,6 +215,33 @@ const main = async () => {
     }
   };
 
+  const maybeEnqueueSpeakingErrorLogsJob = async ({
+    sessionId,
+    sessionSnapshot = null,
+    trigger = "",
+  } = {}) => {
+    if (!sessionId) return null;
+
+    const latestSession = sessionSnapshot || await SpeakingSession.findById(sessionId);
+    if (!latestSession) return null;
+
+    const status = String(latestSession?.status || "").trim().toLowerCase();
+    const errorLogsState = String(latestSession?.error_logs_state || "").trim().toLowerCase();
+    if (status !== "completed" || errorLogsState !== "pending") {
+      return null;
+    }
+
+    const queueResult = await enqueueSpeakingErrorLogsJob({ sessionId });
+    log("speaking_error_logs_job_enqueued", {
+      sessionId,
+      trigger: trigger || null,
+      queued: Boolean(queueResult?.queued),
+      job_id: queueResult?.jobId || null,
+      reason: queueResult?.reason || null,
+    });
+    return queueResult;
+  };
+
   const writingWorker = new Worker(
     WRITING_AI_QUEUE,
     async (job) => {
@@ -272,6 +302,16 @@ const main = async () => {
             error: autoHealError?.message || null,
           });
         });
+        await maybeEnqueueSpeakingErrorLogsJob({
+          sessionId,
+          trigger: "phase1_completed",
+        }).catch((enqueueError) => {
+          log("speaking_error_logs_enqueue_failed", {
+            sessionId,
+            trigger: "phase1_completed",
+            error: enqueueError?.message || null,
+          });
+        });
         return { sessionId, stage: "phase1" };
       }
 
@@ -312,15 +352,66 @@ const main = async () => {
             error: autoHealError?.message || null,
           });
         });
+        await maybeEnqueueSpeakingErrorLogsJob({
+          sessionId,
+          trigger: "phase2_completed",
+        }).catch((enqueueError) => {
+          log("speaking_error_logs_enqueue_failed", {
+            sessionId,
+            trigger: "phase2_completed",
+            error: enqueueError?.message || null,
+          });
+        });
         return { sessionId, stage: "phase2" };
+      }
+
+      if (job.name === SPEAKING_ERROR_LOGS_JOB) {
+        log("speaking_error_logs_processing", {
+          jobId: job.id,
+          sessionId,
+          force: Boolean(force),
+        });
+        const errorLogsResult = await scoreSpeakingErrorLogsById({ sessionId, force });
+        log("speaking_error_logs_ready", {
+          jobId: job.id,
+          sessionId,
+          state: errorLogsResult?.session?.error_logs_state || null,
+          source: errorLogsResult?.session?.error_logs_source || errorLogsResult?.errorLogsSource || null,
+          error_logs_count: Array.isArray(errorLogsResult?.session?.analysis?.error_logs)
+            ? errorLogsResult.session.analysis.error_logs.length
+            : null,
+          skipped: Boolean(errorLogsResult?.skipped),
+          reason: errorLogsResult?.reason || null,
+        });
+        return { sessionId, stage: "error_logs" };
       }
 
       if (job.name === SPEAKING_SCORE_JOB) {
         await scoreSpeakingSessionById({ sessionId, force });
+        await maybeEnqueueSpeakingErrorLogsJob({
+          sessionId,
+          trigger: "legacy_full_completed",
+        }).catch((enqueueError) => {
+          log("speaking_error_logs_enqueue_failed", {
+            sessionId,
+            trigger: "legacy_full_completed",
+            error: enqueueError?.message || null,
+          });
+        });
         return { sessionId, stage: "legacy_full" };
       }
 
       await scoreSpeakingSessionById({ sessionId, force });
+      await maybeEnqueueSpeakingErrorLogsJob({
+        sessionId,
+        trigger: "fallback_full_completed",
+      }).catch((enqueueError) => {
+        log("speaking_error_logs_enqueue_failed", {
+          sessionId,
+          trigger: "fallback_full_completed",
+          error: enqueueError?.message || null,
+        });
+      });
       return { sessionId };
     },
     { connection: redisConnection, concurrency: speakingConcurrency },
@@ -347,6 +438,14 @@ const main = async () => {
     log("Speaking job completed", { jobId: job.id });
   });
   speakingWorker.on("failed", (job, err) => {
+    if (job?.name === SPEAKING_ERROR_LOGS_JOB) {
+      log("speaking_error_logs_failed", {
+        jobId: job?.id,
+        sessionId: job?.data?.sessionId || null,
+        error: err?.message || null,
+        code: err?.code || null,
+      });
+    }
     log("Speaking job failed", {
       jobId: job?.id,
       jobName: job?.name || null,

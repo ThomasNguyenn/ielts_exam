@@ -601,6 +601,15 @@ export const api = {
   },
   repairStuckSpeakingSessions: (body = {}) =>
     request('/api/admin/speaking/sessions/repair-stuck', { method: 'POST', body: JSON.stringify(body) }),
+  retrySpeakingErrorLogs: (sessionId) =>
+    request(`/api/admin/speaking/sessions/${encodeURIComponent(String(sessionId || ''))}/retry-error-logs`, {
+      method: 'POST',
+    }),
+  retryFailedSpeakingErrorLogsBulk: (body = {}) =>
+    request('/api/admin/speaking/error-logs/retry-failed', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   approveStudent: (userId) => request(`/api/admin/students/${userId}/approve`, { method: 'PUT' }),
 
   // Admin - Users

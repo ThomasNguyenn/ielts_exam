@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { api } from '@/shared/api/client';
+import { useNotification } from '@/shared/context/NotificationContext';
 import PaginationControls from '@/shared/components/PaginationControls';
 import { BarChart3 } from 'lucide-react';
 import './ScoreDashboard.css';
@@ -13,6 +14,10 @@ export default function ScoreDashboard() {
     const [currentPage, setCurrentPage] = useState(1);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [retryingAllFailedLogs, setRetryingAllFailedLogs] = useState(false);
+    const { showNotification } = useNotification();
+    const currentUser = api.getUser() || {};
+    const isAdmin = String(currentUser?.role || '').toLowerCase() === 'admin';
 
     useEffect(() => {
         fetchUsers(currentPage);
@@ -35,6 +40,25 @@ export default function ScoreDashboard() {
 
     const handleSeeMore = (userId, userName) => {
         navigate(`/scores/${userId}`, { state: { userName } });
+    };
+
+    const handleRetryAllFailedSpeakingLogs = async () => {
+        if (!isAdmin || retryingAllFailedLogs) return;
+        try {
+            setRetryingAllFailedLogs(true);
+            const response = await api.retryFailedSpeakingErrorLogsBulk({
+                window_hours: 24,
+                limit: 200,
+            });
+            const data = response?.data || {};
+            const requeued = Number(data?.requeued || 0);
+            const scanned = Number(data?.scanned || 0);
+            showNotification(`Queued retry for ${requeued}/${scanned} failed speaking log sessions.`, 'success');
+        } catch (error) {
+            showNotification(error?.message || 'Failed to queue bulk retry for speaking logs', 'error');
+        } finally {
+            setRetryingAllFailedLogs(false);
+        }
     };
 
     const filteredUsers = users.filter(user =>
@@ -82,14 +106,26 @@ export default function ScoreDashboard() {
             </button>
             <h1>User Score Dashboard</h1>
 
-            <div className="search-section">
-                <input
-                    type="text"
-                    placeholder="Search by name, email, or role..."
-                    className="search-input"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                />
+            <div className="dashboard-toolbar">
+                <div className="search-section">
+                    <input
+                        type="text"
+                        placeholder="Search by name, email, or role..."
+                        className="search-input"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                </div>
+                {isAdmin && (
+                    <button
+                        className="btn-admin-bulk-retry"
+                        onClick={handleRetryAllFailedSpeakingLogs}
+                        disabled={retryingAllFailedLogs}
+                        title="Retry failed speaking error logs across students"
+                    >
+                        {retryingAllFailedLogs ? 'Retrying...' : 'Retry Failed Speaking Logs (All Students)'}
+                    </button>
+                )}
             </div>
 
             <div className="scores-table-container">
@@ -101,6 +137,7 @@ export default function ScoreDashboard() {
                             <th>Reading</th>
                             <th>Listening</th>
                             <th>Writing</th>
+                            <th>Speaking</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -121,6 +158,7 @@ export default function ScoreDashboard() {
                                 <td>{formatScore(user.latestScores?.reading)}</td>
                                 <td>{formatScore(user.latestScores?.listening)}</td>
                                 <td>{formatScore(user.latestScores?.writing)}</td>
+                                <td>{formatScore(user.latestScores?.speaking)}</td>
                                 <td>
                                     <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                                         <button

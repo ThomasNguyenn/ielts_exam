@@ -39,6 +39,8 @@ describe("speaking grading fast-pipeline compatibility", () => {
     vi.resetModules();
 
     process.env.GEMINI_API_KEY = "";
+    process.env.AI_ASYNC_MODE = "false";
+    process.env.SPEAKING_ASYNC_ERROR_LOGS = "true";
 
     mocks.speakingFindById.mockResolvedValue({
       _id: "topic-1",
@@ -181,5 +183,48 @@ describe("speaking grading fast-pipeline compatibility", () => {
     const fallbackCall = mocks.requestGeminiJsonWithFallback.mock.calls[0][0];
     expect(Array.isArray(fallbackCall?.contents)).toBe(true);
     expect(fallbackCall.contents).toHaveLength(1);
+  });
+
+  it("finalizes with pending error logs in async pipeline mode", async () => {
+    process.env.AI_ASYNC_MODE = "true";
+    process.env.SPEAKING_ASYNC_ERROR_LOGS = "true";
+
+    const session = {
+      _id: "session-4",
+      questionId: "topic-1",
+      status: "processing",
+      scoring_state: "phase1_ready",
+      audio_upload_state: "failed",
+      audioUrl: null,
+      audioMimeType: "audio/webm",
+      transcript: "I is from a small city and he are my friend.",
+      metrics: { wpm: 110, pauses: { pauseCount: 5 } },
+      provisional_analysis: {
+        band_score: 6.0,
+        lexical_resource: { score: 6.0, feedback: "lex" },
+        grammatical_range: { score: 6.0, feedback: "gram" },
+        fluency_coherence: { score: 6.0, feedback: "flu" },
+        pronunciation: { score: 6.0, feedback: "pro" },
+      },
+      timestamp: new Date(),
+      createdAt: new Date(),
+      save: vi.fn(async function saveSelf() {
+        return this;
+      }),
+    };
+
+    mocks.sessionFindById.mockImplementation(async () => session);
+    mocks.sessionFindOneAndUpdate.mockImplementation(async (_filter, update) => {
+      Object.assign(session, update?.$set || {});
+      return session;
+    });
+
+    const { scoreSpeakingSessionById } = await import("../../services/speakingGrading.service.js");
+    const result = await scoreSpeakingSessionById({ sessionId: "session-4", force: true });
+
+    expect(result.session.status).toBe("completed");
+    expect(result.session.error_logs_state).toBe("pending");
+    expect(Array.isArray(result.session.analysis?.error_logs)).toBe(true);
+    expect(result.session.analysis.error_logs).toHaveLength(0);
   });
 });

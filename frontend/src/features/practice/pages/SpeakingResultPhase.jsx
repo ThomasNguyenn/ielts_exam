@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import './SpeakingResultPhase.css';
 
 const parseAnalysisPayload = (value) => {
@@ -217,6 +217,10 @@ const trendTextFromBand = (band) => {
 };
 
 export default function SpeakingResultPhase({ result, topic, onRetry }) {
+  const incomingErrorLogsState = String(result?.error_logs_state || '').trim().toLowerCase() || null;
+  const errorLogsError = String(result?.error_logs_error || '').trim();
+  const errorLogsState = incomingErrorLogsState;
+
   if (!result) return null;
 
   const transcript = String(result?.transcript || '').trim();
@@ -339,6 +343,23 @@ export default function SpeakingResultPhase({ result, topic, onRetry }) {
     || (toScoreNumber(safeAnalysis.criteria.pronunciation?.score, 0) >= 7 ? 'Good' : 'Needs Work'),
   ).trim();
   const nextStep = safeAnalysis.next_step || visibleFocusAreas[0]?.description || 'Practice again and focus on pronunciation control.';
+  const errorLogsStatusUi = useMemo(() => {
+    if (errorLogsState === 'pending' || errorLogsState === 'processing') {
+      return {
+        className: 'speaking-error-logs-banner speaking-error-logs-banner--pending',
+        title: 'Detailed error logs are processing',
+        description: 'The detailed taxonomy logs are being generated in the background.',
+      };
+    }
+    if (errorLogsState === 'failed') {
+      return {
+        className: 'speaking-error-logs-banner speaking-error-logs-banner--failed',
+        title: 'Detailed error logs failed',
+        description: errorLogsError || 'Background error-log generation failed.',
+      };
+    }
+    return null;
+  }, [errorLogsError, errorLogsState]);
 
   return (
     <div className="speaking-result-template min-h-screen bg-[#f6f6f8] text-slate-900">
@@ -359,6 +380,14 @@ export default function SpeakingResultPhase({ result, topic, onRetry }) {
               <p className="text-slate-500 text-sm font-medium">
                 Provisional: {provisionalBand.toFixed(1)} | Final: {finalBand.toFixed(1)} | Delta: {formatBandDelta(bandDelta)}
               </p>
+            )}
+            {errorLogsStatusUi && (
+              <div className={errorLogsStatusUi.className}>
+                <div>
+                  <p className="speaking-error-logs-banner__title">{errorLogsStatusUi.title}</p>
+                  <p className="speaking-error-logs-banner__desc">{errorLogsStatusUi.description}</p>
+                </div>
+              </div>
             )}
           </div>
         </div>
