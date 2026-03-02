@@ -2,7 +2,10 @@ import IORedis from "ioredis";
 import { getRedisUrl } from "../config/queue.config.js";
 
 const CACHE_REDIS_FALLBACK_COOLDOWN_MS = 30_000;
-const DEFAULT_TAG_TTL_SEC = 1_800;
+const DEFAULT_TAG_TTL_SEC = 300;
+const DEFAULT_TAG_TTL_MIN_SEC = 60;
+const DEFAULT_TAG_TTL_MAX_SEC = 1_800;
+const DEFAULT_TAG_TTL_MULTIPLIER = 2;
 const TAG_KEY_PREFIX = "resp-cache:tag:";
 
 let sharedRedis = null;
@@ -65,7 +68,14 @@ const toTagKey = (tag) => `${TAG_KEY_PREFIX}${tag}`;
 
 const getTagTtlSec = (ttlSec) => {
   const baseTtl = toPositiveInt(ttlSec, DEFAULT_TAG_TTL_SEC);
-  return Math.max(baseTtl * 3, DEFAULT_TAG_TTL_SEC);
+  const multiplierRaw = Number(process.env.API_RESPONSE_CACHE_TAG_TTL_MULTIPLIER);
+  const multiplier = Number.isFinite(multiplierRaw) && multiplierRaw > 0
+    ? multiplierRaw
+    : DEFAULT_TAG_TTL_MULTIPLIER;
+  const minTtl = toPositiveInt(process.env.API_RESPONSE_CACHE_TAG_TTL_MIN_SEC, DEFAULT_TAG_TTL_MIN_SEC);
+  const maxTtl = toPositiveInt(process.env.API_RESPONSE_CACHE_TAG_TTL_MAX_SEC, DEFAULT_TAG_TTL_MAX_SEC);
+  const computed = Math.floor(baseTtl * multiplier);
+  return Math.min(Math.max(computed, minTtl), Math.max(minTtl, maxTtl));
 };
 
 export const getJson = async (key) => {

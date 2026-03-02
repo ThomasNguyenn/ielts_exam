@@ -3,6 +3,8 @@ import {
   createRedisConnection,
   getAiQueueJobAttempts,
   getAiQueueJobBackoffMs,
+  getAiQueueRemoveOnComplete,
+  getAiQueueRemoveOnFail,
   isAiAsyncModeEnabled,
 } from "../config/queue.config.js";
 
@@ -50,12 +52,14 @@ const addUniqueJob = async (queue, name, payload, jobId) => {
   try {
     const attempts = getAiQueueJobAttempts();
     const backoffDelay = getAiQueueJobBackoffMs();
+    const removeOnComplete = getAiQueueRemoveOnComplete();
+    const removeOnFail = getAiQueueRemoveOnFail();
     return await queue.add(name, payload, {
       jobId,
       attempts,
       backoff: { type: "exponential", delay: backoffDelay },
-      removeOnComplete: 200,
-      removeOnFail: 500,
+      removeOnComplete,
+      removeOnFail,
     });
   } catch (error) {
     if (String(error?.message || "").includes("JobId")) {

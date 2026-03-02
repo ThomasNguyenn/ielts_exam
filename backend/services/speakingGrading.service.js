@@ -232,6 +232,37 @@ const safeNumber = (value, fallback = 0) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const toBandScoreOrNull = (value) => {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) return null;
+    return roundHalf(clamp(value, 0, 9));
+  }
+
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  const numeric = Number(raw);
+  if (Number.isFinite(numeric)) {
+    return roundHalf(clamp(numeric, 0, 9));
+  }
+
+  const matched = raw.match(/([0-9]+(?:\.[0-9]+)?)/);
+  if (!matched) return null;
+  const extracted = Number(matched[1]);
+  if (!Number.isFinite(extracted)) return null;
+  return roundHalf(clamp(extracted, 0, 9));
+};
+
+const chooseScoreWithFallback = (primaryScore, fallbackScore) => {
+  const primary = toBandScoreOrNull(primaryScore);
+  const fallback = toBandScoreOrNull(fallbackScore);
+  if (primary !== null && primary > 0) return primary;
+  if (fallback !== null && fallback > 0) return fallback;
+  if (primary !== null) return primary;
+  if (fallback !== null) return fallback;
+  return 0;
+};
+
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
 const roundHalf = (value) => Math.round(safeNumber(value, 0) * 2) / 2;
@@ -551,8 +582,8 @@ const normalizePhase1Payload = (rawPhase1, {
   topicPrompt = "",
 } = {}) => {
   const source = rawPhase1 && typeof rawPhase1 === "object" ? rawPhase1 : {};
-  const lexicalScore = roundHalf(clamp(safeNumber(source?.lexical_resource?.score, 0), 0, 9));
-  const grammarScore = roundHalf(clamp(safeNumber(source?.grammatical_range?.score, 0), 0, 9));
+  const lexicalScore = toBandScoreOrNull(source?.lexical_resource?.score);
+  const grammarScore = toBandScoreOrNull(source?.grammatical_range?.score);
 
   return {
     lexical_resource: {
@@ -579,8 +610,8 @@ const normalizePhase2Payload = (rawPhase2, {
   pauseCount = 0,
 } = {}) => {
   const source = rawPhase2 && typeof rawPhase2 === "object" ? rawPhase2 : {};
-  const fluencyScore = roundHalf(clamp(safeNumber(source?.fluency_coherence?.score, 0), 0, 9));
-  const pronunciationScore = roundHalf(clamp(safeNumber(source?.pronunciation?.score, 0), 0, 9));
+  const fluencyScore = toBandScoreOrNull(source?.fluency_coherence?.score);
+  const pronunciationScore = toBandScoreOrNull(source?.pronunciation?.score);
   const errorLogs = dedupeErrorLogs(filterErrorLogsByPrefixes(source?.error_logs, ["S-F", "S-P"]));
 
   const modelHeatmap = normalizeHeatmapEntries(source?.pronunciation_heatmap);
@@ -594,7 +625,7 @@ const normalizePhase2Payload = (rawPhase2, {
 
   const normalizedPace = Math.round(Math.max(0, safeNumber(source?.intonation_pacing?.pace_wpm, fallbackWpm)));
   const pitchVariation = String(
-    source?.intonation_pacing?.pitch_variation || derivePitchVariationLabel(pronunciationScore, pauseCount),
+    source?.intonation_pacing?.pitch_variation || derivePitchVariationLabel(safeNumber(pronunciationScore, 0), pauseCount),
   ).trim();
 
   const nextStepFallback = focusAreas[0]?.description
@@ -1173,21 +1204,21 @@ export const mergeSpeakingPhaseAnalyses = ({
     pauseCount,
   });
 
-  const lexicalScore = safeNumber(
+  const lexicalScore = chooseScoreWithFallback(
     phase1Normalized?.lexical_resource?.score,
-    safeNumber(provisionalNormalized?.lexical_resource?.score, 0),
+    provisionalNormalized?.lexical_resource?.score,
   );
-  const grammarScore = safeNumber(
+  const grammarScore = chooseScoreWithFallback(
     phase1Normalized?.grammatical_range?.score,
-    safeNumber(provisionalNormalized?.grammatical_range?.score, 0),
+    provisionalNormalized?.grammatical_range?.score,
   );
-  const fluencyScore = safeNumber(
+  const fluencyScore = chooseScoreWithFallback(
     phase2Normalized?.fluency_coherence?.score,
-    safeNumber(provisionalNormalized?.fluency_coherence?.score, 0),
+    provisionalNormalized?.fluency_coherence?.score,
   );
-  const pronunciationScore = safeNumber(
+  const pronunciationScore = chooseScoreWithFallback(
     phase2Normalized?.pronunciation?.score,
-    safeNumber(provisionalNormalized?.pronunciation?.score, 0),
+    provisionalNormalized?.pronunciation?.score,
   );
   const mergedBand = roundHalf((lexicalScore + grammarScore + fluencyScore + pronunciationScore) / 4);
 
@@ -1206,10 +1237,38 @@ export const mergeSpeakingPhaseAnalyses = ({
   return normalizeAnalysisPayload({
     transcript: String(transcript || provisionalNormalized?.transcript || "").trim(),
     band_score: mergedBand,
-    fluency_coherence: phase2Normalized?.fluency_coherence || provisionalNormalized?.fluency_coherence,
-    lexical_resource: phase1Normalized?.lexical_resource || provisionalNormalized?.lexical_resource,
-    grammatical_range: phase1Normalized?.grammatical_range || provisionalNormalized?.grammatical_range,
-    pronunciation: phase2Normalized?.pronunciation || provisionalNormalized?.pronunciation,
+    fluency_coherence: {
+      score: fluencyScore,
+      feedback: String(
+        phase2Normalized?.fluency_coherence?.feedback
+        || provisionalNormalized?.fluency_coherence?.feedback
+        || "No fluency feedback.",
+      ).trim(),
+    },
+    lexical_resource: {
+      score: lexicalScore,
+      feedback: String(
+        phase1Normalized?.lexical_resource?.feedback
+        || provisionalNormalized?.lexical_resource?.feedback
+        || "No lexical feedback.",
+      ).trim(),
+    },
+    grammatical_range: {
+      score: grammarScore,
+      feedback: String(
+        phase1Normalized?.grammatical_range?.feedback
+        || provisionalNormalized?.grammatical_range?.feedback
+        || "No grammar feedback.",
+      ).trim(),
+    },
+    pronunciation: {
+      score: pronunciationScore,
+      feedback: String(
+        phase2Normalized?.pronunciation?.feedback
+        || provisionalNormalized?.pronunciation?.feedback
+        || "No pronunciation feedback.",
+      ).trim(),
+    },
     general_feedback: mergedGeneralFeedback || provisionalNormalized?.general_feedback,
     sample_answer: phase1Normalized?.sample_answer || provisionalNormalized?.sample_answer,
     pronunciation_heatmap: Array.isArray(phase2Normalized?.pronunciation_heatmap) && phase2Normalized.pronunciation_heatmap.length > 0
@@ -1375,9 +1434,9 @@ export const scoreSpeakingPhase2ById = async ({ sessionId, force = false } = {})
 
   const phaseStartAt = Date.now();
   const cuePoints = resolveTopicCuePoints(topic);
-  const clientTranscript = String(session.transcript || "").trim();
   const clientWPM = Number(session?.metrics?.wpm || 0);
   const parsedMetrics = session?.metrics?.pauses || {};
+  const clientTranscript = String(session.transcript || "").trim();
   const prompt = buildPhase2Prompt({
     topicPrompt: topic.prompt,
     topicPart: topic.part,

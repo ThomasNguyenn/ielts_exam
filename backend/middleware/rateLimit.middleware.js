@@ -20,6 +20,7 @@ let sharedRedis = null;
 let sharedRedisInitialized = false;
 let redisFallbackUntil = 0;
 let redisFailureLogged = false;
+let redisNotReadyLogged = false;
 
 export const closeRateLimitRedisConnection = async () => {
   if (!sharedRedis) return;
@@ -32,6 +33,23 @@ export const closeRateLimitRedisConnection = async () => {
     sharedRedisInitialized = false;
     redisFallbackUntil = 0;
     redisFailureLogged = false;
+    redisNotReadyLogged = false;
+  }
+};
+
+const resetSharedRedisClient = () => {
+  if (!sharedRedis) {
+    sharedRedisInitialized = false;
+    return;
+  }
+
+  try {
+    sharedRedis.disconnect();
+  } catch {
+    // no-op
+  } finally {
+    sharedRedis = null;
+    sharedRedisInitialized = false;
   }
 };
 
@@ -51,8 +69,22 @@ const createRedisClient = () => {
     redisFallbackUntil = Date.now() + REDIS_FALLBACK_COOLDOWN_MS;
   });
 
+  client.on("end", () => {
+    redisFallbackUntil = Date.now() + REDIS_FALLBACK_COOLDOWN_MS;
+  });
+
+  client.on("close", () => {
+    redisFallbackUntil = Date.now() + REDIS_FALLBACK_COOLDOWN_MS;
+  });
+
+  client.on("ready", () => {
+    redisNotReadyLogged = false;
+  });
+
   return client;
 };
+
+const isRedisReady = (redis) => String(redis?.status || "").toLowerCase() === "ready";
 
 const getSharedRedisClient = (allowRedis) => {
   if (!allowRedis) return null;
@@ -64,6 +96,32 @@ const getSharedRedisClient = (allowRedis) => {
   if (!sharedRedisInitialized) {
     sharedRedisInitialized = true;
     sharedRedis = createRedisClient();
+  }
+
+  if (!sharedRedis) return null;
+
+  if (!isRedisReady(sharedRedis)) {
+    const status = String(sharedRedis.status || "").toLowerCase();
+    if ((status === "close" || status === "end") && Date.now() >= redisFallbackUntil) {
+      resetSharedRedisClient();
+      sharedRedisInitialized = true;
+      sharedRedis = createRedisClient();
+      if (!sharedRedis) return null;
+      if (!isRedisReady(sharedRedis)) {
+        if (!redisNotReadyLogged) {
+          redisNotReadyLogged = true;
+          console.warn(`[rate-limit] Redis not ready (status=${status}). Using in-memory fallback temporarily.`);
+        }
+        return null;
+      }
+      return sharedRedis;
+    }
+
+    if (!redisNotReadyLogged) {
+      redisNotReadyLogged = true;
+      console.warn(`[rate-limit] Redis not ready (status=${status || "unknown"}). Using in-memory fallback temporarily.`);
+    }
+    return null;
   }
 
   return sharedRedis;
@@ -131,6 +189,10 @@ export const createRateLimiter = ({
         redisFailureLogged = false;
       } catch (error) {
         redisFallbackUntil = now + REDIS_FALLBACK_COOLDOWN_MS;
+        const message = String(error?.message || "");
+        if (message.toLowerCase().includes("stream isn't writeable")) {
+          resetSharedRedisClient();
+        }
         if (!redisFailureLogged) {
           redisFailureLogged = true;
           console.warn("[rate-limit] Redis unavailable, falling back to in-memory store:", error.message);

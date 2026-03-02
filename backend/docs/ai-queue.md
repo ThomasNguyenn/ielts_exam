@@ -34,6 +34,19 @@ This project supports asynchronous AI grading for `writing` and `speaking`.
 
 ### Optional tuning
 - `SPEAKING_FILLER_WORDS=um,uh,like,you know,actually,basically`
+- `AI_QUEUE_REMOVE_ON_COMPLETE=200` (reduce to 50-100 if Redis memory is tight)
+- `AI_QUEUE_REMOVE_ON_FAIL=500` (reduce to 100-300 if Redis memory is tight)
+- `API_RESPONSE_CACHE_TAG_TTL_MULTIPLIER=2`
+- `API_RESPONSE_CACHE_TAG_TTL_MIN_SEC=60`
+- `API_RESPONSE_CACHE_TAG_TTL_MAX_SEC=600` (lowering this reduces stale tag-set memory)
+
+## Redis memory policy recommendation (shared queue + cache)
+- If queue and cache share one Redis, prefer `maxmemory-policy noeviction`.
+- Rationale: eviction can delete BullMQ keys and break queue correctness.
+- In this setup, cache writes are best-effort and already bypass when Redis is constrained.
+- If possible, split Redis instances:
+  - Redis A: BullMQ + critical coordination (noeviction)
+  - Redis B: response cache/rate-limit (allkeys-lru or volatile-lru)
 
 ## Run
 1. Start API:

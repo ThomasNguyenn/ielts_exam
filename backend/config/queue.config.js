@@ -48,6 +48,12 @@ export const getAiQueueJobAttempts = ({ env = process.env } = {}) =>
 export const getAiQueueJobBackoffMs = ({ env = process.env } = {}) =>
   toPositiveInt(env.AI_QUEUE_JOB_BACKOFF_MS || 1500, 1500);
 
+export const getAiQueueRemoveOnComplete = ({ env = process.env } = {}) =>
+  toPositiveInt(env.AI_QUEUE_REMOVE_ON_COMPLETE || 200, 200);
+
+export const getAiQueueRemoveOnFail = ({ env = process.env } = {}) =>
+  toPositiveInt(env.AI_QUEUE_REMOVE_ON_FAIL || 500, 500);
+
 export const getWritingTaxonomyTimeoutMs = ({ env = process.env } = {}) =>
   toPositiveInt(env.WRITING_TAXONOMY_TIMEOUT_MS || 18000, 18000);
 
