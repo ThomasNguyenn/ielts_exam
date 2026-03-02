@@ -60,15 +60,15 @@ const SPEAKING_PHASE2_TIMEOUT_MS = Number(
   process.env.SPEAKING_PHASE2_TIMEOUT_MS || SPEAKING_GEMINI_TIMEOUT_MS || 30000,
 );
 const SPEAKING_PHASE1_MAX_OUTPUT_TOKENS = Number(
-  process.env.SPEAKING_PHASE1_MAX_OUTPUT_TOKENS || 6000,
+  process.env.SPEAKING_PHASE1_MAX_OUTPUT_TOKENS || 3000,
 );
 const SPEAKING_PHASE2_MAX_OUTPUT_TOKENS = Number(
-  process.env.SPEAKING_PHASE2_MAX_OUTPUT_TOKENS || 6000,
+  process.env.SPEAKING_PHASE2_MAX_OUTPUT_TOKENS || 3000,
 );
 const SPEAKING_ANALYSIS_MAX_OUTPUT_TOKENS = Number(
   process.env.SPEAKING_ANALYSIS_MAX_OUTPUT_TOKENS
   || process.env.GEMINI_ANALYSIS_MAX_OUTPUT_TOKENS
-  || 1600,
+  || 2000,
 );
 
 const isHttpUrl = (value) => /^https?:\/\//i.test(String(value || ""));
@@ -144,7 +144,7 @@ const normalizeSpeakingPart = (value) => {
 const extractCueCardLines = (cueCard = "") =>
   String(cueCard || "")
     .split(/\r?\n/)
-    .map((item) => String(item || "").replace(/^[\s\-*â€¢]+/, "").trim())
+    .map((item) => String(item || "").replace(/^[\s\-*•]+/, "").trim())
     .filter(Boolean);
 
 const resolveTopicCuePoints = (topic = {}) => {
@@ -1005,7 +1005,7 @@ Return ONLY valid JSON:
   "grammatical_range": { "score": number, "feedback": "string (In Vietnamese)" },
   "vocabulary_upgrades": [
     { "original": "string", "suggestion": "string", "reason": "string (In Vietnamese)" }
-  ]
+  ],
   "grammar_corrections": [
     { "original": "string" (words or noun phrase only), "corrected": "string", "reason": "string (In Vietnamese)" }
   ],
@@ -1483,24 +1483,11 @@ export const mergeSpeakingPhaseAnalyses = ({
 
 export const scoreSpeakingPhase1ById = async ({ sessionId, force = false } = {}) => {
   const { session, topic } = await getSessionAndTopic(sessionId);
-  console.log(JSON.stringify({
-    event: "speaking_phase1_start",
-    session_id: String(session?._id || sessionId),
-    force: Boolean(force),
-    scoring_state: String(session?.scoring_state || ""),
-    status: String(session?.status || ""),
-  }));
   if (
     !force
     && ["phase1_ready", "completed"].includes(String(session?.scoring_state || "").trim())
     && hasUsableAnalysisPayload(session?.phase1_analysis)
   ) {
-    console.log(JSON.stringify({
-      event: "speaking_phase1_skip_cached",
-      session_id: String(session?._id || sessionId),
-      scoring_state: String(session?.scoring_state || ""),
-      phase1_source: String(session?.phase1_source || "cached"),
-    }));
     return {
       session,
       phase1Analysis: session.phase1_analysis,
@@ -1568,26 +1555,6 @@ export const scoreSpeakingPhase1ById = async ({ sessionId, force = false } = {})
       const missingContractFields = getPhase1ContractMissingFields(candidateResponse?.data);
       const parsedDataPreview = JSON.stringify(candidateResponse?.data || {}).slice(0, 1500);
 
-      console.log(JSON.stringify({
-        event: "speaking_phase1_raw_ai_response",
-        session_id: String(session._id),
-        attempt,
-        max_attempts: phase1IncompleteRetryAttempts,
-        model: candidateResponse?.model || null,
-        token_usage: candidateResponse?.usage || null,
-        input_tokens: candidateResponse?.usage?.input_tokens ?? null,
-        output_tokens: candidateResponse?.usage?.output_tokens ?? null,
-        total_tokens: candidateResponse?.usage?.total_tokens ?? null,
-        raw_text_length: previousRawResponse.length,
-        raw_text_preview: previousRawResponse.slice(0, 1500),
-        parsed_keys: parsedKeys,
-        payload_valid: validation.ok,
-        invalid_reason: validation.ok ? null : validation.reason,
-        missing_contract_fields: missingContractFields,
-        phase1_contract_payload: contractPayload,
-        parsed_data_preview: parsedDataPreview,
-      }));
-
       if (validation.ok) {
         aiResponse = candidateResponse;
         acceptedPhase1Payload = validation.data;
@@ -1624,12 +1591,6 @@ export const scoreSpeakingPhase1ById = async ({ sessionId, force = false } = {})
       code: error.code || "",
       models: SPEAKING_PHASE1_MODELS,
     });
-    console.log(JSON.stringify({
-      event: "speaking_phase1_ai_error",
-      session_id: String(session._id),
-      error: String(error?.message || ""),
-      code: String(error?.code || ""),
-    }));
 
     if (hasUsableAnalysisPayload(session?.provisional_analysis)) {
       phase1Analysis = normalizePhase1Payload(session.provisional_analysis, {

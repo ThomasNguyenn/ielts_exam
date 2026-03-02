@@ -16,7 +16,6 @@ import {
   SPEAKING_AI_QUEUE,
   WRITING_AI_QUEUE,
   WRITING_TAXONOMY_QUEUE,
-  enqueueSpeakingAiPhase2Job,
 } from "../queues/ai.queue.js";
 
 dotenv.config();
@@ -102,10 +101,6 @@ const main = async () => {
             }
             : null,
         });
-        const shouldRunPhase2 = String(phase1Result?.session?.status || "").toLowerCase() !== "completed";
-        if (shouldRunPhase2) {
-          await enqueueSpeakingAiPhase2Job({ sessionId, force });
-        }
         return { sessionId, stage: "phase1" };
       }
 

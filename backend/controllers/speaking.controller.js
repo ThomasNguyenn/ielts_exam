@@ -4,6 +4,7 @@ import cloudinary from "../utils/cloudinary.js";
 import { isAiAsyncModeEnabled } from "../config/queue.config.js";
 import {
   enqueueSpeakingAiPhase1Job,
+  enqueueSpeakingAiPhase2Job,
   enqueueSpeakingAiScoreJob,
   isAiQueueReady,
 } from "../queues/ai.queue.js";
@@ -579,15 +580,34 @@ export const submitSpeaking = async (req, res) => {
 
     if (canUseAsyncQueue) {
       try {
-        const queueResult = SPEAKING_TWO_PHASE_PIPELINE
-          ? await enqueueSpeakingAiPhase1Job({ sessionId: String(session._id) })
-          : await enqueueSpeakingAiScoreJob({ sessionId: String(session._id) });
+        const sessionId = String(session._id);
+        let queueResult = null;
+        let phase1QueueResult = null;
+        let phase2QueueResult = null;
+        if (SPEAKING_TWO_PHASE_PIPELINE) {
+          [phase1QueueResult, phase2QueueResult] = await Promise.all([
+            enqueueSpeakingAiPhase1Job({ sessionId }),
+            enqueueSpeakingAiPhase2Job({ sessionId }),
+          ]);
+          queueResult = {
+            queued: Boolean(phase1QueueResult?.queued) && Boolean(phase2QueueResult?.queued),
+            queue: phase1QueueResult?.queue || phase2QueueResult?.queue || null,
+            jobId: phase1QueueResult?.jobId || null,
+            phase2JobId: phase2QueueResult?.jobId || null,
+            reason: phase1QueueResult?.reason || phase2QueueResult?.reason || null,
+          };
+        } else {
+          queueResult = await enqueueSpeakingAiScoreJob({ sessionId });
+        }
         console.log(JSON.stringify({
           event: "speaking_queue_enqueue_result",
-          session_id: String(session._id),
+          session_id: sessionId,
           queued: Boolean(queueResult?.queued),
           queue: queueResult?.queue || null,
           job_id: queueResult?.jobId || null,
+          phase2_job_id: queueResult?.phase2JobId || null,
+          phase1_queued: SPEAKING_TWO_PHASE_PIPELINE ? Boolean(phase1QueueResult?.queued) : null,
+          phase2_queued: SPEAKING_TWO_PHASE_PIPELINE ? Boolean(phase2QueueResult?.queued) : null,
           reason: queueResult?.reason || null,
         }));
         if (queueResult.queued) {
@@ -599,6 +619,7 @@ export const submitSpeaking = async (req, res) => {
             scoring_state: deriveScoringState(session),
             queued: true,
             job_id: queueResult.jobId,
+            phase2_job_id: queueResult.phase2JobId || null,
             transcript: session.transcript || "",
             provisional_analysis: session.provisional_analysis || null,
             provisional_source: session.provisional_source || null,

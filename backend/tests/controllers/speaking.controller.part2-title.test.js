@@ -61,6 +61,7 @@ vi.mock("../../config/queue.config.js", () => ({
 
 vi.mock("../../queues/ai.queue.js", () => ({
   enqueueSpeakingAiPhase1Job: vi.fn(),
+  enqueueSpeakingAiPhase2Job: vi.fn(),
   enqueueSpeakingAiScoreJob: vi.fn(),
   isAiQueueReady: vi.fn(() => false),
 }));

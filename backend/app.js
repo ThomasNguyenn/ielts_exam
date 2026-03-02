@@ -158,6 +158,11 @@ export const createApp = ({ startBackgroundJobs = true } = {}) => {
   const shouldAllowNoOriginForRequest = (req) => {
     if (allowNoOriginCorsRequests) return true;
 
+    const path = String(req.path || "").toLowerCase();
+    if (["/robots.txt", "/favicon.ico", "/sitemap.xml"].includes(path)) {
+      return true;
+    }
+
     const secFetchSite = String(req.get("Sec-Fetch-Site") || "")
       .trim()
       .toLowerCase();
