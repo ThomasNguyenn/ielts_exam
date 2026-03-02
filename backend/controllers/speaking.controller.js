@@ -7,7 +7,7 @@ import {
   enqueueSpeakingAiScoreJob,
   isAiQueueReady,
 } from "../queues/ai.queue.js";
-import { scoreSpeakingSessionById, generateMockExaminerFollowUp } from "../services/speakingGrading.service.js";
+import { scoreSpeakingSessionById } from "../services/speakingGrading.service.js";
 import { evaluateSpeakingProvisionalScore } from "../services/speakingFastScore.service.js";
 import { ensurePart3ConversationScript, generatePromptReadAloudPreview } from "../services/speakingReadAloud.service.js";
 import { parsePagination, buildPaginationMeta } from "../utils/pagination.js";
@@ -41,18 +41,6 @@ const canAccessSession = (session, user) => {
   return user.role === "admin" || user.role === "teacher";
 };
 
-const normalizeMockExaminerTurns = (turns = []) =>
-  (Array.isArray(turns) ? turns : [])
-    .filter((turn) => ["examiner", "candidate"].includes(String(turn?.role || "")))
-    .map((turn) => ({
-      role: String(turn.role).toLowerCase(),
-      message: String(turn.message || "").trim(),
-      createdAt: turn.createdAt || new Date(),
-    }))
-    .filter((turn) => turn.message)
-    .slice(-20);
-
-const MAX_CANDIDATE_ANSWER_CHARS = Number(process.env.SPEAKING_MOCK_MAX_ANSWER_CHARS || 2000);
 const SPEAKING_FAST_SCORE_TIMEOUT_MS = Number(process.env.SPEAKING_FAST_SCORE_TIMEOUT_MS || 3500);
 const SPEAKING_TWO_PHASE_PIPELINE = ["1", "true", "yes", "on"].includes(
   String(process.env.SPEAKING_TWO_PHASE_PIPELINE ?? "true").trim().toLowerCase(),
@@ -407,125 +395,10 @@ export const getSpeakingSession = async (req, res) => {
         metrics: session.metrics || { wpm: 0, pauses: {} },
         timestamp: session.timestamp || session.createdAt || null,
         audio_deleted_at: session.audioDeletedAt || null,
-        mock_examiner_turns: session.mockExaminerTurns || [],
-        mock_examiner_meta: session.mockExaminerMeta || {
-          ai_source: null,
-          lastFeedback: "",
-          finalAssessment: "",
-          isCompleted: false,
-          updatedAt: null,
-        },
       },
     });
   } catch (error) {
         return handleControllerError(req, res, error);
-  }
-};
-
-export const runMockExaminerTurn = async (req, res) => {
-  try {
-    const session = await SpeakingSession.findById(req.params.id);
-    if (!session) {
-      return sendControllerError(req, res, { statusCode: 404, message: "Speaking session not found"  });
-    }
-
-    if (!canAccessSession(session, req.user)) {
-      return sendControllerError(req, res, { statusCode: 403, message: "Forbidden"  });
-    }
-
-    const topic = await Speaking.findById(session.questionId).lean();
-    if (!topic) {
-      return sendControllerError(req, res, { statusCode: 404, message: "Speaking topic not found"  });
-    }
-
-    const userAnswerRaw = String(req.body?.userAnswer || "").trim();
-    if (userAnswerRaw.length > MAX_CANDIDATE_ANSWER_CHARS) {
-      return sendControllerError(req, res, {
-        statusCode: 400,
-        message: `Answer is too long. Maximum ${MAX_CANDIDATE_ANSWER_CHARS} characters.`,
-      });
-    }
-
-    const turns = normalizeMockExaminerTurns(session.mockExaminerTurns || []);
-    const hasConversationStarted = turns.length > 0;
-    if (hasConversationStarted && !userAnswerRaw && !session.mockExaminerMeta?.isCompleted) {
-      const latestExaminerTurn = [...turns].reverse().find((turn) => turn.role === "examiner");
-      return res.json({
-        success: true,
-        data: {
-          completed: false,
-          turns,
-          next_question: latestExaminerTurn?.message || "",
-          pressure_feedback: session.mockExaminerMeta?.lastFeedback || "",
-          final_assessment: session.mockExaminerMeta?.finalAssessment || "",
-          ai_source: session.mockExaminerMeta?.ai_source || null,
-        },
-      });
-    }
-
-    if (session.mockExaminerMeta?.isCompleted) {
-      return res.json({
-        success: true,
-        data: {
-          completed: true,
-          turns,
-          next_question: "",
-          pressure_feedback: session.mockExaminerMeta?.lastFeedback || "",
-          final_assessment: session.mockExaminerMeta?.finalAssessment || "",
-          ai_source: session.mockExaminerMeta?.ai_source || null,
-        },
-      });
-    }
-
-    const updatedTurns = [...turns];
-    if (userAnswerRaw) {
-      updatedTurns.push({
-        role: "candidate",
-        message: userAnswerRaw,
-        createdAt: new Date(),
-      });
-    }
-
-    const followUp = await generateMockExaminerFollowUp({
-      topicPrompt: topic.prompt,
-      topicPart: topic.part || 3,
-      subQuestions: topic.sub_questions || [],
-      transcript: session.transcript || "",
-      turns: updatedTurns,
-      latestAnswer: userAnswerRaw,
-    });
-
-    if (!followUp.shouldEnd && followUp.nextQuestion) {
-      updatedTurns.push({
-        role: "examiner",
-        message: followUp.nextQuestion,
-        createdAt: new Date(),
-      });
-    }
-
-    session.mockExaminerTurns = updatedTurns;
-    session.mockExaminerMeta = {
-      ai_source: followUp.aiSource || null,
-      lastFeedback: followUp.pressureFeedback || "",
-      finalAssessment: followUp.finalAssessment || "",
-      isCompleted: Boolean(followUp.shouldEnd),
-      updatedAt: new Date(),
-    };
-    await session.save();
-
-    return res.json({
-      success: true,
-      data: {
-        completed: Boolean(followUp.shouldEnd),
-        turns: session.mockExaminerTurns,
-        next_question: followUp.nextQuestion || "",
-        pressure_feedback: followUp.pressureFeedback || "",
-        final_assessment: followUp.finalAssessment || "",
-        ai_source: followUp.aiSource || null,
-      },
-    });
-  } catch (error) {
-    return handleControllerError(req, res, error);
   }
 };
 

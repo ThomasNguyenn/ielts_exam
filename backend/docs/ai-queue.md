@@ -24,7 +24,6 @@ This project supports asynchronous AI grading for `writing` and `speaking`.
 - `SPEAKING_GEMINI_TIMEOUT_MS=25000` (speaking-specific timeout)
 - `SPEAKING_GEMINI_MAX_ATTEMPTS=2` (speaking-specific retry cap)
 - `SPEAKING_ANALYSIS_MAX_OUTPUT_TOKENS=1200` (reduce long responses)
-- `SPEAKING_MOCK_MAX_OUTPUT_TOKENS=220`
 
 ### Fast provisional pipeline (feature-flagged)
 - `SPEAKING_FAST_PIPELINE=true` (enable provisional fast-score pipeline)

@@ -4,6 +4,8 @@ const mocks = vi.hoisted(() => ({
   constructorPayloads: [],
   findById: vi.fn(),
   findByIdAndUpdate: vi.fn(),
+  sessionFindById: vi.fn(),
+  sessionFindByIdAndUpdate: vi.fn(),
   find: vi.fn(),
   countDocuments: vi.fn(),
 }));
@@ -40,8 +42,8 @@ vi.mock("../../models/Speaking.model.js", () => {
 
 vi.mock("../../models/SpeakingSession.js", () => ({
   default: {
-    findById: vi.fn(),
-    findByIdAndUpdate: vi.fn(),
+    findById: (...args) => mocks.sessionFindById(...args),
+    findByIdAndUpdate: (...args) => mocks.sessionFindByIdAndUpdate(...args),
   },
 }));
 
@@ -65,7 +67,6 @@ vi.mock("../../queues/ai.queue.js", () => ({
 
 vi.mock("../../services/speakingGrading.service.js", () => ({
   scoreSpeakingSessionById: vi.fn(),
-  generateMockExaminerFollowUp: vi.fn(),
 }));
 
 vi.mock("../../services/speakingFastScore.service.js", () => ({
@@ -200,5 +201,39 @@ describe("speaking.controller Part 2 question title", () => {
     const filter = mocks.find.mock.calls[0][0];
     expect(Array.isArray(filter.$or)).toBe(true);
     expect(filter.$or.some((entry) => Object.prototype.hasOwnProperty.call(entry, "part2_question_title"))).toBe(true);
+  });
+
+  it("getSpeakingSession does not expose removed mock examiner fields", async () => {
+    const sessionDoc = {
+      _id: "session-1",
+      questionId: "sp-p2-1",
+      userId: "user-1",
+      status: "processing",
+      scoring_state: "processing",
+      transcript: "sample",
+      analysis: null,
+      provisional_analysis: null,
+      phase1_analysis: null,
+      metrics: { wpm: 90, pauses: {} },
+      mockExaminerTurns: [{ role: "examiner", message: "Old data" }],
+      mockExaminerMeta: { ai_source: "legacy", isCompleted: true },
+    };
+    mocks.sessionFindById.mockReturnValue({
+      lean: vi.fn().mockResolvedValue(sessionDoc),
+    });
+
+    const { getSpeakingSession } = await import("../../controllers/speaking.controller.js");
+    const req = {
+      params: { id: "session-1" },
+      user: { userId: "user-1", role: "student" },
+    };
+    const res = buildRes();
+
+    await getSpeakingSession(req, res);
+
+    expect(res.json).toHaveBeenCalledTimes(1);
+    const payload = res.json.mock.calls[0][0]?.data || {};
+    expect(payload).not.toHaveProperty("mock_examiner_turns");
+    expect(payload).not.toHaveProperty("mock_examiner_meta");
   });
 });

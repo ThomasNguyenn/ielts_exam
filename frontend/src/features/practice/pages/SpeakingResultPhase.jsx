@@ -279,8 +279,8 @@ export default function SpeakingResultPhase({ result, topic, onRetry }) {
     : (shouldUseProvisional
       ? 'bg-blue-100 text-blue-700'
       : (scoringState === 'completed'
-      ? 'bg-green-100 text-green-700'
-      : 'bg-slate-100 text-slate-700'));
+        ? 'bg-green-100 text-green-700'
+        : 'bg-slate-100 text-slate-700'));
 
   const topicTitle = String(topic?.title || topic?.prompt || 'Speaking Topic').trim();
   const topicLabel = normalizedPart ? `Part ${normalizedPart}` : 'Speaking';
@@ -335,7 +335,7 @@ export default function SpeakingResultPhase({ result, topic, onRetry }) {
   );
   const pitchVariation = String(
     safeAnalysis.intonation_pacing?.pitch_variation
-      || (toScoreNumber(safeAnalysis.criteria.pronunciation?.score, 0) >= 7 ? 'Good' : 'Needs Work'),
+    || (toScoreNumber(safeAnalysis.criteria.pronunciation?.score, 0) >= 7 ? 'Good' : 'Needs Work'),
   ).trim();
   const nextStep = safeAnalysis.next_step || visibleFocusAreas[0]?.description || 'Practice again and focus on pronunciation control.';
 
@@ -418,8 +418,7 @@ export default function SpeakingResultPhase({ result, topic, onRetry }) {
           <div className="lg:col-span-8 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center gap-3">
               <div>
-                <h3 className="text-lg font-bold text-slate-900">Full Transcript + Pronunciation Heatmap</h3>
-                <p className="text-sm text-slate-500">Shows full STT transcript. AI-highlighted words are colored by pronunciation quality.</p>
+                <h3 className="text-lg font-bold text-slate-900">Pronunciation Heatmap</h3>
               </div>
               <div className="flex gap-2 text-xs font-medium flex-wrap justify-end">
                 <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-green-500" />Excellent</span>

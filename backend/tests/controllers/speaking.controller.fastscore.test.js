@@ -7,7 +7,6 @@ const mocks = vi.hoisted(() => ({
   isAiAsyncModeEnabled: vi.fn(),
   isAiQueueReady: vi.fn(),
   scoreSpeakingSessionById: vi.fn(),
-  generateMockExaminerFollowUp: vi.fn(),
   ensurePart3ConversationScript: vi.fn(),
   evaluateSpeakingProvisionalScore: vi.fn(),
   addXP: vi.fn(),
@@ -55,7 +54,6 @@ vi.mock("../../queues/ai.queue.js", () => ({
 
 vi.mock("../../services/speakingGrading.service.js", () => ({
   scoreSpeakingSessionById: (...args) => mocks.scoreSpeakingSessionById(...args),
-  generateMockExaminerFollowUp: (...args) => mocks.generateMockExaminerFollowUp(...args),
 }));
 
 vi.mock("../../services/speakingReadAloud.service.js", () => ({

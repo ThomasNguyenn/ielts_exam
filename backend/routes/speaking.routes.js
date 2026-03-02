@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { getRandomSpeaking, getSpeakings, submitSpeaking, createSpeaking, updateSpeaking, deleteSpeaking, getSpeakingById, getSpeakingSession, runMockExaminerTurn, preGeneratePart3ReadAloud, generateSpeakingPromptReadAloud } from '../controllers/speaking.controller.js';
+import { getRandomSpeaking, getSpeakings, submitSpeaking, createSpeaking, updateSpeaking, deleteSpeaking, getSpeakingById, getSpeakingSession, preGeneratePart3ReadAloud, generateSpeakingPromptReadAloud } from '../controllers/speaking.controller.js';
 import { verifyToken, isTeacherOrAdmin } from "../middleware/auth.middleware.js";
 import { createCacheInvalidator, createResponseCache, getCacheTtlSec } from '../middleware/responseCache.middleware.js';
 
@@ -37,7 +37,6 @@ router.post('/admin/pre-generate-part3-audio', verifyToken, isTeacherOrAdmin, pr
 router.post('/read-aloud/generate', verifyToken, isTeacherOrAdmin, generateSpeakingPromptReadAloud);
 router.get('/random', getRandomSpeaking);
 router.get('/sessions/:id', verifyToken, getSpeakingSession);
-router.post('/sessions/:id/mock-examiner/turn', verifyToken, runMockExaminerTurn);
 router.get('/:id', speakingCatalogCache, getSpeakingById);
 router.put('/:id', verifyToken, isTeacherOrAdmin, invalidateSpeakingCatalog, updateSpeaking);
 router.delete('/:id', verifyToken, isTeacherOrAdmin, invalidateSpeakingCatalog, deleteSpeaking);

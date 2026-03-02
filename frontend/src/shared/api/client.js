@@ -631,11 +631,6 @@ export const api = {
     request('/api/speaking/admin/pre-generate-part3-audio', {
       method: 'POST',
     }),
-  runMockExaminerTurn: (sessionId, body = {}) =>
-    request(`/api/speaking/sessions/${sessionId}/mock-examiner/turn`, {
-      method: 'POST',
-      body: JSON.stringify(body),
-    }),
   createSpeaking: async (data) => {
     const res = await request('/api/speaking', { method: 'POST', body: JSON.stringify(data) });
     return res?.data || res;

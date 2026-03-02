@@ -1,4 +1,4 @@
-import fs from "fs";
+﻿import fs from "fs";
 import dotenv from "dotenv";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import Speaking from "../models/Speaking.model.js";
@@ -69,9 +69,6 @@ const SPEAKING_ANALYSIS_MAX_OUTPUT_TOKENS = Number(
   process.env.SPEAKING_ANALYSIS_MAX_OUTPUT_TOKENS
   || process.env.GEMINI_ANALYSIS_MAX_OUTPUT_TOKENS
   || 1600,
-);
-const SPEAKING_MOCK_MAX_OUTPUT_TOKENS = Number(
-  process.env.SPEAKING_MOCK_MAX_OUTPUT_TOKENS || 220,
 );
 
 const isHttpUrl = (value) => /^https?:\/\//i.test(String(value || ""));
@@ -147,7 +144,7 @@ const normalizeSpeakingPart = (value) => {
 const extractCueCardLines = (cueCard = "") =>
   String(cueCard || "")
     .split(/\r?\n/)
-    .map((item) => String(item || "").replace(/^[\s\-*•]+/, "").trim())
+    .map((item) => String(item || "").replace(/^[\s\-*â€¢]+/, "").trim())
     .filter(Boolean);
 
 const resolveTopicCuePoints = (topic = {}) => {
@@ -168,44 +165,6 @@ const formatSubQuestionLines = (subQuestions = []) => {
     .filter(Boolean)
     .map((item) => `- ${item}`);
   return lines.length ? lines.join("\n") : "- None";
-};
-
-const buildSampleAnswerRequirements = ({ topicPart = 0, subQuestions = [] } = {}) => {
-  const part = normalizeSpeakingPart(topicPart);
-  if (part === 1) {
-    return [
-      "- sample_answer must be for IELTS Speaking Part 1.",
-      "- Length: 3-5 short spoken sentences (around 45-70 words).",
-      "- Style: natural and personal; direct answer + one reason + one quick example.",
-      "- Do not sound like an essay or use overly formal transitions.",
-    ].join("\n");
-  }
-
-  if (part === 2) {
-    return [
-      "- sample_answer must be for IELTS Speaking Part 2 cue-card monologue.",
-      "- Length: around 120-170 words, one coherent monologue.",
-      "- Structure: short opening, 2-3 developed details, brief closing reflection.",
-      "- Cover all cue points when relevant:",
-      formatSubQuestionLines(subQuestions),
-      "- Keep spoken rhythm markers (e.g., 'Well', 'I remember', 'What stood out was').",
-    ].join("\n");
-  }
-
-  if (part === 3) {
-    return [
-      "- sample_answer must be for IELTS Speaking Part 3 discussion.",
-      "- Length: 4-6 analytical spoken sentences (around 90-130 words).",
-      "- Include comparison/trade-off, cause-effect, and a concrete example.",
-      "- End with a clear position/conclusion sentence.",
-      "- Tone should be mature and academic but still conversational.",
-    ].join("\n");
-  }
-
-  return [
-    "- sample_answer should match IELTS Speaking style for the detected question type.",
-    "- Keep answer natural spoken English, not essay writing.",
-  ].join("\n");
 };
 
 const buildPartAwareFallbackSampleAnswer = ({ topicPart = 0, topicPrompt = "" } = {}) => {
@@ -505,17 +464,6 @@ const mergeGrammarCorrections = (primary = [], fallback = []) => {
     });
 
   return output.slice(0, 8);
-};
-
-const buildGrammarProxyHintLines = (transcript = "") => {
-  const findings = collectGrammarProxyFindingsForCalibration(transcript).slice(0, 6);
-  if (findings.length === 0) {
-    return "- No obvious grammar-proxy issue detected by rule engine.";
-  }
-
-  return findings
-    .map((item, index) => `${index + 1}. [${item.code}] "${item.snippet}"`)
-    .join("\n");
 };
 
 const countErrorLogsByPrefix = (errorLogs = [], prefix = "") => {
@@ -1234,168 +1182,22 @@ RULES:
 
 Return ONLY valid JSON:
 {
-  "fluency_coherence": { "score": number, "feedback": "string" },
-  "pronunciation": { "score": number, "feedback": "string" },
+  "fluency_coherence": { "score": number, "feedback": "string"(In Vietnamese)},
+  "pronunciation": { "score": number, "feedback": "string"(In Vietnamese)},
   "pronunciation_heatmap": [
-    { "word": "string", "status": "excellent | needs_work | error | neutral", "note": "string" }
+    { "word": "string", "status": "excellent | needs_work | error | neutral", "note": "string"(In Vietnamese) }
   ],
   "focus_areas": [
-    { "title": "string", "priority": "high | medium | low", "description": "string" }
+    { "title": "string", "priority": "high | medium | low", "description": "string"(In Vietnamese) }
   ],
-  "intonation_pacing": { "pace_wpm": number, "pitch_variation": "string", "feedback": "string" },
-  "next_step": "string",
-  "general_feedback": "string",
+  "intonation_pacing": { "pace_wpm": number, "pitch_variation": "string", "feedback": "string"(In Vietnamese) },
+  "next_step": "string"(In Vietnamese),
+  "general_feedback": "string"(In Vietnamese),
   "error_logs": [
-    { "code": "string", "snippet": "string", "explanation": "string" }
+    { "code": "string", "snippet": "string", "explanation": "string"(In Vietnamese) }
   ]
 }
 `;
-
-const MAX_MOCK_EXAMINER_TURNS = Number(process.env.SPEAKING_MOCK_MAX_TURNS || 6);
-
-const normalizeMockTurnsForPrompt = (turns = []) =>
-  (Array.isArray(turns) ? turns : [])
-    .filter((turn) => ["examiner", "candidate"].includes(String(turn?.role || "")))
-    .map((turn) => ({
-      role: String(turn.role).toLowerCase(),
-      message: String(turn.message || "").trim(),
-    }))
-    .filter((turn) => turn.message)
-    .slice(-12);
-
-const buildMockExaminerPrompt = ({
-  topicPrompt,
-  topicPart,
-  subQuestions,
-  transcript,
-  turns,
-  latestAnswer,
-}) => `
-You are simulating a real IELTS Speaking examiner in conversational mode.
-This is mainly for Part 3 pressure handling.
-
-TOPIC:
-"${topicPrompt}"
-
-PART:
-${topicPart}
-
-REFERENCE SUB-QUESTIONS:
-${(subQuestions || []).map((q) => `- ${q}`).join("\n") || "- None"}
-
-INITIAL CANDIDATE ANSWER TRANSCRIPT:
-"${transcript || "(none)"}"
-
-CHAT HISTORY:
-${turns.map((turn, index) => `${index + 1}. ${turn.role.toUpperCase()}: ${turn.message}`).join("\n") || "(empty)"}
-
-LATEST CANDIDATE ANSWER:
-"${latestAnswer || "(start interview)"}"
-
-RULES:
-- Ask ONE follow-up question at a time.
-- Question must connect to the candidate's previous answer.
-- Keep examiner tone direct and slightly challenging, like real Part 3.
-- Use abstract reasoning style (cause, comparison, long-term impact, policy, trade-off).
-- Follow-up question max 24 words.
-- Give one short pressure coaching line in Vietnamese.
-- End when the interview already reached enough depth or examiner turns >= ${MAX_MOCK_EXAMINER_TURNS}.
-
-Return ONLY valid JSON:
-{
-  "next_question": "string",
-  "pressure_feedback": "string (Vietnamese, 1 sentence)",
-  "should_end": boolean,
-  "final_assessment": "string (Vietnamese, 2-4 sentences, only meaningful when should_end=true)"
-}
-`;
-
-const buildMockExaminerFallback = ({ topicPrompt, turns }) => {
-  const examinerTurns = (turns || []).filter((turn) => turn.role === "examiner").length;
-  const shouldEnd = examinerTurns >= MAX_MOCK_EXAMINER_TURNS;
-
-  if (shouldEnd) {
-    return {
-      nextQuestion: "",
-      pressureFeedback: "Giữ bình tĩnh, trả lời theo cấu trúc: ý chính -> lý do -> ví dụ.",
-      shouldEnd: true,
-      finalAssessment:
-        "Bạn đã hoàn thành phần mô phỏng hội thoại. Hãy cải thiện chiều sâu lập luận bằng cách nêu nguyên nhân, hệ quả, và ví dụ cụ thể trong mỗi câu trả lời.",
-      aiSource: "fallback",
-    };
-  }
-
-  return {
-    nextQuestion: `How would you justify your view if someone strongly disagreed with you about ${topicPrompt}?`,
-    pressureFeedback: "Câu trả lời nên rõ quan điểm, có so sánh và ví dụ ngắn để tăng tính thuyết phục.",
-    shouldEnd: false,
-    finalAssessment: "",
-    aiSource: "fallback",
-  };
-};
-
-export const generateMockExaminerFollowUp = async ({
-  topicPrompt,
-  topicPart = 3,
-  subQuestions = [],
-  transcript = "",
-  turns = [],
-  latestAnswer = "",
-} = {}) => {
-  const normalizedTurns = normalizeMockTurnsForPrompt(turns);
-  const examinerTurnCount = normalizedTurns.filter((turn) => turn.role === "examiner").length;
-  if (examinerTurnCount >= MAX_MOCK_EXAMINER_TURNS) {
-    return buildMockExaminerFallback({ topicPrompt, turns: normalizedTurns });
-  }
-
-  const prompt = buildMockExaminerPrompt({
-    topicPrompt,
-    topicPart,
-    subQuestions,
-    transcript,
-    turns: normalizedTurns,
-    latestAnswer,
-  });
-
-  try {
-    if (!genAI) {
-      throw new Error("Gemini API key is not configured");
-    }
-
-    const aiResponse = await requestGeminiJsonWithFallback({
-      genAI,
-      models: GEMINI_MODELS,
-      contents: [prompt],
-      generationConfig: {
-        responseMimeType: "application/json",
-        maxOutputTokens: SPEAKING_MOCK_MAX_OUTPUT_TOKENS,
-      },
-      timeoutMs: SPEAKING_GEMINI_TIMEOUT_MS,
-      maxAttempts: SPEAKING_GEMINI_MAX_ATTEMPTS,
-    });
-
-    const payload = aiResponse.data || {};
-    const shouldEnd = Boolean(payload.should_end);
-    const nextQuestion = String(payload.next_question || "").trim();
-    const pressureFeedback = String(payload.pressure_feedback || "").trim();
-    const finalAssessment = String(payload.final_assessment || "").trim();
-
-    if (!shouldEnd && !nextQuestion) {
-      throw new Error("Mock examiner returned empty follow-up question");
-    }
-
-    return {
-      nextQuestion,
-      pressureFeedback,
-      shouldEnd,
-      finalAssessment,
-      aiSource: aiResponse.model,
-    };
-  } catch (error) {
-    console.warn("Mock examiner fallback triggered:", error.message);
-    return buildMockExaminerFallback({ topicPrompt, turns: normalizedTurns });
-  }
-};
 
 const getSessionAndTopic = async (sessionId) => {
   const session = await SpeakingSession.findById(sessionId);
@@ -2065,3 +1867,4 @@ export const scoreSpeakingSessionById = async ({ sessionId, force = false } = {}
   await scoreSpeakingPhase1ById({ sessionId, force });
   return scoreSpeakingPhase2ById({ sessionId, force });
 };
+
