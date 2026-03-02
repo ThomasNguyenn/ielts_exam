@@ -286,6 +286,279 @@ const splitTranscriptWords = (transcript = "") =>
     .map((word) => String(word || "").trim())
     .filter(Boolean);
 
+const splitTranscriptSentences = (transcript = "") =>
+  String(transcript || "")
+    .split(/[.!?]+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+
+const GRAMMAR_PROXY_RULES = [
+  {
+    code: "S-G2",
+    pattern: /\bi\s+is\b/gi,
+    corrected: "I am",
+    explanation: "Loi hoa hop chu ngu dong tu (I + am).",
+  },
+  {
+    code: "S-G2",
+    pattern: /\bi\s+are\b/gi,
+    corrected: "I am",
+    explanation: "Loi hoa hop chu ngu dong tu (I + am).",
+  },
+  {
+    code: "S-G2",
+    pattern: /\bhe\s+are\b/gi,
+    corrected: "he is",
+    explanation: "Loi hoa hop chu ngu dong tu ngoi thu ba so it.",
+  },
+  {
+    code: "S-G2",
+    pattern: /\bshe\s+are\b/gi,
+    corrected: "she is",
+    explanation: "Loi hoa hop chu ngu dong tu ngoi thu ba so it.",
+  },
+  {
+    code: "S-G2",
+    pattern: /\bit\s+are\b/gi,
+    corrected: "it is",
+    explanation: "Loi hoa hop chu ngu dong tu ngoi thu ba so it.",
+  },
+  {
+    code: "S-G2",
+    pattern: /\bthey\s+is\b/gi,
+    corrected: "they are",
+    explanation: "Loi hoa hop chu ngu dong tu so nhieu.",
+  },
+  {
+    code: "S-G2",
+    pattern: /\bwe\s+is\b/gi,
+    corrected: "we are",
+    explanation: "Loi hoa hop chu ngu dong tu so nhieu.",
+  },
+  {
+    code: "S-G2",
+    pattern: /\byou\s+is\b/gi,
+    corrected: "you are",
+    explanation: "Loi hoa hop chu ngu dong tu so nhieu.",
+  },
+  {
+    code: "S-G1",
+    pattern: /\b(didn'?t)\s+([a-z]+)ed\b/gi,
+    corrected: "$1 $2",
+    explanation: "Sau 'did not' can dung dong tu nguyen mau.",
+  },
+  {
+    code: "S-G1",
+    pattern: /\b(doesn'?t)\s+([a-z]+)ed\b/gi,
+    corrected: "$1 $2",
+    explanation: "Sau 'does not' can dung dong tu nguyen mau.",
+  },
+  {
+    code: "S-G2",
+    pattern: /\bthere\s+is\s+([a-z]+s)\b/gi,
+    corrected: "there are $1",
+    explanation: "Danh tu so nhieu can di voi 'there are'.",
+  },
+  {
+    code: "S-G1",
+    pattern: /\b(yesterday|last\s+\w+|[0-9]+\s+years?\s+ago)\b[^.!?]{0,40}\b(go|come|eat|do|make|take|see|get|buy)\b/gi,
+    corrected: null,
+    explanation: "Moc thoi gian qua khu thuong can thi qua khu don.",
+  },
+  {
+    code: "S-G3",
+    pattern: /\b([a-z']+)\s+\1\b/gi,
+    corrected: null,
+    explanation: "Lap tu lien tiep, cau truc cau chua on dinh.",
+  },
+];
+
+const collectRegexMatches = (text = "", pattern) => {
+  if (!(pattern instanceof RegExp)) return [];
+  const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
+  const regex = new RegExp(pattern.source, flags);
+  const matches = [];
+
+  let matched = regex.exec(text);
+  while (matched) {
+    const snippet = String(matched[0] || "").trim();
+    if (snippet) {
+      matches.push({
+        snippet,
+        groups: Array.isArray(matched) ? matched.slice(1) : [],
+      });
+    }
+    if (matched[0] === "") regex.lastIndex += 1;
+    matched = regex.exec(text);
+  }
+
+  return matches;
+};
+
+const buildCorrectedPhraseFromMatch = (template, groups = []) => {
+  if (!template) return "";
+  return String(template).replace(/\$(\d+)/g, (_, idx) => String(groups[Number(idx) - 1] || ""));
+};
+
+const collectGrammarProxyFindingsForCalibration = (transcript = "") => {
+  const lower = String(transcript || "").toLowerCase().trim();
+  if (!lower) return [];
+
+  const findings = [];
+  const seen = new Set();
+
+  GRAMMAR_PROXY_RULES.forEach((rule) => {
+    collectRegexMatches(lower, rule.pattern).forEach((match) => {
+      const snippet = String(match?.snippet || "").trim();
+      if (!snippet) return;
+      const key = `${rule.code}::${snippet}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      findings.push({
+        code: rule.code,
+        snippet,
+        corrected: buildCorrectedPhraseFromMatch(rule.corrected, match.groups),
+        explanation: rule.explanation,
+      });
+    });
+  });
+
+  const verbHints = /\b(is|are|am|was|were|be|been|being|do|does|did|have|has|had|can|could|will|would|should|may|might|must|go|goes|went|make|makes|made|take|takes|took)\b/i;
+  const sentences = splitTranscriptSentences(lower);
+  sentences.forEach((sentence) => {
+    const words = sentence.split(/\s+/).filter(Boolean);
+    if (words.length < 7 || verbHints.test(sentence)) return;
+    const snippet = sentence.slice(0, 80).trim();
+    if (!snippet) return;
+    const key = `S-G4::${snippet}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    findings.push({
+      code: "S-G4",
+      snippet,
+      corrected: "",
+      explanation: "Cau dai nhung co dau hieu thieu dong tu/chua hoan chinh cau truc.",
+    });
+  });
+
+  return findings.slice(0, 12);
+};
+
+const detectGrammarProxyErrorsForCalibration = (transcript = "") => {
+  const lower = String(transcript || "").toLowerCase().trim();
+  if (!lower) {
+    return {
+      errorCount: 0,
+      sentenceCount: 1,
+      errorRate: 0,
+      findings: [],
+    };
+  }
+
+  const findings = collectGrammarProxyFindingsForCalibration(lower);
+  const errorCount = findings.length;
+  const sentenceCount = Math.max(splitTranscriptSentences(lower).length, 1);
+  return {
+    errorCount,
+    sentenceCount,
+    errorRate: errorCount / sentenceCount,
+    findings,
+  };
+};
+
+const buildGrammarProxyErrorLogs = (findings = []) =>
+  (Array.isArray(findings) ? findings : [])
+    .map((item) => ({
+      code: String(item?.code || "S-G4").trim().toUpperCase(),
+      snippet: String(item?.snippet || "").trim(),
+      explanation: String(item?.explanation || "Loi ngu phap can duoc sua.").trim(),
+    }))
+    .filter((item) => item.code && item.snippet)
+    .slice(0, 8);
+
+const buildGrammarProxyCorrections = (findings = []) =>
+  (Array.isArray(findings) ? findings : [])
+    .map((item) => ({
+      original: String(item?.snippet || "").trim(),
+      corrected: String(item?.corrected || "").trim() || "Use a grammatically correct version of this phrase.",
+      reason: String(item?.explanation || "Fix grammar structure.").trim(),
+    }))
+    .filter((item) => item.original)
+    .slice(0, 8);
+
+const mergeGrammarCorrections = (primary = [], fallback = []) => {
+  const output = [];
+  const seen = new Set();
+
+  [...(Array.isArray(primary) ? primary : []), ...(Array.isArray(fallback) ? fallback : [])]
+    .forEach((item) => {
+      const original = String(item?.original || "").trim();
+      if (!original) return;
+      const key = original.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      output.push({
+        original,
+        corrected: String(item?.corrected || "").trim() || "Use a grammatically correct version of this phrase.",
+        reason: String(item?.reason || "").trim() || "Fix grammar structure.",
+      });
+    });
+
+  return output.slice(0, 8);
+};
+
+const buildGrammarProxyHintLines = (transcript = "") => {
+  const findings = collectGrammarProxyFindingsForCalibration(transcript).slice(0, 6);
+  if (findings.length === 0) {
+    return "- No obvious grammar-proxy issue detected by rule engine.";
+  }
+
+  return findings
+    .map((item, index) => `${index + 1}. [${item.code}] "${item.snippet}"`)
+    .join("\n");
+};
+
+const countErrorLogsByPrefix = (errorLogs = [], prefix = "") => {
+  const normalizedPrefix = String(prefix || "").trim().toUpperCase();
+  if (!normalizedPrefix) return 0;
+  return (Array.isArray(errorLogs) ? errorLogs : [])
+    .filter((log) => String(log?.code || log?.error_code || "").trim().toUpperCase().startsWith(normalizedPrefix))
+    .length;
+};
+
+const countHeatmapStatus = (heatmapEntries = [], targetStatus = "") => {
+  const target = String(targetStatus || "").trim().toLowerCase();
+  if (!target) return 0;
+  return (Array.isArray(heatmapEntries) ? heatmapEntries : [])
+    .filter((entry) => String(entry?.status || "").trim().toLowerCase() === target)
+    .length;
+};
+
+const extractAsrConfidenceRatio = (feedback = "") => {
+  const raw = String(feedback || "").trim();
+  if (!raw) return null;
+
+  const percentMatched = raw.match(/asr\s*confidence\s*[:\-]?\s*([0-9]+(?:\.[0-9]+)?)\s*%/i);
+  if (percentMatched) {
+    const parsed = Number(percentMatched[1]);
+    if (Number.isFinite(parsed)) return clamp(parsed / 100, 0, 1);
+  }
+
+  const ratioMatched = raw.match(/asr\s*confidence\s*[:\-]?\s*(0(?:\.[0-9]+)?|1(?:\.0+)?)\b/i);
+  if (ratioMatched) {
+    const parsed = Number(ratioMatched[1]);
+    if (Number.isFinite(parsed)) return clamp(parsed, 0, 1);
+  }
+
+  return null;
+};
+
+const isProvisionalLikeSource = (source = "") => {
+  const normalized = String(source || "").trim().toLowerCase();
+  if (!normalized) return false;
+  return normalized === "fallback" || normalized.includes("provisional");
+};
+
 const extractWordsFromSnippet = (snippet = "") =>
   splitTranscriptWords(snippet)
     .map((word) => word.toLowerCase())
@@ -760,15 +1033,23 @@ ${formatSubQuestionLines(subQuestions)}
 TRANSCRIPT (canonical STT):
 "${transcript || "(none)"}"
 
+AUTO-DETECTED POSSIBLE GRAMMAR ISSUES (rule-based hints, must verify):
+${buildGrammarProxyHintLines(transcript)}
+
 RULES:
 - Evaluate only lexical_resource and grammatical_range.
 - Score each criterion in 0.5 steps from 0.0 to 9.0.
+- Be strict and evidence-based. Do not inflate scores.
+- Run a grammar checklist before scoring: tense consistency, subject-verb agreement, article/preposition usage, sentence completeness.
+- If there are repeated tense/SVA/article/preposition errors, grammatical_range MUST be <= 6.0.
+- If grammar errors appear in multiple sentences and reduce clarity, grammatical_range MUST be <= 5.5.
+- If 3+ concrete grammar errors are found, include all of them in grammar_corrections and error_logs (do not ignore).
 - Provide concise, concrete Vietnamese feedback with transcript evidence.
 - Produce vocabulary_upgrades and grammar_corrections from transcript.
 - error_logs MUST only use lexical/grammar codes:
   - Lexical: S-L1, S-L2, S-L3, S-L4
   - Grammar: S-G1, S-G2, S-G3, S-G4
-- Include 3-6 specific error logs.
+- Include 4-8 specific error logs.
 - sample_answer must be natural spoken English and fit IELTS part style.
 
 MODEL ANSWER REQUIREMENTS:
@@ -824,12 +1105,18 @@ RULES:
 - Listen to audio first. Transcript is secondary.
 - Evaluate only fluency_coherence and pronunciation.
 - Score each criterion in 0.5 steps from 0.0 to 9.0.
+- Be strict and evidence-based. Do not inflate scores.
 - Fluency judgment must include pacing, pause pattern, coherence flow.
 - Pronunciation judgment must include stress, final sounds, intonation, intelligibility.
+- If there are 2+ clear pronunciation errors (stress/final sounds/substitution/intonation), pronunciation MUST be <= 7.0.
+- If frequent pronunciation errors reduce intelligibility, pronunciation MUST be <= 6.5.
+- If many words are unclear to understand, pronunciation MUST be <= 5.5.
+- If pronunciation >= 7.5, you MUST provide concrete evidence of intelligibility/stress control and at most 1 minor pronunciation issue.
+- If audio confidence is uncertain or speech is hard to understand, cap pronunciation at <= 6.5.
 - error_logs MUST only use fluency/pronunciation codes:
   - Fluency: S-F1, S-F2, S-F3, S-F4
   - Pronunciation: S-P1, S-P2, S-P3, S-P4
-- Include 3-6 specific error logs.
+- Include 4-8 specific error logs.
 
 Return ONLY valid JSON:
 {
@@ -1170,7 +1457,9 @@ const resolveCanonicalTranscript = async (session) => {
 
 export const mergeSpeakingPhaseAnalyses = ({
   phase1,
+  phase1Source = "",
   phase2,
+  phase2Source = "",
   provisional,
   topicPart = 0,
   topicPrompt = "",
@@ -1216,11 +1505,117 @@ export const mergeSpeakingPhaseAnalyses = ({
     phase2Normalized?.fluency_coherence?.score,
     provisionalNormalized?.fluency_coherence?.score,
   );
-  const pronunciationScore = chooseScoreWithFallback(
+  const rawPronunciationScore = chooseScoreWithFallback(
     phase2Normalized?.pronunciation?.score,
     provisionalNormalized?.pronunciation?.score,
   );
-  const mergedBand = roundHalf((lexicalScore + grammarScore + fluencyScore + pronunciationScore) / 4);
+  const rawGrammarScore = grammarScore;
+
+  const grammarSignals = detectGrammarProxyErrorsForCalibration(transcript);
+  const phaseErrorLogs = dedupeErrorLogs([
+    ...(Array.isArray(phase1Normalized?.error_logs) ? phase1Normalized.error_logs : []),
+    ...(Array.isArray(phase2Normalized?.error_logs) ? phase2Normalized.error_logs : []),
+  ]);
+  const proxyGrammarErrorLogs = buildGrammarProxyErrorLogs(grammarSignals.findings);
+  const shouldInjectGrammarProxyLogs =
+    grammarSignals.errorCount >= 2 && countErrorLogsByPrefix(phaseErrorLogs, "S-G") < 2;
+  const effectiveGrammarErrorLogs = shouldInjectGrammarProxyLogs
+    ? dedupeErrorLogs([...phaseErrorLogs, ...proxyGrammarErrorLogs])
+    : phaseErrorLogs;
+  const grammarErrorLogsCount = countErrorLogsByPrefix(effectiveGrammarErrorLogs, "S-G");
+  const grammarCorrectionsCount = Array.isArray(phase1Normalized?.grammar_corrections)
+    ? phase1Normalized.grammar_corrections.length
+    : 0;
+  const proxyGrammarCorrections = buildGrammarProxyCorrections(grammarSignals.findings);
+  const mergedGrammarCorrections = mergeGrammarCorrections(
+    phase1Normalized?.grammar_corrections,
+    proxyGrammarCorrections.length > 0
+      ? proxyGrammarCorrections
+      : provisionalNormalized?.grammar_corrections,
+  );
+
+  let calibratedGrammarScore = rawGrammarScore;
+  if (
+    calibratedGrammarScore >= 7.5
+    && (
+      grammarSignals.errorRate >= 0.45
+      || grammarSignals.errorCount >= 3
+      || grammarErrorLogsCount >= 2
+      || grammarCorrectionsCount >= 3
+    )
+  ) {
+    calibratedGrammarScore = 6.5;
+  } else if (
+    calibratedGrammarScore >= 7.0
+    && (grammarSignals.errorRate >= 0.65 || grammarSignals.errorCount >= 4 || grammarErrorLogsCount >= 3)
+  ) {
+    calibratedGrammarScore = 6.5;
+  } else if (
+    calibratedGrammarScore >= 6.5
+    && (grammarSignals.errorRate >= 0.9 || grammarSignals.errorCount >= 5)
+  ) {
+    calibratedGrammarScore = 6.0;
+  }
+
+  const pronunciationErrorLogsCount = countErrorLogsByPrefix(phase2Normalized?.error_logs, "S-P");
+  const heatmapErrorCount = countHeatmapStatus(phase2Normalized?.pronunciation_heatmap, "error");
+  const heatmapNeedsWorkCount = countHeatmapStatus(phase2Normalized?.pronunciation_heatmap, "needs_work");
+  const highPriorityPronFocusCount = (Array.isArray(phase2Normalized?.focus_areas) ? phase2Normalized.focus_areas : [])
+    .filter((item) => String(item?.priority || "").trim().toLowerCase() === "high")
+    .length;
+  const asrConfidenceFromProvisional = extractAsrConfidenceRatio(
+    provisional?.pronunciation?.feedback || provisionalNormalized?.pronunciation?.feedback,
+  );
+  const isPhase2FallbackSource = isProvisionalLikeSource(phase2Source);
+  const pronunciationEvidenceWeight =
+    pronunciationErrorLogsCount
+    + heatmapErrorCount
+    + Math.floor(heatmapNeedsWorkCount / 2)
+    + highPriorityPronFocusCount;
+
+  let calibratedPronunciationScore = rawPronunciationScore;
+  if (
+    calibratedPronunciationScore >= 8.0
+    && (pronunciationErrorLogsCount >= 2 || heatmapErrorCount >= 3 || heatmapNeedsWorkCount >= 10 || highPriorityPronFocusCount >= 2)
+  ) {
+    calibratedPronunciationScore = 6.5;
+  } else if (
+    calibratedPronunciationScore >= 7.5
+    && (pronunciationErrorLogsCount >= 2 || heatmapErrorCount >= 2 || heatmapNeedsWorkCount >= 8 || highPriorityPronFocusCount >= 2)
+  ) {
+    calibratedPronunciationScore = 7.0;
+  } else if (
+    calibratedPronunciationScore >= 7.0
+    && (pronunciationErrorLogsCount >= 3 || heatmapErrorCount >= 4 || heatmapNeedsWorkCount >= 12)
+  ) {
+    calibratedPronunciationScore = 6.5;
+  }
+  if (calibratedPronunciationScore >= 7.5 && pronunciationEvidenceWeight >= 2 && fluencyScore <= 6.0) {
+    calibratedPronunciationScore = 7.0;
+  }
+  if (
+    calibratedPronunciationScore >= 7.5
+    && asrConfidenceFromProvisional !== null
+    && asrConfidenceFromProvisional < 0.75
+  ) {
+    calibratedPronunciationScore = 6.5;
+  } else if (
+    calibratedPronunciationScore >= 8.0
+    && asrConfidenceFromProvisional !== null
+    && asrConfidenceFromProvisional < 0.85
+  ) {
+    calibratedPronunciationScore = 7.0;
+  }
+  if (isPhase2FallbackSource && calibratedPronunciationScore > 6.5) {
+    calibratedPronunciationScore = 6.5;
+  }
+  if (isProvisionalLikeSource(phase1Source) && calibratedGrammarScore > 6.5) {
+    calibratedGrammarScore = 6.5;
+  }
+
+  const mergedBand = roundHalf(
+    (lexicalScore + calibratedGrammarScore + fluencyScore + calibratedPronunciationScore) / 4,
+  );
 
   const phase1Feedback = String(phase1Normalized?.general_feedback || "").trim();
   const phase2Feedback = String(phase2Normalized?.general_feedback || "").trim();
@@ -1230,8 +1625,8 @@ export const mergeSpeakingPhaseAnalyses = ({
     .trim();
 
   const mergedErrorLogs = dedupeErrorLogs([
-    ...(Array.isArray(phase1Normalized?.error_logs) ? phase1Normalized.error_logs : []),
-    ...(Array.isArray(phase2Normalized?.error_logs) ? phase2Normalized.error_logs : []),
+    ...phaseErrorLogs,
+    ...(shouldInjectGrammarProxyLogs ? proxyGrammarErrorLogs : []),
   ]);
 
   return normalizeAnalysisPayload({
@@ -1254,7 +1649,7 @@ export const mergeSpeakingPhaseAnalyses = ({
       ).trim(),
     },
     grammatical_range: {
-      score: grammarScore,
+      score: calibratedGrammarScore,
       feedback: String(
         phase1Normalized?.grammatical_range?.feedback
         || provisionalNormalized?.grammatical_range?.feedback
@@ -1262,7 +1657,7 @@ export const mergeSpeakingPhaseAnalyses = ({
       ).trim(),
     },
     pronunciation: {
-      score: pronunciationScore,
+      score: calibratedPronunciationScore,
       feedback: String(
         phase2Normalized?.pronunciation?.feedback
         || provisionalNormalized?.pronunciation?.feedback
@@ -1281,9 +1676,7 @@ export const mergeSpeakingPhaseAnalyses = ({
     vocabulary_upgrades: Array.isArray(phase1Normalized?.vocabulary_upgrades) && phase1Normalized.vocabulary_upgrades.length > 0
       ? phase1Normalized.vocabulary_upgrades
       : provisionalNormalized?.vocabulary_upgrades,
-    grammar_corrections: Array.isArray(phase1Normalized?.grammar_corrections) && phase1Normalized.grammar_corrections.length > 0
-      ? phase1Normalized.grammar_corrections
-      : provisionalNormalized?.grammar_corrections,
+    grammar_corrections: mergedGrammarCorrections,
     next_step: phase2Normalized?.next_step || provisionalNormalized?.next_step,
     error_logs: mergedErrorLogs,
   }, {
@@ -1515,7 +1908,9 @@ export const scoreSpeakingPhase2ById = async ({ sessionId, force = false } = {})
 
   const analysis = mergeSpeakingPhaseAnalyses({
     phase1: session.phase1_analysis,
+    phase1Source: session.phase1_source || "",
     phase2: phase2Analysis,
+    phase2Source,
     provisional: session.provisional_analysis,
     topicPart: topic.part,
     topicPrompt: topic.prompt,

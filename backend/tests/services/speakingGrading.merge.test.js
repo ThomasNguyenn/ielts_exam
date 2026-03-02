@@ -85,4 +85,114 @@ describe("mergeSpeakingPhaseAnalyses", () => {
     expect(merged.fluency_coherence.score).toBe(6.5);
     expect(merged.pronunciation.score).toBe(6);
   });
+
+  it("calibrates down overly high grammar/pronunciation when error evidence is strong", () => {
+    const merged = mergeSpeakingPhaseAnalyses({
+      phase1: {
+        lexical_resource: { score: 7.0, feedback: "ok" },
+        grammatical_range: { score: 8.0, feedback: "too high" },
+        grammar_corrections: [
+          { original: "i is", corrected: "i am", reason: "sva" },
+          { original: "he are", corrected: "he is", reason: "sva" },
+          { original: "i go yesterday", corrected: "i went yesterday", reason: "tense" },
+        ],
+        error_logs: [
+          { code: "S-G1", snippet: "i go yesterday", explanation: "tense" },
+          { code: "S-G2", snippet: "he are", explanation: "agreement" },
+        ],
+      },
+      phase2: {
+        fluency_coherence: { score: 7.0, feedback: "ok" },
+        pronunciation: { score: 8.0, feedback: "too high" },
+        error_logs: [
+          { code: "S-P1", snippet: "important", explanation: "stress" },
+          { code: "S-P3", snippet: "think", explanation: "sound substitution" },
+        ],
+        pronunciation_heatmap: [
+          { word: "important", status: "error", note: "" },
+          { word: "think", status: "error", note: "" },
+          { word: "although", status: "needs_work", note: "" },
+          { word: "because", status: "needs_work", note: "" },
+          { word: "actually", status: "needs_work", note: "" },
+          { word: "different", status: "needs_work", note: "" },
+          { word: "people", status: "needs_work", note: "" },
+          { word: "should", status: "needs_work", note: "" },
+          { word: "improve", status: "needs_work", note: "" },
+          { word: "quality", status: "needs_work", note: "" },
+        ],
+        focus_areas: [
+          { title: "Word Stress", priority: "high", description: "x" },
+          { title: "Sound Substitution", priority: "high", description: "x" },
+        ],
+      },
+      provisional: {
+        grammatical_range: { score: 6.0, feedback: "p" },
+        pronunciation: { score: 6.0, feedback: "p" },
+      },
+      topicPart: 3,
+      topicPrompt: "Topic",
+      transcript: "I is agree because he are good and I go yesterday.",
+      metrics: { wpm: 120, pauses: { pauseCount: 4 } },
+    });
+
+    expect(merged.grammatical_range.score).toBeLessThanOrEqual(6.5);
+    expect(merged.pronunciation.score).toBeLessThanOrEqual(7.0);
+  });
+
+  it("injects grammar proxy findings when AI misses obvious grammar errors", () => {
+    const merged = mergeSpeakingPhaseAnalyses({
+      phase1: {
+        lexical_resource: { score: 6.5, feedback: "ok" },
+        grammatical_range: { score: 8.0, feedback: "too high" },
+        grammar_corrections: [],
+        error_logs: [],
+      },
+      phase2: {
+        fluency_coherence: { score: 6.0, feedback: "ok" },
+        pronunciation: { score: 6.5, feedback: "ok" },
+        error_logs: [],
+      },
+      provisional: {
+        grammatical_range: { score: 6.0, feedback: "p" },
+      },
+      topicPart: 1,
+      topicPrompt: "Topic",
+      transcript: "I is very happy and he are my friend. There is many people in the room.",
+      metrics: { wpm: 110, pauses: { pauseCount: 5 } },
+    });
+
+    expect(merged.grammatical_range.score).toBeLessThanOrEqual(6.5);
+    expect(Array.isArray(merged.grammar_corrections)).toBe(true);
+    expect(merged.grammar_corrections.length).toBeGreaterThan(0);
+    expect(merged.error_logs.some((log) => String(log?.code || "").startsWith("S-G"))).toBe(true);
+  });
+
+  it("caps pronunciation when phase2 falls back and ASR confidence is low", () => {
+    const merged = mergeSpeakingPhaseAnalyses({
+      phase1: {
+        lexical_resource: { score: 6.5, feedback: "ok" },
+        grammatical_range: { score: 6.5, feedback: "ok" },
+      },
+      phase2: {
+        fluency_coherence: { score: 6.0, feedback: "ok" },
+        pronunciation: { score: 8.0, feedback: "high but likely wrong" },
+        error_logs: [],
+        pronunciation_heatmap: [],
+        focus_areas: [],
+      },
+      phase2Source: "provisional:formula_v1",
+      provisional: {
+        pronunciation: {
+          score: 7.5,
+          feedback: "ASR confidence: 62%. Pronunciation score is provisional.",
+        },
+      },
+      topicPart: 2,
+      topicPrompt: "Topic",
+      transcript: "Sample transcript",
+      metrics: { wpm: 95, pauses: { pauseCount: 12 } },
+    });
+
+    expect(merged.pronunciation.score).toBeLessThanOrEqual(6.5);
+  });
 });
