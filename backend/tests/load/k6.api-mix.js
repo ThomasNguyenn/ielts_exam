@@ -1,12 +1,18 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 
-const BASE_URL = __ENV.BASE_URL || 'http://localhost:5000';
+const BASE_URL = __ENV.BASE_URL || 'https://ielts-exam-65pjc.ondigitalocean.app';
+const ORIGIN = __ENV.ORIGIN || 'https://localhost:3000';
 const ACCESS_TOKEN = __ENV.ACCESS_TOKEN || '';
 const ADMIN_TOKEN = __ENV.ADMIN_TOKEN || ACCESS_TOKEN;
 
-const authHeaders = ACCESS_TOKEN ? { Authorization: `Bearer ${ACCESS_TOKEN}` } : {};
-const adminHeaders = ADMIN_TOKEN ? { Authorization: `Bearer ${ADMIN_TOKEN}` } : {};
+const commonHeaders = { Origin: ORIGIN };
+const authHeaders = ACCESS_TOKEN
+  ? { ...commonHeaders, Authorization: `Bearer ${ACCESS_TOKEN}` }
+  : commonHeaders;
+const adminHeaders = ADMIN_TOKEN
+  ? { ...commonHeaders, Authorization: `Bearer ${ADMIN_TOKEN}` }
+  : commonHeaders;
 
 export const options = {
   scenarios: {
@@ -29,7 +35,10 @@ export const options = {
 };
 
 function getHealth() {
-  const res = http.get(`${BASE_URL}/api/health`, { tags: { name: 'health' } });
+  const res = http.get(`${BASE_URL}/api/health`, {
+    headers: commonHeaders,
+    tags: { name: 'health' },
+  });
   check(res, { 'health status 200|503': (r) => r.status === 200 || r.status === 503 });
 }
 
