@@ -292,6 +292,7 @@ export const createApp = ({ startBackgroundJobs = true } = {}) => {
   app.use("/api/speaking/submit", applyIf((req) => req.method === "POST", submitRateLimit));
 
   app.use("/api/writings/upload-image", applyIf((req) => req.method === "POST", uploadRateLimit));
+  app.use("/api/sections/upload-audio", applyIf((req) => req.method === "POST", uploadRateLimit));
   app.use("/api/speaking/submit", applyIf((req) => req.method === "POST", uploadRateLimit));
 
   app.use("/api/auth", authRoutes);

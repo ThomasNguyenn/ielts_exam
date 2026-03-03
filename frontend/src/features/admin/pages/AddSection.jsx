@@ -1,16 +1,27 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
 import AIContentGeneratorModal from '@/shared/components/AIContentGeneratorModal';
 import ConfirmationModal from '@/shared/components/ConfirmationModal';
+import { Button } from '@/components/ui/button';
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty';
 import QuestionGroup from './QuestionGroup';
 import { PLACEHOLDER_FROM_PASSAGE_CONTENT_TYPES, SECTION_QUESTION_TYPE_OPTIONS } from './questionGroupConfig';
 import { buildQuestionsFromPlaceholders, parseCorrectAnswersRaw } from './manageQuestionInputUtils';
+import { IconCloud } from '@tabler/icons-react';
 import { X } from 'lucide-react';
 import './Manage.css';
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D'];
+const SECTION_AUDIO_MAX_BYTES = 50 * 1024 * 1024;
 
 function canonicalizeQuestionType(type = '') {
   const normalized = String(type || '').trim().toLowerCase();
@@ -59,6 +70,7 @@ function sectionToForm(section) {
       title: '',
       content: '',
       audio_url: '',
+      audio_storage_key: '',
       source: '',
       isActive: true,
       isSinglePart: false,
@@ -100,6 +112,7 @@ function sectionToForm(section) {
     title: section.title || '',
     content: section.content || '',
     audio_url: section.audio_url || '',
+    audio_storage_key: section.audio_storage_key || '',
     source: section.source || '',
     isActive: section.is_active ?? true,
     isSinglePart: section.isSinglePart ?? false,
@@ -157,6 +170,7 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
     title: '',
     content: '',
     audio_url: '',
+    audio_storage_key: '',
     source: '',
     isActive: true,
     isSinglePart: false,
@@ -165,6 +179,7 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [submitLoading, setSubmitLoading] = useState(false);
+  const [audioUploadLoading, setAudioUploadLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState(new Set());
@@ -176,6 +191,7 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
     onConfirm: () => {},
     isDanger: false,
   });
+  const audioFileInputRef = useRef(null);
 
   useEffect(() => {
     const load = async () => {
@@ -191,8 +207,10 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
             title: '',
             content: '',
             audio_url: '',
+            audio_storage_key: '',
             source: '',
             isActive: true,
+            isSinglePart: false,
             question_groups: [emptyQuestionGroup()],
           });
         }
@@ -213,6 +231,73 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
   );
 
   const updateForm = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+
+  const handleAudioUrlChange = (event) => {
+    const nextAudioUrl = event.target.value;
+    setForm((prev) => {
+      const previousAudioUrl = String(prev.audio_url || '').trim();
+      const shouldClearStorageKey = Boolean(prev.audio_storage_key) && nextAudioUrl.trim() !== previousAudioUrl;
+      return {
+        ...prev,
+        audio_url: nextAudioUrl,
+        audio_storage_key: shouldClearStorageKey ? '' : prev.audio_storage_key,
+      };
+    });
+  };
+
+  const openAudioUploadPicker = () => {
+    audioFileInputRef.current?.click();
+  };
+
+  const handleAudioFileSelected = async (event) => {
+    const file = event.target?.files?.[0];
+    if (!file) return;
+
+    const resetInput = () => {
+      if (event.target) event.target.value = '';
+    };
+
+    if (!String(file.type || '').toLowerCase().startsWith('audio/')) {
+      showNotification('Only audio files are allowed.', 'error');
+      resetInput();
+      return;
+    }
+
+    if (file.size > SECTION_AUDIO_MAX_BYTES) {
+      showNotification('Audio file must be 50MB or smaller.', 'error');
+      resetInput();
+      return;
+    }
+
+    setAudioUploadLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('audio', file);
+      if (form._id?.trim()) {
+        formData.append('section_id', form._id.trim());
+      }
+
+      const response = await api.uploadSectionAudio(formData);
+      const uploadedUrl = response?.data?.url || '';
+      const uploadedKey = response?.data?.key || '';
+
+      if (!uploadedUrl || !uploadedKey) {
+        throw new Error('Upload succeeded but missing url/key.');
+      }
+
+      setForm((prev) => ({
+        ...prev,
+        audio_url: uploadedUrl,
+        audio_storage_key: uploadedKey,
+      }));
+      showNotification('Audio uploaded successfully.', 'success');
+    } catch (uploadError) {
+      showNotification(uploadError.message || 'Failed to upload audio.', 'error');
+    } finally {
+      setAudioUploadLoading(false);
+      resetInput();
+    }
+  };
 
   const toggleGroupCollapse = (groupIndex) => {
     setCollapsedGroups((prev) => {
@@ -567,6 +652,7 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
       content: normalized.content || prev.content,
       source: normalized.source || prev.source,
       audio_url: normalized.audio_url || prev.audio_url,
+      audio_storage_key: normalized.audio_storage_key || prev.audio_storage_key,
       question_groups: normalized.question_groups.length ? normalized.question_groups : prev.question_groups,
     }));
     showNotification('Section generated successfully.', 'success');
@@ -585,11 +671,14 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
 
     setSubmitLoading(true);
     try {
+      const normalizedAudioUrl = form.audio_url?.trim() || null;
+      const normalizedAudioStorageKey = form.audio_storage_key?.trim() || null;
       const payload = {
         _id: form._id.trim(),
         title: form.title.trim(),
         content: form.content.trim(),
-        audio_url: form.audio_url?.trim() || undefined,
+        audio_url: normalizedAudioUrl,
+        audio_storage_key: normalizedAudioStorageKey,
         source: form.source?.trim() || undefined,
         is_active: asDraft ? false : form.isActive,
          isSinglePart: Boolean(form.isSinglePart),
@@ -739,13 +828,64 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
             </div>
 
             <div className="manage-input-group">
-              <label className="manage-input-label">Audio URL</label>
+              <label className="manage-input-label">Listening Audio</label>
+              <input
+                ref={audioFileInputRef}
+                type="file"
+                accept="audio/*"
+                onChange={handleAudioFileSelected}
+                style={{ display: 'none' }}
+              />
+
+              {!form.audio_url?.trim() ? (
+                <Empty className="border border-dashed border-slate-300 bg-slate-50/70">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <IconCloud size={20} />
+                    </EmptyMedia>
+                    <EmptyTitle>Audio Is Empty</EmptyTitle>
+                    <EmptyDescription>
+                      Upload listening audio to DigitalOcean Spaces, or paste a manual URL below.
+                    </EmptyDescription>
+                  </EmptyHeader>
+                  <EmptyContent>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={openAudioUploadPicker}
+                      disabled={audioUploadLoading}
+                    >
+                      {audioUploadLoading ? 'Uploading...' : 'Upload Files'}
+                    </Button>
+                  </EmptyContent>
+                </Empty>
+              ) : (
+                <div style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={openAudioUploadPicker}
+                    disabled={audioUploadLoading}
+                  >
+                    {audioUploadLoading ? 'Uploading...' : 'Replace Audio'}
+                  </Button>
+                  <span className="muted" style={{ fontSize: '0.85rem' }}>
+                    {form.audio_storage_key ? 'Managed by Spaces upload.' : 'Manual URL mode.'}
+                  </span>
+                </div>
+              )}
+
               <input
                 className="manage-input-field"
                 value={form.audio_url}
-                onChange={(event) => updateForm('audio_url', event.target.value)}
+                onChange={handleAudioUrlChange}
                 placeholder="https://example.com/audio.mp3"
               />
+              <p className="muted" style={{ marginTop: '0.45rem', fontSize: '0.85rem' }}>
+                Manual URL edit will clear managed storage key to avoid deleting external audio.
+              </p>
             </div>
 
             <div className="manage-input-group">

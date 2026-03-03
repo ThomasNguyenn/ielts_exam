@@ -49,6 +49,7 @@ const SectionSchema = new mongoose.Schema({
     title: { type: String, required: true }, // Tieu de doan van
     content: { type: String, required: true }, // Noi dung doan van
     audio_url: { type: String }, // URL to MP3 audio file for listening section
+    audio_storage_key: { type: String }, // Object key in DigitalOcean Spaces for managed audio uploads
     question_groups: [QuestionGroupSchema],
     source: { type: String }, // Mang cac nhom cau hoi thuoc doan van nay
     is_active: { type: Boolean, default: true },

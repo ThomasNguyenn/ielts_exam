@@ -442,6 +442,11 @@ export const api = {
   createSection: (body) => request('/api/sections', { method: 'POST', body: JSON.stringify(body) }),
   updateSection: (id, body) => request(`/api/sections/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteSection: (id) => request(`/api/sections/${id}`, { method: 'DELETE' }),
+  uploadSectionAudio: (formData) => request('/api/sections/upload-audio', {
+    method: 'POST',
+    body: formData,
+    headers: { 'Content-Type': undefined }
+  }),
 
   // Writing
   getWritings: () => request('/api/writings'),
