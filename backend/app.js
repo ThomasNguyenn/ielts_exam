@@ -25,6 +25,7 @@ import skillsRoutes from "./routes/skills.routes.js";
 import progressRoutes from "./routes/progress.routes.js";
 import modelEssayRoutes from "./routes/modelEssay.routes.js";
 import leaderboardRoutes from "./routes/leaderboard.route.js";
+import evaluationRoutes from "./routes/evaluation.route.js";
 
 const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
 const TRUST_PROXY_HINTS = new Set(["loopback", "linklocal", "uniquelocal"]);
@@ -309,6 +310,7 @@ export const createApp = ({ startBackgroundJobs = true } = {}) => {
   app.use("/api/progress", progressRoutes);
   app.use("/api/model-essays", modelEssayRoutes);
   app.use("/api", leaderboardRoutes);
+  app.use("/api/evaluation", evaluationRoutes);
 
   if (shouldServeLocalUploads()) {
     const uploadDir = ensureUploadDirectory();

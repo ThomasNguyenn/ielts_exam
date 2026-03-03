@@ -693,4 +693,8 @@ export const api = {
   },
   getModelEssay: (id) => request(`/api/model-essays/${id}`),
   submitEssayAnalysis: (id, taskType, answer) => request(`/api/model-essays/${id}/analyze`, { method: 'POST', body: JSON.stringify({ taskType, answer }) }),
+
+  // Evaluation (Nhận Xét)
+  submitEvaluation: (data) => request('/api/evaluation/submit', { method: 'POST', body: JSON.stringify(data) }),
+  getEvaluationStatus: (requestId) => request(`/api/evaluation/status/${requestId}`),
 };

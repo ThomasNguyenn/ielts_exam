@@ -50,6 +50,7 @@ const AnalyticsContainer = lazy(() => import('@/features/analytics/pages/Analyti
 const AchievementsPage = lazy(() => import('@/features/achievements/pages/AchievementsPage'));
 const WaitForConfirmation = lazy(() => import('@/features/system/pages/WaitForConfirmation'));
 const StudentRequests = lazy(() => import('@/features/admin/pages/StudentRequests'));
+const EvaluationPage = lazy(() => import('@/features/evaluation/pages/EvaluationPage'));
 const ManageUsers = lazy(() => import('@/features/admin/pages/ManageUsers'));
 const ManageInvitations = lazy(() => import('@/features/admin/pages/ManageInvitations'));
 const NotFound = lazy(() => import('@/features/system/pages/NotFound'));
@@ -242,6 +243,9 @@ export default function App() {
           } />
           <Route path="scores/:userId" element={
             <ManageRoute>{withSuspense(<UserScoreDetail />)}</ManageRoute>
+          } />
+          <Route path="evaluate" element={
+            <ManageRoute>{withSuspense(<EvaluationPage />)}</ManageRoute>
           } />
         </Route>
         <Route path="analytics/student/:studentId" element={

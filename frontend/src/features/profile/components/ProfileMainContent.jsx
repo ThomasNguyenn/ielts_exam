@@ -131,38 +131,38 @@ export default function ProfileMainContent({ summary, badges, activities }) {
             badges.map((badge) => {
               const BadgeIcon = BADGE_ICON_COMPONENTS[badge.icon] || EmojiEventsIcon;
               return (
-                <div key={badge.key} className={badge.wrapperClass}>
-                  <div className={badge.shellClass}>
-                    {badge.iconType === "emoji" ? (
-                      <span className={`text-4xl leading-none ${badge.iconClass}`} role="img" aria-label={badge.title}>
-                        {badge.icon}
-                      </span>
-                    ) : (
+              <div key={badge.key} className={badge.wrapperClass}>
+                <div className={badge.shellClass}>
+                  {badge.iconType === "emoji" ? (
+                    <span className={`text-4xl leading-none ${badge.iconClass}`} role="img" aria-label={badge.title}>
+                      {badge.icon}
+                    </span>
+                  ) : (
                       <BadgeIcon className={`text-4xl ${badge.iconClass}`} />
-                    )}
-                    {badge.unlocked ? (
-                      <div
-                        className={
-                          badge.levelClass ||
-                          "absolute -bottom-1 bg-[#1152d4] text-white text-[10px] font-bold px-2 py-0.5 rounded-full"
-                        }
-                      >
-                        Lvl {badge.level}
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div>
-                    <p className="text-sm font-bold text-slate-900 leading-tight">{badge.title}</p>
-                    <p className="text-xs text-slate-500">{badge.subtitle}</p>
-                  </div>
-
-                  {!badge.unlocked && badge.tooltip ? (
-                    <div className="absolute bottom-full mb-2 hidden group-hover:block w-32 bg-slate-800 text-white text-xs rounded p-2 z-10 shadow-lg">
-                      {badge.tooltip}
+                  )}
+                  {badge.unlocked ? (
+                    <div
+                      className={
+                        badge.levelClass ||
+                        "absolute -bottom-1 bg-[#1152d4] text-white text-[10px] font-bold px-2 py-0.5 rounded-full"
+                      }
+                    >
+                      Lvl {badge.level}
                     </div>
                   ) : null}
                 </div>
+
+                <div>
+                  <p className="text-sm font-bold text-slate-900 leading-tight">{badge.title}</p>
+                  <p className="text-xs text-slate-500">{badge.subtitle}</p>
+                </div>
+
+                {!badge.unlocked && badge.tooltip ? (
+                  <div className="absolute bottom-full mb-2 hidden group-hover:block w-32 bg-slate-800 text-white text-xs rounded p-2 z-10 shadow-lg">
+                    {badge.tooltip}
+                  </div>
+                ) : null}
+              </div>
               );
             })
           ) : (

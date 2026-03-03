@@ -13,6 +13,7 @@ import MilitaryTechOutlined from '@mui/icons-material/MilitaryTechOutlined';
 import GradingOutlined from '@mui/icons-material/GradingOutlined';
 import LeaderboardOutlined from '@mui/icons-material/LeaderboardOutlined';
 import AdminPanelSettingsOutlined from '@mui/icons-material/AdminPanelSettingsOutlined';
+import RateReviewOutlined from '@mui/icons-material/RateReviewOutlined';
 import AppsOutlined from '@mui/icons-material/AppsOutlined';
 import WorkspacesOutlined from '@mui/icons-material/WorkspacesOutlined';
 import { api } from '@/shared/api/client';
@@ -127,6 +128,14 @@ const NAV_SCHEMA = {
       isActive: (pathname) => pathname.startsWith('/scores'),
     },
     {
+      key: 'evaluate',
+      to: '/evaluate',
+      label: 'Nhận Xét',
+      icon: 'send',
+      visibility: 'teacher_admin',
+      isActive: (pathname) => pathname.startsWith('/evaluate'),
+    },
+    {
       key: 'manage',
       to: '/manage',
       label: 'Quản lý',
@@ -150,6 +159,7 @@ const NAV_ICON_COMPONENTS = {
   grading: GradingOutlined,
   leaderboard: LeaderboardOutlined,
   admin_panel_settings: AdminPanelSettingsOutlined,
+  send: RateReviewOutlined,
 };
 
 const isItemVisible = (item, user) => {
@@ -219,7 +229,7 @@ export default function Layout() {
     pathname.startsWith('/learn') ||
     pathname.startsWith('/speaking');
   // Use full width layout for manage pages and test list.
-  const isManagePage = isManageRoute || pathname === '/tests' || pathname.startsWith('/scores');
+  const isManagePage = isManageRoute || pathname === '/tests' || pathname.startsWith('/scores') || pathname.startsWith('/evaluate');
 
   // Use full width layout for grading pages.
   const isGradingPage = pathname.startsWith('/grading');

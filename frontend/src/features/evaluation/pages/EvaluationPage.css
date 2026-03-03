@@ -1,0 +1,368 @@
+/* ── Evaluation Page — follows analytics-dashboard & profile design system ── */
+
+.eval-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+/* ── Header ── */
+.eval-header h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.eval-header p {
+  margin: 0.25rem 0 0;
+  color: #64748b;
+  font-size: 0.875rem;
+}
+
+/* ── Stat Cards (top row) ── */
+.eval-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.eval-stat-card {
+  background: #ffffff;
+  border: 1px solid #eef2f7;
+  border-radius: 1rem;
+  padding: 1rem 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+.eval-stat-card label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #64748b;
+  margin-bottom: 0.5rem;
+}
+
+.eval-stat-card input {
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.9rem;
+  color: #0f172a;
+  background: #f8fafc;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.eval-stat-card input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+  background: #ffffff;
+}
+
+/* ── Card (shared) ── */
+.eval-card {
+  background: #ffffff;
+  border: 1px solid #eef2f7;
+  border-radius: 1rem;
+  padding: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+.eval-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.eval-card-head h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.eval-card-head p {
+  margin: 0.2rem 0 0;
+  color: #64748b;
+  font-size: 0.8125rem;
+}
+
+/* ── Student Textarea ── */
+.eval-student-input {
+  width: 100%;
+  min-height: 130px;
+  padding: 0.75rem 1rem;
+  font-family: inherit;
+  font-size: 0.9rem;
+  color: #0f172a;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  background: #f8fafc;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.eval-student-input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+  background: #ffffff;
+}
+
+/* ── Two-column layout for input + info ── */
+.eval-input-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+/* ── Buttons ── */
+.eval-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.eval-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.6rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.15s;
+}
+
+.eval-btn:active {
+  transform: scale(0.97);
+}
+
+.eval-btn-primary {
+  background: #6366f1;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.28);
+}
+
+.eval-btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.eval-btn-secondary {
+  background: #ffffff;
+  color: #334155;
+  border: 1px solid #dbe3ee;
+}
+
+.eval-btn-secondary:hover {
+  background: #f8fafc;
+}
+
+.eval-btn-danger {
+  background: transparent;
+  color: #ef4444;
+  border: 1px solid #fca5a5;
+}
+
+.eval-btn-danger:hover {
+  background: #fef2f2;
+}
+
+/* ── Table ── */
+.eval-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.eval-table thead th {
+  background: #f8fafc;
+  padding: 0.65rem 1rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  text-align: left;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.eval-table thead th:first-child {
+  border-top-left-radius: 0.75rem;
+}
+
+.eval-table thead th:last-child {
+  border-top-right-radius: 0.75rem;
+}
+
+.eval-table tbody td {
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  color: #334155;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: top;
+}
+
+.eval-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.eval-student-name {
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+}
+
+.eval-inline-textarea {
+  width: 100%;
+  min-height: 64px;
+  padding: 0.5rem 0.65rem;
+  font-family: inherit;
+  font-size: 0.85rem;
+  color: #0f172a;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  background: #f8fafc;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.eval-inline-textarea:focus {
+  border-color: #6366f1;
+  background: #ffffff;
+}
+
+/* ── Status Chips ── */
+.eval-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.eval-status--pending {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.eval-status--processing {
+  background: #eff6ff;
+  color: #3b82f6;
+}
+
+.eval-status--completed {
+  background: #ecfdf5;
+  color: #10b981;
+}
+
+.eval-status--error {
+  background: #fef2f2;
+  color: #ef4444;
+}
+
+/* ── Result Preview ── */
+.eval-result-box {
+  position: relative;
+}
+
+.eval-result-pre {
+  background: #f8fafc;
+  border: 1px solid #eef2f7;
+  border-radius: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+  margin: 0;
+  color: #334155;
+}
+
+.eval-copy-btn {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.35rem;
+  padding: 0.2rem 0.3rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+  color: #64748b;
+}
+
+.eval-copy-btn:hover {
+  opacity: 1;
+}
+
+.eval-muted {
+  color: #94a3b8;
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
+/* ── Spin ── */
+.eval-spin {
+  animation: eval-spin-kf 1s linear infinite;
+}
+
+@keyframes eval-spin-kf {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ── Responsive ── */
+@media (max-width: 860px) {
+  .eval-input-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .eval-stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .eval-page {
+    gap: 1rem;
+  }
+
+  .eval-header h1 {
+    font-size: 1.35rem;
+  }
+
+  .eval-card {
+    padding: 1rem;
+  }
+
+  .eval-actions {
+    flex-direction: column;
+  }
+
+  .eval-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
