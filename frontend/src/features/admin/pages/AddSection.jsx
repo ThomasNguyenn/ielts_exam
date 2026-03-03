@@ -223,7 +223,7 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
     };
 
     load();
-  }, [editId, showNotification]);
+  }, [editId]);
 
   const totalQuestions = useMemo(
     () => form.question_groups.reduce((sum, group) => sum + (group.questions?.length || 0), 0),
