@@ -5,6 +5,10 @@ import {
     isObjectStorageConfigured,
     uploadSectionAudioObject,
 } from "../services/objectStorage.service.js";
+import {
+    assertObjectiveAnswerMappings,
+    ObjectiveAnswerValidationError,
+} from "../services/objectiveAnswerValidation.service.js";
 import { handleControllerError, sendControllerError } from '../utils/controllerError.js';
 
 const pickSectionPayload = (body = {}, { allowId = false } = {}) => {
@@ -31,6 +35,24 @@ const pickSectionPayload = (body = {}, { allowId = false } = {}) => {
     }
 
     return payload;
+};
+
+const validateObjectiveMappingsOrRespond = (req, res, questionGroups) => {
+    try {
+        assertObjectiveAnswerMappings(questionGroups);
+        return true;
+    } catch (error) {
+        if (error instanceof ObjectiveAnswerValidationError) {
+            sendControllerError(req, res, {
+                statusCode: error.statusCode,
+                code: error.code,
+                message: error.message,
+                details: error.details,
+            });
+            return false;
+        }
+        throw error;
+    }
 };
 
 const normalizeOptionalString = (value) => {
@@ -126,6 +148,10 @@ export const createSection = async(req, res) => {
         return sendControllerError(req, res, { statusCode: 400, message: "Please provide all info" });
     }
 
+    if (!validateObjectiveMappingsOrRespond(req, res, section.question_groups)) {
+        return;
+    }
+
     const newSection = new Section(section);
 
     try{
@@ -156,6 +182,13 @@ export const updateSection = async(req, res) => {
 
     if (Object.keys(section).length === 0) {
         return sendControllerError(req, res, { statusCode: 400, message: "No valid update fields provided"  });
+    }
+
+    if (
+        Object.prototype.hasOwnProperty.call(section, "question_groups") &&
+        !validateObjectiveMappingsOrRespond(req, res, section.question_groups)
+    ) {
+        return;
     }
 
     try {
@@ -256,4 +289,3 @@ export const uploadSectionAudio = async (req, res) => {
         return handleControllerError(req, res, error);
     }
 };
-

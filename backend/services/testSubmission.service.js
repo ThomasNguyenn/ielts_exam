@@ -3,15 +3,13 @@ import Test from "../models/Test.model.js";
 import TestAttempt from "../models/TestAttempt.model.js";
 import User from "../models/User.model.js";
 import WritingSubmission from "../models/WritingSubmission.model.js";
+import {
+    buildOptionAliasContext,
+    expandCorrectAnswerAliases,
+    isOptionBasedGroupType,
+} from "./objectiveAnswerAlias.service.js";
 
 const ATTEMPT_HISTORY_LIMIT = 10;
-const MATCHING_QUESTION_TYPES = new Set([
-    "matching_headings",
-    "matching_features",
-    "matching_information",
-    "matching_info",
-    "matching",
-]);
 
 export class SubmissionError extends Error {
     constructor(statusCode, message) {
@@ -273,20 +271,28 @@ export function gradeExam({ test, examType, safeAnswers }) {
                 // Collect ALL correct answers across the whole group (for review display)
                 const allGroupCorrectAnswers = [
                     ...new Set(
-                        groupQuestions.flatMap((q) => (q.correct_answers || []).map(normalizeAnswer))
+                        groupQuestions
+                            .flatMap((q) => (q.correct_answers || []).map((token) => String(token || "").trim()))
+                            .filter(Boolean)
                     )
                 ];
 
-                const groupCorrectPool = groupQuestions.map((question) =>
-                    (question.correct_answers || []).map(normalizeAnswer),
-                );
+                const groupCorrectPool = groupQuestions.map((question) => {
+                    const aliasContext = buildOptionAliasContext({ group, question });
+                    const { acceptedAliases } = expandCorrectAnswerAliases(
+                        question.correct_answers || [],
+                        aliasContext,
+                        { normalizer: normalizeAnswer },
+                    );
+                    return acceptedAliases;
+                });
 
                 for (const question of groupQuestions) {
                     const userAnswer = questionIndex < userNormalized.length ? userNormalized[questionIndex] : "";
                     const matchIndex = groupCorrectPool.findIndex(
-                        (variants) => variants && variants.includes(userAnswer),
+                        (acceptedAliases) => acceptedAliases && acceptedAliases.has(userAnswer),
                     );
-                    const isCorrect = matchIndex !== -1;
+                    const isCorrect = Boolean(userAnswer) && matchIndex !== -1;
 
                     if (isCorrect) {
                         score += 1;
@@ -318,34 +324,17 @@ export function gradeExam({ test, examType, safeAnswers }) {
             for (const question of groupQuestions) {
                 const correctOptions = correctList[questionIndex] || [];
                 const userAnswer = questionIndex < userNormalized.length ? userNormalized[questionIndex] : "";
-                let isCorrect = correctOptions.length > 0 && correctOptions.includes(userAnswer);
-
-                if (!isCorrect && MATCHING_QUESTION_TYPES.has(group.type)) {
-                    const headings = group.headings || [];
-                    const selectedHeading = headings.find(
-                        (heading) => normalizeAnswer(heading.id) === userAnswer,
+                let isCorrect = false;
+                if (isOptionBasedGroupType(group.type)) {
+                    const aliasContext = buildOptionAliasContext({ group, question });
+                    const { acceptedAliases } = expandCorrectAnswerAliases(
+                        question.correct_answers || [],
+                        aliasContext,
+                        { normalizer: normalizeAnswer },
                     );
-
-                    if (selectedHeading) {
-                        const clean = (value) =>
-                            String(value || "")
-                                .toLowerCase()
-                                .replace(/^[ivx]+\.?\s*/i, "")
-                                .trim();
-                        const cleanedHeadingText = clean(selectedHeading.text);
-                        const normalizedHeadingText = normalizeAnswer(selectedHeading.text);
-
-                        if (
-                            correctOptions.some((option) => {
-                                if (option === normalizedHeadingText) return true;
-                                if (clean(option) === cleanedHeadingText) return true;
-                                if (normalizeAnswer(option) === normalizeAnswer(selectedHeading.id)) return true;
-                                return false;
-                            })
-                        ) {
-                            isCorrect = true;
-                        }
-                    }
+                    isCorrect = Boolean(userAnswer) && acceptedAliases.has(userAnswer);
+                } else {
+                    isCorrect = correctOptions.length > 0 && correctOptions.includes(userAnswer);
                 }
 
                 if (isCorrect) {

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp, GripVertical, Plus, Trash2 } from 'lucide-react';
 import {
   ANSWER_LIST_ONLY_TYPES,
@@ -9,6 +9,7 @@ import {
   PLACEHOLDER_SYNC_TYPES,
   REFERENCE_TEXT_TYPES,
 } from './questionGroupConfig';
+import { buildMatchingInformationHeadingsFromRange } from './manageQuestionInputUtils';
 
 const DEFAULT_OPTIONS = [
   { label: 'A', text: '' },
@@ -111,6 +112,7 @@ export default function QuestionGroup({
   handleBoldShortcut,
 }) {
   const isMatchingType = MATCHING_GROUP_TYPES.has(group.type);
+  const isMatchingInformationType = group.type === 'matching_information';
   const isBooleanType = BOOLEAN_GROUP_TYPES.has(group.type);
   const isMultipleChoiceType = group.type === 'mult_choice';
   const isTableCompletionType = group.type === 'table_completion';
@@ -129,6 +131,8 @@ export default function QuestionGroup({
     () => (tableSegment ? parseTableHtmlToGrid(tableSegment.tableHtml) : null),
     [tableSegment]
   );
+  const [rangeInput, setRangeInput] = useState('');
+  const [rangeError, setRangeError] = useState('');
 
   const commitTableGrid = (nextGrid) => {
     const nextTable = gridToTableHtml(nextGrid);
@@ -164,6 +168,17 @@ export default function QuestionGroup({
       return row.map((cell, currentColIndex) => (currentColIndex === colIndex ? value : cell));
     });
     commitTableGrid(nextGrid);
+  };
+
+  const generateMatchingHeadingsFromRange = () => {
+    const result = buildMatchingInformationHeadingsFromRange(rangeInput);
+    if (!result.ok) {
+      setRangeError(result.error || 'Invalid range.');
+      return;
+    }
+
+    setRangeError('');
+    onUpdateGroup(gi, 'headings', result.headings);
   };
 
   return (
@@ -369,6 +384,31 @@ export default function QuestionGroup({
 
               <div className="form-section">
                 <h4>Headings / Labels</h4>
+                {isMatchingInformationType && (
+                  <div style={{ marginBottom: '0.75rem' }}>
+                    <div className="manage-inline-fields">
+                      <input
+                        value={rangeInput}
+                        onChange={(event) => {
+                          setRangeInput(event.target.value);
+                          if (rangeError) setRangeError('');
+                        }}
+                        placeholder="A-G or I-VII"
+                      />
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={generateMatchingHeadingsFromRange}>
+                        Generate
+                      </button>
+                    </div>
+                    <div className="muted" style={{ marginTop: '0.35rem' }}>
+                      Supported ranges: A-Z and Roman I-X. Generate will replace current list.
+                    </div>
+                    {rangeError && (
+                      <div style={{ marginTop: '0.35rem', color: '#EF4444', fontSize: '0.85rem' }}>
+                        {rangeError}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {(group.headings || []).map((heading, headingIndex) => (
                   <div key={`${gi}-heading-${headingIndex}`} className="heading-row">
                     <input

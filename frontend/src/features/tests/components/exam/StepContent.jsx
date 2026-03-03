@@ -304,7 +304,7 @@ function SummaryDropZone({
 }) {
   const anchorIndex = Number.isFinite(questionIndex) ? questionIndex : index;
   const anchorId = `q-${anchorIndex}`;
-  const selectedOption = (options || []).find(o => o.id === value);
+  const selectedOption = findSummaryOptionByAnswer(options || [], value);
 
   const handleDrop = (e) => {
     e.preventDefault();
@@ -329,7 +329,7 @@ function SummaryDropZone({
       >
         {selectedOption ? (
           <span className="summary-selected-chip">
-            <span className="summary-chip-text">{selectedOption.text}</span>
+            <span className="summary-chip-text">{selectedOption.text || selectedOption.id || selectedOption.token}</span>
           </span>
         ) : (
           <span style={{ color: '#9ca3af', fontSize: '0.9rem', fontWeight: 'bold' }}>{displayNumber || index + 1}</span>
@@ -352,7 +352,7 @@ function SummaryDropZone({
       {selectedOption ? (
         <span className="summary-selected-chip">
           {/* <span className="summary-chip-id">{selectedOption.id}</span> */}
-          <span className="summary-chip-text">{selectedOption.text}</span>
+          <span className="summary-chip-text">{selectedOption.text || selectedOption.id || selectedOption.token}</span>
         </span>
       ) : (
         <span style={{ color: '#9ca3af', fontSize: '0.9rem', fontWeight: 'bold' }}>{displayNumber || index + 1}</span>
@@ -597,6 +597,60 @@ function formatReviewAnswerByOptions(value, options = []) {
   return String(text ?? '').trim() || '(Bo trong)';
 }
 
+function getSummaryOptionToken(option = {}) {
+  const id = String(option?.id ?? '').trim();
+  if (id) return id;
+  const text = String(option?.text ?? '').trim();
+  if (text) return text;
+  return '';
+}
+
+function getSummaryDisplayText(option = {}) {
+  const text = String(option?.text ?? '').trim();
+  if (text) return text;
+  const id = String(option?.id ?? '').trim();
+  if (id) return id;
+  return String(option?.token ?? '').trim();
+}
+
+function getNormalizedSummaryOptions(rawOptions = []) {
+  if (!Array.isArray(rawOptions)) return [];
+  const seen = new Set();
+  return rawOptions
+    .map((rawOption) => {
+      const id = String(rawOption?.id ?? '').trim();
+      const text = String(rawOption?.text ?? '').trim();
+      const label = String(rawOption?.label ?? '').trim();
+      const token = getSummaryOptionToken({ id, text });
+      if (!token) return null;
+
+      const normalizedToken = normalizeReviewText(token);
+      if (!normalizedToken || seen.has(normalizedToken)) return null;
+      seen.add(normalizedToken);
+
+      return {
+        ...rawOption,
+        id,
+        text,
+        label,
+        token,
+      };
+    })
+    .filter(Boolean);
+}
+
+function findSummaryOptionByAnswer(options = [], answer = '') {
+  const normalizedAnswer = normalizeReviewText(answer);
+  if (!normalizedAnswer) return null;
+
+  return (
+    (options || []).find((option) => {
+      const candidates = [option?.token, option?.id, option?.label, option?.text];
+      return candidates.some((candidate) => normalizeReviewText(candidate) === normalizedAnswer);
+    }) || null
+  );
+}
+
 function escapeRegexForReview(value = '') {
   return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -752,6 +806,8 @@ function StepContent({
           group.type === 'matching';
         const isSummary = group.type === 'summary_completion';
         const isGapLike = group.type === 'gap_fill' || group.type === 'note_completion';
+        const summaryOptions = isSummary ? getNormalizedSummaryOptions(group.options || []) : [];
+        const hasSummaryOptions = summaryOptions.length > 0;
 
         const groupStartIndex = slotIndex;
 
@@ -881,7 +937,7 @@ function StepContent({
                               if (qIndexInGroup !== -1) {
                                 const realSlotIndex = currentGroupStartIndex + qIndexInGroup;
 
-                                if (isSummary) {
+                                if (isSummary && hasSummaryOptions) {
                                   return (
                                     <SummaryDropZone
                                       key={realSlotIndex}
@@ -890,7 +946,7 @@ function StepContent({
                                       displayNumber={qNum}
                                       value={answers[realSlotIndex]}
                                       onChange={(val) => setAnswer(realSlotIndex, val)}
-                                      options={group.options || []}
+                                      options={summaryOptions}
                                       reviewMode={reviewMode}
                                     />
                                   );
@@ -927,27 +983,28 @@ function StepContent({
                 const usedValues = new Set();
                 let tempIdx = currentGroupStartIndex;
                 group.questions.forEach(() => {
-                  if (answers[tempIdx]) usedValues.add(answers[tempIdx]);
+                  const normalizedAnswer = normalizeReviewText(answers[tempIdx]);
+                  if (normalizedAnswer) usedValues.add(normalizedAnswer);
                   tempIdx++;
                 });
 
                 return (
                   <div className={isListening ? "summary-completion-wrapper" : ""}>
-                    {isSummary && group.options && group.options.length > 0 && (
+                    {isSummary && hasSummaryOptions && (
                       <div className={`matching-options-pool ${isListening ? 'matching-options-pool-listening' : ''}`}>
                         <div className="matching-chips">
-                          {group.options.map((opt) => {
-                            const isUsed = usedValues.has(opt.id);
+                          {summaryOptions.map((opt) => {
+                            const isUsed = usedValues.has(normalizeReviewText(opt.token));
                             return (
                               <div
-                                key={opt.id}
+                                key={opt.token}
                                 className={`matching-chip ${isUsed ? 'used' : ''}`}
                                 draggable={!isUsed && !reviewMode}
                                 onDragStart={(e) => {
                                   if (!isUsed && !reviewMode) {
                                     // Cross-browser support: set text/plain as well
-                                    e.dataTransfer.setData('optionId', opt.id);
-                                    e.dataTransfer.setData('text/plain', opt.id);
+                                    e.dataTransfer.setData('optionId', opt.token);
+                                    e.dataTransfer.setData('text/plain', opt.token);
                                     e.dataTransfer.effectAllowed = 'move';
                                     e.currentTarget.classList.add('dragging');
                                   }
@@ -956,7 +1013,7 @@ function StepContent({
                                   e.currentTarget.classList.remove('dragging');
                                 }}
                               >
-                                <span className="matching-chip-text">{opt.text}</span>
+                                <span className="matching-chip-text">{getSummaryDisplayText(opt)}</span>
                               </div>
                             );
                           })}
@@ -1240,7 +1297,7 @@ function StepContent({
 
                   if (!reviewItem) return null;
                   const optionPool = isSummary
-                    ? ((group.options && group.options.length) ? group.options : (group.headings || []))
+                    ? (hasSummaryOptions ? summaryOptions : [])
                     : isMatching
                       ? ((group.headings && group.headings.length) ? group.headings : (group.options || []))
                       : [];

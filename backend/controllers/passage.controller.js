@@ -1,5 +1,9 @@
 import Passage from "../models/Passage.model.js";
 import { generatePassageQuestionInsights } from "../services/passageInsight.service.js";
+import {
+    assertObjectiveAnswerMappings,
+    ObjectiveAnswerValidationError,
+} from "../services/objectiveAnswerValidation.service.js";
 import { handleControllerError, sendControllerError } from '../utils/controllerError.js';
 
 const pickPassagePayload = (body = {}, { allowId = false } = {}) => {
@@ -28,6 +32,24 @@ const pickPassagePayload = (body = {}, { allowId = false } = {}) => {
     return payload;
 };
 
+const validateObjectiveMappingsOrRespond = (req, res, questionGroups) => {
+    try {
+        assertObjectiveAnswerMappings(questionGroups);
+        return true;
+    } catch (error) {
+        if (error instanceof ObjectiveAnswerValidationError) {
+            sendControllerError(req, res, {
+                statusCode: error.statusCode,
+                code: error.code,
+                message: error.message,
+                details: error.details,
+            });
+            return false;
+        }
+        throw error;
+    }
+};
+
 export const getAllPassages = async(req, res) => {
     try{
         const passages = await Passage.find({});
@@ -42,6 +64,10 @@ export const createPassage = async(req, res) => {
 
     if(!passage.title || !passage.content || !passage.question_groups){
         return sendControllerError(req, res, { statusCode: 400, message: "Please provide all info" });
+    }
+
+    if (!validateObjectiveMappingsOrRespond(req, res, passage.question_groups)) {
+        return;
     }
 
     const newPassage = new Passage(passage);
@@ -74,6 +100,13 @@ export const updatePassage = async(req, res) => {
 
     if (Object.keys(passage).length === 0) {
         return sendControllerError(req, res, { statusCode: 400, message: "No valid update fields provided"  });
+    }
+
+    if (
+        Object.prototype.hasOwnProperty.call(passage, "question_groups") &&
+        !validateObjectiveMappingsOrRespond(req, res, passage.question_groups)
+    ) {
+        return;
     }
 
     try {

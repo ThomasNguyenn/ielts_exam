@@ -55,7 +55,7 @@ Giao vien nhap:
 
 - `Question Text`
 - Block `Options` cua cau hoi (A, B, C, D...)
-- `Correct Answer(s)` khuyen nghi nhap dung noi dung option dung
+- `Correct Answer(s)` co the nhap `label/id/text` (uu tien nhap label hoac id, vd: `A`)
 
 Neu la dang "chon N dap an":
 
@@ -69,7 +69,15 @@ Giao vien nhap:
 
 - Block `Headings / Labels`: danh sach cap `id + text`
 - `Question Text` cho tung dong can match (vd: Paragraph A/B/C)
-- `Correct Answer(s)`: nhap `id` cua heading dung
+- `Correct Answer(s)`: co the nhap `id` hoac `text` (uu tien `id`)
+
+Rieng `matching_information`:
+
+- Co nut `Generate from range`.
+- Nhap `A-G` hoac `I-VII` de tao nhanh danh sach:
+  - `{ id: "A", text: "A" } ...`
+  - `{ id: "I", text: "I" } ...`
+- Generate se **replace** list hien tai, sau do giao vien van co the sua tay.
 
 Neu de co chen `[so]` trong passage/content thi `Exam` se gan o drag-drop ngay tai cho do.
 
@@ -97,6 +105,9 @@ Luu y:
 
 - Placeholder hop le: `[1]`, `[Q1]`, `[ 1 ]`
 - So trong `[]` phai khop `q_number`
+- Rieng `summary_completion` co 2 mode runtime:
+  - Neu `Options List` co item hop le (`id` hoac `text`) => Exam render drag-drop.
+  - Neu `Options List` rong/khong hop le => Exam tu dong render nhu `note_completion` (text input cho moi placeholder).
 
 ### F. `gap_fill` (legacy) / `note_completion`
 
@@ -138,6 +149,11 @@ Giao vien nhap:
 ### Rule 4: Completion/GAP fill uu tien text block
 
 - Neu da dung text block voi `[n]`, giao vien chi can quan tam map so + dap an.
+
+### Rule 5: Option-based answer mapping duoc validate khi Save
+
+- Ap dung cho: `mult_choice`, nhom matching, va completion co option pool.
+- Neu token trong `Correct Answer(s)` khong map duoc vao `id/label/text` hop le, backend tra `400` va block save.
 
 ## 4) Minimal checklist truoc khi Save
 

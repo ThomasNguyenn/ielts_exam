@@ -168,6 +168,61 @@ describe("submitExamFlow", () => {
     expect(writingSubmissionCreateMock).not.toHaveBeenCalled();
   });
 
+  it("scores option-based aliases in end-to-end flow (label/id/text)", async () => {
+    testFindByIdMock.mockImplementation(() =>
+      createPopulateChain({
+        _id: "reading-test-alias",
+        type: "reading",
+        reading_passages: [
+          {
+            question_groups: [
+              {
+                type: "mult_choice",
+                questions: [
+                  {
+                    q_number: 1,
+                    text: "Pick one",
+                    correct_answers: ["A"],
+                    option: [
+                      { label: "A", text: "Northern route" },
+                      { label: "B", text: "Southern route" },
+                    ],
+                  },
+                ],
+              },
+              {
+                type: "matching_information",
+                headings: [
+                  { id: "I", text: "Solar farms" },
+                  { id: "II", text: "Wind corridors" },
+                ],
+                questions: [
+                  { q_number: 2, text: "Paragraph B", correct_answers: ["Wind corridors"] },
+                ],
+              },
+            ],
+          },
+        ],
+        listening_sections: [],
+        writing_tasks: [],
+      }),
+    );
+
+    const result = await submitExamFlow({
+      testId: "reading-test-alias",
+      userId: null,
+      body: {
+        answers: ["Northern route", "II"],
+        timeTaken: 60000,
+      },
+    });
+
+    expect(result.score).toBe(2);
+    expect(result.total).toBe(2);
+    expect(result.question_review[0].is_correct).toBe(true);
+    expect(result.question_review[1].is_correct).toBe(true);
+  });
+
   it("creates writing submission and returns writingSubmissionId for writing exams", async () => {
     testFindByIdMock.mockImplementation(() =>
       createPopulateChain({

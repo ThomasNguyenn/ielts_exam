@@ -22,6 +22,40 @@ const parsePositiveInt = (value, fallback) => {
   return Math.floor(parsed);
 };
 
+const ensureUrlHasProtocol = (value) => {
+  const raw = trimString(value);
+  if (!raw) return "";
+  if (/^https?:\/\//i.test(raw)) return raw;
+  return `https://${raw}`;
+};
+
+const normalizeSpacesEndpoint = (endpoint, bucket) => {
+  const endpointRaw = trimTrailingSlashes(endpoint);
+  if (!endpointRaw) return "";
+
+  try {
+    const parsed = new URL(ensureUrlHasProtocol(endpointRaw));
+    const bucketValue = trimString(bucket).toLowerCase();
+    const hostname = String(parsed.hostname || "");
+
+    // Misconfig guard:
+    // Some deployments set endpoint to "https://<bucket>.<region>.digitaloceanspaces.com".
+    // The AWS SDK will then prepend the bucket again for virtual-hosted requests, producing:
+    // "<bucket>.<bucket>.<region>.digitaloceanspaces.com" which fails TLS altname validation.
+    if (bucketValue && hostname.toLowerCase().startsWith(`${bucketValue}.`)) {
+      parsed.hostname = hostname.slice(bucketValue.length + 1);
+    }
+
+    const basePath =
+      parsed.pathname && parsed.pathname !== "/"
+        ? parsed.pathname.replace(/\/+$/, "")
+        : "";
+    return `${parsed.protocol}//${parsed.hostname}${basePath}`;
+  } catch {
+    return endpointRaw;
+  }
+};
+
 const createStorageError = (statusCode, code, message) => {
   const error = new Error(message);
   error.statusCode = statusCode;
@@ -31,7 +65,7 @@ const createStorageError = (statusCode, code, message) => {
 
 const inferRegionFromEndpoint = (endpoint) => {
   try {
-    const { hostname } = new URL(endpoint);
+    const { hostname } = new URL(ensureUrlHasProtocol(endpoint));
     const match = hostname.match(/(?:^|\.)([a-z0-9-]+)\.digitaloceanspaces\.com$/i);
     return match?.[1] || "";
   } catch {
@@ -40,8 +74,8 @@ const inferRegionFromEndpoint = (endpoint) => {
 };
 
 const resolveObjectStorageConfig = () => {
-  const endpoint = trimString(process.env.DO_SPACES_ENDPOINT);
   const bucket = trimString(process.env.DO_SPACES_BUCKET);
+  const endpoint = normalizeSpacesEndpoint(process.env.DO_SPACES_ENDPOINT, bucket);
   const accessKeyId = trimString(process.env.DO_SPACES_ACCESS_KEY_ID || process.env.DO_SPACES_KEY);
   const secretAccessKey = trimString(process.env.DO_SPACES_SECRET_ACCESS_KEY || process.env.DO_SPACES_SECRET);
   const region = trimString(process.env.DO_SPACES_REGION) || inferRegionFromEndpoint(endpoint) || "us-east-1";
