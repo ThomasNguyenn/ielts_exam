@@ -26,6 +26,8 @@ const PASSWORD_MIN = 8;
 const PASSWORD_MAX = 72; // bcrypt limit
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const TRUTHY_VALUES = new Set(["1", "true", "yes", "on"]);
+const FALSY_VALUES = new Set(["0", "false", "no", "off"]);
 
 const validatePassword = (password) => {
   if (!password || password.length < PASSWORD_MIN) {
@@ -558,7 +560,10 @@ export const getProfile = async (req, res) => {
     }
 
     const profileUser = pickProfileUserPayload(user);
-    const dashboard = await buildProfileDashboard(req.user.userId, { targets: profileUser.targets });
+    const includeDashboard = parseBooleanQuery(req.query?.include_dashboard, true);
+    const dashboard = includeDashboard
+      ? await buildProfileDashboard(req.user.userId, { targets: profileUser.targets })
+      : null;
 
     res.set("Cache-Control", "no-store");
     res.json({
@@ -571,6 +576,14 @@ export const getProfile = async (req, res) => {
   } catch (error) {
     return handleControllerError(req, res, error, { route: "auth.getProfile" });
   }
+};
+
+const parseBooleanQuery = (value, fallback) => {
+  if (value === undefined || value === null || value === "") return fallback;
+  const normalized = String(value).trim().toLowerCase();
+  if (TRUTHY_VALUES.has(normalized)) return true;
+  if (FALSY_VALUES.has(normalized)) return false;
+  return fallback;
 };
 
 export const updateProfile = async (req, res) => {
@@ -628,7 +641,10 @@ export const updateProfile = async (req, res) => {
     }
 
     const profileUser = pickProfileUserPayload(user);
-    const dashboard = await buildProfileDashboard(userId, { targets: profileUser.targets });
+    const dashboard = await buildProfileDashboard(userId, {
+      targets: profileUser.targets,
+      forceRefresh: true,
+    });
 
     res.set("Cache-Control", "no-store");
     res.json({

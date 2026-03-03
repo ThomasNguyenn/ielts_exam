@@ -1,12 +1,25 @@
 
 import mongoose from 'mongoose';
 
+const DEFAULT_MAX_POOL_SIZE = 50;
+const DEFAULT_MIN_POOL_SIZE = 5;
+const DEFAULT_MAX_IDLE_TIME_MS = 30000;
+
+const toPositiveInt = (value, fallback) => {
+  const parsed = Number.parseInt(String(value || ''), 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return parsed;
+};
+
+const resolvedMaxPoolSize = toPositiveInt(process.env.MONGO_MAX_POOL_SIZE, DEFAULT_MAX_POOL_SIZE);
+const resolvedMinPoolSize = Math.min(DEFAULT_MIN_POOL_SIZE, resolvedMaxPoolSize);
+const resolvedMaxIdleTimeMs = toPositiveInt(process.env.MONGO_MAX_IDLE_TIME_MS, DEFAULT_MAX_IDLE_TIME_MS);
 
 const clientOptions = {
   serverApi: { version: '1', strict: true, deprecationErrors: true },
-  maxPoolSize: 50,
-  minPoolSize: 5,
-  maxIdleTimeMS: 30000,
+  maxPoolSize: resolvedMaxPoolSize,
+  minPoolSize: resolvedMinPoolSize,
+  maxIdleTimeMS: resolvedMaxIdleTimeMs,
 };
 const STATE_LABELS = {
   0: "disconnected",
@@ -48,4 +61,3 @@ export const getDBHealth = async ({ includePing = false } = {}) => {
 
   return health;
 };
-

@@ -30,6 +30,7 @@ const SPEAKING_STUCK_THRESHOLD_MS = Math.max(
 const SPEAKING_REPAIR_DEFAULT_WINDOW_HOURS = 24;
 const SPEAKING_REPAIR_DEFAULT_LIMIT = 200;
 const SPEAKING_REPAIR_MAX_LIMIT = 1000;
+const ADMIN_USER_LIST_SELECT = "name email role isConfirmed createdAt lastSeenAt avatarSeed targets xp level";
 
 const toBoolean = (value, fallback = false) => {
     if (value === undefined || value === null) return fallback;
@@ -38,6 +39,24 @@ const toBoolean = (value, fallback = false) => {
     if (["0", "false", "no", "off"].includes(normalized)) return false;
     return fallback;
 };
+
+const parseBooleanQuery = (value, fallback) => {
+    if (value === undefined || value === null || value === "") return fallback;
+    const normalized = String(value).trim().toLowerCase();
+    if (["1", "true", "yes", "on"].includes(normalized)) return true;
+    if (["0", "false", "no", "off"].includes(normalized)) return false;
+    return fallback;
+};
+
+const buildEstimatedPaginationMeta = ({ page, limit, hasNextPage }) => ({
+    page,
+    limit,
+    totalItems: null,
+    totalPages: null,
+    hasPrevPage: page > 1,
+    hasNextPage: Boolean(hasNextPage),
+    estimated: true,
+});
 
 const toPositiveInt = (value, fallback, max = Number.MAX_SAFE_INTEGER) => {
     const parsed = Number(value);
@@ -390,28 +409,45 @@ export const getUsers = async (req, res) => {
     try {
         const { role } = req.query;
         const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 20, maxLimit: 100 });
+        const includeTotal = parseBooleanQuery(req.query?.include_total, true);
         const filter = {};
         if (role) {
             filter.role = role;
         }
-
-        const totalItems = await User.countDocuments(filter);
         const threshold = buildOnlineThreshold();
         const thresholdTimeMs = threshold.getTime();
-        
-        const users = await User.find(filter)
+
+        const queryLimit = includeTotal ? limit : limit + 1;
+        const usersQuery = User.find(filter)
             .sort({ createdAt: -1 })
             .skip(skip)
-            .limit(limit)
-            .select('-password')
+            .limit(queryLimit)
+            .select(ADMIN_USER_LIST_SELECT)
             .lean();
 
-        const usersWithOnlineFlag = users.map((user) => withOnlineFlag(user, thresholdTimeMs));
+        let totalItems = null;
+        let users = [];
+        if (includeTotal) {
+            [totalItems, users] = await Promise.all([
+                User.countDocuments(filter),
+                usersQuery,
+            ]);
+        } else {
+            users = await usersQuery;
+        }
+
+        const hasNextPage = includeTotal ? false : users.length > limit;
+        const effectiveUsers = includeTotal ? users : users.slice(0, limit);
+
+        const usersWithOnlineFlag = effectiveUsers.map((user) => withOnlineFlag(user, thresholdTimeMs));
+        const pagination = includeTotal
+            ? buildPaginationMeta({ page, limit, totalItems })
+            : buildEstimatedPaginationMeta({ page, limit, hasNextPage });
             
         res.json({
             success: true,
             data: usersWithOnlineFlag,
-            pagination: buildPaginationMeta({ page, limit, totalItems }),
+            pagination,
         });
     } catch (error) {
         return handleControllerError(req, res, error);
@@ -422,6 +458,7 @@ export const getOnlineStudents = async (req, res) => {
     try {
         res.set("Cache-Control", "no-store");
         const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 20, maxLimit: 100 });
+        const includeTotal = parseBooleanQuery(req.query?.include_total, true);
         const now = new Date();
         const threshold = buildOnlineThreshold(now);
         const thresholdTimeMs = threshold.getTime();
@@ -439,20 +476,36 @@ export const getOnlineStudents = async (req, res) => {
                 { email: safeRegex },
             ];
         }
-
-        const totalItems = await User.countDocuments(filter);
-        const students = await User.find(filter)
+        const queryLimit = includeTotal ? limit : limit + 1;
+        const studentsQuery = User.find(filter)
             .sort({ lastSeenAt: -1, createdAt: -1 })
             .skip(skip)
-            .limit(limit)
-            .select("-password")
+            .limit(queryLimit)
+            .select(ADMIN_USER_LIST_SELECT)
             .lean();
-        const studentsWithOnlineFlag = students.map((user) => withOnlineFlag(user, thresholdTimeMs));
+
+        let totalItems = null;
+        let students = [];
+        if (includeTotal) {
+            [totalItems, students] = await Promise.all([
+                User.countDocuments(filter),
+                studentsQuery,
+            ]);
+        } else {
+            students = await studentsQuery;
+        }
+
+        const hasNextPage = includeTotal ? false : students.length > limit;
+        const effectiveStudents = includeTotal ? students : students.slice(0, limit);
+        const studentsWithOnlineFlag = effectiveStudents.map((user) => withOnlineFlag(user, thresholdTimeMs));
+        const pagination = includeTotal
+            ? buildPaginationMeta({ page, limit, totalItems })
+            : buildEstimatedPaginationMeta({ page, limit, hasNextPage });
 
         return res.json({
             success: true,
             data: studentsWithOnlineFlag,
-            pagination: buildPaginationMeta({ page, limit, totalItems }),
+            pagination,
             online_window_minutes: ONLINE_WINDOW_MINUTES,
             as_of: now.toISOString(),
         });

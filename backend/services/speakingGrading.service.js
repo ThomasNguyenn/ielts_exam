@@ -1150,19 +1150,11 @@ RULES:
 - REQUIRED CONTRACT: JSON MUST contain:
   - "lexical_resource": { "score": number, "feedback": "string (In Vietnamese)" }
   - "grammatical_range": { "score": number, "feedback": "string (In Vietnamese)" }
-- OPTIONAL CONTRACT (can be omitted if output budget is tight):
   - vocabulary_upgrades
   - grammar_corrections
-  - general_feedback
-
 Return ONLY valid JSON.
-Minimum accepted shape:
-{
-  "lexical_resource": { "score": number, "feedback": "string (In Vietnamese)" },
-  "grammatical_range": { "score": number, "feedback": "string (In Vietnamese)" }
-}
 
-Optional extended shape:
+Minimum accepted shape:
 {
   "lexical_resource": { "score": number, "feedback": "string (In Vietnamese)" },
   "grammatical_range": { "score": number, "feedback": "string (In Vietnamese)" },
@@ -1171,8 +1163,7 @@ Optional extended shape:
   ],
   "grammar_corrections": [
     { "original": "string" (words or noun phrase only), "corrected": "string" (words or noun phrase only), "reason": "string (In Vietnamese)" }
-  ],
-  "general_feedback": "string (In Vietnamese)"
+  ]
 }
 `;
 
@@ -1205,20 +1196,11 @@ TRANSCRIPT META:
 REQUIRED CONTRACT:
 - "lexical_resource": { "score": number, "feedback": "string (In Vietnamese)" }
 - "grammatical_range": { "score": number, "feedback": "string (In Vietnamese)" }
-
-OPTIONAL CONTRACT (can be omitted if needed):
 - vocabulary_upgrades
 - grammar_corrections
-- general_feedback
 
 Return ONLY valid JSON.
 Minimum accepted shape:
-{
-  "lexical_resource": { "score": number, "feedback": "string (In Vietnamese)" },
-  "grammatical_range": { "score": number, "feedback": "string (In Vietnamese)" }
-}
-
-Optional extended shape:
 {
   "lexical_resource": { "score": number, "feedback": "string (In Vietnamese)" },
   "grammatical_range": { "score": number, "feedback": "string (In Vietnamese)" },

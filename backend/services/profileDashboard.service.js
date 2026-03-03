@@ -6,11 +6,13 @@ import TestAttempt from "../models/TestAttempt.model.js";
 import Vocabulary from "../models/Vocabulary.model.js";
 import WritingSubmission from "../models/WritingSubmission.model.js";
 import { buildAnalyticsHistoryRaw, buildAnalyticsSummary } from "./analyticsKpi.service.js";
+import { getJson, setJson } from "./responseCache.redis.js";
 
 const SKILL_KEYS = Object.freeze(["reading", "listening", "writing", "speaking"]);
 const WRITING_COMPLETED_STATUS = new Set(["scored", "reviewed"]);
 const SPEAKING_COMPLETED_STATUS = new Set(["completed"]);
 const DAY_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_PROFILE_DASHBOARD_CACHE_TTL_SEC = 30;
 
 const READING_BAND_MAP = [
   { min: 39, band: 9.0 }, { min: 37, band: 8.5 }, { min: 35, band: 8.0 },
@@ -33,6 +35,24 @@ const LISTENING_BAND_MAP = [
 const toNumber = (value, fallback = 0) => {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : fallback;
+};
+
+const toPositiveInt = (value, fallback) => {
+  const parsed = Number.parseInt(String(value || ""), 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return parsed;
+};
+
+const getProfileDashboardCacheTtlSec = () =>
+  toPositiveInt(
+    process.env.PROFILE_DASHBOARD_CACHE_TTL_SEC,
+    DEFAULT_PROFILE_DASHBOARD_CACHE_TTL_SEC,
+  );
+
+const toProfileDashboardCacheKey = (userId, targets = {}) => {
+  const safeTargets = normalizeTargets(targets);
+  const targetsSignature = Buffer.from(JSON.stringify(safeTargets)).toString("base64url");
+  return `profile-dashboard:v1:${String(userId)}:${targetsSignature}`;
 };
 
 const roundHalf = (value) => Math.round(toNumber(value, 0) * 2) / 2;
@@ -264,9 +284,22 @@ const buildBadges = ({ writingCount, speakingCount, vocabularyCount, streakDays,
   ];
 };
 
-export const buildProfileDashboard = async (userId, { targets = {} } = {}) => {
+export const buildProfileDashboard = async (
+  userId,
+  { targets = {}, useCache = true, forceRefresh = false, cacheTtlSec } = {},
+) => {
   if (!mongoose.Types.ObjectId.isValid(userId)) {
     return createEmptyDashboard(targets);
+  }
+
+  const resolvedCacheTtlSec = toPositiveInt(cacheTtlSec, getProfileDashboardCacheTtlSec());
+  const shouldUseCache = Boolean(useCache) && resolvedCacheTtlSec > 0;
+  const cacheKey = shouldUseCache ? toProfileDashboardCacheKey(userId, targets) : null;
+  if (cacheKey && !forceRefresh) {
+    const cached = await getJson(cacheKey);
+    if (cached && typeof cached === "object") {
+      return cached;
+    }
   }
 
   const objectId = new mongoose.Types.ObjectId(userId);
@@ -548,12 +581,20 @@ export const buildProfileDashboard = async (userId, { targets = {} } = {}) => {
       submissionId: String(item?.submissionIdRef || "").trim() || null,
     }));
 
-  return {
+  const result = {
     summary,
     skills,
     badges,
     recentActivities,
   };
+
+  if (cacheKey) {
+    void setJson(cacheKey, result, resolvedCacheTtlSec).catch(() => {
+      // Dashboard cache is best-effort and should not affect request flow.
+    });
+  }
+
+  return result;
 };
 
 export const sanitizeAvatarSeed = (value, fallback = "ielts-student") => {

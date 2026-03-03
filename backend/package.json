@@ -19,6 +19,7 @@
     "ws": "^8.19.0"
   },
   "devDependencies": {
+    "autocannon": "^8.0.0",
     "nodemon": "^3.1.11",
     "supertest": "^7.2.2",
     "vitest": "^4.0.18"
@@ -43,7 +44,8 @@
     "load:api-mix": "k6 run ./tests/load/k6.api-mix.js",
     "load:api-mix:prod": "k6 run -e BASE_URL=https://ielts-exam-65pjc.ondigitalocean.app ./tests/load/k6.api-mix.js",
     "load:rps-probe": "k6 run ./tests/load/k6.rps-probe.js",
-    "load:rps-probe:prod": "k6 run -e BASE_URL=https://ielts-exam-65pjc.ondigitalocean.app ./tests/load/k6.rps-probe.js"
+    "load:rps-probe:prod": "k6 run -e BASE_URL=https://ielts-exam-65pjc.ondigitalocean.app ./tests/load/k6.rps-probe.js",
+    "load:autocannon:rps": "node ./tests/load/autocannon.rps.js"
   },
   "type": "module",
   "keywords": [],

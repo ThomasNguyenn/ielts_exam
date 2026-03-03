@@ -22,9 +22,12 @@ export const options = {
 };
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:5000';
+const ORIGIN = __ENV.ORIGIN || 'https://localhost:3000';
+const commonHeaders = { Origin: ORIGIN };
 
 export default function () {
   const healthRes = http.get(`${BASE_URL}/api/health`, {
+    headers: commonHeaders,
     tags: { name: 'health' },
   });
 
@@ -40,6 +43,7 @@ export default function () {
   });
 
   const dbHealthRes = http.get(`${BASE_URL}/api/health/db`, {
+    headers: commonHeaders,
     tags: { name: 'health_db' },
   });
 
