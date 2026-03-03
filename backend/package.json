@@ -37,7 +37,11 @@
     "backup:uploads": "powershell -ExecutionPolicy Bypass -File ./scripts/backup-uploads.ps1",
     "restore:uploads": "powershell -ExecutionPolicy Bypass -File ./scripts/restore-uploads.ps1",
     "worker:ai": "node ./workers/ai.worker.js",
-    "seed:skills": "node ./seedSkillModules.js"
+    "seed:skills": "node ./seedSkillModules.js",
+    "load:smoke": "k6 run ./tests/load/k6.smoke.js",
+    "load:smoke:prod": "k6 run -e BASE_URL=https://ielts-exam-65pjc.ondigitalocean.app ./tests/load/k6.smoke.js",
+    "load:api-mix": "k6 run ./tests/load/k6.api-mix.js",
+    "load:api-mix:prod": "k6 run -e BASE_URL=https://ielts-exam-65pjc.ondigitalocean.app ./tests/load/k6.api-mix.js"
   },
   "type": "module",
   "keywords": [],
