@@ -3,8 +3,12 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 const userFindOneMock = vi.fn();
 const userDeleteOneMock = vi.fn();
 const invitationFindOneMock = vi.fn();
+const invitationUpdateOneMock = vi.fn();
 const sendVerificationEmailMock = vi.fn();
 const sendPasswordResetEmailMock = vi.fn();
+const getInvitationTokenRecordMock = vi.fn();
+const cacheInvitationTokenMock = vi.fn();
+const deleteInvitationTokenMock = vi.fn();
 const bcryptGenSaltMock = vi.fn();
 const bcryptHashMock = vi.fn();
 const jwtSignMock = vi.fn();
@@ -27,12 +31,19 @@ vi.mock("../../models/User.model.js", () => ({
 vi.mock("../../models/Invitation.model.js", () => ({
   default: {
     findOne: invitationFindOneMock,
+    updateOne: invitationUpdateOneMock,
   },
 }));
 
 vi.mock("../../services/email.service.js", () => ({
   sendVerificationEmail: sendVerificationEmailMock,
   sendPasswordResetEmail: sendPasswordResetEmailMock,
+}));
+
+vi.mock("../../services/invitationToken.redis.js", () => ({
+  getInvitationTokenRecord: getInvitationTokenRecordMock,
+  cacheInvitationToken: cacheInvitationTokenMock,
+  deleteInvitationToken: deleteInvitationTokenMock,
 }));
 
 vi.mock("bcryptjs", () => ({
@@ -87,8 +98,12 @@ beforeEach(() => {
   userFindOneMock.mockResolvedValue(null);
   userDeleteOneMock.mockResolvedValue({ deletedCount: 1 });
   invitationFindOneMock.mockResolvedValue(null);
+  invitationUpdateOneMock.mockResolvedValue({ acknowledged: true, modifiedCount: 1 });
   sendVerificationEmailMock.mockResolvedValue(undefined);
   sendPasswordResetEmailMock.mockResolvedValue(undefined);
+  getInvitationTokenRecordMock.mockResolvedValue(null);
+  cacheInvitationTokenMock.mockResolvedValue(true);
+  deleteInvitationTokenMock.mockResolvedValue(true);
   bcryptGenSaltMock.mockResolvedValue("salt");
   bcryptHashMock.mockResolvedValue("hashed-password");
   jwtSignMock.mockReturnValue("signed.jwt.token");
@@ -138,6 +153,8 @@ describe("register", () => {
 
   it("accepts invited registration when invite token contains spaces instead of plus", async () => {
     const invitationDoc = {
+      _id: "invite-1",
+      token: "abc+def",
       email: "teacher@example.com",
       role: "teacher",
       status: "pending",
@@ -162,10 +179,56 @@ describe("register", () => {
       token: { $in: ["abc def", "abc+def"] },
       status: "pending",
     });
+    expect(cacheInvitationTokenMock).toHaveBeenCalledWith(invitationDoc);
+    expect(deleteInvitationTokenMock).toHaveBeenCalledWith("abc+def");
     expect(res.statusCode).toBe(201);
     expect(res.body?.success).toBe(true);
     expect(createdUsers[0]?.role).toBe("teacher");
     expect(createdUsers[0]?.isConfirmed).toBe(true);
     expect(sendVerificationEmailMock).not.toHaveBeenCalled();
+  });
+
+  it("accepts invited registration when token is resolved from Redis record", async () => {
+    getInvitationTokenRecordMock.mockResolvedValueOnce({
+      token: "redis-token",
+      invitationId: "invite-redis-1",
+      email: "teacher@example.com",
+      role: "teacher",
+      status: "pending",
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    });
+
+    const invitationDoc = {
+      _id: "invite-redis-1",
+      email: "teacher@example.com",
+      role: "teacher",
+      status: "pending",
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      save: vi.fn().mockResolvedValue(undefined),
+    };
+    invitationFindOneMock.mockResolvedValueOnce(invitationDoc);
+
+    const req = {
+      body: {
+        email: "teacher@example.com",
+        password: "Password1",
+        name: "Invited Teacher",
+        inviteToken: "redis-token",
+      },
+    };
+    const res = createMockResponse();
+
+    await register(req, res);
+
+    expect(getInvitationTokenRecordMock).toHaveBeenCalledWith(["redis-token"]);
+    expect(invitationFindOneMock).toHaveBeenCalledWith({
+      _id: "invite-redis-1",
+      status: "pending",
+    });
+    expect(deleteInvitationTokenMock).toHaveBeenCalledWith("redis-token");
+    expect(res.statusCode).toBe(201);
+    expect(res.body?.success).toBe(true);
+    expect(createdUsers[0]?.role).toBe("teacher");
+    expect(createdUsers[0]?.isConfirmed).toBe(true);
   });
 });

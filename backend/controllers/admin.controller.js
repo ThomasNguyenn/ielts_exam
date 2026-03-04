@@ -15,6 +15,7 @@ import StudyTaskHistory from "../models/StudyTaskHistory.model.js";
 import mongoose from "mongoose";
 import { parsePagination, buildPaginationMeta } from "../utils/pagination.js";
 import { handleControllerError, sendControllerError } from '../utils/controllerError.js';
+import { cacheInvitationToken, deleteInvitationToken } from "../services/invitationToken.redis.js";
 
 const toTimeValue = (value) => {
     const parsed = new Date(value).getTime();
@@ -1037,6 +1038,9 @@ export const inviteUser = async (req, res) => {
             invitedBy: req.user.userId,
         });
         await invitation.save();
+        await cacheInvitationToken(invitation).catch((redisError) => {
+            console.warn("Failed to cache invitation token in Redis:", redisError?.message || "Unknown error");
+        });
 
         await sendInvitationEmail(invitation.email, invitation.token, invitation.role);
 
@@ -1064,16 +1068,25 @@ export const deleteInvitation = async (req, res) => {
         }
 
         const deleted = await Invitation.findByIdAndDelete(invitationId)
-            .select("_id email role status")
+            .select("_id email role status token")
             .lean();
         if (!deleted) {
             return sendControllerError(req, res, { statusCode: 404, message: "Invitation not found" });
         }
+        const token = String(deleted?.token || "").trim();
+        if (token) {
+            await deleteInvitationToken(token).catch((redisError) => {
+                console.warn("Failed to remove invitation token from Redis:", redisError?.message || "Unknown error");
+            });
+        }
+
+        const deletedPayload = { ...deleted };
+        delete deletedPayload.token;
 
         return res.json({
             success: true,
             message: "Invitation deleted successfully",
-            data: deleted,
+            data: deletedPayload,
         });
     } catch (error) {
         return handleControllerError(req, res, error);

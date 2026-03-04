@@ -5,13 +5,13 @@ import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from 
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  ChevronDown,
   Copy,
   GripVertical,
   Loader2,
   MoreVertical,
   Pencil,
   Plus,
+  Settings2,
   Trash2,
 } from "lucide-react";
 import { api } from "@/shared/api/client";
@@ -30,7 +30,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
@@ -446,8 +446,7 @@ export default function HomeworkAssignmentEditorPage() {
   const [showAddSection, setShowAddSection] = useState(false);
   const [addingLessonSectionId, setAddingLessonSectionId] = useState("");
   const [newLessonName, setNewLessonName] = useState("");
-  const [isSettingsOpen, setIsSettingsOpen] = useState(true);
-  const [isGroupsOpen, setIsGroupsOpen] = useState(true);
+  const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
   const [renameState, setRenameState] = useState({
     open: false,
     type: "",
@@ -843,6 +842,15 @@ export default function HomeworkAssignmentEditorPage() {
             <div className="flex items-center gap-2">
               <Badge variant="secondary">{statusLabel}</Badge>
               <Button variant="outline" onClick={() => navigate("/homework")}>Back</Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="Open assignment settings"
+                onClick={() => setIsSettingsDialogOpen(true)}
+              >
+                <Settings2 className="h-4 w-4" />
+              </Button>
               <Button onClick={handleSaveAssignment} disabled={saving || !canManage}>
                 {saving ? (
                   <>
@@ -873,50 +881,53 @@ export default function HomeworkAssignmentEditorPage() {
           </Card>
         ) : null}
 
-        <div className="grid grid-cols-12 gap-4">
-          <Card className="col-span-12 lg:col-span-8">
-            <Collapsible open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle>Assignment Settings</CardTitle>
-                </div>
-                <CollapsibleTrigger asChild>
-                  <Button type="button" variant="ghost" size="icon" aria-label="Toggle assignment settings">
-                    <ChevronDown className={`h-4 w-4 transition-transform ${isSettingsOpen ? "rotate-180" : ""}`} />
-                  </Button>
-                </CollapsibleTrigger>
-              </CardHeader>
-              <CollapsibleContent>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Title</Label>
+        <Dialog open={isSettingsDialogOpen} onOpenChange={setIsSettingsDialogOpen}>
+          <DialogContent className="max-h-[88vh] max-w-4xl overflow-hidden max-[1440px]:max-w-3xl max-[1440px]:p-4">
+            <DialogHeader className="max-[1440px]:space-y-1">
+              <DialogTitle className="max-[1440px]:text-base">Assignment Settings</DialogTitle>
+              <DialogDescription className="max-[1440px]:text-xs">
+                Update assignment info and choose target groups.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid max-h-[70vh] grid-cols-12 gap-4 overflow-y-auto pr-1 max-[1440px]:gap-3 max-[1440px]:pr-0 max-[1440px]:text-sm">
+              <Card className="col-span-12 lg:col-span-8">
+                <CardHeader className="max-[1440px]:space-y-1 max-[1440px]:px-4 max-[1440px]:py-3">
+                  <CardTitle className="max-[1440px]:text-base">Assignment Settings</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4 max-[1440px]:space-y-3 max-[1440px]:px-4 max-[1440px]:pb-4">
+                  <div className="space-y-2 max-[1440px]:space-y-1.5">
+                    <Label className="max-[1440px]:text-xs">Title</Label>
                     <Input
+                      className="max-[1440px]:h-9 max-[1440px]:text-sm"
                       value={form.title}
                       onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
                       disabled={!canManage}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label>Description</Label>
+                  <div className="space-y-2 max-[1440px]:space-y-1.5">
+                    <Label className="max-[1440px]:text-xs">Description</Label>
                     <Textarea
+                      className="max-[1440px]:min-h-20 max-[1440px]:text-sm"
                       value={form.description}
                       onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
                       disabled={!canManage}
                     />
                   </div>
-                  <div className="grid grid-cols-12 gap-3">
-                    <div className="col-span-12 md:col-span-6 space-y-2">
-                      <Label>Month</Label>
+                  <div className="grid grid-cols-12 gap-3 max-[1440px]:gap-2">
+                    <div className="col-span-12 space-y-2 max-[1440px]:space-y-1.5 md:col-span-6">
+                      <Label className="max-[1440px]:text-xs">Month</Label>
                       <Input
+                        className="max-[1440px]:h-9 max-[1440px]:text-sm"
                         type="month"
                         value={form.month}
                         onChange={(event) => setForm((prev) => ({ ...prev, month: event.target.value }))}
                         disabled={!canManage}
                       />
                     </div>
-                    <div className="col-span-12 md:col-span-6 space-y-2">
-                      <Label>Due date</Label>
+                    <div className="col-span-12 space-y-2 max-[1440px]:space-y-1.5 md:col-span-6">
+                      <Label className="max-[1440px]:text-xs">Due date</Label>
                       <Input
+                        className="max-[1440px]:h-9 max-[1440px]:text-sm"
                         type="date"
                         value={form.due_date}
                         onChange={(event) => setForm((prev) => ({ ...prev, due_date: event.target.value }))}
@@ -924,15 +935,14 @@ export default function HomeworkAssignmentEditorPage() {
                       />
                     </div>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Week is auto-calculated from due date.
-                  </p>
-                  <div className="space-y-2">
-                    <Label>Status</Label>
-                    <div className="flex flex-wrap gap-2">
+                  <p className="text-xs text-muted-foreground">Week is auto-calculated from due date.</p>
+                  <div className="space-y-2 max-[1440px]:space-y-1.5">
+                    <Label className="max-[1440px]:text-xs">Status</Label>
+                    <div className="flex flex-wrap gap-2 max-[1440px]:gap-1.5">
                       {["draft", "published", "archived"].map((status) => (
                         <Button
                           key={status}
+                          className="max-[1440px]:h-8 max-[1440px]:px-2.5 max-[1440px]:text-xs"
                           type="button"
                           variant={form.status === status ? "default" : "outline"}
                           onClick={() => setForm((prev) => ({ ...prev, status }))}
@@ -944,47 +954,55 @@ export default function HomeworkAssignmentEditorPage() {
                     </div>
                   </div>
                 </CardContent>
-              </CollapsibleContent>
-            </Collapsible>
-          </Card>
+              </Card>
 
-          <Card className="col-span-12 lg:col-span-4">
-            <Collapsible open={isGroupsOpen} onOpenChange={setIsGroupsOpen}>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle>Target Groups</CardTitle>
-                  <CardDescription>Select one or more groups.</CardDescription>
-                </div>
-                <CollapsibleTrigger asChild>
-                  <Button type="button" variant="ghost" size="icon" aria-label="Toggle target groups">
-                    <ChevronDown className={`h-4 w-4 transition-transform ${isGroupsOpen ? "rotate-180" : ""}`} />
-                  </Button>
-                </CollapsibleTrigger>
-              </CardHeader>
-              <CollapsibleContent>
-                <CardContent>
-                  <ScrollArea className="h-64 pr-2">
+              <Card className="col-span-12 lg:col-span-4">
+                <CardHeader className="max-[1440px]:space-y-1 max-[1440px]:px-4 max-[1440px]:py-3">
+                  <CardTitle className="max-[1440px]:text-base">Target Groups</CardTitle>
+                  <CardDescription className="max-[1440px]:text-xs">Select one or more groups.</CardDescription>
+                </CardHeader>
+                <CardContent className="max-[1440px]:px-4 max-[1440px]:pb-4">
+                  <ScrollArea className="h-[26rem] pr-2 max-[1440px]:h-[20rem] max-[1440px]:pr-1">
                     <div className="space-y-3">
                       {groups.map((group) => {
                         const checked = form.target_group_ids.includes(String(group._id));
                         return (
-                          <div key={group._id} className="flex items-center justify-between rounded-md border p-2">
+                          <div
+                            key={group._id}
+                            className="flex items-center justify-between rounded-md border p-2 max-[1440px]:gap-2 max-[1440px]:p-1.5"
+                          >
                             <div>
-                              <p className="text-sm font-medium">{group.name}</p>
-                              <p className="text-xs text-muted-foreground">{(group.student_ids || []).length || 0} students</p>
+                              <p className="text-sm font-medium max-[1440px]:text-xs">{group.name}</p>
+                              <p className="text-xs text-muted-foreground max-[1440px]:text-[11px]">
+                                {(group.student_ids || []).length || 0} students
+                              </p>
                             </div>
-                            <Switch checked={checked} onCheckedChange={() => toggleGroup(group._id)} disabled={!canManage} />
+                            <Switch
+                              checked={checked}
+                              onCheckedChange={() => toggleGroup(group._id)}
+                              disabled={!canManage}
+                            />
                           </div>
                         );
                       })}
-                      {!groups.length ? <p className="text-sm text-muted-foreground">No groups yet.</p> : null}
+                      {!groups.length ? <p className="text-sm text-muted-foreground max-[1440px]:text-xs">No groups yet.</p> : null}
                     </div>
                   </ScrollArea>
                 </CardContent>
-              </CollapsibleContent>
-            </Collapsible>
-          </Card>
-        </div>
+              </Card>
+            </div>
+            <DialogFooter className="max-[1440px]:pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="max-[1440px]:h-8 max-[1440px]:px-3 max-[1440px]:text-xs"
+                onClick={() => setIsSettingsDialogOpen(false)}
+              >
+                Done
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">

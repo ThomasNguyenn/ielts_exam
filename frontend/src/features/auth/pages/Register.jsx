@@ -34,19 +34,29 @@ export default function Register() {
     if (!normalizedInviteToken) return;
 
     setInviteLoading(true);
+    setInviteData(null);
     setInviteError(null);
 
     api.validateInvitation(normalizedInviteToken)
       .then((res) => {
-        const data = res?.data || res;
-        if (data?.valid) {
-          setInviteData({ email: data.data?.email || data.email, role: data.data?.role || data.role });
-          setForm((prev) => ({ ...prev, email: data.data?.email || data.email || '' }));
+        const payload = res && typeof res === 'object' ? res : {};
+        const invitePayload = payload?.data && typeof payload.data === 'object'
+          ? payload.data
+          : payload;
+        const isValid = Boolean(payload?.valid ?? invitePayload?.valid);
+
+        if (isValid) {
+          const invitedEmail = String(invitePayload?.email || '').trim();
+          const invitedRole = String(invitePayload?.role || '').trim();
+          setInviteData({ email: invitedEmail, role: invitedRole });
+          setForm((prev) => ({ ...prev, email: invitedEmail }));
         } else {
+          setInviteData(null);
           setInviteError('Lời mời không hợp lệ hoặc đã hết hạn');
         }
       })
       .catch(() => {
+        setInviteData(null);
         setInviteError('Lời mời không hợp lệ hoặc đã hết hạn');
       })
       .finally(() => setInviteLoading(false));

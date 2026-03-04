@@ -20,6 +20,11 @@ import {
   sanitizeAvatarSeed,
   sanitizeDisplayName,
 } from "../services/profileDashboard.service.js";
+import {
+  cacheInvitationToken,
+  deleteInvitationToken,
+  getInvitationTokenRecord,
+} from "../services/invitationToken.redis.js";
 import { handleControllerError, sendControllerError, logControllerError } from "../utils/controllerError.js";
 
 const PASSWORD_MIN = 8;
@@ -76,6 +81,69 @@ const getExpiresAtTimeMs = (value) => {
 const isInvitationExpired = (invitation, nowMs = Date.now()) => {
   const expiresAtMs = getExpiresAtTimeMs(invitation?.expiresAt);
   return expiresAtMs <= nowMs;
+};
+
+const findPendingInvitationByTokenCandidates = async (tokenCandidates = []) => {
+  const candidates = [...new Set((Array.isArray(tokenCandidates) ? tokenCandidates : [])
+    .map((value) => String(value || "").trim())
+    .filter(Boolean))];
+  if (candidates.length === 0) {
+    return { invitation: null, matchedToken: "" };
+  }
+
+  const cachedRecord = await getInvitationTokenRecord(candidates);
+  if (cachedRecord?.invitationId) {
+    let invitationById = null;
+    try {
+      invitationById = await Invitation.findOne({
+        _id: cachedRecord.invitationId,
+        status: "pending",
+      });
+    } catch {
+      invitationById = null;
+    }
+
+    if (invitationById) {
+      return {
+        invitation: invitationById,
+        matchedToken: String(cachedRecord.token || "").trim(),
+      };
+    }
+
+    if (cachedRecord.token) {
+      await deleteInvitationToken(cachedRecord.token).catch(() => {});
+    }
+  }
+
+  const invitation = await Invitation.findOne({
+    token: { $in: candidates },
+    status: "pending",
+  });
+
+  if (invitation) {
+    await cacheInvitationToken(invitation).catch(() => {});
+  }
+
+  const invitationToken = String(invitation?.token || "").trim();
+  const matchedToken = invitationToken
+    ? candidates.find((candidate) => candidate === invitationToken) || candidates[0]
+    : "";
+
+  return { invitation: invitation || null, matchedToken };
+};
+
+const expireInvitation = async (invitation, matchedToken = "") => {
+  if (!invitation || invitation.status !== "pending") return;
+
+  await Invitation.updateOne(
+    { _id: invitation._id, status: "pending" },
+    { $set: { status: "expired" } },
+  ).catch(() => {});
+
+  const tokenToDelete = String(matchedToken || invitation?.token || "").trim();
+  if (tokenToDelete) {
+    await deleteInvitationToken(tokenToDelete).catch(() => {});
+  }
 };
 
 const parseCookies = (cookieHeader = "") =>
@@ -212,23 +280,18 @@ export const register = async (req, res) => {
     let assignedRole = "student";
     let autoConfirm = false;
     let invitation = null;
+    let matchedInviteToken = "";
 
     if (inviteToken) {
       const tokenCandidates = buildInviteTokenCandidates(inviteToken);
-      invitation = tokenCandidates.length > 0
-        ? await Invitation.findOne({
-          token: { $in: tokenCandidates },
-          status: "pending",
-        })
-        : null;
+      const resolved = tokenCandidates.length > 0
+        ? await findPendingInvitationByTokenCandidates(tokenCandidates)
+        : { invitation: null, matchedToken: "" };
+      invitation = resolved?.invitation || null;
+      matchedInviteToken = String(resolved?.matchedToken || "").trim();
 
       if (!invitation || isInvitationExpired(invitation)) {
-        if (invitation?.status === "pending") {
-          await Invitation.updateOne(
-            { _id: invitation._id, status: "pending" },
-            { $set: { status: "expired" } },
-          ).catch(() => {});
-        }
+        await expireInvitation(invitation, matchedInviteToken);
         return sendControllerError(req, res, { statusCode: 400, message: "Invalid or expired invitation token"  });
       }
 
@@ -300,6 +363,10 @@ export const register = async (req, res) => {
       await invitation.save().catch((invitationError) => {
         console.warn("Invitation acceptance update failed:", invitationError.message);
       });
+      const tokenToDelete = String(matchedInviteToken || invitation?.token || "").trim();
+      if (tokenToDelete) {
+        await deleteInvitationToken(tokenToDelete).catch(() => {});
+      }
     }
 
     setRefreshTokenCookie(res, refreshToken.token);
@@ -709,26 +776,22 @@ export const validateInviteToken = async (req, res) => {
     }
 
     const tokenCandidates = buildInviteTokenCandidates(token);
-    const invitation = tokenCandidates.length > 0
-      ? await Invitation.findOne({
-        token: { $in: tokenCandidates },
-        status: "pending",
-      }).select("email role expiresAt status")
-      : null;
+    const resolved = tokenCandidates.length > 0
+      ? await findPendingInvitationByTokenCandidates(tokenCandidates)
+      : { invitation: null, matchedToken: "" };
+    const invitation = resolved?.invitation || null;
+    const matchedInviteToken = String(resolved?.matchedToken || "").trim();
 
     if (!invitation || isInvitationExpired(invitation)) {
-      if (invitation && invitation.status === "pending") {
-        await Invitation.updateOne(
-          { _id: invitation._id, status: "pending" },
-          { $set: { status: "expired" } },
-        ).catch(() => {});
-      }
+      await expireInvitation(invitation, matchedInviteToken);
       return sendControllerError(req, res, {
         statusCode: 404,
         message: "Invalid or expired invitation",
         details: { valid: false },
       });
     }
+
+    await cacheInvitationToken(invitation).catch(() => {});
 
     res.json({
       success: true,
