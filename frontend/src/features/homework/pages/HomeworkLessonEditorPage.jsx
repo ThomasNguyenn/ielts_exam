@@ -18,6 +18,7 @@ const createLessonForm = () => ({
   name: "",
   type: "custom_task",
   instruction: "",
+  due_date: "",
   is_published: false,
   resource_mode: "internal",
   resource_ref_type: "passage",
@@ -30,6 +31,13 @@ const createLessonForm = () => ({
   min_words: "",
   max_words: "",
 });
+
+const toDateInputValue = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
+};
 
 export default function HomeworkLessonEditorPage() {
   const { id, lessonId } = useParams();
@@ -74,6 +82,7 @@ export default function HomeworkLessonEditorPage() {
         name: nextLesson?.name || "",
         type: nextLesson?.type || "custom_task",
         instruction: nextLesson?.instruction || "",
+        due_date: toDateInputValue(nextLesson?.due_date),
         is_published: Boolean(nextLesson?.is_published),
         resource_mode: nextLesson?.resource_mode || "internal",
         resource_ref_type: nextLesson?.resource_ref_type || "passage",
@@ -123,6 +132,7 @@ export default function HomeworkLessonEditorPage() {
         name: String(lesson.name || "").trim(),
         type: String(lesson.type || "").trim(),
         instruction: String(lesson.instruction || ""),
+        due_date: String(lesson.due_date || "").trim() || null,
         is_published: Boolean(lesson.is_published),
         resource_mode: lesson.resource_mode,
         resource_ref_type: lesson.resource_mode === "internal" ? lesson.resource_ref_type : null,
@@ -248,6 +258,17 @@ export default function HomeworkLessonEditorPage() {
                   <Label>Type</Label>
                   <Input value={lesson.type} onChange={(e) => updateLesson({ type: e.target.value })} />
                 </div>
+                <div className="space-y-2">
+                  <Label>Lesson Due date</Label>
+                  <Input
+                    type="date"
+                    value={lesson.due_date}
+                    onChange={(e) => updateLesson({ due_date: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
                 <div className="flex items-center justify-between rounded-md border p-3">
                   <div>
                     <p className="text-sm font-medium">Publish lesson</p>

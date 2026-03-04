@@ -1,12 +1,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
+  ChevronDown,
   Copy,
-  ExternalLink,
   GripVertical,
   Loader2,
   MoreVertical,
@@ -30,12 +30,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -46,7 +46,7 @@ const createTempId = () =>
     ? crypto.randomUUID()
     : `tmp-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
-const createLesson = (name = "", index = 0) => ({
+const createLesson = (name = "", index = 0, dueDate = "") => ({
   _id: createTempId(),
   name: String(name || "").trim() || `Lesson ${index + 1}`,
   type: "custom_task",
@@ -63,25 +63,25 @@ const createLesson = (name = "", index = 0) => ({
   requires_audio: false,
   min_words: "",
   max_words: "",
+  due_date: toDateInputValue(dueDate),
 });
 
-const createSection = (name = "", index = 0) => ({
+const createSection = (name = "", index = 0, lessonDueDate = "") => ({
   _id: createTempId(),
   name: String(name || "").trim() || `Section ${index + 1}`,
   order: index,
   is_published: false,
-  lessons: [createLesson("", 0)],
+  lessons: [createLesson("", 0, lessonDueDate)],
 });
 
 const createForm = () => ({
   title: "",
   description: "",
   month: toMonthValue(),
-  week: 1,
   due_date: "",
   status: "draft",
   target_group_ids: [],
-  sections: [createSection("General", 0)],
+  sections: [createSection("General", 0, "")],
 });
 
 const toDateInputValue = (value) => {
@@ -89,6 +89,14 @@ const toDateInputValue = (value) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return date.toISOString().slice(0, 10);
+};
+
+const deriveWeekFromDueDate = (value) => {
+  const normalized = String(value || "").trim();
+  const fromDateInput = /^\d{4}-\d{2}-\d{2}/.test(normalized) ? Number(normalized.slice(8, 10)) : NaN;
+  const day = Number.isFinite(fromDateInput) ? fromDateInput : new Date(normalized).getUTCDate();
+  if (!Number.isFinite(day) || day < 1) return 1;
+  return Math.min(5, Math.max(1, Math.floor((day - 1) / 7) + 1));
 };
 
 const normalizeOutlineOrders = (sections = []) =>
@@ -116,6 +124,7 @@ const normalizeSectionsFromAssignment = (assignment = {}) => {
           _id: String(lesson?._id || createTempId()),
           name: lesson?.name || lesson?.title || `Lesson ${lessonIndex + 1}`,
           is_published: Boolean(lesson?.is_published),
+          due_date: toDateInputValue(lesson?.due_date),
         })),
       })),
     );
@@ -148,6 +157,7 @@ const normalizeSectionsFromAssignment = (assignment = {}) => {
         requires_audio: Boolean(task?.requires_audio),
         min_words: task?.min_words ?? "",
         max_words: task?.max_words ?? "",
+        due_date: toDateInputValue(task?.due_date),
       })),
     },
   ];
@@ -176,6 +186,7 @@ const outlinePayload = (sections = []) =>
       requires_audio: Boolean(lesson.requires_audio),
       min_words: lesson.min_words === "" ? null : Number(lesson.min_words),
       max_words: lesson.max_words === "" ? null : Number(lesson.max_words),
+      due_date: lesson.due_date || null,
     })),
   }));
 
@@ -193,7 +204,15 @@ const parseDndId = (rawId) => {
   }
   return null;
 };
-function SortableLessonRow({ sectionId, lesson, canManage, assignmentId, onTogglePublish, onMenuAction }) {
+function SortableLessonRow({
+  sectionId,
+  lesson,
+  canManage,
+  assignmentId,
+  onTogglePublish,
+  onMenuAction,
+  onDueDateChange,
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: dndLessonId(sectionId, lesson._id),
   });
@@ -223,21 +242,25 @@ function SortableLessonRow({ sectionId, lesson, canManage, assignmentId, onToggl
 
       <div className="min-w-0 flex-1">
         {assignmentId ? (
-          <a
-            href={`/homework/assignments/${assignmentId}/lessons/${lesson._id}`}
-            target="_blank"
-            rel="noreferrer"
+          <Link
+            to={`/homework/assignments/${assignmentId}/lessons/${lesson._id}`}
             className="inline-flex items-center gap-1 truncate text-sm font-medium text-primary hover:underline"
           >
             <span className="truncate">{lesson.name}</span>
-            <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-          </a>
+          </Link>
         ) : (
           <p className="truncate text-sm font-medium">{lesson.name}</p>
         )}
       </div>
 
       <div className="flex items-center gap-2">
+        <Input
+          type="date"
+          value={toDateInputValue(lesson.due_date)}
+          onChange={(event) => onDueDateChange(event.target.value)}
+          className="h-8 w-[9.5rem]"
+          disabled={!canManage}
+        />
         <div className="flex items-center gap-1">
           <Label htmlFor={`lesson-publish-${lesson._id}`} className="text-xs text-muted-foreground">
             Publish
@@ -290,6 +313,7 @@ function SortableSectionCard({
   onSectionMenuAction,
   onLessonTogglePublish,
   onLessonMenuAction,
+  onLessonDueDateChange,
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: dndSectionId(section._id),
@@ -372,6 +396,7 @@ function SortableSectionCard({
                 assignmentId={assignmentId}
                 onTogglePublish={(checked) => onLessonTogglePublish(lesson._id, checked)}
                 onMenuAction={(action) => onLessonMenuAction(lesson._id, action)}
+                onDueDateChange={(value) => onLessonDueDateChange(lesson._id, value)}
               />
             ))}
           </div>
@@ -421,6 +446,8 @@ export default function HomeworkAssignmentEditorPage() {
   const [showAddSection, setShowAddSection] = useState(false);
   const [addingLessonSectionId, setAddingLessonSectionId] = useState("");
   const [newLessonName, setNewLessonName] = useState("");
+  const [isSettingsOpen, setIsSettingsOpen] = useState(true);
+  const [isGroupsOpen, setIsGroupsOpen] = useState(true);
   const [renameState, setRenameState] = useState({
     open: false,
     type: "",
@@ -454,7 +481,6 @@ export default function HomeworkAssignmentEditorPage() {
           title: assignment.title || "",
           description: assignment.description || "",
           month: assignment.month || toMonthValue(),
-          week: Number(assignment.week || 1),
           due_date: toDateInputValue(assignment.due_date),
           status: assignment.status || "draft",
           target_group_ids: Array.isArray(assignment.target_group_ids)
@@ -525,7 +551,7 @@ export default function HomeworkAssignmentEditorPage() {
       showNotification("Section name is required", "warning");
       return;
     }
-    updateSections((sections) => [...sections, createSection(normalizedName, sections.length)]);
+    updateSections((sections) => [...sections, createSection(normalizedName, sections.length, form.due_date)]);
     setShowAddSection(false);
     setNewSectionName("");
   };
@@ -541,7 +567,10 @@ export default function HomeworkAssignmentEditorPage() {
         if (String(section._id) !== String(sectionId)) return section;
         return {
           ...section,
-          lessons: [...(section.lessons || []), createLesson(normalizedName, (section.lessons || []).length)],
+          lessons: [
+            ...(section.lessons || []),
+            createLesson(normalizedName, (section.lessons || []).length, form.due_date),
+          ],
         };
       }),
     );
@@ -610,7 +639,7 @@ export default function HomeworkAssignmentEditorPage() {
           );
           return {
             ...section,
-            lessons: nextLessons.length ? nextLessons : [createLesson("", 0)],
+            lessons: nextLessons.length ? nextLessons : [createLesson("", 0, form.due_date)],
           };
         }),
       );
@@ -733,6 +762,13 @@ export default function HomeworkAssignmentEditorPage() {
       0,
     );
     if (lessonCount === 0) return "At least one lesson is required";
+    for (const section of form.sections || []) {
+      for (const lesson of section.lessons || []) {
+        if (!String(lesson?.due_date || "").trim()) {
+          return `Due date is required for lesson "${lesson?.name || "Lesson"}"`;
+        }
+      }
+    }
     return "";
   };
 
@@ -749,7 +785,7 @@ export default function HomeworkAssignmentEditorPage() {
         title: String(form.title || "").trim(),
         description: String(form.description || "").trim(),
         month: form.month,
-        week: Number(form.week || 1),
+        week: deriveWeekFromDueDate(form.due_date),
         due_date: form.due_date,
         status: form.status || "draft",
         target_group_ids: form.target_group_ids,
@@ -801,7 +837,7 @@ export default function HomeworkAssignmentEditorPage() {
             <div className="space-y-1">
               <CardTitle>{editId ? "Edit Monthly Assignment" : "Create Monthly Assignment"}</CardTitle>
               <CardDescription>
-                Outline with sections and lessons. Lesson title opens dedicated editor in new tab.
+                Outline with sections and lessons. Lesson title opens dedicated editor.
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
@@ -839,105 +875,114 @@ export default function HomeworkAssignmentEditorPage() {
 
         <div className="grid grid-cols-12 gap-4">
           <Card className="col-span-12 lg:col-span-8">
-            <CardHeader><CardTitle>Assignment Settings</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Title</Label>
-                <Input
-                  value={form.title}
-                  onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
-                  disabled={!canManage}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Description</Label>
-                <Textarea
-                  value={form.description}
-                  onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
-                  disabled={!canManage}
-                />
-              </div>
-              <div className="grid grid-cols-12 gap-3">
-                <div className="col-span-12 md:col-span-4 space-y-2">
-                  <Label>Month</Label>
-                  <Input
-                    type="month"
-                    value={form.month}
-                    onChange={(event) => setForm((prev) => ({ ...prev, month: event.target.value }))}
-                    disabled={!canManage}
-                  />
+            <Collapsible open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Assignment Settings</CardTitle>
                 </div>
-                <div className="col-span-12 md:col-span-4 space-y-2">
-                  <Label>Week</Label>
-                  <Select
-                    value={String(form.week)}
-                    onValueChange={(value) => setForm((prev) => ({ ...prev, week: Number(value) }))}
-                  >
-                    <SelectTrigger disabled={!canManage}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[1, 2, 3, 4, 5].map((weekValue) => (
-                        <SelectItem key={weekValue} value={String(weekValue)}>
-                          Week {weekValue}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="col-span-12 md:col-span-4 space-y-2">
-                  <Label>Due date</Label>
-                  <Input
-                    type="date"
-                    value={form.due_date}
-                    onChange={(event) => setForm((prev) => ({ ...prev, due_date: event.target.value }))}
-                    disabled={!canManage}
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <div className="flex flex-wrap gap-2">
-                  {["draft", "published", "archived"].map((status) => (
-                    <Button
-                      key={status}
-                      type="button"
-                      variant={form.status === status ? "default" : "outline"}
-                      onClick={() => setForm((prev) => ({ ...prev, status }))}
+                <CollapsibleTrigger asChild>
+                  <Button type="button" variant="ghost" size="icon" aria-label="Toggle assignment settings">
+                    <ChevronDown className={`h-4 w-4 transition-transform ${isSettingsOpen ? "rotate-180" : ""}`} />
+                  </Button>
+                </CollapsibleTrigger>
+              </CardHeader>
+              <CollapsibleContent>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Title</Label>
+                    <Input
+                      value={form.title}
+                      onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
                       disabled={!canManage}
-                    >
-                      {status}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            </CardContent>
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Description</Label>
+                    <Textarea
+                      value={form.description}
+                      onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
+                      disabled={!canManage}
+                    />
+                  </div>
+                  <div className="grid grid-cols-12 gap-3">
+                    <div className="col-span-12 md:col-span-6 space-y-2">
+                      <Label>Month</Label>
+                      <Input
+                        type="month"
+                        value={form.month}
+                        onChange={(event) => setForm((prev) => ({ ...prev, month: event.target.value }))}
+                        disabled={!canManage}
+                      />
+                    </div>
+                    <div className="col-span-12 md:col-span-6 space-y-2">
+                      <Label>Due date</Label>
+                      <Input
+                        type="date"
+                        value={form.due_date}
+                        onChange={(event) => setForm((prev) => ({ ...prev, due_date: event.target.value }))}
+                        disabled={!canManage}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Week is auto-calculated from due date.
+                  </p>
+                  <div className="space-y-2">
+                    <Label>Status</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {["draft", "published", "archived"].map((status) => (
+                        <Button
+                          key={status}
+                          type="button"
+                          variant={form.status === status ? "default" : "outline"}
+                          onClick={() => setForm((prev) => ({ ...prev, status }))}
+                          disabled={!canManage}
+                        >
+                          {status}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </CollapsibleContent>
+            </Collapsible>
           </Card>
 
           <Card className="col-span-12 lg:col-span-4">
-            <CardHeader>
-              <CardTitle>Target Groups</CardTitle>
-              <CardDescription>Select one or more groups.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-64 pr-2">
-                <div className="space-y-3">
-                  {groups.map((group) => {
-                    const checked = form.target_group_ids.includes(String(group._id));
-                    return (
-                      <div key={group._id} className="flex items-center justify-between rounded-md border p-2">
-                        <div>
-                          <p className="text-sm font-medium">{group.name}</p>
-                          <p className="text-xs text-muted-foreground">{(group.student_ids || []).length || 0} students</p>
-                        </div>
-                        <Switch checked={checked} onCheckedChange={() => toggleGroup(group._id)} disabled={!canManage} />
-                      </div>
-                    );
-                  })}
-                  {!groups.length ? <p className="text-sm text-muted-foreground">No groups yet.</p> : null}
+            <Collapsible open={isGroupsOpen} onOpenChange={setIsGroupsOpen}>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Target Groups</CardTitle>
+                  <CardDescription>Select one or more groups.</CardDescription>
                 </div>
-              </ScrollArea>
-            </CardContent>
+                <CollapsibleTrigger asChild>
+                  <Button type="button" variant="ghost" size="icon" aria-label="Toggle target groups">
+                    <ChevronDown className={`h-4 w-4 transition-transform ${isGroupsOpen ? "rotate-180" : ""}`} />
+                  </Button>
+                </CollapsibleTrigger>
+              </CardHeader>
+              <CollapsibleContent>
+                <CardContent>
+                  <ScrollArea className="h-64 pr-2">
+                    <div className="space-y-3">
+                      {groups.map((group) => {
+                        const checked = form.target_group_ids.includes(String(group._id));
+                        return (
+                          <div key={group._id} className="flex items-center justify-between rounded-md border p-2">
+                            <div>
+                              <p className="text-sm font-medium">{group.name}</p>
+                              <p className="text-xs text-muted-foreground">{(group.student_ids || []).length || 0} students</p>
+                            </div>
+                            <Switch checked={checked} onCheckedChange={() => toggleGroup(group._id)} disabled={!canManage} />
+                          </div>
+                        );
+                      })}
+                      {!groups.length ? <p className="text-sm text-muted-foreground">No groups yet.</p> : null}
+                    </div>
+                  </ScrollArea>
+                </CardContent>
+              </CollapsibleContent>
+            </Collapsible>
           </Card>
         </div>
 
@@ -1054,6 +1099,17 @@ export default function HomeworkAssignmentEditorPage() {
                             });
                           }
                         }}
+                        onLessonDueDateChange={(lessonId, dueDate) =>
+                          updateSections((sections) =>
+                            sections.map((item) => ({
+                              ...item,
+                              lessons: (item.lessons || []).map((lesson) =>
+                                String(item._id) === String(section._id) && String(lesson._id) === String(lessonId)
+                                  ? { ...lesson, due_date: dueDate }
+                                  : lesson,
+                              ),
+                            })),
+                          )}
                       />
                     ))}
                   </div>

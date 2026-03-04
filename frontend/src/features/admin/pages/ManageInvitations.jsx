@@ -261,6 +261,8 @@ export default function ManageInvitations() {
                             invitations.map((inv) => {
                                 const status = STATUS_CONFIG[inv.status] || STATUS_CONFIG.pending;
                                 const StatusIcon = status.Icon;
+                                const invitationId = String(inv?._id || '');
+                                const isDeleting = deletingId === invitationId;
 
                                 return (
                                     <div key={inv._id} className="list-item" style={{
@@ -309,25 +311,26 @@ export default function ManageInvitations() {
                                             <button
                                                 type="button"
                                                 onClick={() => handleDeleteInvitation(inv)}
-                                                disabled={deletingId === inv._id}
+                                                disabled={!invitationId || isDeleting}
                                                 style={{
-                                                    marginTop: '0.25rem',
-                                                    border: '1px solid #fecaca',
-                                                    background: '#fff1f2',
-                                                    color: '#dc2626',
-                                                    borderRadius: '8px',
-                                                    padding: '0.35rem 0.6rem',
-                                                    fontSize: '0.78rem',
-                                                    fontWeight: 600,
-                                                    cursor: deletingId === inv._id ? 'not-allowed' : 'pointer',
-                                                    opacity: deletingId === inv._id ? 0.7 : 1,
+                                                    marginTop: '0.35rem',
+                                                    border: '1px solid #dc2626',
+                                                    background: '#dc2626',
+                                                    color: '#ffffff',
+                                                    borderRadius: '999px',
+                                                    padding: '0.45rem 0.85rem',
+                                                    fontSize: '0.8rem',
+                                                    fontWeight: 700,
+                                                    cursor: isDeleting ? 'not-allowed' : 'pointer',
+                                                    opacity: isDeleting ? 0.7 : 1,
                                                     display: 'inline-flex',
                                                     alignItems: 'center',
-                                                    gap: '0.35rem',
+                                                    gap: '0.4rem',
+                                                    boxShadow: '0 6px 12px rgba(220, 38, 38, 0.25)',
                                                 }}
                                             >
                                                 <Trash2 size={14} />
-                                                {deletingId === inv._id ? 'Đang xóa...' : 'Xóa'}
+                                                {isDeleting ? 'Đang xóa...' : 'Xóa lời mời'}
                                             </button>
                                         </div>
                                     </div>

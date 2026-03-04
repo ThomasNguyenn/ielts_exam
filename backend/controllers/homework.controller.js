@@ -1369,6 +1369,9 @@ export const patchHomeworkAssignmentLessonById = async (req, res) => {
       is_published: Object.prototype.hasOwnProperty.call(req.body || {}, "is_published")
         ? patch.is_published
         : currentLesson.is_published,
+      due_date: Object.prototype.hasOwnProperty.call(req.body || {}, "due_date")
+        ? patch.due_date
+        : currentLesson.due_date,
     };
     sections[targetSectionIndex].lessons[targetLessonIndex] = mergedLesson;
 
@@ -1659,15 +1662,6 @@ export const upsertMyHomeworkTaskSubmission = async (req, res) => {
       return sendControllerError(req, res, { statusCode: 403, message: "Forbidden" });
     }
 
-    const dueDate = parseDateOrNull(assignment.due_date);
-    if (!dueDate || Date.now() > dueDate.getTime()) {
-      return sendControllerError(req, res, {
-        statusCode: 403,
-        code: "HOMEWORK_DEADLINE_PASSED",
-        message: "Submission deadline has passed",
-      });
-    }
-
     const lessonMatch = findLessonByTaskId(assignment, taskId);
     if (!lessonMatch) {
       return sendControllerError(req, res, { statusCode: 404, message: "Task not found" });
@@ -1680,6 +1674,16 @@ export const upsertMyHomeworkTaskSubmission = async (req, res) => {
       });
     }
     const task = lessonToTaskPayload(lesson, 0);
+    const lessonDueDate = parseDateOrNull(task?.due_date);
+    const assignmentDueDate = parseDateOrNull(assignment?.due_date);
+    const effectiveDueDate = lessonDueDate || assignmentDueDate;
+    if (!effectiveDueDate || Date.now() > effectiveDueDate.getTime()) {
+      return sendControllerError(req, res, {
+        statusCode: 403,
+        code: "HOMEWORK_DEADLINE_PASSED",
+        message: "Submission deadline has passed",
+      });
+    }
 
     const existingSubmission = await MonthlyAssignmentSubmission.findOne({
       assignment_id: assignmentId,
