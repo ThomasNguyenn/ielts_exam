@@ -944,6 +944,62 @@ export const changeUserRole = async (req, res) => {
     }
 };
 
+export const setStudentHomeroomTeacher = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+            return sendControllerError(req, res, { statusCode: 400, message: "Invalid user id"  });
+        }
+
+        const student = await User.findById(userId).select("_id name email role homeroom_teacher_id");
+        if (!student) {
+            return sendControllerError(req, res, { statusCode: 404, message: "User not found"  });
+        }
+        if (student.role !== "student") {
+            return sendControllerError(req, res, { statusCode: 400, message: "Target user must be a student"  });
+        }
+
+        const rawTeacherId = req.body?.homeroom_teacher_id;
+        const normalizedTeacherId = rawTeacherId === null || rawTeacherId === undefined || String(rawTeacherId).trim() === ""
+            ? null
+            : String(rawTeacherId).trim();
+
+        if (normalizedTeacherId) {
+            if (!mongoose.Types.ObjectId.isValid(normalizedTeacherId)) {
+                return sendControllerError(req, res, { statusCode: 400, message: "Invalid homeroom teacher id"  });
+            }
+
+            const teacher = await User.findById(normalizedTeacherId).select("_id role").lean();
+            if (!teacher) {
+                return sendControllerError(req, res, { statusCode: 404, message: "Homeroom teacher not found"  });
+            }
+            if (!["teacher", "admin"].includes(String(teacher.role || ""))) {
+                return sendControllerError(req, res, { statusCode: 400, message: "homeroom_teacher_id must reference teacher or admin role"  });
+            }
+
+            student.homeroom_teacher_id = teacher._id;
+        } else {
+            student.homeroom_teacher_id = null;
+        }
+
+        await student.save();
+
+        return res.json({
+            success: true,
+            message: "Student homeroom teacher updated",
+            data: {
+                _id: student._id,
+                name: student.name,
+                email: student.email,
+                role: student.role,
+                homeroom_teacher_id: student.homeroom_teacher_id || null,
+            },
+        });
+    } catch (error) {
+        return handleControllerError(req, res, error);
+    }
+};
+
 
 const INVITABLE_ROLES = new Set(["teacher", "admin"]);
 

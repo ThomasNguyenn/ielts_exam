@@ -616,6 +616,11 @@ export const api = {
       body: JSON.stringify(body),
     }),
   approveStudent: (userId) => request(`/api/admin/students/${userId}/approve`, { method: 'PUT' }),
+  setStudentHomeroomTeacher: (userId, homeroomTeacherId) =>
+    request(`/api/admin/students/${userId}/homeroom-teacher`, {
+      method: 'PUT',
+      body: JSON.stringify({ homeroom_teacher_id: homeroomTeacherId ?? null }),
+    }),
 
   // Admin - Users
   getUsers: (options = {}) => {
@@ -632,6 +637,58 @@ export const api = {
     const query = toQueryString(params);
     return request(`/api/admin/invitations${query ? `?${query}` : ''}`);
   },
+
+  // Homework - Groups
+  homeworkCreateGroup: (body) => request('/api/homework/groups', { method: 'POST', body: JSON.stringify(body) }),
+  homeworkGetGroups: (params = {}) => {
+    const query = toQueryString(params);
+    return request(`/api/homework/groups${query ? `?${query}` : ''}`);
+  },
+  homeworkGetGroupById: (id) => request(`/api/homework/groups/${id}`),
+  homeworkUpdateGroup: (id, body) => request(`/api/homework/groups/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  homeworkDeleteGroup: (id) => request(`/api/homework/groups/${id}`, { method: 'DELETE' }),
+
+  // Homework - Assignments (Teacher/Admin)
+  homeworkCreateAssignment: (body) =>
+    request('/api/homework/assignments', { method: 'POST', body: JSON.stringify(body) }),
+  homeworkGetAssignments: (params = {}) => {
+    const query = toQueryString(params);
+    return request(`/api/homework/assignments${query ? `?${query}` : ''}`);
+  },
+  homeworkGetAssignmentById: (id) => request(`/api/homework/assignments/${id}`),
+  homeworkUpdateAssignment: (id, body) =>
+    request(`/api/homework/assignments/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  homeworkUpdateAssignmentStatus: (id, status) =>
+    request(`/api/homework/assignments/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  homeworkDeleteAssignment: (id) => request(`/api/homework/assignments/${id}`, { method: 'DELETE' }),
+  uploadHomeworkResource: (formData) =>
+    request('/api/homework/assignments/upload-resource', {
+      method: 'POST',
+      body: formData,
+      headers: { 'Content-Type': undefined },
+    }),
+
+  // Homework - Student
+  homeworkGetMyAssignments: (params = {}) => {
+    const query = toQueryString(params);
+    return request(`/api/homework/me${query ? `?${query}` : ''}`);
+  },
+  homeworkGetMyAssignmentById: (assignmentId) => request(`/api/homework/me/${assignmentId}`),
+  homeworkSubmitTask: (assignmentId, taskId, formData) =>
+    request(`/api/homework/me/${assignmentId}/tasks/${taskId}/submission`, {
+      method: 'PUT',
+      body: formData,
+      headers: { 'Content-Type': undefined },
+    }),
+
+  // Homework - Dashboard / Grade
+  homeworkGetAssignmentDashboard: (assignmentId) =>
+    request(`/api/homework/assignments/${assignmentId}/dashboard`),
+  homeworkGetTaskSubmissions: (assignmentId, taskId) =>
+    request(`/api/homework/assignments/${assignmentId}/tasks/${taskId}/submissions`),
+  homeworkGetSubmissionById: (submissionId) => request(`/api/homework/submissions/${submissionId}`),
+  homeworkGradeSubmission: (submissionId, body) =>
+    request(`/api/homework/submissions/${submissionId}/grade`, { method: 'PUT', body: JSON.stringify(body) }),
 
   // Speaking
   getSpeakings: (params = {}) => {

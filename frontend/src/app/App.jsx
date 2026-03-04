@@ -53,6 +53,13 @@ const StudentRequests = lazy(() => import('@/features/admin/pages/StudentRequest
 const EvaluationPage = lazy(() => import('@/features/evaluation/pages/EvaluationPage'));
 const ManageUsers = lazy(() => import('@/features/admin/pages/ManageUsers'));
 const ManageInvitations = lazy(() => import('@/features/admin/pages/ManageInvitations'));
+const HomeworkAssignmentsPage = lazy(() => import('@/features/homework/pages/HomeworkAssignmentsPage'));
+const HomeworkAssignmentEditorPage = lazy(() => import('@/features/homework/pages/HomeworkAssignmentEditorPage'));
+const HomeworkDashboardPage = lazy(() => import('@/features/homework/pages/HomeworkDashboardPage'));
+const HomeworkGroupsPage = lazy(() => import('@/features/homework/pages/HomeworkGroupsPage'));
+const HomeworkSubmissionGradePage = lazy(() => import('@/features/homework/pages/HomeworkSubmissionGradePage'));
+const MyHomeworkMonthPage = lazy(() => import('@/features/homework/pages/MyHomeworkMonthPage'));
+const MyHomeworkDetailPage = lazy(() => import('@/features/homework/pages/MyHomeworkDetailPage'));
 const NotFound = lazy(() => import('@/features/system/pages/NotFound'));
 
 const RouteFallback = () => (
@@ -246,6 +253,30 @@ export default function App() {
           } />
           <Route path="evaluate" element={
             <ManageRoute>{withSuspense(<EvaluationPage />)}</ManageRoute>
+          } />
+          <Route path="homework" element={
+            <ManageRoute>{withSuspense(<HomeworkAssignmentsPage />)}</ManageRoute>
+          } />
+          <Route path="homework/groups" element={
+            <ManageRoute>{withSuspense(<HomeworkGroupsPage />)}</ManageRoute>
+          } />
+          <Route path="homework/assignments/new" element={
+            <ManageRoute>{withSuspense(<HomeworkAssignmentEditorPage />)}</ManageRoute>
+          } />
+          <Route path="homework/assignments/:id" element={
+            <ManageRoute>{withSuspense(<HomeworkAssignmentEditorPage />)}</ManageRoute>
+          } />
+          <Route path="homework/assignments/:id/dashboard" element={
+            <ManageRoute>{withSuspense(<HomeworkDashboardPage />)}</ManageRoute>
+          } />
+          <Route path="homework/submissions/:submissionId" element={
+            <ManageRoute>{withSuspense(<HomeworkSubmissionGradePage />)}</ManageRoute>
+          } />
+          <Route path="homework/my" element={
+            <ProtectedRoute>{withSuspense(<MyHomeworkMonthPage />)}</ProtectedRoute>
+          } />
+          <Route path="homework/my/:assignmentId" element={
+            <ProtectedRoute>{withSuspense(<MyHomeworkDetailPage />)}</ProtectedRoute>
           } />
         </Route>
         <Route path="analytics/student/:studentId" element={

@@ -29,6 +29,11 @@ const userSchema = new mongoose.Schema({
     enum: ['student', 'teacher', 'admin'],
     default: 'student',
   },
+  homeroom_teacher_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+  },
   targets: {
     listening: { type: Number, default: 0 },
     reading: { type: Number, default: 0 },
@@ -78,6 +83,7 @@ userSchema.index({ role: 1, isConfirmed: 1, createdAt: -1 });
 userSchema.index({ role: 1, xp: -1 }); // Leaderboard
 userSchema.index({ createdAt: -1 });
 userSchema.index({ role: 1, lastSeenAt: -1, createdAt: -1 });
+userSchema.index({ role: 1, homeroom_teacher_id: 1, createdAt: -1 });
 
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 export default User;

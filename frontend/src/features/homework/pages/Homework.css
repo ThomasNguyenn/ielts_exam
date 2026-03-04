@@ -1,0 +1,348 @@
+@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap');
+
+.homework-page {
+  min-height: calc(100vh - 70px);
+  background: #f6f6f8;
+  padding: 1.25rem;
+  font-family: 'Lexend', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: #0f172a;
+}
+
+.homework-shell {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  gap: 1rem;
+}
+
+.homework-header {
+  position: sticky;
+  top: 0.85rem;
+  z-index: 5;
+  background: linear-gradient(140deg, #ffffff 0%, #f8fbff 100%);
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  padding: 1rem 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.homework-title-wrap h1 {
+  margin: 0;
+  font-size: 1.55rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.homework-title-wrap p {
+  margin: 0.2rem 0 0;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.homework-actions {
+  display: flex;
+  gap: 0.55rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.homework-btn {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #1e293b;
+  border-radius: 10px;
+  padding: 0.56rem 0.82rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.homework-btn:hover:not(:disabled) {
+  border-color: #94a3b8;
+  transform: translateY(-1px);
+}
+
+.homework-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.homework-btn.primary {
+  background: #0f49bd;
+  border-color: #0f49bd;
+  color: #fff;
+}
+
+.homework-btn.primary:hover:not(:disabled) {
+  background: #0d3d9e;
+  border-color: #0d3d9e;
+}
+
+.homework-btn.ghost {
+  background: #f8fafc;
+}
+
+.homework-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  box-shadow: 0 2px 14px rgba(15, 23, 42, 0.04);
+  padding: 1rem;
+}
+
+.homework-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.homework-span-12 { grid-column: span 12 / span 12; }
+.homework-span-8 { grid-column: span 8 / span 8; }
+.homework-span-6 { grid-column: span 6 / span 6; }
+.homework-span-4 { grid-column: span 4 / span 4; }
+
+.homework-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.homework-field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.homework-field label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.homework-field input,
+.homework-field select,
+.homework-field textarea {
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0.56rem 0.66rem;
+  font-size: 0.9rem;
+  color: #0f172a;
+  background: #fff;
+}
+
+.homework-field textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
+.homework-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.homework-kpi {
+  border: 1px solid #dbeafe;
+  background: linear-gradient(150deg, #ffffff 0%, #eff6ff 100%);
+  border-radius: 12px;
+  padding: 0.75rem;
+}
+
+.homework-kpi span {
+  display: block;
+  color: #1e3a8a;
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.homework-kpi strong {
+  display: block;
+  margin-top: 0.16rem;
+  font-size: 1.22rem;
+}
+
+.homework-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.homework-item {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  padding: 0.8rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.homework-item-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.homework-item-title {
+  margin: 0;
+  font-size: 1.03rem;
+  font-weight: 700;
+}
+
+.homework-item-meta {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.homework-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.homework-chip {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #1e40af;
+  background: #dbeafe;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  padding: 0.24rem 0.56rem;
+}
+
+.homework-chip.neutral {
+  color: #0f172a;
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+}
+
+.homework-task-card {
+  border: 1px solid #dbeafe;
+  border-left: 4px solid #2563eb;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 0.82rem;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.homework-task-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.homework-task-head h3 {
+  margin: 0;
+  font-size: 0.98rem;
+}
+
+.homework-task-sub {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #475569;
+  white-space: pre-wrap;
+}
+
+.homework-task-actions {
+  display: flex;
+  gap: 0.46rem;
+  flex-wrap: wrap;
+}
+
+.homework-progress-track {
+  width: 100%;
+  height: 9px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.homework-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #0f49bd, #2563eb);
+}
+
+.homework-empty {
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #64748b;
+  text-align: center;
+  padding: 1rem;
+}
+
+.homework-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.homework-table th,
+.homework-table td {
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0.55rem 0.45rem;
+  font-size: 0.84rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.homework-table th {
+  color: #475569;
+  font-weight: 700;
+  background: #f8fafc;
+}
+
+.homework-stacked {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.homework-media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.5rem;
+}
+
+.homework-media-grid img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+}
+
+.homework-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+}
+
+.homework-danger {
+  color: #b91c1c;
+}
+
+@media (max-width: 980px) {
+  .homework-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .homework-span-8,
+  .homework-span-6,
+  .homework-span-4 {
+    grid-column: span 12 / span 12;
+  }
+}
+
+@media (max-width: 640px) {
+  .homework-page {
+    padding: 0.85rem;
+  }
+
+  .homework-header {
+    position: static;
+  }
+}

@@ -7,8 +7,10 @@ const mockedControllers = vi.hoisted(() => ({
   getUserAttempts: vi.fn((_req, res) => res.status(200).json({ route: "attempts" })),
   getPendingStudents: vi.fn((_req, res) => res.status(200).json({ route: "pending" })),
   getOnlineStudents: vi.fn((_req, res) => res.status(200).json({ route: "online-students" })),
+  setStudentHomeroomTeacher: vi.fn((_req, res) => res.status(200).json({ route: "set-homeroom-teacher" })),
   repairStuckSpeakingSessions: vi.fn((_req, res) => res.status(200).json({ route: "repair-stuck" })),
   retrySpeakingErrorLogs: vi.fn((_req, res) => res.status(200).json({ route: "retry-error-logs" })),
+  retryFailedSpeakingErrorLogsBulk: vi.fn((_req, res) => res.status(200).json({ route: "retry-failed-bulk" })),
   approveStudent: vi.fn((_req, res) => res.status(200).json({ route: "approve" })),
   getUsers: vi.fn((_req, res) => res.status(200).json({ route: "users" })),
   deleteUser: vi.fn((_req, res) => res.status(200).json({ route: "delete" })),
@@ -54,6 +56,27 @@ describe("admin online student routes", () => {
     expect(res.status).toBe(200);
     expect(res.body.route).toBe("online-students");
     expect(mockedControllers.getOnlineStudents).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes /students/:userId/homeroom-teacher to setStudentHomeroomTeacher for admin", async () => {
+    const res = await request(app)
+      .put("/api/admin/students/507f1f77bcf86cd799439011/homeroom-teacher")
+      .set("x-test-role", "admin")
+      .send({ homeroom_teacher_id: "507f1f77bcf86cd799439012" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.route).toBe("set-homeroom-teacher");
+    expect(mockedControllers.setStudentHomeroomTeacher).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects teacher on /students/:userId/homeroom-teacher (admin-only)", async () => {
+    const res = await request(app)
+      .put("/api/admin/students/507f1f77bcf86cd799439011/homeroom-teacher")
+      .set("x-test-role", "teacher")
+      .send({ homeroom_teacher_id: "507f1f77bcf86cd799439012" });
+
+    expect(res.status).toBe(403);
+    expect(mockedControllers.setStudentHomeroomTeacher).not.toHaveBeenCalled();
   });
 
   it("rejects teacher on /students/online (admin-only)", async () => {

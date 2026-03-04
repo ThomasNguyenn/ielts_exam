@@ -16,6 +16,7 @@ import AdminPanelSettingsOutlined from '@mui/icons-material/AdminPanelSettingsOu
 import RateReviewOutlined from '@mui/icons-material/RateReviewOutlined';
 import AppsOutlined from '@mui/icons-material/AppsOutlined';
 import WorkspacesOutlined from '@mui/icons-material/WorkspacesOutlined';
+import AssignmentTurnedInOutlined from '@mui/icons-material/AssignmentTurnedInOutlined';
 import { api } from '@/shared/api/client';
 import LevelProgress from './LevelProgress';
 import './Navigation.css';
@@ -27,7 +28,7 @@ import './Navigation-mobile.css';
  * @property {string} to
  * @property {string} label
  * @property {string=} icon
- * @property {'all'|'auth'|'teacher_admin'|'admin'} visibility
+ * @property {'all'|'auth'|'teacher_admin'|'admin'|'student'} visibility
  * @property {(pathname: string) => boolean=} isActive
  */
 
@@ -109,6 +110,14 @@ const NAV_SCHEMA = {
       visibility: 'auth',
       isActive: (pathname) => pathname.startsWith('/achievements'),
     },
+    {
+      key: 'student_homework',
+      to: '/homework/my',
+      label: 'Bai tap thang',
+      icon: 'assignment',
+      visibility: 'student',
+      isActive: (pathname) => pathname.startsWith('/homework/my'),
+    },
   ],
   workspace: [
     {
@@ -136,6 +145,14 @@ const NAV_SCHEMA = {
       isActive: (pathname) => pathname.startsWith('/evaluate'),
     },
     {
+      key: 'homework',
+      to: '/homework',
+      label: 'Bai tap thang',
+      icon: 'assignment',
+      visibility: 'teacher_admin',
+      isActive: (pathname) => pathname.startsWith('/homework'),
+    },
+    {
       key: 'manage',
       to: '/manage',
       label: 'Quản lý',
@@ -160,6 +177,7 @@ const NAV_ICON_COMPONENTS = {
   leaderboard: LeaderboardOutlined,
   admin_panel_settings: AdminPanelSettingsOutlined,
   send: RateReviewOutlined,
+  assignment: AssignmentTurnedInOutlined,
 };
 
 const isItemVisible = (item, user) => {
@@ -167,6 +185,7 @@ const isItemVisible = (item, user) => {
   if (item.visibility === 'auth') return Boolean(user);
   if (item.visibility === 'teacher_admin') return user?.role === 'teacher' || user?.role === 'admin';
   if (item.visibility === 'admin') return user?.role === 'admin';
+  if (item.visibility === 'student') return user?.role === 'student';
   return false;
 };
 
@@ -229,7 +248,7 @@ export default function Layout() {
     pathname.startsWith('/learn') ||
     pathname.startsWith('/speaking');
   // Use full width layout for manage pages and test list.
-  const isManagePage = isManageRoute || pathname === '/tests' || pathname.startsWith('/scores') || pathname.startsWith('/evaluate');
+  const isManagePage = isManageRoute || pathname === '/tests' || pathname.startsWith('/scores') || pathname.startsWith('/evaluate') || pathname.startsWith('/homework');
 
   // Use full width layout for grading pages.
   const isGradingPage = pathname.startsWith('/grading');

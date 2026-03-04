@@ -1,0 +1,175 @@
+import express from "express";
+import multer from "multer";
+import { verifyToken, isTeacherOrAdmin } from "../middleware/auth.middleware.js";
+import {
+  getHomeworkAssignments,
+  getHomeworkAssignmentById,
+  getHomeworkAssignmentDashboard,
+  getHomeworkGroupById,
+  getHomeworkGroups,
+  getHomeworkSubmissionById,
+  getHomeworkTaskSubmissions,
+  getMyHomeworkAssignmentById,
+  getMyHomeworkAssignments,
+  gradeHomeworkSubmission,
+  createHomeworkAssignment,
+  createHomeworkGroup,
+  deleteHomeworkAssignment,
+  deleteHomeworkGroup,
+  updateHomeworkAssignment,
+  updateHomeworkAssignmentStatus,
+  updateHomeworkGroup,
+  uploadHomeworkAssignmentResource,
+  upsertMyHomeworkTaskSubmission,
+} from "../controllers/homework.controller.js";
+import {
+  getHomeworkAudioUploadLimitBytes,
+  getHomeworkImageMaxFiles,
+  getHomeworkImageUploadLimitBytes,
+  getHomeworkResourceUploadLimitBytes,
+} from "../services/objectStorage.service.js";
+import { sendControllerError } from "../utils/controllerError.js";
+
+const router = express.Router();
+
+const HOMEWORK_RESOURCE_MAX_BYTES = getHomeworkResourceUploadLimitBytes();
+const HOMEWORK_IMAGE_MAX_BYTES = getHomeworkImageUploadLimitBytes();
+const HOMEWORK_IMAGE_MAX_FILES = getHomeworkImageMaxFiles();
+const HOMEWORK_AUDIO_MAX_BYTES = getHomeworkAudioUploadLimitBytes();
+const HOMEWORK_SUBMISSION_MAX_BYTES = Math.max(HOMEWORK_IMAGE_MAX_BYTES, HOMEWORK_AUDIO_MAX_BYTES);
+
+const isStudent = (req, res, next) => {
+  if (req.user?.role === "student") return next();
+  return sendControllerError(req, res, {
+    statusCode: 403,
+    message: "Forbidden: Student access required",
+  });
+};
+
+const resourceUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: HOMEWORK_RESOURCE_MAX_BYTES, files: 1 },
+});
+
+const submissionUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: HOMEWORK_SUBMISSION_MAX_BYTES, files: HOMEWORK_IMAGE_MAX_FILES + 1 },
+  fileFilter: (req, file, cb) => {
+    const fieldName = String(file?.fieldname || "").trim();
+    const mime = String(file?.mimetype || "").toLowerCase();
+
+    if (fieldName === "images") {
+      if (!mime.startsWith("image/")) {
+        const error = new Error("Only image files are allowed in images[]");
+        error.statusCode = 415;
+        error.code = "UNSUPPORTED_MEDIA_TYPE";
+        return cb(error);
+      }
+      return cb(null, true);
+    }
+
+    if (fieldName === "audio") {
+      if (!mime.startsWith("audio/")) {
+        const error = new Error("Only audio file is allowed in audio");
+        error.statusCode = 415;
+        error.code = "UNSUPPORTED_MEDIA_TYPE";
+        return cb(error);
+      }
+      return cb(null, true);
+    }
+
+    const fieldError = new Error("Unexpected file field");
+    fieldError.statusCode = 400;
+    fieldError.code = "BAD_REQUEST";
+    return cb(fieldError);
+  },
+});
+
+const handleResourceUpload = (req, res, next) =>
+  resourceUpload.single("resource")(req, res, (error) => {
+    if (!error) return next();
+
+    if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
+      return sendControllerError(req, res, {
+        statusCode: 413,
+        code: "PAYLOAD_TOO_LARGE",
+        message: `Resource file exceeds max size of ${HOMEWORK_RESOURCE_MAX_BYTES} bytes`,
+      });
+    }
+
+    if (error?.statusCode) {
+      return sendControllerError(req, res, {
+        statusCode: error.statusCode,
+        code: error.code,
+        message: error.message,
+      });
+    }
+
+    return next(error);
+  });
+
+const handleSubmissionUpload = (req, res, next) =>
+  submissionUpload.fields([
+    { name: "images", maxCount: HOMEWORK_IMAGE_MAX_FILES },
+    { name: "audio", maxCount: 1 },
+  ])(req, res, (error) => {
+    if (!error) return next();
+
+    if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
+      return sendControllerError(req, res, {
+        statusCode: 413,
+        code: "PAYLOAD_TOO_LARGE",
+        message: `Submission file exceeds max size of ${HOMEWORK_SUBMISSION_MAX_BYTES} bytes`,
+      });
+    }
+
+    if (error instanceof multer.MulterError && error.code === "LIMIT_UNEXPECTED_FILE") {
+      return sendControllerError(req, res, {
+        statusCode: 400,
+        code: "BAD_REQUEST",
+        message: "Unexpected file field or file count limit exceeded",
+      });
+    }
+
+    if (error?.statusCode) {
+      return sendControllerError(req, res, {
+        statusCode: error.statusCode,
+        code: error.code,
+        message: error.message,
+      });
+    }
+
+    return next(error);
+  });
+
+router.use(verifyToken);
+
+router.post("/groups", isTeacherOrAdmin, createHomeworkGroup);
+router.get("/groups", isTeacherOrAdmin, getHomeworkGroups);
+router.get("/groups/:id", isTeacherOrAdmin, getHomeworkGroupById);
+router.put("/groups/:id", isTeacherOrAdmin, updateHomeworkGroup);
+router.delete("/groups/:id", isTeacherOrAdmin, deleteHomeworkGroup);
+
+router.post("/assignments", isTeacherOrAdmin, createHomeworkAssignment);
+router.get("/assignments", isTeacherOrAdmin, getHomeworkAssignments);
+router.post("/assignments/upload-resource", isTeacherOrAdmin, handleResourceUpload, uploadHomeworkAssignmentResource);
+router.get("/assignments/:id", isTeacherOrAdmin, getHomeworkAssignmentById);
+router.put("/assignments/:id", isTeacherOrAdmin, updateHomeworkAssignment);
+router.patch("/assignments/:id/status", isTeacherOrAdmin, updateHomeworkAssignmentStatus);
+router.delete("/assignments/:id", isTeacherOrAdmin, deleteHomeworkAssignment);
+
+router.get("/me", isStudent, getMyHomeworkAssignments);
+router.get("/me/:assignmentId", isStudent, getMyHomeworkAssignmentById);
+router.put(
+  "/me/:assignmentId/tasks/:taskId/submission",
+  isStudent,
+  handleSubmissionUpload,
+  upsertMyHomeworkTaskSubmission,
+);
+
+router.get("/assignments/:id/dashboard", isTeacherOrAdmin, getHomeworkAssignmentDashboard);
+router.get("/assignments/:id/tasks/:taskId/submissions", isTeacherOrAdmin, getHomeworkTaskSubmissions);
+router.get("/submissions/:submissionId", isTeacherOrAdmin, getHomeworkSubmissionById);
+router.put("/submissions/:submissionId/grade", isTeacherOrAdmin, gradeHomeworkSubmission);
+
+export default router;

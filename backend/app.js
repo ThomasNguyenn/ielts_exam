@@ -26,6 +26,7 @@ import progressRoutes from "./routes/progress.routes.js";
 import modelEssayRoutes from "./routes/modelEssay.routes.js";
 import leaderboardRoutes from "./routes/leaderboard.route.js";
 import evaluationRoutes from "./routes/evaluation.route.js";
+import homeworkRoutes from "./routes/homework.route.js";
 
 const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
 const TRUST_PROXY_HINTS = new Set(["loopback", "linklocal", "uniquelocal"]);
@@ -290,10 +291,19 @@ export const createApp = ({ startBackgroundJobs = true } = {}) => {
   app.use("/api/writings", applyIf((req) => req.method === "POST" && /\/[^/]+\/submit$/.test(req.path), submitRateLimit));
   app.use("/api/practice/submit", applyIf((req) => req.method === "POST", submitRateLimit));
   app.use("/api/speaking/submit", applyIf((req) => req.method === "POST", submitRateLimit));
+  app.use(
+    "/api/homework/me",
+    applyIf((req) => req.method === "PUT" && /\/tasks\/[^/]+\/submission$/.test(req.path), submitRateLimit),
+  );
 
   app.use("/api/writings/upload-image", applyIf((req) => req.method === "POST", uploadRateLimit));
   app.use("/api/sections/upload-audio", applyIf((req) => req.method === "POST", uploadRateLimit));
   app.use("/api/speaking/submit", applyIf((req) => req.method === "POST", uploadRateLimit));
+  app.use("/api/homework/assignments/upload-resource", applyIf((req) => req.method === "POST", uploadRateLimit));
+  app.use(
+    "/api/homework/me",
+    applyIf((req) => req.method === "PUT" && /\/tasks\/[^/]+\/submission$/.test(req.path), uploadRateLimit),
+  );
 
   app.use("/api/auth", authRoutes);
   app.use("/api/passages", passageRoutes);
@@ -312,6 +322,7 @@ export const createApp = ({ startBackgroundJobs = true } = {}) => {
   app.use("/api/model-essays", modelEssayRoutes);
   app.use("/api", leaderboardRoutes);
   app.use("/api/evaluation", evaluationRoutes);
+  app.use("/api/homework", homeworkRoutes);
 
   if (shouldServeLocalUploads()) {
     const uploadDir = ensureUploadDirectory();
