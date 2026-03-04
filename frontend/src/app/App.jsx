@@ -57,6 +57,7 @@ const HomeworkAssignmentsPage = lazy(() => import('@/features/homework/pages/Hom
 const HomeworkAssignmentEditorPage = lazy(() => import('@/features/homework/pages/HomeworkAssignmentEditorPage'));
 const HomeworkDashboardPage = lazy(() => import('@/features/homework/pages/HomeworkDashboardPage'));
 const HomeworkGroupsPage = lazy(() => import('@/features/homework/pages/HomeworkGroupsPage'));
+const HomeworkLessonEditorPage = lazy(() => import('@/features/homework/pages/HomeworkLessonEditorPage'));
 const HomeworkSubmissionGradePage = lazy(() => import('@/features/homework/pages/HomeworkSubmissionGradePage'));
 const MyHomeworkMonthPage = lazy(() => import('@/features/homework/pages/MyHomeworkMonthPage'));
 const MyHomeworkDetailPage = lazy(() => import('@/features/homework/pages/MyHomeworkDetailPage'));
@@ -265,6 +266,9 @@ export default function App() {
           } />
           <Route path="homework/assignments/:id" element={
             <ManageRoute>{withSuspense(<HomeworkAssignmentEditorPage />)}</ManageRoute>
+          } />
+          <Route path="homework/assignments/:id/lessons/:lessonId" element={
+            <ManageRoute>{withSuspense(<HomeworkLessonEditorPage />)}</ManageRoute>
           } />
           <Route path="homework/assignments/:id/dashboard" element={
             <ManageRoute>{withSuspense(<HomeworkDashboardPage />)}</ManageRoute>

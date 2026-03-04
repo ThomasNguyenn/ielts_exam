@@ -658,6 +658,15 @@ export const api = {
   homeworkGetAssignmentById: (id) => request(`/api/homework/assignments/${id}`),
   homeworkUpdateAssignment: (id, body) =>
     request(`/api/homework/assignments/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  homeworkPatchAssignmentOutline: (id, body) =>
+    request(`/api/homework/assignments/${id}/outline`, { method: 'PATCH', body: JSON.stringify(body) }),
+  homeworkGetAssignmentLessonById: (id, lessonId) =>
+    request(`/api/homework/assignments/${id}/lessons/${lessonId}`),
+  homeworkPatchAssignmentLessonById: (id, lessonId, body) =>
+    request(`/api/homework/assignments/${id}/lessons/${lessonId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
   homeworkUpdateAssignmentStatus: (id, status) =>
     request(`/api/homework/assignments/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   homeworkDeleteAssignment: (id) => request(`/api/homework/assignments/${id}`, { method: 'DELETE' }),

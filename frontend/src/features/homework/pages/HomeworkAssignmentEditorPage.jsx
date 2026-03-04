@@ -1,16 +1,58 @@
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
+import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
+  Copy,
+  ExternalLink,
+  GripVertical,
+  Loader2,
+  MoreVertical,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { api } from "@/shared/api/client";
 import { useNotification } from "@/shared/context/NotificationContext";
-import { normalizeTaskForSubmit, toMonthValue } from "./homework.utils";
+import { toMonthValue } from "./homework.utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import "./Homework.css";
 
-const createTask = (index = 0) => ({
-  _id: "",
+const createTempId = () =>
+  typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `tmp-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+const createLesson = (name = "", index = 0) => ({
+  _id: createTempId(),
+  name: String(name || "").trim() || `Lesson ${index + 1}`,
   type: "custom_task",
-  title: "",
   instruction: "",
   order: index,
+  is_published: false,
   resource_mode: "internal",
   resource_ref_type: "passage",
   resource_ref_id: "",
@@ -23,6 +65,14 @@ const createTask = (index = 0) => ({
   max_words: "",
 });
 
+const createSection = (name = "", index = 0) => ({
+  _id: createTempId(),
+  name: String(name || "").trim() || `Section ${index + 1}`,
+  order: index,
+  is_published: false,
+  lessons: [createLesson("", 0)],
+});
+
 const createForm = () => ({
   title: "",
   description: "",
@@ -31,7 +81,7 @@ const createForm = () => ({
   due_date: "",
   status: "draft",
   target_group_ids: [],
-  tasks: [createTask(0)],
+  sections: [createSection("General", 0)],
 });
 
 const toDateInputValue = (value) => {
@@ -41,48 +91,361 @@ const toDateInputValue = (value) => {
   return date.toISOString().slice(0, 10);
 };
 
+const normalizeOutlineOrders = (sections = []) =>
+  (Array.isArray(sections) ? sections : []).map((section, sectionIndex) => ({
+    ...section,
+    order: sectionIndex,
+    lessons: (Array.isArray(section.lessons) ? section.lessons : []).map((lesson, lessonIndex) => ({
+      ...lesson,
+      order: lessonIndex,
+    })),
+  }));
+
+const normalizeSectionsFromAssignment = (assignment = {}) => {
+  const sections = Array.isArray(assignment?.sections) ? assignment.sections : [];
+  if (sections.length > 0) {
+    return normalizeOutlineOrders(
+      sections.map((section, sectionIndex) => ({
+        _id: String(section?._id || createTempId()),
+        name: section?.name || `Section ${sectionIndex + 1}`,
+        order: Number.isFinite(Number(section?.order)) ? Number(section.order) : sectionIndex,
+        is_published: Boolean(section?.is_published),
+        lessons: (Array.isArray(section?.lessons) ? section.lessons : []).map((lesson, lessonIndex) => ({
+          ...createLesson("", lessonIndex),
+          ...lesson,
+          _id: String(lesson?._id || createTempId()),
+          name: lesson?.name || lesson?.title || `Lesson ${lessonIndex + 1}`,
+          is_published: Boolean(lesson?.is_published),
+        })),
+      })),
+    );
+  }
+
+  const tasks = Array.isArray(assignment?.tasks) ? assignment.tasks : [];
+  if (!tasks.length) return [createSection("General", 0)];
+
+  return [
+    {
+      _id: createTempId(),
+      name: "General",
+      order: 0,
+      is_published: true,
+      lessons: tasks.map((task, index) => ({
+        ...createLesson("", index),
+        _id: String(task?._id || createTempId()),
+        name: task?.title || `Lesson ${index + 1}`,
+        type: task?.type || "custom_task",
+        instruction: task?.instruction || "",
+        order: Number.isFinite(Number(task?.order)) ? Number(task.order) : index,
+        is_published: true,
+        resource_mode: task?.resource_mode || "internal",
+        resource_ref_type: task?.resource_ref_type || "passage",
+        resource_ref_id: task?.resource_ref_id || "",
+        resource_url: task?.resource_url || "",
+        resource_storage_key: task?.resource_storage_key || "",
+        requires_text: Boolean(task?.requires_text),
+        requires_image: Boolean(task?.requires_image),
+        requires_audio: Boolean(task?.requires_audio),
+        min_words: task?.min_words ?? "",
+        max_words: task?.max_words ?? "",
+      })),
+    },
+  ];
+};
+
+const outlinePayload = (sections = []) =>
+  normalizeOutlineOrders(sections).map((section) => ({
+    _id: section._id,
+    name: String(section.name || "").trim() || "Section",
+    order: section.order,
+    is_published: Boolean(section.is_published),
+    lessons: (Array.isArray(section.lessons) ? section.lessons : []).map((lesson) => ({
+      _id: lesson._id,
+      name: String(lesson.name || "").trim() || "Lesson",
+      type: String(lesson.type || "custom_task"),
+      instruction: String(lesson.instruction || ""),
+      order: lesson.order,
+      is_published: Boolean(lesson.is_published),
+      resource_mode: lesson.resource_mode || "internal",
+      resource_ref_type: lesson.resource_ref_type || null,
+      resource_ref_id: lesson.resource_ref_id || null,
+      resource_url: lesson.resource_url || null,
+      resource_storage_key: lesson.resource_storage_key || null,
+      requires_text: Boolean(lesson.requires_text),
+      requires_image: Boolean(lesson.requires_image),
+      requires_audio: Boolean(lesson.requires_audio),
+      min_words: lesson.min_words === "" ? null : Number(lesson.min_words),
+      max_words: lesson.max_words === "" ? null : Number(lesson.max_words),
+    })),
+  }));
+
+const dndSectionId = (sectionId) => `section:${sectionId}`;
+const dndLessonId = (sectionId, lessonId) => `lesson:${sectionId}:${lessonId}`;
+
+const parseDndId = (rawId) => {
+  const value = String(rawId || "");
+  if (value.startsWith("section:")) {
+    return { type: "section", sectionId: value.replace("section:", "") };
+  }
+  if (value.startsWith("lesson:")) {
+    const [, sectionId, lessonId] = value.split(":");
+    return { type: "lesson", sectionId, lessonId };
+  }
+  return null;
+};
+function SortableLessonRow({ sectionId, lesson, canManage, assignmentId, onTogglePublish, onMenuAction }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: dndLessonId(sectionId, lesson._id),
+  });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.7 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-2 rounded-md border bg-background p-2"
+    >
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        className="h-8 w-8 cursor-grab text-muted-foreground"
+        disabled={!canManage}
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="h-4 w-4" />
+      </Button>
+
+      <div className="min-w-0 flex-1">
+        {assignmentId ? (
+          <a
+            href={`/homework/assignments/${assignmentId}/lessons/${lesson._id}`}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 truncate text-sm font-medium text-primary hover:underline"
+          >
+            <span className="truncate">{lesson.name}</span>
+            <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+          </a>
+        ) : (
+          <p className="truncate text-sm font-medium">{lesson.name}</p>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
+          <Label htmlFor={`lesson-publish-${lesson._id}`} className="text-xs text-muted-foreground">
+            Publish
+          </Label>
+          <Switch
+            id={`lesson-publish-${lesson._id}`}
+            checked={Boolean(lesson.is_published)}
+            disabled={!canManage}
+            onCheckedChange={(checked) => onTogglePublish(checked)}
+          />
+        </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button type="button" size="icon" variant="ghost" className="h-8 w-8" disabled={!canManage}>
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => onMenuAction("rename")}>
+              <Pencil className="mr-2 h-4 w-4" />
+              Rename Lesson
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onMenuAction("duplicate")}>
+              <Copy className="mr-2 h-4 w-4" />
+              Duplicate Lesson
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onMenuAction("delete")} className="text-destructive">
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete Lesson
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
+  );
+}
+
+function SortableSectionCard({
+  section,
+  canManage,
+  assignmentId,
+  addingLessonSectionId,
+  newLessonName,
+  onNewLessonNameChange,
+  onShowAddLesson,
+  onCancelAddLesson,
+  onCreateLesson,
+  onTogglePublish,
+  onSectionMenuAction,
+  onLessonTogglePublish,
+  onLessonMenuAction,
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: dndSectionId(section._id),
+  });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.72 : 1,
+  };
+
+  return (
+    <Card ref={setNodeRef} style={style}>
+      <CardHeader className="space-y-3 pb-3">
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 cursor-grab text-muted-foreground"
+            disabled={!canManage}
+            {...attributes}
+            {...listeners}
+          >
+            <GripVertical className="h-4 w-4" />
+          </Button>
+
+          <div className="min-w-0 flex-1">
+            <CardTitle className="truncate text-base">{section.name}</CardTitle>
+            <CardDescription>{(section.lessons || []).length} lesson(s)</CardDescription>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Label htmlFor={`section-publish-${section._id}`} className="text-xs text-muted-foreground">
+              Publish
+            </Label>
+            <Switch
+              id={`section-publish-${section._id}`}
+              checked={Boolean(section.is_published)}
+              disabled={!canManage}
+              onCheckedChange={(checked) => onTogglePublish(checked)}
+            />
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" size="icon" variant="ghost" className="h-8 w-8" disabled={!canManage}>
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => onSectionMenuAction("rename")}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Rename Section
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onSectionMenuAction("duplicate")}>
+                  <Copy className="mr-2 h-4 w-4" />
+                  Duplicate Section
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onSectionMenuAction("delete")} className="text-destructive">
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Section
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+      </CardHeader>
+
+      <CardContent className="space-y-3">
+        <SortableContext
+          items={(section.lessons || []).map((lesson) => dndLessonId(section._id, lesson._id))}
+          strategy={verticalListSortingStrategy}
+        >
+          <div className="space-y-2">
+            {(section.lessons || []).map((lesson) => (
+              <SortableLessonRow
+                key={lesson._id}
+                sectionId={section._id}
+                lesson={lesson}
+                canManage={canManage}
+                assignmentId={assignmentId}
+                onTogglePublish={(checked) => onLessonTogglePublish(lesson._id, checked)}
+                onMenuAction={(action) => onLessonMenuAction(lesson._id, action)}
+              />
+            ))}
+          </div>
+        </SortableContext>
+
+        {addingLessonSectionId === section._id ? (
+          <div className="flex items-center gap-2 rounded-md border border-dashed p-2">
+            <Input
+              value={newLessonName}
+              onChange={(event) => onNewLessonNameChange(event.target.value)}
+              placeholder="Input name"
+              disabled={!canManage}
+            />
+            <Button type="button" variant="outline" onClick={onCancelAddLesson} disabled={!canManage}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={() => onCreateLesson(section._id)} disabled={!canManage}>
+              Save
+            </Button>
+          </div>
+        ) : (
+          <Button type="button" variant="outline" onClick={() => onShowAddLesson(section._id)} disabled={!canManage}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Lesson
+          </Button>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 export default function HomeworkAssignmentEditorPage() {
   const { id } = useParams();
   const editId = id && id !== "new" ? id : null;
   const navigate = useNavigate();
   const { showNotification } = useNotification();
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const outlineSaveVersionRef = useRef(0);
 
-  const fileInputRefs = useRef(new Map());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [uploadingTaskIndex, setUploadingTaskIndex] = useState(-1);
+  const [outlineSaving, setOutlineSaving] = useState(false);
   const [error, setError] = useState("");
   const [canManage, setCanManage] = useState(true);
   const [form, setForm] = useState(createForm);
-  const [searchByTask, setSearchByTask] = useState({});
   const [groups, setGroups] = useState([]);
-  const [catalog, setCatalog] = useState({
-    passage: [],
-    section: [],
-    speaking: [],
-    writing: [],
+  const [newSectionName, setNewSectionName] = useState("");
+  const [showAddSection, setShowAddSection] = useState(false);
+  const [addingLessonSectionId, setAddingLessonSectionId] = useState("");
+  const [newLessonName, setNewLessonName] = useState("");
+  const [renameState, setRenameState] = useState({
+    open: false,
+    type: "",
+    sectionId: "",
+    lessonId: "",
+    value: "",
+  });
+  const [deleteState, setDeleteState] = useState({
+    open: false,
+    type: "",
+    sectionId: "",
+    lessonId: "",
+    label: "",
   });
 
   const loadData = async () => {
     setLoading(true);
     setError("");
     try {
-      const [groupsRes, passageRes, sectionRes, speakingRes, writingRes, assignmentRes] = await Promise.all([
+      const [groupsRes, assignmentRes] = await Promise.all([
         api.homeworkGetGroups({ limit: 200 }),
-        api.getPassages(),
-        api.getSections(),
-        api.getSpeakings({ limit: 200 }),
-        api.getWritings(),
         editId ? api.homeworkGetAssignmentById(editId) : Promise.resolve(null),
       ]);
 
       setGroups(Array.isArray(groupsRes?.data) ? groupsRes.data.filter((group) => group?.is_active !== false) : []);
-      setCatalog({
-        passage: Array.isArray(passageRes?.data) ? passageRes.data : [],
-        section: Array.isArray(sectionRes?.data) ? sectionRes.data : [],
-        speaking: Array.isArray(speakingRes?.data) ? speakingRes.data : [],
-        writing: Array.isArray(writingRes?.data) ? writingRes.data : [],
-      });
 
       if (assignmentRes?.data) {
         const assignment = assignmentRes.data;
@@ -97,25 +460,7 @@ export default function HomeworkAssignmentEditorPage() {
           target_group_ids: Array.isArray(assignment.target_group_ids)
             ? assignment.target_group_ids.map((group) => String(group?._id || group))
             : [],
-          tasks: Array.isArray(assignment.tasks) && assignment.tasks.length
-            ? assignment.tasks.map((task, index) => ({
-              _id: task?._id || "",
-              type: task?.type || "custom_task",
-              title: task?.title || "",
-              instruction: task?.instruction || "",
-              order: Number.isFinite(Number(task?.order)) ? Number(task.order) : index,
-              resource_mode: task?.resource_mode || "internal",
-              resource_ref_type: task?.resource_ref_type || "passage",
-              resource_ref_id: task?.resource_ref_id || "",
-              resource_url: task?.resource_url || "",
-              resource_storage_key: task?.resource_storage_key || "",
-              requires_text: Boolean(task?.requires_text),
-              requires_image: Boolean(task?.requires_image),
-              requires_audio: Boolean(task?.requires_audio),
-              min_words: task?.min_words ?? "",
-              max_words: task?.max_words ?? "",
-            }))
-            : [createTask(0)],
+          sections: normalizeSectionsFromAssignment(assignment),
         });
       } else {
         setCanManage(true);
@@ -132,87 +477,247 @@ export default function HomeworkAssignmentEditorPage() {
     void loadData();
   }, [editId]);
 
-  const updateForm = (patch) => setForm((prev) => ({ ...prev, ...patch }));
-
-  const updateTask = (taskIndex, patch) => {
-    setForm((prev) => ({
-      ...prev,
-      tasks: prev.tasks.map((task, index) => (index === taskIndex ? { ...task, ...patch } : task)),
-    }));
-  };
-
   const toggleGroup = (groupId) => {
     setForm((prev) => {
-      const selected = new Set((prev.target_group_ids || []).map(String));
+      const set = new Set((prev.target_group_ids || []).map(String));
       const normalized = String(groupId || "");
-      if (selected.has(normalized)) selected.delete(normalized);
-      else selected.add(normalized);
-      return { ...prev, target_group_ids: Array.from(selected) };
+      if (set.has(normalized)) set.delete(normalized);
+      else set.add(normalized);
+      return { ...prev, target_group_ids: Array.from(set) };
     });
   };
 
-  const addTask = () =>
-    setForm((prev) => ({
-      ...prev,
-      tasks: [...prev.tasks, createTask(prev.tasks.length)],
-    }));
-
-  const removeTask = (taskIndex) =>
-    setForm((prev) => {
-      const nextTasks = prev.tasks.filter((_, index) => index !== taskIndex);
-      return {
-        ...prev,
-        tasks: nextTasks.length ? nextTasks : [createTask(0)],
-      };
-    });
-
-  const getCatalogItems = (task) => {
-    const refType = String(task?.resource_ref_type || "passage");
-    return catalog[refType] || [];
-  };
-
-  const getResourceDisplayLabel = (task) => {
-    if (!task?.resource_ref_id) return "";
-    const list = getCatalogItems(task);
-    const found = list.find((item) => String(item?._id || "") === String(task.resource_ref_id));
-    if (!found) return task.resource_ref_id;
-    return `${found.title || found._id} (${found._id})`;
-  };
-
-  const handleResourceUploadClick = (taskIndex) => {
-    const input = fileInputRefs.current.get(taskIndex);
-    input?.click?.();
-  };
-
-  const handleResourceUploadSelected = async (taskIndex, event) => {
-    const file = event.target?.files?.[0];
-    if (!file) return;
-
-    setUploadingTaskIndex(taskIndex);
+  const persistOutline = async (sections) => {
+    if (!editId || !canManage) return;
+    const version = ++outlineSaveVersionRef.current;
+    setOutlineSaving(true);
     try {
-      const formData = new FormData();
-      formData.append("resource", file);
-      formData.append("assignment_id", editId || "temp-assignment");
-      formData.append("task_id", form.tasks[taskIndex]?._id || `task-${taskIndex + 1}`);
-      const response = await api.uploadHomeworkResource(formData);
-
-      const url = response?.data?.url || "";
-      const key = response?.data?.key || "";
-      if (!url || !key) {
-        throw new Error("Upload response missing url/key");
-      }
-
-      updateTask(taskIndex, {
-        resource_mode: "uploaded",
-        resource_url: url,
-        resource_storage_key: key,
+      const response = await api.homeworkPatchAssignmentOutline(editId, {
+        sections: outlinePayload(sections),
       });
-      showNotification("Resource uploaded successfully", "success");
-    } catch (uploadError) {
-      showNotification(uploadError?.message || "Failed to upload resource", "error");
+      if (version !== outlineSaveVersionRef.current) return;
+      const serverSections = normalizeSectionsFromAssignment(response?.data || {});
+      setForm((prev) => ({ ...prev, sections: serverSections }));
+    } catch (saveError) {
+      showNotification(saveError?.message || "Failed to auto-save outline", "error");
     } finally {
-      setUploadingTaskIndex(-1);
-      if (event?.target) event.target.value = "";
+      if (version === outlineSaveVersionRef.current) setOutlineSaving(false);
+    }
+  };
+
+  const updateSections = (updater, { saveOutline = true } = {}) => {
+    setForm((prev) => {
+      const cloned = (prev.sections || []).map((section) => ({
+        ...section,
+        lessons: (section.lessons || []).map((lesson) => ({ ...lesson })),
+      }));
+      const next = normalizeOutlineOrders(updater(cloned));
+      if (saveOutline && editId && canManage) {
+        void persistOutline(next);
+      }
+      return { ...prev, sections: next };
+    });
+  };
+
+  const handleCreateSection = () => {
+    const normalizedName = String(newSectionName || "").trim();
+    if (!normalizedName) {
+      showNotification("Section name is required", "warning");
+      return;
+    }
+    updateSections((sections) => [...sections, createSection(normalizedName, sections.length)]);
+    setShowAddSection(false);
+    setNewSectionName("");
+  };
+
+  const handleCreateLesson = (sectionId) => {
+    const normalizedName = String(newLessonName || "").trim();
+    if (!normalizedName) {
+      showNotification("Lesson name is required", "warning");
+      return;
+    }
+    updateSections((sections) =>
+      sections.map((section) => {
+        if (String(section._id) !== String(sectionId)) return section;
+        return {
+          ...section,
+          lessons: [...(section.lessons || []), createLesson(normalizedName, (section.lessons || []).length)],
+        };
+      }),
+    );
+    setAddingLessonSectionId("");
+    setNewLessonName("");
+  };
+
+  const openRenameDialog = ({ type, sectionId, lessonId, value }) => {
+    setRenameState({
+      open: true,
+      type,
+      sectionId: sectionId || "",
+      lessonId: lessonId || "",
+      value: value || "",
+    });
+  };
+
+  const handleConfirmRename = () => {
+    const nextValue = String(renameState.value || "").trim();
+    if (!nextValue) {
+      showNotification("Name cannot be empty", "warning");
+      return;
+    }
+    if (renameState.type === "section") {
+      updateSections((sections) =>
+        sections.map((section) =>
+          String(section._id) === String(renameState.sectionId) ? { ...section, name: nextValue } : section,
+        ),
+      );
+    }
+    if (renameState.type === "lesson") {
+      updateSections((sections) =>
+        sections.map((section) => ({
+          ...section,
+          lessons: (section.lessons || []).map((lesson) =>
+            String(section._id) === String(renameState.sectionId) &&
+            String(lesson._id) === String(renameState.lessonId)
+              ? { ...lesson, name: nextValue }
+              : lesson,
+          ),
+        })),
+      );
+    }
+    setRenameState({ open: false, type: "", sectionId: "", lessonId: "", value: "" });
+  };
+
+  const openDeleteDialog = ({ type, sectionId, lessonId, label }) => {
+    setDeleteState({
+      open: true,
+      type: type || "",
+      sectionId: sectionId || "",
+      lessonId: lessonId || "",
+      label: label || "",
+    });
+  };
+  const confirmDelete = () => {
+    if (deleteState.type === "section") {
+      updateSections((sections) => sections.filter((section) => String(section._id) !== String(deleteState.sectionId)));
+    }
+    if (deleteState.type === "lesson") {
+      updateSections((sections) =>
+        sections.map((section) => {
+          if (String(section._id) !== String(deleteState.sectionId)) return section;
+          const nextLessons = (section.lessons || []).filter(
+            (lesson) => String(lesson._id) !== String(deleteState.lessonId),
+          );
+          return {
+            ...section,
+            lessons: nextLessons.length ? nextLessons : [createLesson("", 0)],
+          };
+        }),
+      );
+    }
+    setDeleteState({ open: false, type: "", sectionId: "", lessonId: "", label: "" });
+  };
+
+  const duplicateSection = (sectionId) => {
+    updateSections((sections) => {
+      const source = sections.find((section) => String(section._id) === String(sectionId));
+      if (!source) return sections;
+      const copy = {
+        ...source,
+        _id: createTempId(),
+        name: `${source.name} (Copy)`,
+        is_published: false,
+        lessons: (source.lessons || []).map((lesson, index) => ({
+          ...lesson,
+          _id: createTempId(),
+          order: index,
+          is_published: false,
+        })),
+      };
+      return [...sections, copy];
+    });
+  };
+
+  const duplicateLesson = (sectionId, lessonId) => {
+    updateSections((sections) =>
+      sections.map((section) => {
+        if (String(section._id) !== String(sectionId)) return section;
+        const source = (section.lessons || []).find((lesson) => String(lesson._id) === String(lessonId));
+        if (!source) return section;
+        return {
+          ...section,
+          lessons: [
+            ...(section.lessons || []),
+            {
+              ...source,
+              _id: createTempId(),
+              name: `${source.name} (Copy)`,
+              is_published: false,
+            },
+          ],
+        };
+      }),
+    );
+  };
+
+  const handleDragEnd = ({ active, over }) => {
+    if (!active?.id || !over?.id || active.id === over.id) return;
+
+    const activeInfo = parseDndId(active.id);
+    const overInfo = parseDndId(over.id);
+    if (!activeInfo || !overInfo) return;
+
+    if (activeInfo.type === "section" && overInfo.type === "section") {
+      updateSections((sections) => {
+        const oldIndex = sections.findIndex((section) => String(section._id) === String(activeInfo.sectionId));
+        const newIndex = sections.findIndex((section) => String(section._id) === String(overInfo.sectionId));
+        if (oldIndex < 0 || newIndex < 0) return sections;
+        return arrayMove(sections, oldIndex, newIndex);
+      });
+      return;
+    }
+
+    if (activeInfo.type === "lesson") {
+      updateSections((sections) => {
+        const sourceSectionIndex = sections.findIndex(
+          (section) => String(section._id) === String(activeInfo.sectionId),
+        );
+        if (sourceSectionIndex < 0) return sections;
+        const sourceLessons = sections[sourceSectionIndex].lessons || [];
+        const sourceLessonIndex = sourceLessons.findIndex(
+          (lesson) => String(lesson._id) === String(activeInfo.lessonId),
+        );
+        if (sourceLessonIndex < 0) return sections;
+
+        const movingLesson = sourceLessons[sourceLessonIndex];
+        let targetSectionIndex = sourceSectionIndex;
+        let targetLessonIndex = sourceLessonIndex;
+
+        if (overInfo.type === "lesson") {
+          targetSectionIndex = sections.findIndex((section) => String(section._id) === String(overInfo.sectionId));
+          if (targetSectionIndex < 0) return sections;
+          targetLessonIndex = (sections[targetSectionIndex].lessons || []).findIndex(
+            (lesson) => String(lesson._id) === String(overInfo.lessonId),
+          );
+          if (targetLessonIndex < 0) targetLessonIndex = (sections[targetSectionIndex].lessons || []).length;
+        } else if (overInfo.type === "section") {
+          targetSectionIndex = sections.findIndex((section) => String(section._id) === String(overInfo.sectionId));
+          if (targetSectionIndex < 0) return sections;
+          targetLessonIndex = (sections[targetSectionIndex].lessons || []).length;
+        }
+
+        const next = sections.map((section) => ({
+          ...section,
+          lessons: [...(section.lessons || [])],
+        }));
+
+        next[sourceSectionIndex].lessons.splice(sourceLessonIndex, 1);
+        if (sourceSectionIndex === targetSectionIndex && sourceLessonIndex < targetLessonIndex) {
+          targetLessonIndex -= 1;
+        }
+        next[targetSectionIndex].lessons.splice(targetLessonIndex, 0, movingLesson);
+        return next;
+      });
     }
   };
 
@@ -223,11 +728,15 @@ export default function HomeworkAssignmentEditorPage() {
     if (!Array.isArray(form.target_group_ids) || form.target_group_ids.length === 0) {
       return "Select at least one target group";
     }
-    if (!Array.isArray(form.tasks) || form.tasks.length === 0) return "At least one task is required";
+    const lessonCount = (form.sections || []).reduce(
+      (sum, section) => sum + ((section.lessons || []).length || 0),
+      0,
+    );
+    if (lessonCount === 0) return "At least one lesson is required";
     return "";
   };
 
-  const handleSave = async () => {
+  const handleSaveAssignment = async () => {
     const validationError = validateBeforeSubmit();
     if (validationError) {
       showNotification(validationError, "error");
@@ -244,22 +753,21 @@ export default function HomeworkAssignmentEditorPage() {
         due_date: form.due_date,
         status: form.status || "draft",
         target_group_ids: form.target_group_ids,
-        tasks: form.tasks.map((task, index) => normalizeTaskForSubmit(task, index)),
+        sections: outlinePayload(form.sections),
       };
 
       if (editId) {
         await api.homeworkUpdateAssignment(editId, payload);
         showNotification("Assignment updated", "success");
+        await loadData();
       } else {
         const created = await api.homeworkCreateAssignment(payload);
-        showNotification("Assignment created", "success");
         const newId = created?.data?._id;
+        showNotification("Assignment created", "success");
         if (newId) {
           navigate(`/homework/assignments/${newId}`);
-          return;
         }
       }
-      void loadData();
     } catch (saveError) {
       showNotification(saveError?.message || "Failed to save assignment", "error");
     } finally {
@@ -267,26 +775,19 @@ export default function HomeworkAssignmentEditorPage() {
     }
   };
 
-  const handleStatusPatch = async (nextStatus) => {
-    if (!editId) {
-      updateForm({ status: nextStatus });
-      return;
-    }
-
-    try {
-      await api.homeworkUpdateAssignmentStatus(editId, nextStatus);
-      updateForm({ status: nextStatus });
-      showNotification("Status updated", "success");
-    } catch (statusError) {
-      showNotification(statusError?.message || "Failed to update status", "error");
-    }
-  };
+  const statusLabel = useMemo(() => {
+    if (outlineSaving) return "Saving outline...";
+    if (!editId) return "Draft local outline";
+    return "Outline synced";
+  }, [outlineSaving, editId]);
 
   if (loading) {
     return (
       <div className="homework-page">
         <div className="homework-shell">
-          <div className="homework-card">Loading editor...</div>
+          <Card>
+            <CardContent className="pt-6">Loading editor...</CardContent>
+          </Card>
         </div>
       </div>
     );
@@ -295,376 +796,317 @@ export default function HomeworkAssignmentEditorPage() {
   return (
     <div className="homework-page">
       <div className="homework-shell">
-        <section className="homework-header">
-          <div className="homework-title-wrap">
-            <h1>{editId ? "Edit Monthly Assignment" : "Create Monthly Assignment"}</h1>
-            <p>Build dynamic tasks and link internal resources from passage/section/speaking/writing content.</p>
-          </div>
-          <div className="homework-actions">
-            <button type="button" className="homework-btn ghost" onClick={() => navigate("/homework")}>
-              Back
-            </button>
-            <button
-              type="button"
-              className="homework-btn primary"
-              onClick={handleSave}
-              disabled={saving || !canManage}
-            >
-              {saving ? "Saving..." : "Save Assignment"}
-            </button>
-          </div>
-        </section>
+        <Card className="sticky top-3 z-[5]">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div className="space-y-1">
+              <CardTitle>{editId ? "Edit Monthly Assignment" : "Create Monthly Assignment"}</CardTitle>
+              <CardDescription>
+                Outline with sections and lessons. Lesson title opens dedicated editor in new tab.
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary">{statusLabel}</Badge>
+              <Button variant="outline" onClick={() => navigate("/homework")}>Back</Button>
+              <Button onClick={handleSaveAssignment} disabled={saving || !canManage}>
+                {saving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save Assignment"
+                )}
+              </Button>
+            </div>
+          </CardHeader>
+        </Card>
 
-        {error ? <section className="homework-card"><p className="homework-danger">{error}</p></section> : null}
-        {!canManage ? (
-          <section className="homework-card">
-            <p className="homework-danger">You can view this assignment but cannot edit it.</p>
-          </section>
+        {error ? (
+          <Card>
+            <CardContent className="pt-6">
+              <p className="homework-danger">{error}</p>
+            </CardContent>
+          </Card>
         ) : null}
 
-        <section className="homework-grid">
-          <article className="homework-card homework-span-8">
-            <div className="homework-stacked">
-              <div className="homework-field">
-                <label>Title</label>
-                <input
-                  value={form.title}
-                  onChange={(event) => updateForm({ title: event.target.value })}
-                  placeholder="Monthly homework title"
-                  disabled={!canManage}
-                />
-              </div>
-              <div className="homework-field">
-                <label>Description</label>
-                <textarea
-                  value={form.description}
-                  onChange={(event) => updateForm({ description: event.target.value })}
-                  placeholder="Describe assignment goals..."
-                  disabled={!canManage}
-                />
-              </div>
+        {!canManage ? (
+          <Card>
+            <CardContent className="pt-6">
+              <p className="homework-danger">You can view this assignment but cannot edit it.</p>
+            </CardContent>
+          </Card>
+        ) : null}
 
-              <div className="homework-grid">
-                <div className="homework-field homework-span-4">
-                  <label>Month</label>
-                  <input
+        <div className="grid grid-cols-12 gap-4">
+          <Card className="col-span-12 lg:col-span-8">
+            <CardHeader><CardTitle>Assignment Settings</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Title</Label>
+                <Input
+                  value={form.title}
+                  onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
+                  disabled={!canManage}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Textarea
+                  value={form.description}
+                  onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
+                  disabled={!canManage}
+                />
+              </div>
+              <div className="grid grid-cols-12 gap-3">
+                <div className="col-span-12 md:col-span-4 space-y-2">
+                  <Label>Month</Label>
+                  <Input
                     type="month"
                     value={form.month}
-                    onChange={(event) => updateForm({ month: event.target.value })}
+                    onChange={(event) => setForm((prev) => ({ ...prev, month: event.target.value }))}
                     disabled={!canManage}
                   />
                 </div>
-                <div className="homework-field homework-span-4">
-                  <label>Week</label>
-                  <select
-                    value={form.week}
-                    onChange={(event) => updateForm({ week: Number(event.target.value) })}
-                    disabled={!canManage}
+                <div className="col-span-12 md:col-span-4 space-y-2">
+                  <Label>Week</Label>
+                  <Select
+                    value={String(form.week)}
+                    onValueChange={(value) => setForm((prev) => ({ ...prev, week: Number(value) }))}
                   >
-                    {[1, 2, 3, 4, 5].map((weekValue) => (
-                      <option key={weekValue} value={weekValue}>
-                        Week {weekValue}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger disabled={!canManage}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[1, 2, 3, 4, 5].map((weekValue) => (
+                        <SelectItem key={weekValue} value={String(weekValue)}>
+                          Week {weekValue}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div className="homework-field homework-span-4">
-                  <label>Due Date</label>
-                  <input
+                <div className="col-span-12 md:col-span-4 space-y-2">
+                  <Label>Due date</Label>
+                  <Input
                     type="date"
                     value={form.due_date}
-                    onChange={(event) => updateForm({ due_date: event.target.value })}
+                    onChange={(event) => setForm((prev) => ({ ...prev, due_date: event.target.value }))}
                     disabled={!canManage}
                   />
                 </div>
               </div>
-
-              <div className="homework-field">
-                <label>Status</label>
-                <div className="homework-task-actions">
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <div className="flex flex-wrap gap-2">
                   {["draft", "published", "archived"].map((status) => (
-                    <button
+                    <Button
                       key={status}
                       type="button"
-                      className={`homework-btn ${form.status === status ? "primary" : ""}`}
-                      onClick={() => handleStatusPatch(status)}
+                      variant={form.status === status ? "default" : "outline"}
+                      onClick={() => setForm((prev) => ({ ...prev, status }))}
                       disabled={!canManage}
                     >
                       {status}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </div>
-            </div>
-          </article>
+            </CardContent>
+          </Card>
 
-          <article className="homework-card homework-span-4">
-            <h2 className="homework-item-title">Target Groups</h2>
-            <p className="homework-item-meta">Select one or more groups for this assignment.</p>
-            <div style={{ maxHeight: "320px", overflow: "auto", marginTop: "0.65rem" }}>
-              {groups.map((group) => {
-                const checked = form.target_group_ids.includes(String(group._id));
-                return (
-                  <label key={group._id} className="homework-inline" style={{ width: "100%", marginBottom: "0.45rem" }}>
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleGroup(group._id)}
-                      disabled={!canManage}
-                    />
-                    <span>{group.name} ({(group.student_ids || []).length || 0} students)</span>
-                  </label>
-                );
-              })}
-              {!groups.length ? <p className="homework-item-meta">No groups yet.</p> : null}
-            </div>
-          </article>
-        </section>
-
-        <section className="homework-card">
-          <div className="homework-item-top">
-            <h2 className="homework-item-title">Tasks</h2>
-            <button type="button" className="homework-btn primary" onClick={addTask} disabled={!canManage}>
-              Add Task
-            </button>
-          </div>
-
-          <div className="homework-list">
-            {form.tasks.map((task, taskIndex) => {
-              const searchKeyword = searchByTask[taskIndex] || "";
-              const resourceItems = getCatalogItems(task);
-              const filteredItems = resourceItems.filter((item) =>
-                String(item?.title || item?._id || "").toLowerCase().includes(searchKeyword.toLowerCase()),
-              );
-
-              return (
-                <article className="homework-task-card" key={task._id || `task-${taskIndex}`}>
-                  <div className="homework-task-head">
-                    <h3>Task {taskIndex + 1}</h3>
-                    <button
-                      type="button"
-                      className="homework-btn"
-                      onClick={() => removeTask(taskIndex)}
-                      disabled={!canManage}
-                    >
-                      Remove
-                    </button>
-                  </div>
-
-                  <div className="homework-grid">
-                    <div className="homework-field homework-span-4">
-                      <label>Type</label>
-                      <input
-                        value={task.type}
-                        onChange={(event) => updateTask(taskIndex, { type: event.target.value })}
-                        disabled={!canManage}
-                      />
-                    </div>
-                    <div className="homework-field homework-span-8">
-                      <label>Title</label>
-                      <input
-                        value={task.title}
-                        onChange={(event) => updateTask(taskIndex, { title: event.target.value })}
-                        disabled={!canManage}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="homework-field">
-                    <label>Instruction</label>
-                    <textarea
-                      value={task.instruction}
-                      onChange={(event) => updateTask(taskIndex, { instruction: event.target.value })}
-                      disabled={!canManage}
-                    />
-                  </div>
-
-                  <div className="homework-grid">
-                    <div className="homework-field homework-span-4">
-                      <label>Resource Mode</label>
-                      <select
-                        value={task.resource_mode}
-                        onChange={(event) => updateTask(taskIndex, { resource_mode: event.target.value })}
-                        disabled={!canManage}
-                      >
-                        <option value="internal">Internal content</option>
-                        <option value="external_url">External URL</option>
-                        <option value="uploaded">Uploaded file</option>
-                      </select>
-                    </div>
-                    <div className="homework-field homework-span-4">
-                      <label>Order</label>
-                      <input
-                        type="number"
-                        value={task.order}
-                        onChange={(event) => updateTask(taskIndex, { order: Number(event.target.value) })}
-                        disabled={!canManage}
-                      />
-                    </div>
-                    <div className="homework-field homework-span-4">
-                      <label>Requirement</label>
-                      <div className="homework-chip-row">
-                        <label className="homework-inline">
-                          <input
-                            type="checkbox"
-                            checked={Boolean(task.requires_text)}
-                            onChange={(event) => updateTask(taskIndex, { requires_text: event.target.checked })}
-                            disabled={!canManage}
-                          />
-                          <span>Text</span>
-                        </label>
-                        <label className="homework-inline">
-                          <input
-                            type="checkbox"
-                            checked={Boolean(task.requires_image)}
-                            onChange={(event) => updateTask(taskIndex, { requires_image: event.target.checked })}
-                            disabled={!canManage}
-                          />
-                          <span>Image</span>
-                        </label>
-                        <label className="homework-inline">
-                          <input
-                            type="checkbox"
-                            checked={Boolean(task.requires_audio)}
-                            onChange={(event) => updateTask(taskIndex, { requires_audio: event.target.checked })}
-                            disabled={!canManage}
-                          />
-                          <span>Audio</span>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-
-                  {task.resource_mode === "internal" ? (
-                    <div className="homework-stacked">
-                      <div className="homework-grid">
-                        <div className="homework-field homework-span-4">
-                          <label>Internal Type</label>
-                          <select
-                            value={task.resource_ref_type || "passage"}
-                            onChange={(event) =>
-                              updateTask(taskIndex, {
-                                resource_ref_type: event.target.value,
-                                resource_ref_id: "",
-                              })}
-                            disabled={!canManage}
-                          >
-                            <option value="passage">Passage</option>
-                            <option value="section">Section</option>
-                            <option value="speaking">Speaking</option>
-                            <option value="writing">Writing</option>
-                          </select>
+          <Card className="col-span-12 lg:col-span-4">
+            <CardHeader>
+              <CardTitle>Target Groups</CardTitle>
+              <CardDescription>Select one or more groups.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-64 pr-2">
+                <div className="space-y-3">
+                  {groups.map((group) => {
+                    const checked = form.target_group_ids.includes(String(group._id));
+                    return (
+                      <div key={group._id} className="flex items-center justify-between rounded-md border p-2">
+                        <div>
+                          <p className="text-sm font-medium">{group.name}</p>
+                          <p className="text-xs text-muted-foreground">{(group.student_ids || []).length || 0} students</p>
                         </div>
-                        <div className="homework-field homework-span-8">
-                          <label>Search Resource</label>
-                          <input
-                            value={searchKeyword}
-                            onChange={(event) =>
-                              setSearchByTask((prev) => ({ ...prev, [taskIndex]: event.target.value }))
-                            }
-                            placeholder="Search title or id"
-                            disabled={!canManage}
-                          />
-                        </div>
+                        <Switch checked={checked} onCheckedChange={() => toggleGroup(group._id)} disabled={!canManage} />
                       </div>
-                      <div style={{ maxHeight: "180px", overflow: "auto", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "0.35rem" }}>
-                        {filteredItems.slice(0, 30).map((item) => {
-                          const selected = String(task.resource_ref_id || "") === String(item?._id || "");
-                          return (
-                            <button
-                              key={item._id}
-                              type="button"
-                              className="homework-btn"
-                              style={{
-                                width: "100%",
-                                textAlign: "left",
-                                marginBottom: "0.35rem",
-                                borderColor: selected ? "#1d4ed8" : undefined,
-                              }}
-                              onClick={() => updateTask(taskIndex, { resource_ref_id: item._id })}
-                              disabled={!canManage}
-                            >
-                              {item.title || item._id} ({item._id})
-                            </button>
-                          );
-                        })}
-                        {!filteredItems.length ? <p className="homework-item-meta">No resources found.</p> : null}
-                      </div>
-                      {task.resource_ref_id ? (
-                        <p className="homework-item-meta">Selected: {getResourceDisplayLabel(task)}</p>
-                      ) : null}
-                    </div>
-                  ) : null}
+                    );
+                  })}
+                  {!groups.length ? <p className="text-sm text-muted-foreground">No groups yet.</p> : null}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </div>
 
-                  {task.resource_mode === "external_url" ? (
-                    <div className="homework-field">
-                      <label>Resource URL</label>
-                      <input
-                        value={task.resource_url || ""}
-                        onChange={(event) => updateTask(taskIndex, { resource_url: event.target.value })}
-                        placeholder="https://..."
-                        disabled={!canManage}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Homework Outline</CardTitle>
+              <CardDescription>Drag sections and lessons to reorder. Lessons can move across sections.</CardDescription>
+            </div>
+            {showAddSection ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  value={newSectionName}
+                  onChange={(event) => setNewSectionName(event.target.value)}
+                  placeholder="Input name"
+                  className="w-56"
+                  disabled={!canManage}
+                />
+                <Button variant="outline" onClick={() => { setShowAddSection(false); setNewSectionName(""); }} disabled={!canManage}>Cancel</Button>
+                <Button onClick={handleCreateSection} disabled={!canManage}>Save</Button>
+              </div>
+            ) : (
+              <Button onClick={() => setShowAddSection(true)} disabled={!canManage}>
+                <Plus className="mr-2 h-4 w-4" />
+                New Section
+              </Button>
+            )}
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {(form.sections || []).length === 0 ? (
+              <Empty className="border border-dashed">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon"><Plus className="h-5 w-5" /></EmptyMedia>
+                  <EmptyTitle>No sections yet</EmptyTitle>
+                  <EmptyDescription>Create your first section to start building lesson outline.</EmptyDescription>
+                </EmptyHeader>
+                <EmptyContent>
+                  <Button onClick={() => setShowAddSection(true)} disabled={!canManage}>New Section</Button>
+                </EmptyContent>
+              </Empty>
+            ) : (
+              <DndContext sensors={sensors} collisionDetection={closestCenter} autoScroll onDragEnd={handleDragEnd}>
+                <SortableContext
+                  items={(form.sections || []).map((section) => dndSectionId(section._id))}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-3">
+                    {(form.sections || []).map((section) => (
+                      <SortableSectionCard
+                        key={section._id}
+                        section={section}
+                        canManage={canManage}
+                        assignmentId={editId}
+                        addingLessonSectionId={addingLessonSectionId}
+                        newLessonName={newLessonName}
+                        onNewLessonNameChange={setNewLessonName}
+                        onShowAddLesson={(sectionId) => {
+                          setAddingLessonSectionId(sectionId);
+                          setNewLessonName("");
+                        }}
+                        onCancelAddLesson={() => {
+                          setAddingLessonSectionId("");
+                          setNewLessonName("");
+                        }}
+                        onCreateLesson={handleCreateLesson}
+                        onTogglePublish={(checked) =>
+                          updateSections((sections) =>
+                            sections.map((item) =>
+                              String(item._id) === String(section._id) ? { ...item, is_published: checked } : item,
+                            ),
+                          )}
+                        onSectionMenuAction={(action) => {
+                          if (action === "rename") {
+                            openRenameDialog({
+                              type: "section",
+                              sectionId: section._id,
+                              value: section.name,
+                            });
+                          }
+                          if (action === "duplicate") duplicateSection(section._id);
+                          if (action === "delete") {
+                            openDeleteDialog({ type: "section", sectionId: section._id, label: section.name });
+                          }
+                        }}
+                        onLessonTogglePublish={(lessonId, checked) =>
+                          updateSections((sections) =>
+                            sections.map((item) => ({
+                              ...item,
+                              lessons: (item.lessons || []).map((lesson) =>
+                                String(item._id) === String(section._id) && String(lesson._id) === String(lessonId)
+                                  ? { ...lesson, is_published: checked }
+                                  : lesson,
+                              ),
+                            })),
+                          )}
+                        onLessonMenuAction={(lessonId, action) => {
+                          const lesson = (section.lessons || []).find((item) => String(item._id) === String(lessonId));
+                          if (!lesson) return;
+                          if (action === "rename") {
+                            openRenameDialog({
+                              type: "lesson",
+                              sectionId: section._id,
+                              lessonId,
+                              value: lesson.name,
+                            });
+                          }
+                          if (action === "duplicate") duplicateLesson(section._id, lessonId);
+                          if (action === "delete") {
+                            openDeleteDialog({
+                              type: "lesson",
+                              sectionId: section._id,
+                              lessonId,
+                              label: lesson.name,
+                            });
+                          }
+                        }}
                       />
-                    </div>
-                  ) : null}
-
-                  {task.resource_mode === "uploaded" ? (
-                    <div className="homework-stacked">
-                      <div className="homework-task-actions">
-                        <input
-                          ref={(node) => {
-                            if (!node) fileInputRefs.current.delete(taskIndex);
-                            else fileInputRefs.current.set(taskIndex, node);
-                          }}
-                          type="file"
-                          style={{ display: "none" }}
-                          onChange={(event) => void handleResourceUploadSelected(taskIndex, event)}
-                        />
-                        <button
-                          type="button"
-                          className="homework-btn"
-                          onClick={() => handleResourceUploadClick(taskIndex)}
-                          disabled={!canManage || uploadingTaskIndex === taskIndex}
-                        >
-                          {uploadingTaskIndex === taskIndex ? "Uploading..." : "Upload Resource"}
-                        </button>
-                      </div>
-                      <div className="homework-field">
-                        <label>Uploaded URL</label>
-                        <input
-                          value={task.resource_url || ""}
-                          onChange={(event) => updateTask(taskIndex, { resource_url: event.target.value })}
-                          disabled={!canManage}
-                        />
-                      </div>
-                    </div>
-                  ) : null}
-
-                  <div className="homework-grid">
-                    <div className="homework-field homework-span-6">
-                      <label>Min words</label>
-                      <input
-                        type="number"
-                        value={task.min_words}
-                        onChange={(event) => updateTask(taskIndex, { min_words: event.target.value })}
-                        disabled={!canManage}
-                      />
-                    </div>
-                    <div className="homework-field homework-span-6">
-                      <label>Max words</label>
-                      <input
-                        type="number"
-                        value={task.max_words}
-                        onChange={(event) => updateTask(taskIndex, { max_words: event.target.value })}
-                        disabled={!canManage}
-                      />
-                    </div>
+                    ))}
                   </div>
-                </article>
-              );
-            })}
-          </div>
-        </section>
+                </SortableContext>
+              </DndContext>
+            )}
+            {!editId ? (
+              <>
+                <Separator />
+                <p className="text-xs text-muted-foreground">
+                  Save assignment first to enable lesson links and auto-save outline to backend.
+                </p>
+              </>
+            ) : null}
+          </CardContent>
+        </Card>
+
+        <AlertDialog open={deleteState.open} onOpenChange={(open) => setDeleteState((prev) => ({ ...prev, open }))}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete {deleteState.type || "item"}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {deleteState.type === "section"
+                  ? `Section "${deleteState.label}" and its lesson submissions will be removed.`
+                  : `Lesson "${deleteState.label}" and all submissions for this lesson will be removed.`}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmDelete}>Delete</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={renameState.open} onOpenChange={(open) => setRenameState((prev) => ({ ...prev, open }))}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                Rename {renameState.type === "section" ? "Section" : "Lesson"}
+              </AlertDialogTitle>
+              <AlertDialogDescription>Enter a new name.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <Input
+              value={renameState.value}
+              onChange={(event) => setRenameState((prev) => ({ ...prev, value: event.target.value }))}
+              placeholder="Input name"
+            />
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleConfirmRename}>Save</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );

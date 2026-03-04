@@ -93,6 +93,12 @@ const ensureMonthValue = (month, { optional = false } = {}) => {
   return normalized;
 };
 
+const toObjectIdIfValid = (value) => {
+  const normalized = normalizeOptionalString(value);
+  if (!normalized || !mongoose.Types.ObjectId.isValid(normalized)) return null;
+  return new mongoose.Types.ObjectId(normalized);
+};
+
 const sanitizeTaskInput = (task = {}, index = 0) => {
   const normalized = {
     type: normalizeOptionalString(task.type),
@@ -119,6 +125,148 @@ const sanitizeTaskInput = (task = {}, index = 0) => {
   return normalized;
 };
 
+const sanitizeLessonInput = (lesson = {}, index = 0) => {
+  const normalized = {
+    name: normalizeOptionalString(lesson.name) || normalizeOptionalString(lesson.title),
+    type: normalizeOptionalString(lesson.type) || "custom_task",
+    instruction: normalizeOptionalString(lesson.instruction) || "",
+    order: Number.isFinite(Number(lesson.order)) ? Math.max(0, Math.floor(Number(lesson.order))) : index,
+    is_published: toBoolean(lesson.is_published, false),
+    resource_mode: normalizeOptionalString(lesson.resource_mode) || "internal",
+    resource_ref_type: normalizeOptionalString(lesson.resource_ref_type),
+    resource_ref_id: normalizeOptionalString(lesson.resource_ref_id),
+    resource_url: normalizeOptionalString(lesson.resource_url),
+    resource_storage_key: normalizeOptionalString(lesson.resource_storage_key),
+    requires_text: toBoolean(lesson.requires_text, false),
+    requires_image: toBoolean(lesson.requires_image, false),
+    requires_audio: toBoolean(lesson.requires_audio, false),
+    min_words: Number.isFinite(Number(lesson.min_words)) ? Math.max(0, Math.floor(Number(lesson.min_words))) : null,
+    max_words: Number.isFinite(Number(lesson.max_words)) ? Math.max(0, Math.floor(Number(lesson.max_words))) : null,
+  };
+
+  const lessonId = toObjectIdIfValid(lesson._id);
+  if (lessonId) normalized._id = lessonId;
+
+  return normalized;
+};
+
+const sanitizeSectionInput = (section = {}, index = 0) => {
+  const normalized = {
+    name: normalizeOptionalString(section.name) || `Section ${index + 1}`,
+    order: Number.isFinite(Number(section.order)) ? Math.max(0, Math.floor(Number(section.order))) : index,
+    is_published: toBoolean(section.is_published, false),
+    lessons: Array.isArray(section.lessons)
+      ? section.lessons.map((lesson, lessonIndex) => sanitizeLessonInput(lesson, lessonIndex))
+      : [],
+  };
+
+  const sectionId = toObjectIdIfValid(section._id);
+  if (sectionId) normalized._id = sectionId;
+
+  return normalized;
+};
+
+const ensureOutlineIds = (sections = []) =>
+  (Array.isArray(sections) ? sections : []).map((section, sectionIndex) => ({
+    ...section,
+    _id: toObjectIdIfValid(section?._id) || new mongoose.Types.ObjectId(),
+    order: Number.isFinite(Number(section?.order)) ? Number(section.order) : sectionIndex,
+    lessons: (Array.isArray(section?.lessons) ? section.lessons : []).map((lesson, lessonIndex) => ({
+      ...lesson,
+      _id: toObjectIdIfValid(lesson?._id) || new mongoose.Types.ObjectId(),
+      order: Number.isFinite(Number(lesson?.order)) ? Number(lesson.order) : lessonIndex,
+    })),
+  }));
+
+const lessonToTaskPayload = (lesson = {}, index = 0) => {
+  const task = sanitizeTaskInput(
+    {
+      _id: lesson._id || null,
+      type: lesson.type,
+      title: lesson.name || lesson.title || `Lesson ${index + 1}`,
+      instruction: lesson.instruction,
+      order: lesson.order,
+      resource_mode: lesson.resource_mode,
+      resource_ref_type: lesson.resource_ref_type,
+      resource_ref_id: lesson.resource_ref_id,
+      resource_url: lesson.resource_url,
+      resource_storage_key: lesson.resource_storage_key,
+      requires_text: lesson.requires_text,
+      requires_image: lesson.requires_image,
+      requires_audio: lesson.requires_audio,
+      min_words: lesson.min_words,
+      max_words: lesson.max_words,
+    },
+    index,
+  );
+  return task;
+};
+
+const flattenSectionsToTasks = (sections = []) => {
+  const tasks = [];
+  (Array.isArray(sections) ? sections : []).forEach((section, sectionIndex) => {
+    const lessons = Array.isArray(section?.lessons) ? section.lessons : [];
+    lessons.forEach((lesson, lessonIndex) => {
+      const orderSeed = Number(sectionIndex * 1000 + lessonIndex);
+      const task = lessonToTaskPayload(lesson, orderSeed);
+      tasks.push(task);
+    });
+  });
+  return tasks;
+};
+
+const buildLegacySectionsFromTasks = (tasks = []) => {
+  const normalizedTasks = Array.isArray(tasks) ? tasks : [];
+  if (!normalizedTasks.length) return [];
+
+  return [
+    {
+      _id: new mongoose.Types.ObjectId(),
+      name: "General",
+      order: 0,
+      is_published: true,
+      lessons: normalizedTasks.map((task, index) => ({
+        _id: toObjectIdIfValid(task?._id) || new mongoose.Types.ObjectId(),
+        name: normalizeOptionalString(task?.title) || `Lesson ${index + 1}`,
+        type: normalizeOptionalString(task?.type) || "custom_task",
+        instruction: normalizeOptionalString(task?.instruction) || "",
+        order: Number.isFinite(Number(task?.order)) ? Number(task.order) : index,
+        is_published: true,
+        resource_mode: normalizeOptionalString(task?.resource_mode) || "internal",
+        resource_ref_type: normalizeOptionalString(task?.resource_ref_type),
+        resource_ref_id: normalizeOptionalString(task?.resource_ref_id),
+        resource_url: normalizeOptionalString(task?.resource_url),
+        resource_storage_key: normalizeOptionalString(task?.resource_storage_key),
+        requires_text: toBoolean(task?.requires_text, false),
+        requires_image: toBoolean(task?.requires_image, false),
+        requires_audio: toBoolean(task?.requires_audio, false),
+        min_words: Number.isFinite(Number(task?.min_words)) ? Number(task.min_words) : null,
+        max_words: Number.isFinite(Number(task?.max_words)) ? Number(task.max_words) : null,
+      })),
+    },
+  ];
+};
+
+const toPlainAssignmentObject = (assignment = {}) =>
+  typeof assignment?.toObject === "function" ? assignment.toObject() : assignment;
+
+const getAssignmentSections = (assignment = {}) => {
+  const plain = toPlainAssignmentObject(assignment);
+  const sections = Array.isArray(plain?.sections) ? plain.sections : [];
+  if (sections.length > 0) {
+    return sections.map((section, sectionIndex) => sanitizeSectionInput(section, sectionIndex));
+  }
+  return buildLegacySectionsFromTasks(plain?.tasks || []);
+};
+
+const getAssignmentTasks = (assignment = {}) => {
+  const plain = toPlainAssignmentObject(assignment);
+  const sections = getAssignmentSections(plain);
+  if (sections.length > 0) return flattenSectionsToTasks(sections);
+  const tasks = Array.isArray(plain?.tasks) ? plain.tasks : [];
+  return tasks.map((task, index) => sanitizeTaskInput(task, index));
+};
+
 const sanitizeAssignmentPayload = (body = {}, { partial = false } = {}) => {
   const payload = {};
 
@@ -143,9 +291,17 @@ const sanitizeAssignmentPayload = (body = {}, { partial = false } = {}) => {
   if (!partial || Object.prototype.hasOwnProperty.call(body, "target_group_ids")) {
     payload.target_group_ids = toUniqueObjectIds(body.target_group_ids);
   }
+  if (!partial || Object.prototype.hasOwnProperty.call(body, "sections")) {
+    const rawSections = Array.isArray(body.sections) ? body.sections : [];
+    payload.sections = rawSections.map((section, index) => sanitizeSectionInput(section, index));
+  }
   if (!partial || Object.prototype.hasOwnProperty.call(body, "tasks")) {
     const rawTasks = Array.isArray(body.tasks) ? body.tasks : [];
     payload.tasks = rawTasks.map((task, index) => sanitizeTaskInput(task, index));
+  }
+
+  if (Array.isArray(payload.sections) && payload.sections.length > 0) {
+    payload.tasks = flattenSectionsToTasks(payload.sections);
   }
 
   return payload;
@@ -237,6 +393,13 @@ const validateTaskPayload = (task = {}, index = 0) => {
 
 const validateAssignmentShape = (assignment = {}) => {
   const details = [];
+  const sections = Array.isArray(assignment.sections) ? assignment.sections : [];
+  const hasSections = sections.length > 0;
+  const tasks = hasSections
+    ? flattenSectionsToTasks(sections)
+    : Array.isArray(assignment.tasks)
+      ? assignment.tasks
+      : [];
 
   if (!assignment.title) {
     details.push({ field: "title", message: "title is required" });
@@ -256,12 +419,38 @@ const validateAssignmentShape = (assignment = {}) => {
   if (!Array.isArray(assignment.target_group_ids) || assignment.target_group_ids.length === 0) {
     details.push({ field: "target_group_ids", message: "At least one target group is required" });
   }
-  if (!Array.isArray(assignment.tasks) || assignment.tasks.length === 0) {
+  if (hasSections) {
+    let totalLessons = 0;
+    sections.forEach((section, sectionIndex) => {
+      if (!normalizeOptionalString(section?.name)) {
+        details.push({
+          field: "sections",
+          sectionIndex,
+          message: "Section name is required",
+        });
+      }
+      const lessons = Array.isArray(section?.lessons) ? section.lessons : [];
+      totalLessons += lessons.length;
+      lessons.forEach((lesson, lessonIndex) => {
+        if (!normalizeOptionalString(lesson?.name)) {
+          details.push({
+            field: "sections.lessons",
+            sectionIndex,
+            lessonIndex,
+            message: "Lesson name is required",
+          });
+        }
+      });
+    });
+    if (totalLessons === 0) {
+      details.push({ field: "sections", message: "At least one lesson is required" });
+    }
+  } else if (!Array.isArray(assignment.tasks) || assignment.tasks.length === 0) {
     details.push({ field: "tasks", message: "At least one task is required" });
   }
 
-  if (Array.isArray(assignment.tasks)) {
-    assignment.tasks.forEach((task, index) => {
+  if (Array.isArray(tasks)) {
+    tasks.forEach((task, index) => {
       details.push(...validateTaskPayload(task, index));
     });
   }
@@ -408,7 +597,7 @@ const collectSubmissionStorageKeys = (submission = {}) => {
 
 const collectAssignmentTaskStorageKeys = (assignment = {}) => {
   const keys = [];
-  const tasks = Array.isArray(assignment?.tasks) ? assignment.tasks : [];
+  const tasks = getAssignmentTasks(assignment);
   tasks.forEach((task) => {
     const key = normalizeOptionalString(task?.resource_storage_key);
     if (key) keys.push(key);
@@ -459,6 +648,63 @@ const isAssignmentVisibleToStudent = (assignment = {}, studentGroupIds = []) => 
   const targetGroupIds = Array.isArray(assignment.target_group_ids) ? assignment.target_group_ids : [];
   const studentGroupSet = new Set((studentGroupIds || []).map((id) => String(id)));
   return targetGroupIds.some((groupId) => studentGroupSet.has(String(groupId)));
+};
+
+const getEffectivePublishedSections = (assignment = {}) => {
+  if (String(assignment?.status || "").toLowerCase() !== "published") return [];
+  const sections = getAssignmentSections(assignment);
+  return sections
+    .filter((section) => toBoolean(section?.is_published, false))
+    .map((section) => ({
+      ...section,
+      lessons: (Array.isArray(section?.lessons) ? section.lessons : [])
+        .filter((lesson) => toBoolean(lesson?.is_published, false)),
+    }))
+    .filter((section) => Array.isArray(section.lessons) && section.lessons.length > 0);
+};
+
+const findLessonByTaskId = (assignment = {}, taskId) => {
+  const targetId = String(taskId || "");
+  const sections = getAssignmentSections(assignment);
+  for (const section of sections) {
+    const lessons = Array.isArray(section?.lessons) ? section.lessons : [];
+    const lesson = lessons.find((item) => String(item?._id || "") === targetId);
+    if (lesson) {
+      return { section, lesson };
+    }
+  }
+  return null;
+};
+
+const getRemovedLessonIds = (beforeSections = [], afterSections = []) => {
+  const beforeIds = new Set();
+  (Array.isArray(beforeSections) ? beforeSections : []).forEach((section) => {
+    (Array.isArray(section?.lessons) ? section.lessons : []).forEach((lesson) => {
+      const lessonId = normalizeOptionalString(lesson?._id);
+      if (lessonId) beforeIds.add(lessonId);
+    });
+  });
+
+  const afterIds = new Set();
+  (Array.isArray(afterSections) ? afterSections : []).forEach((section) => {
+    (Array.isArray(section?.lessons) ? section.lessons : []).forEach((lesson) => {
+      const lessonId = normalizeOptionalString(lesson?._id);
+      if (lessonId) afterIds.add(lessonId);
+    });
+  });
+
+  return Array.from(beforeIds).filter((lessonId) => !afterIds.has(lessonId));
+};
+
+const mapAssignmentForResponse = (assignment = {}, { forStudent = false } = {}) => {
+  const plain = toPlainAssignmentObject(assignment);
+  const sections = forStudent ? getEffectivePublishedSections(plain) : getAssignmentSections(plain);
+  const tasks = flattenSectionsToTasks(sections);
+  return {
+    ...plain,
+    sections,
+    tasks,
+  };
 };
 
 const getAssignmentTargetStudents = async (assignment = {}) => {
@@ -525,15 +771,22 @@ const parseScoreOrNull = (value) => {
 };
 
 const mapAssignmentForStudent = (assignment = {}, submissions = []) => {
-  const tasks = Array.isArray(assignment.tasks) ? assignment.tasks : [];
+  const mappedAssignment = mapAssignmentForResponse(assignment, { forStudent: true });
+  const tasks = Array.isArray(mappedAssignment.tasks) ? mappedAssignment.tasks : [];
+  const visibleTaskIdSet = new Set(tasks.map((task) => String(task?._id || "")));
   const submissionTaskSet = new Set(
-    submissions.map((submission) => String(submission.task_id || "")),
+    submissions
+      .map((submission) => String(submission.task_id || ""))
+      .filter((taskId) => visibleTaskIdSet.has(taskId)),
   );
-  const gradedCount = submissions.filter((submission) => submission.status === "graded").length;
+  const gradedCount = submissions.filter(
+    (submission) =>
+      submission.status === "graded" && visibleTaskIdSet.has(String(submission?.task_id || "")),
+  ).length;
   const submittedCount = submissionTaskSet.size;
 
   return {
-    ...assignment,
+    ...mappedAssignment,
     progress: {
       submitted_tasks: submittedCount,
       total_tasks: tasks.length,
@@ -544,7 +797,7 @@ const mapAssignmentForStudent = (assignment = {}, submissions = []) => {
 };
 
 const resolveAssignmentResourceKeysToDeleteOnUpdate = (existingAssignment, nextTasks = []) => {
-  const currentTasks = Array.isArray(existingAssignment?.tasks) ? existingAssignment.tasks : [];
+  const currentTasks = getAssignmentTasks(existingAssignment);
   const currentById = new Map();
   currentTasks.forEach((task) => {
     currentById.set(String(task._id), normalizeOptionalString(task.resource_storage_key));
@@ -562,6 +815,25 @@ const resolveAssignmentResourceKeysToDeleteOnUpdate = (existingAssignment, nextT
     if (!keepKeys.has(storageKey)) removedKeys.push(storageKey);
   });
   return removedKeys;
+};
+
+const purgeSubmissionByLessonIds = async (req, assignmentId, lessonIds = []) => {
+  const normalizedLessonIds = (Array.isArray(lessonIds) ? lessonIds : [])
+    .filter((lessonId) => mongoose.Types.ObjectId.isValid(lessonId))
+    .map((lessonId) => new mongoose.Types.ObjectId(lessonId));
+  if (!normalizedLessonIds.length) return;
+
+  const submissions = await MonthlyAssignmentSubmission.find({
+    assignment_id: assignmentId,
+    task_id: { $in: normalizedLessonIds },
+  }).lean();
+
+  const storageKeys = submissions.flatMap((submission) => collectSubmissionStorageKeys(submission));
+  await MonthlyAssignmentSubmission.deleteMany({
+    assignment_id: assignmentId,
+    task_id: { $in: normalizedLessonIds },
+  });
+  await deleteHomeworkKeysBestEffort(req, storageKeys);
 };
 
 export const createHomeworkGroup = async (req, res) => {
@@ -723,6 +995,11 @@ export const createHomeworkAssignment = async (req, res) => {
   try {
     const payload = sanitizeAssignmentPayload(req.body);
     payload.status = payload.status || "draft";
+    payload.sections =
+      Array.isArray(payload.sections) && payload.sections.length > 0
+        ? payload.sections
+        : buildLegacySectionsFromTasks(payload.tasks);
+    payload.tasks = flattenSectionsToTasks(payload.sections);
 
     const shapeErrors = validateAssignmentShape(payload);
     if (shapeErrors.length > 0) {
@@ -745,10 +1022,11 @@ export const createHomeworkAssignment = async (req, res) => {
       target_group_ids: targetGroupIds,
       created_by: req.user.userId,
       updated_by: req.user.userId,
+      sections: payload.sections,
       tasks: payload.tasks,
     });
 
-    return res.status(201).json({ success: true, data: assignment });
+    return res.status(201).json({ success: true, data: mapAssignmentForResponse(assignment) });
   } catch (error) {
     return handleControllerError(req, res, error);
   }
@@ -791,7 +1069,7 @@ export const getHomeworkAssignments = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: assignments.map((item) => ({
-        ...item,
+        ...mapAssignmentForResponse(item),
         can_manage: canManageAssignment({ assignment: item, user: req.user }),
       })),
       pagination: buildPaginationMeta({ page, limit, totalItems }),
@@ -816,7 +1094,7 @@ export const getHomeworkAssignmentById = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: {
-        ...assignment,
+        ...mapAssignmentForResponse(assignment),
         can_manage: canManageAssignment({ assignment, user: req.user }),
       },
     });
@@ -847,6 +1125,16 @@ export const updateHomeworkAssignment = async (req, res) => {
       });
     }
 
+    const hasSectionsInPayload = Object.prototype.hasOwnProperty.call(updatePayload, "sections");
+    const hasTasksInPayload = Object.prototype.hasOwnProperty.call(updatePayload, "tasks");
+    const existingSections = getAssignmentSections(assignment);
+    const nextSections = hasSectionsInPayload
+      ? updatePayload.sections
+      : hasTasksInPayload
+        ? buildLegacySectionsFromTasks(updatePayload.tasks)
+        : existingSections;
+    const nextTasks = flattenSectionsToTasks(nextSections);
+
     const nextData = {
       title: Object.prototype.hasOwnProperty.call(updatePayload, "title")
         ? updatePayload.title
@@ -869,9 +1157,8 @@ export const updateHomeworkAssignment = async (req, res) => {
       target_group_ids: Object.prototype.hasOwnProperty.call(updatePayload, "target_group_ids")
         ? updatePayload.target_group_ids
         : assignment.target_group_ids,
-      tasks: Object.prototype.hasOwnProperty.call(updatePayload, "tasks")
-        ? updatePayload.tasks
-        : assignment.tasks,
+      sections: nextSections,
+      tasks: nextTasks,
     };
 
     const shapeErrors = validateAssignmentShape(nextData);
@@ -894,6 +1181,7 @@ export const updateHomeworkAssignment = async (req, res) => {
       assignment.toObject(),
       nextData.tasks,
     );
+    const removedLessonIds = getRemovedLessonIds(existingSections, nextSections);
 
     const updated = await MonthlyAssignment.findByIdAndUpdate(
       req.params.id,
@@ -905,9 +1193,217 @@ export const updateHomeworkAssignment = async (req, res) => {
       { new: true, runValidators: true },
     );
 
+    await purgeSubmissionByLessonIds(req, assignment._id, removedLessonIds);
     await deleteHomeworkKeysBestEffort(req, removedResourceKeys);
 
-    return res.status(200).json({ success: true, data: updated });
+    return res.status(200).json({ success: true, data: mapAssignmentForResponse(updated) });
+  } catch (error) {
+    return handleControllerError(req, res, error);
+  }
+};
+
+export const patchHomeworkAssignmentOutline = async (req, res) => {
+  try {
+    const assignment = await MonthlyAssignment.findById(req.params.id);
+    if (!assignment) {
+      return sendControllerError(req, res, { statusCode: 404, message: "Assignment not found" });
+    }
+
+    if (!canManageAssignment({ assignment, user: req.user })) {
+      return sendControllerError(req, res, {
+        statusCode: 403,
+        message: "You do not have permission to update this assignment",
+      });
+    }
+
+    const rawSections = Array.isArray(req.body?.sections) ? req.body.sections : null;
+    if (!rawSections) {
+      return sendControllerError(req, res, {
+        statusCode: 400,
+        message: "sections is required",
+      });
+    }
+
+    const nextSections = ensureOutlineIds(rawSections.map((section, index) => sanitizeSectionInput(section, index)));
+    const nextTasks = flattenSectionsToTasks(nextSections);
+    const shapeErrors = validateAssignmentShape({
+      ...toPlainAssignmentObject(assignment),
+      sections: nextSections,
+      tasks: nextTasks,
+    });
+    if (shapeErrors.length > 0) {
+      return sendControllerError(req, res, {
+        statusCode: 400,
+        code: "BAD_REQUEST",
+        message: "Invalid assignment outline payload",
+        details: shapeErrors,
+      });
+    }
+
+    const isRefsValid = await assertInternalRefsOrRespond(req, res, nextTasks);
+    if (!isRefsValid) return;
+
+    const existingSections = getAssignmentSections(assignment);
+    const removedLessonIds = getRemovedLessonIds(existingSections, nextSections);
+    const removedResourceKeys = resolveAssignmentResourceKeysToDeleteOnUpdate(
+      assignment.toObject(),
+      nextTasks,
+    );
+
+    const updated = await MonthlyAssignment.findByIdAndUpdate(
+      assignment._id,
+      {
+        sections: nextSections,
+        tasks: nextTasks,
+        updated_by: req.user.userId,
+      },
+      { new: true, runValidators: true },
+    );
+
+    await purgeSubmissionByLessonIds(req, assignment._id, removedLessonIds);
+    await deleteHomeworkKeysBestEffort(req, removedResourceKeys);
+
+    return res.status(200).json({
+      success: true,
+      data: mapAssignmentForResponse(updated),
+    });
+  } catch (error) {
+    return handleControllerError(req, res, error);
+  }
+};
+
+export const getHomeworkAssignmentLessonById = async (req, res) => {
+  try {
+    const assignment = await MonthlyAssignment.findById(req.params.id)
+      .populate("created_by", "name email role")
+      .lean();
+    if (!assignment) {
+      return sendControllerError(req, res, { statusCode: 404, message: "Assignment not found" });
+    }
+
+    if (!canManageAssignment({ assignment, user: req.user })) {
+      return sendControllerError(req, res, {
+        statusCode: 403,
+        message: "You do not have permission to view this lesson",
+      });
+    }
+
+    const lessonMatch = findLessonByTaskId(assignment, req.params.lessonId);
+    if (!lessonMatch) {
+      return sendControllerError(req, res, { statusCode: 404, message: "Lesson not found" });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        assignment: mapAssignmentForResponse(assignment),
+        section: lessonMatch.section,
+        lesson: lessonMatch.lesson,
+      },
+    });
+  } catch (error) {
+    return handleControllerError(req, res, error);
+  }
+};
+
+export const patchHomeworkAssignmentLessonById = async (req, res) => {
+  try {
+    const assignment = await MonthlyAssignment.findById(req.params.id);
+    if (!assignment) {
+      return sendControllerError(req, res, { statusCode: 404, message: "Assignment not found" });
+    }
+
+    if (!canManageAssignment({ assignment, user: req.user })) {
+      return sendControllerError(req, res, {
+        statusCode: 403,
+        message: "You do not have permission to update this lesson",
+      });
+    }
+
+    const sections = ensureOutlineIds(getAssignmentSections(assignment));
+    let targetSectionIndex = -1;
+    let targetLessonIndex = -1;
+
+    sections.forEach((section, sectionIndex) => {
+      if (targetSectionIndex >= 0) return;
+      const lessonIndex = (section.lessons || []).findIndex(
+        (lesson) => String(lesson?._id || "") === String(req.params.lessonId || ""),
+      );
+      if (lessonIndex >= 0) {
+        targetSectionIndex = sectionIndex;
+        targetLessonIndex = lessonIndex;
+      }
+    });
+
+    if (targetSectionIndex < 0 || targetLessonIndex < 0) {
+      return sendControllerError(req, res, { statusCode: 404, message: "Lesson not found" });
+    }
+
+    const currentLesson = sections[targetSectionIndex].lessons[targetLessonIndex];
+    const patch = sanitizeLessonInput(
+      {
+        ...req.body,
+        _id: currentLesson._id,
+      },
+      targetLessonIndex,
+    );
+    const mergedLesson = {
+      ...currentLesson,
+      ...patch,
+      _id: currentLesson._id,
+      name: Object.prototype.hasOwnProperty.call(req.body || {}, "name")
+        ? patch.name
+        : currentLesson.name,
+      is_published: Object.prototype.hasOwnProperty.call(req.body || {}, "is_published")
+        ? patch.is_published
+        : currentLesson.is_published,
+    };
+    sections[targetSectionIndex].lessons[targetLessonIndex] = mergedLesson;
+
+    const nextTasks = flattenSectionsToTasks(sections);
+    const isRefsValid = await assertInternalRefsOrRespond(req, res, nextTasks);
+    if (!isRefsValid) return;
+
+    const shapeErrors = validateAssignmentShape({
+      ...toPlainAssignmentObject(assignment),
+      sections,
+      tasks: nextTasks,
+    });
+    if (shapeErrors.length > 0) {
+      return sendControllerError(req, res, {
+        statusCode: 400,
+        code: "BAD_REQUEST",
+        message: "Invalid lesson payload",
+        details: shapeErrors,
+      });
+    }
+
+    const removedResourceKeys = resolveAssignmentResourceKeysToDeleteOnUpdate(
+      assignment.toObject(),
+      nextTasks,
+    );
+
+    const updated = await MonthlyAssignment.findByIdAndUpdate(
+      assignment._id,
+      {
+        sections,
+        tasks: nextTasks,
+        updated_by: req.user.userId,
+      },
+      { new: true, runValidators: true },
+    );
+
+    await deleteHomeworkKeysBestEffort(req, removedResourceKeys);
+
+    const match = findLessonByTaskId(updated, req.params.lessonId);
+    return res.status(200).json({
+      success: true,
+      data: {
+        assignment: mapAssignmentForResponse(updated),
+        section: match?.section || null,
+        lesson: match?.lesson || null,
+      },
+    });
   } catch (error) {
     return handleControllerError(req, res, error);
   }
@@ -939,7 +1435,7 @@ export const updateHomeworkAssignmentStatus = async (req, res) => {
     assignment.updated_by = req.user.userId;
     await assignment.save();
 
-    return res.status(200).json({ success: true, data: assignment });
+    return res.status(200).json({ success: true, data: mapAssignmentForResponse(assignment) });
   } catch (error) {
     return handleControllerError(req, res, error);
   }
@@ -1111,11 +1607,21 @@ export const getMyHomeworkAssignmentById = async (req, res) => {
       student_id: req.user.userId,
     }).lean();
 
+    const mappedAssignment = mapAssignmentForStudent(assignment, submissions);
+    const visibleTaskIds = new Set(
+      (Array.isArray(mappedAssignment.tasks) ? mappedAssignment.tasks : []).map((task) =>
+        String(task?._id || ""),
+      ),
+    );
+    const visibleSubmissions = submissions.filter((submission) =>
+      visibleTaskIds.has(String(submission?.task_id || "")),
+    );
+
     return res.status(200).json({
       success: true,
       data: {
-        ...mapAssignmentForStudent(assignment, submissions),
-        submissions: submissions.map(mapSubmissionToResponse),
+        ...mappedAssignment,
+        submissions: visibleSubmissions.map(mapSubmissionToResponse),
       },
     });
   } catch (error) {
@@ -1150,12 +1656,18 @@ export const upsertMyHomeworkTaskSubmission = async (req, res) => {
       });
     }
 
-    const task = (Array.isArray(assignment.tasks) ? assignment.tasks : []).find(
-      (item) => String(item?._id || "") === String(taskId),
-    );
-    if (!task) {
+    const lessonMatch = findLessonByTaskId(assignment, taskId);
+    if (!lessonMatch) {
       return sendControllerError(req, res, { statusCode: 404, message: "Task not found" });
     }
+    const { section, lesson } = lessonMatch;
+    if (!toBoolean(section?.is_published, false) || !toBoolean(lesson?.is_published, false)) {
+      return sendControllerError(req, res, {
+        statusCode: 403,
+        message: "Lesson is not published for student submissions",
+      });
+    }
+    const task = lessonToTaskPayload(lesson, 0);
 
     const existingSubmission = await MonthlyAssignmentSubmission.findOne({
       assignment_id: assignmentId,
@@ -1398,7 +1910,8 @@ export const getHomeworkAssignmentDashboard = async (req, res) => {
       }).lean()
       : [];
 
-    const tasks = Array.isArray(assignment.tasks) ? assignment.tasks : [];
+    const effectiveSections = getEffectivePublishedSections(assignment);
+    const tasks = flattenSectionsToTasks(effectiveSections);
     const taskSummary = tasks.map((task) => {
       const taskIdKey = String(task._id || "");
       const submittedStudentSet = new Set(
@@ -1448,7 +1961,11 @@ export const getHomeworkAssignmentDashboard = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: {
-        assignment,
+        assignment: {
+          ...mapAssignmentForResponse(assignment),
+          sections: effectiveSections,
+          tasks,
+        },
         totals: {
           students_in_target: targetStudents.length,
           students_in_scope: scopedStudents.length,
@@ -1478,7 +1995,8 @@ export const getHomeworkTaskSubmissions = async (req, res) => {
       return sendControllerError(req, res, { statusCode: 404, message: "Assignment not found" });
     }
 
-    const hasTask = (assignment.tasks || []).some((task) => String(task._id || "") === String(taskId));
+    const effectiveTasks = flattenSectionsToTasks(getEffectivePublishedSections(assignment));
+    const hasTask = effectiveTasks.some((task) => String(task._id || "") === String(taskId));
     if (!hasTask) {
       return sendControllerError(req, res, { statusCode: 404, message: "Task not found" });
     }
@@ -1562,7 +2080,7 @@ export const getHomeworkSubmissionById = async (req, res) => {
       success: true,
       data: {
         ...mapSubmissionToResponse(submission),
-        assignment,
+        assignment: mapAssignmentForResponse(assignment),
         student,
       },
     });

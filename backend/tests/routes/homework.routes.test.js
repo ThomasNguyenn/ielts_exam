@@ -12,6 +12,9 @@ const mockedControllers = vi.hoisted(() => ({
   getHomeworkAssignments: vi.fn((_req, res) => res.status(200).json({ route: "list-assignments" })),
   getHomeworkAssignmentById: vi.fn((_req, res) => res.status(200).json({ route: "assignment-by-id" })),
   updateHomeworkAssignment: vi.fn((_req, res) => res.status(200).json({ route: "update-assignment" })),
+  patchHomeworkAssignmentOutline: vi.fn((_req, res) => res.status(200).json({ route: "patch-outline" })),
+  getHomeworkAssignmentLessonById: vi.fn((_req, res) => res.status(200).json({ route: "get-lesson" })),
+  patchHomeworkAssignmentLessonById: vi.fn((_req, res) => res.status(200).json({ route: "patch-lesson" })),
   updateHomeworkAssignmentStatus: vi.fn((_req, res) => res.status(200).json({ route: "update-status" })),
   deleteHomeworkAssignment: vi.fn((_req, res) => res.status(200).json({ route: "delete-assignment" })),
   uploadHomeworkAssignmentResource: vi.fn((_req, res) => res.status(200).json({ route: "upload-resource" })),
@@ -64,6 +67,17 @@ describe("homework routes role guards", () => {
     expect(res.status).toBe(200);
     expect(res.body.route).toBe("list-assignments");
     expect(mockedControllers.getHomeworkAssignments).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows teacher to patch assignment outline", async () => {
+    const res = await request(app)
+      .patch("/api/homework/assignments/a1/outline")
+      .set("x-test-role", "teacher")
+      .send({ sections: [] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.route).toBe("patch-outline");
+    expect(mockedControllers.patchHomeworkAssignmentOutline).toHaveBeenCalledTimes(1);
   });
 
   it("rejects student on teacher/admin assignments route", async () => {

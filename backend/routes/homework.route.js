@@ -16,6 +16,9 @@ import {
   createHomeworkGroup,
   deleteHomeworkAssignment,
   deleteHomeworkGroup,
+  getHomeworkAssignmentLessonById,
+  patchHomeworkAssignmentLessonById,
+  patchHomeworkAssignmentOutline,
   updateHomeworkAssignment,
   updateHomeworkAssignmentStatus,
   updateHomeworkGroup,
@@ -155,6 +158,9 @@ router.get("/assignments", isTeacherOrAdmin, getHomeworkAssignments);
 router.post("/assignments/upload-resource", isTeacherOrAdmin, handleResourceUpload, uploadHomeworkAssignmentResource);
 router.get("/assignments/:id", isTeacherOrAdmin, getHomeworkAssignmentById);
 router.put("/assignments/:id", isTeacherOrAdmin, updateHomeworkAssignment);
+router.patch("/assignments/:id/outline", isTeacherOrAdmin, patchHomeworkAssignmentOutline);
+router.get("/assignments/:id/lessons/:lessonId", isTeacherOrAdmin, getHomeworkAssignmentLessonById);
+router.patch("/assignments/:id/lessons/:lessonId", isTeacherOrAdmin, patchHomeworkAssignmentLessonById);
 router.patch("/assignments/:id/status", isTeacherOrAdmin, updateHomeworkAssignmentStatus);
 router.delete("/assignments/:id", isTeacherOrAdmin, deleteHomeworkAssignment);
 

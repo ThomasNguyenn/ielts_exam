@@ -4,6 +4,45 @@ const ASSIGNMENT_STATUSES = ["draft", "published", "archived"];
 const TASK_RESOURCE_MODES = ["internal", "external_url", "uploaded"];
 const TASK_RESOURCE_REF_TYPES = ["passage", "section", "speaking", "writing", null];
 
+const AssignmentLessonSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, trim: true },
+    type: { type: String, required: true, trim: true },
+    instruction: { type: String, default: "", trim: true },
+    order: { type: Number, default: 0, min: 0 },
+    is_published: { type: Boolean, default: false },
+    resource_mode: {
+      type: String,
+      enum: TASK_RESOURCE_MODES,
+      default: "internal",
+    },
+    resource_ref_type: {
+      type: String,
+      enum: TASK_RESOURCE_REF_TYPES,
+      default: null,
+    },
+    resource_ref_id: { type: String, default: null, trim: true },
+    resource_url: { type: String, default: null, trim: true },
+    resource_storage_key: { type: String, default: null, trim: true },
+    requires_text: { type: Boolean, default: false },
+    requires_image: { type: Boolean, default: false },
+    requires_audio: { type: Boolean, default: false },
+    min_words: { type: Number, min: 0, default: null },
+    max_words: { type: Number, min: 0, default: null },
+  },
+  { _id: true },
+);
+
+const AssignmentSectionSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true, trim: true },
+    order: { type: Number, default: 0, min: 0 },
+    is_published: { type: Boolean, default: false },
+    lessons: [AssignmentLessonSchema],
+  },
+  { _id: true },
+);
+
 const AssignmentTaskSchema = new mongoose.Schema(
   {
     type: { type: String, required: true, trim: true },
@@ -65,6 +104,7 @@ const MonthlyAssignmentSchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
+    sections: [AssignmentSectionSchema],
     tasks: [AssignmentTaskSchema],
   },
   { timestamps: true },
