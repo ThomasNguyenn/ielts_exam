@@ -310,6 +310,7 @@ const sanitizeAssignmentPayload = (body = {}, { partial = false } = {}) => {
 const validateTaskPayload = (task = {}, index = 0) => {
   const details = [];
   const taskOrder = Number.isFinite(Number(task.order)) ? Number(task.order) : index;
+  const taskType = normalizeOptionalString(task.type) || "";
 
   if (!task.type) {
     details.push({ taskIndex: index, order: taskOrder, field: "type", message: "Task type is required" });
@@ -329,21 +330,24 @@ const validateTaskPayload = (task = {}, index = 0) => {
   }
 
   if (task.resource_mode === "internal") {
-    if (!task.resource_ref_type || !TASK_RESOURCE_REF_TYPES_SET.has(task.resource_ref_type)) {
-      details.push({
-        taskIndex: index,
-        order: taskOrder,
-        field: "resource_ref_type",
-        message: "resource_ref_type must be one of passage|section|speaking|writing for internal mode",
-      });
-    }
-    if (!task.resource_ref_id) {
-      details.push({
-        taskIndex: index,
-        order: taskOrder,
-        field: "resource_ref_id",
-        message: "resource_ref_id is required for internal mode",
-      });
+    const isCustomTask = taskType === "custom_task";
+    if (!isCustomTask) {
+      if (!task.resource_ref_type || !TASK_RESOURCE_REF_TYPES_SET.has(task.resource_ref_type)) {
+        details.push({
+          taskIndex: index,
+          order: taskOrder,
+          field: "resource_ref_type",
+          message: "resource_ref_type must be one of passage|section|speaking|writing for internal mode",
+        });
+      }
+      if (!task.resource_ref_id) {
+        details.push({
+          taskIndex: index,
+          order: taskOrder,
+          field: "resource_ref_id",
+          message: "resource_ref_id is required for internal mode",
+        });
+      }
     }
   }
 
