@@ -68,6 +68,11 @@ const parseWeekOrNull = (value) => {
   return normalized;
 };
 
+const parseOptionalDateOrNull = (value) => {
+  if (value === undefined || value === null || value === "") return null;
+  return parseDateOrNull(value);
+};
+
 const toUniqueObjectIds = (values = []) => {
   const dedup = [];
   const seen = new Set();
@@ -115,6 +120,7 @@ const sanitizeTaskInput = (task = {}, index = 0) => {
     requires_audio: toBoolean(task.requires_audio, false),
     min_words: Number.isFinite(Number(task.min_words)) ? Math.max(0, Math.floor(Number(task.min_words))) : null,
     max_words: Number.isFinite(Number(task.max_words)) ? Math.max(0, Math.floor(Number(task.max_words))) : null,
+    due_date: parseDateOrNull(task.due_date),
   };
 
   const taskId = normalizeOptionalString(task._id);
@@ -142,6 +148,7 @@ const sanitizeLessonInput = (lesson = {}, index = 0) => {
     requires_audio: toBoolean(lesson.requires_audio, false),
     min_words: Number.isFinite(Number(lesson.min_words)) ? Math.max(0, Math.floor(Number(lesson.min_words))) : null,
     max_words: Number.isFinite(Number(lesson.max_words)) ? Math.max(0, Math.floor(Number(lesson.max_words))) : null,
+    due_date: parseDateOrNull(lesson.due_date),
   };
 
   const lessonId = toObjectIdIfValid(lesson._id);
@@ -196,6 +203,7 @@ const lessonToTaskPayload = (lesson = {}, index = 0) => {
       requires_audio: lesson.requires_audio,
       min_words: lesson.min_words,
       max_words: lesson.max_words,
+      due_date: lesson.due_date,
     },
     index,
   );

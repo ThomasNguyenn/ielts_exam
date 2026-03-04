@@ -4,7 +4,7 @@
     --nav-shell-border: #dbe4f4;
     --nav-shell-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
     --nav-text: #334155;
-    --nav-active-bg: #1152d4;
+    --nav-active-bg: #000000;
     --nav-active-text: #ffffff;
     --nav-hover-bg: #eaf1ff;
     --nav-hover-text: #0f172a;
@@ -164,7 +164,7 @@
 .nav-item.active {
     background: var(--nav-active-bg) !important;
     color: var(--nav-active-text) !important;
-    box-shadow: 0 8px 16px rgba(17, 82, 212, 0.3);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.28);
     font-weight: 700;
 }
 
@@ -264,7 +264,7 @@
 }
 
 .nav-dropdown-item.active {
-    box-shadow: 0 6px 12px rgba(17, 82, 212, 0.2);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
 }
 
 .nav-user-section {

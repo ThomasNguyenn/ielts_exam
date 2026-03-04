@@ -10,7 +10,10 @@ import './Auth.css';
 export default function Register() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const inviteToken = searchParams.get('invite') || '';
+  const inviteToken = String(searchParams.get('invite') || '').trim();
+  const normalizedInviteToken = inviteToken.includes(' ')
+    ? inviteToken.replace(/\s+/g, '+')
+    : inviteToken;
 
   const [form, setForm] = useState({
     name: '',
@@ -28,12 +31,12 @@ export default function Register() {
 
   // Validate invite token on mount
   useEffect(() => {
-    if (!inviteToken) return;
+    if (!normalizedInviteToken) return;
 
     setInviteLoading(true);
     setInviteError(null);
 
-    api.validateInvitation(inviteToken)
+    api.validateInvitation(normalizedInviteToken)
       .then((res) => {
         const data = res?.data || res;
         if (data?.valid) {
@@ -47,7 +50,7 @@ export default function Register() {
         setInviteError('Lời mời không hợp lệ hoặc đã hết hạn');
       })
       .finally(() => setInviteLoading(false));
-  }, [inviteToken]);
+  }, [normalizedInviteToken]);
 
   const roleLabel = inviteData?.role === 'admin' ? 'Quản trị viên' : inviteData?.role === 'teacher' ? 'Giáo viên' : 'Học sinh';
 
@@ -74,8 +77,8 @@ export default function Register() {
         password: form.password,
       };
 
-      if (inviteToken) {
-        registerData.inviteToken = inviteToken;
+      if (normalizedInviteToken) {
+        registerData.inviteToken = normalizedInviteToken;
       }
 
       const res = await api.register(registerData);

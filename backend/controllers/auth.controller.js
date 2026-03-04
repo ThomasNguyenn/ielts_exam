@@ -45,6 +45,38 @@ const validatePassword = (password) => {
 const createStudentSessionId = () => randomUUID();
 const normalizeEmail = (value) => String(value || "").trim().toLowerCase();
 const isValidEmail = (value) => EMAIL_REGEX.test(String(value || "").trim());
+const normalizeInviteToken = (value) => String(value || "").trim();
+
+const decodeInviteToken = (value) => {
+  if (!value) return "";
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
+
+const buildInviteTokenCandidates = (value) => {
+  const decoded = normalizeInviteToken(decodeInviteToken(value));
+  if (!decoded) return [];
+
+  const candidates = new Set([decoded]);
+  if (decoded.includes(" ")) {
+    // Some clients decode '+' to spaces in query params.
+    candidates.add(decoded.replace(/\s+/g, "+"));
+  }
+  return Array.from(candidates);
+};
+
+const getExpiresAtTimeMs = (value) => {
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const isInvitationExpired = (invitation, nowMs = Date.now()) => {
+  const expiresAtMs = getExpiresAtTimeMs(invitation?.expiresAt);
+  return expiresAtMs <= nowMs;
+};
 
 const parseCookies = (cookieHeader = "") =>
   String(cookieHeader || "")
@@ -182,13 +214,21 @@ export const register = async (req, res) => {
     let invitation = null;
 
     if (inviteToken) {
-      invitation = await Invitation.findOne({
-        token: inviteToken,
-        status: "pending",
-        expiresAt: { $gt: new Date() },
-      });
+      const tokenCandidates = buildInviteTokenCandidates(inviteToken);
+      invitation = tokenCandidates.length > 0
+        ? await Invitation.findOne({
+          token: { $in: tokenCandidates },
+          status: "pending",
+        })
+        : null;
 
-      if (!invitation) {
+      if (!invitation || isInvitationExpired(invitation)) {
+        if (invitation?.status === "pending") {
+          await Invitation.updateOne(
+            { _id: invitation._id, status: "pending" },
+            { $set: { status: "expired" } },
+          ).catch(() => {});
+        }
         return sendControllerError(req, res, { statusCode: 400, message: "Invalid or expired invitation token"  });
       }
 
@@ -668,13 +708,21 @@ export const validateInviteToken = async (req, res) => {
       return sendControllerError(req, res, { statusCode: 400, message: "Token is required"  });
     }
 
-    const invitation = await Invitation.findOne({
-      token,
-      status: "pending",
-      expiresAt: { $gt: new Date() },
-    }).select("email role expiresAt").lean();
+    const tokenCandidates = buildInviteTokenCandidates(token);
+    const invitation = tokenCandidates.length > 0
+      ? await Invitation.findOne({
+        token: { $in: tokenCandidates },
+        status: "pending",
+      }).select("email role expiresAt status")
+      : null;
 
-    if (!invitation) {
+    if (!invitation || isInvitationExpired(invitation)) {
+      if (invitation && invitation.status === "pending") {
+        await Invitation.updateOne(
+          { _id: invitation._id, status: "pending" },
+          { $set: { status: "expired" } },
+        ).catch(() => {});
+      }
       return sendControllerError(req, res, {
         statusCode: 404,
         message: "Invalid or expired invitation",

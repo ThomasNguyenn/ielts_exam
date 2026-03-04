@@ -29,6 +29,7 @@ const AssignmentLessonSchema = new mongoose.Schema(
     requires_audio: { type: Boolean, default: false },
     min_words: { type: Number, min: 0, default: null },
     max_words: { type: Number, min: 0, default: null },
+    due_date: { type: Date, default: null },
   },
   { _id: true },
 );
@@ -67,6 +68,7 @@ const AssignmentTaskSchema = new mongoose.Schema(
     requires_audio: { type: Boolean, default: false },
     min_words: { type: Number, min: 0, default: null },
     max_words: { type: Number, min: 0, default: null },
+    due_date: { type: Date, default: null },
   },
   { _id: true },
 );

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
 import PaginationControls from '@/shared/components/PaginationControls';
-import { Mail, Send, Clock, CheckCircle, XCircle, UserPlus } from 'lucide-react';
+import { Mail, Send, Clock, CheckCircle, XCircle, UserPlus, Trash2 } from 'lucide-react';
 import './Manage.css';
 
 const STATUS_CONFIG = {
@@ -23,6 +23,7 @@ export default function ManageInvitations() {
 
     const [inviteForm, setInviteForm] = useState({ email: '', role: 'teacher' });
     const [sending, setSending] = useState(false);
+    const [deletingId, setDeletingId] = useState('');
 
     const { showNotification } = useNotification();
 
@@ -74,6 +75,32 @@ export default function ManageInvitations() {
             showNotification(error.message || 'Gửi lời mời thất bại', 'error');
         } finally {
             setSending(false);
+        }
+    };
+
+    const handleDeleteInvitation = async (invitation) => {
+        const invitationId = String(invitation?._id || '').trim();
+        if (!invitationId) return;
+
+        const confirmed = window.confirm(`Xóa lời mời gửi tới ${invitation?.email || 'người dùng này'}?`);
+        if (!confirmed) return;
+
+        setDeletingId(invitationId);
+        try {
+            const res = await api.deleteInvitation(invitationId);
+            if (res.success) {
+                showNotification('Đã xóa lời mời', 'success');
+                const shouldGoPrevPage = invitations.length === 1 && currentPage > 1;
+                if (shouldGoPrevPage) {
+                    setCurrentPage((prev) => Math.max(1, prev - 1));
+                } else {
+                    fetchInvitations(currentPage);
+                }
+            }
+        } catch (error) {
+            showNotification(error.message || 'Xóa lời mời thất bại', 'error');
+        } finally {
+            setDeletingId('');
         }
     };
 
@@ -279,6 +306,29 @@ export default function ManageInvitations() {
                                                     Hết hạn: {formatDate(inv.expiresAt)}
                                                 </span>
                                             )}
+                                            <button
+                                                type="button"
+                                                onClick={() => handleDeleteInvitation(inv)}
+                                                disabled={deletingId === inv._id}
+                                                style={{
+                                                    marginTop: '0.25rem',
+                                                    border: '1px solid #fecaca',
+                                                    background: '#fff1f2',
+                                                    color: '#dc2626',
+                                                    borderRadius: '8px',
+                                                    padding: '0.35rem 0.6rem',
+                                                    fontSize: '0.78rem',
+                                                    fontWeight: 600,
+                                                    cursor: deletingId === inv._id ? 'not-allowed' : 'pointer',
+                                                    opacity: deletingId === inv._id ? 0.7 : 1,
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '0.35rem',
+                                                }}
+                                            >
+                                                <Trash2 size={14} />
+                                                {deletingId === inv._id ? 'Đang xóa...' : 'Xóa'}
+                                            </button>
                                         </div>
                                     </div>
                                 );

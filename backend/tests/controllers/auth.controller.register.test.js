@@ -135,4 +135,37 @@ describe("register", () => {
     expect(userDeleteOneMock).toHaveBeenCalledWith({ _id: "user-123" });
     expect(res.cookies).toHaveLength(0);
   });
+
+  it("accepts invited registration when invite token contains spaces instead of plus", async () => {
+    const invitationDoc = {
+      email: "teacher@example.com",
+      role: "teacher",
+      status: "pending",
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      save: vi.fn().mockResolvedValue(undefined),
+    };
+    invitationFindOneMock.mockResolvedValueOnce(invitationDoc);
+
+    const req = {
+      body: {
+        email: "teacher@example.com",
+        password: "Password1",
+        name: "Invited Teacher",
+        inviteToken: "abc def",
+      },
+    };
+    const res = createMockResponse();
+
+    await register(req, res);
+
+    expect(invitationFindOneMock).toHaveBeenCalledWith({
+      token: { $in: ["abc def", "abc+def"] },
+      status: "pending",
+    });
+    expect(res.statusCode).toBe(201);
+    expect(res.body?.success).toBe(true);
+    expect(createdUsers[0]?.role).toBe("teacher");
+    expect(createdUsers[0]?.isConfirmed).toBe(true);
+    expect(sendVerificationEmailMock).not.toHaveBeenCalled();
+  });
 });

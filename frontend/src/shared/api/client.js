@@ -379,7 +379,7 @@ export const api = {
   resetPassword: (token, newPassword) => request('/api/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, newPassword }) }),
   getProfile: () => request('/api/auth/profile'),
   updateProfile: (body) => request('/api/auth/profile', { method: 'PUT', body: JSON.stringify(body) }),
-  validateInvitation: (token) => request(`/api/auth/invite/${token}`),
+  validateInvitation: (token) => request(`/api/auth/invite/${encodeURIComponent(String(token || ''))}`),
 
   // Auth helpers
   getToken,
@@ -637,6 +637,8 @@ export const api = {
     const query = toQueryString(params);
     return request(`/api/admin/invitations${query ? `?${query}` : ''}`);
   },
+  deleteInvitation: (invitationId) =>
+    request(`/api/admin/invitations/${encodeURIComponent(String(invitationId || ''))}`, { method: 'DELETE' }),
 
   // Homework - Groups
   homeworkCreateGroup: (body) => request('/api/homework/groups', { method: 'POST', body: JSON.stringify(body) }),

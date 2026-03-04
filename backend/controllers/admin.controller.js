@@ -1006,8 +1006,9 @@ const INVITABLE_ROLES = new Set(["teacher", "admin"]);
 export const inviteUser = async (req, res) => {
     try {
         const { email, role } = req.body;
+        const normalizedEmail = String(email || "").trim().toLowerCase();
 
-        if (!email || !role) {
+        if (!normalizedEmail || !role) {
             return sendControllerError(req, res, { statusCode: 400, message: "Email and role are required"  });
         }
 
@@ -1015,13 +1016,13 @@ export const inviteUser = async (req, res) => {
             return sendControllerError(req, res, { statusCode: 400, message: "Can only invite teacher or admin roles"  });
         }
 
-        const existingUser = await User.findOne({ email: email.toLowerCase() }).select("_id").lean();
+        const existingUser = await User.findOne({ email: normalizedEmail }).select("_id").lean();
         if (existingUser) {
             return sendControllerError(req, res, { statusCode: 400, message: "A user with this email already exists"  });
         }
 
         const existingInvite = await Invitation.findOne({
-            email: email.toLowerCase(),
+            email: normalizedEmail,
             status: "pending",
             expiresAt: { $gt: new Date() },
         }).lean();
@@ -1031,7 +1032,7 @@ export const inviteUser = async (req, res) => {
         }
 
         const invitation = new Invitation({
-            email: email.toLowerCase(),
+            email: normalizedEmail,
             role,
             invitedBy: req.user.userId,
         });
@@ -1049,6 +1050,30 @@ export const inviteUser = async (req, res) => {
                 expiresAt: invitation.expiresAt,
                 status: invitation.status,
             },
+        });
+    } catch (error) {
+        return handleControllerError(req, res, error);
+    }
+};
+
+export const deleteInvitation = async (req, res) => {
+    try {
+        const invitationId = String(req.params?.invitationId || "").trim();
+        if (!mongoose.Types.ObjectId.isValid(invitationId)) {
+            return sendControllerError(req, res, { statusCode: 400, message: "Invalid invitation id" });
+        }
+
+        const deleted = await Invitation.findByIdAndDelete(invitationId)
+            .select("_id email role status")
+            .lean();
+        if (!deleted) {
+            return sendControllerError(req, res, { statusCode: 404, message: "Invitation not found" });
+        }
+
+        return res.json({
+            success: true,
+            message: "Invitation deleted successfully",
+            data: deleted,
         });
     } catch (error) {
         return handleControllerError(req, res, error);

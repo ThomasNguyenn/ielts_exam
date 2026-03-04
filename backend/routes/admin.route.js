@@ -14,6 +14,7 @@ import {
   setStudentHomeroomTeacher,
   inviteUser,
   getInvitations,
+  deleteInvitation,
 } from "../controllers/admin.controller.js";
 import { verifyToken, isTeacherOrAdmin, isAdmin } from "../middleware/auth.middleware.js";
 
@@ -40,5 +41,6 @@ router.put("/users/:userId/role", isAdmin, changeUserRole);
 // Admin-only: invitation management
 router.post("/invitations", isAdmin, inviteUser);
 router.get("/invitations", isAdmin, getInvitations);
+router.delete("/invitations/:invitationId", isAdmin, deleteInvitation);
 
 export default router;

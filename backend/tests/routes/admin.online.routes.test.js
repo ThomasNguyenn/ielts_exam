@@ -17,6 +17,7 @@ const mockedControllers = vi.hoisted(() => ({
   changeUserRole: vi.fn((_req, res) => res.status(200).json({ route: "change-role" })),
   inviteUser: vi.fn((_req, res) => res.status(200).json({ route: "invite" })),
   getInvitations: vi.fn((_req, res) => res.status(200).json({ route: "invitations" })),
+  deleteInvitation: vi.fn((_req, res) => res.status(200).json({ route: "delete-invitation" })),
 }));
 
 vi.mock("../../controllers/admin.controller.js", () => mockedControllers);
@@ -128,5 +129,24 @@ describe("admin online student routes", () => {
 
     expect(res.status).toBe(403);
     expect(mockedControllers.retrySpeakingErrorLogs).not.toHaveBeenCalled();
+  });
+
+  it("routes DELETE /invitations/:invitationId to deleteInvitation for admin", async () => {
+    const res = await request(app)
+      .delete("/api/admin/invitations/507f1f77bcf86cd799439011")
+      .set("x-test-role", "admin");
+
+    expect(res.status).toBe(200);
+    expect(res.body.route).toBe("delete-invitation");
+    expect(mockedControllers.deleteInvitation).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects teacher on DELETE /invitations/:invitationId (admin-only)", async () => {
+    const res = await request(app)
+      .delete("/api/admin/invitations/507f1f77bcf86cd799439011")
+      .set("x-test-role", "teacher");
+
+    expect(res.status).toBe(403);
+    expect(mockedControllers.deleteInvitation).not.toHaveBeenCalled();
   });
 });
