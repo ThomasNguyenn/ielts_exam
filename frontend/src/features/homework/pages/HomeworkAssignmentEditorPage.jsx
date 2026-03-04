@@ -64,6 +64,7 @@ const createLesson = (name = "", index = 0, dueDate = "") => ({
   min_words: "",
   max_words: "",
   due_date: toDateInputValue(dueDate),
+  content_blocks: [],
 });
 
 const createSection = (name = "", index = 0, lessonDueDate = "") => ({
@@ -187,6 +188,13 @@ const outlinePayload = (sections = []) =>
       min_words: lesson.min_words === "" ? null : Number(lesson.min_words),
       max_words: lesson.max_words === "" ? null : Number(lesson.max_words),
       due_date: lesson.due_date || null,
+      content_blocks: Array.isArray(lesson.content_blocks)
+        ? lesson.content_blocks.map((block, index) => ({
+            type: String(block?.type || "instruction"),
+            order: Number.isFinite(Number(block?.order)) ? Number(block.order) : index,
+            data: block?.data && typeof block.data === "object" ? { ...block.data } : {},
+          }))
+        : [],
     })),
   }));
 
@@ -512,7 +520,7 @@ export default function HomeworkAssignmentEditorPage() {
     });
   };
 
-  const persistOutline = async (sections) => {
+  const persistOutline = async (sections, { syncFromServer = true } = {}) => {
     if (!editId || !canManage) return;
     const version = ++outlineSaveVersionRef.current;
     setOutlineSaving(true);
@@ -521,8 +529,10 @@ export default function HomeworkAssignmentEditorPage() {
         sections: outlinePayload(sections),
       });
       if (version !== outlineSaveVersionRef.current) return;
-      const serverSections = normalizeSectionsFromAssignment(response?.data || {});
-      setForm((prev) => ({ ...prev, sections: serverSections }));
+      if (syncFromServer) {
+        const serverSections = normalizeSectionsFromAssignment(response?.data || {});
+        setForm((prev) => ({ ...prev, sections: serverSections }));
+      }
     } catch (saveError) {
       showNotification(saveError?.message || "Failed to auto-save outline", "error");
     } finally {
@@ -530,7 +540,7 @@ export default function HomeworkAssignmentEditorPage() {
     }
   };
 
-  const updateSections = (updater, { saveOutline = true } = {}) => {
+  const updateSections = (updater, { saveOutline = true, syncFromServer = true } = {}) => {
     setForm((prev) => {
       const cloned = (prev.sections || []).map((section) => ({
         ...section,
@@ -538,7 +548,7 @@ export default function HomeworkAssignmentEditorPage() {
       }));
       const next = normalizeOutlineOrders(updater(cloned));
       if (saveOutline && editId && canManage) {
-        void persistOutline(next);
+        void persistOutline(next, { syncFromServer });
       }
       return { ...prev, sections: next };
     });
@@ -701,7 +711,7 @@ export default function HomeworkAssignmentEditorPage() {
         const newIndex = sections.findIndex((section) => String(section._id) === String(overInfo.sectionId));
         if (oldIndex < 0 || newIndex < 0) return sections;
         return arrayMove(sections, oldIndex, newIndex);
-      });
+      }, { syncFromServer: false });
       return;
     }
 
@@ -745,7 +755,7 @@ export default function HomeworkAssignmentEditorPage() {
         }
         next[targetSectionIndex].lessons.splice(targetLessonIndex, 0, movingLesson);
         return next;
-      });
+      }, { syncFromServer: false });
     }
   };
 
@@ -885,9 +895,6 @@ export default function HomeworkAssignmentEditorPage() {
           <DialogContent className="max-h-[88vh] max-w-4xl overflow-hidden max-[1440px]:max-w-3xl max-[1440px]:p-4">
             <DialogHeader className="max-[1440px]:space-y-1">
               <DialogTitle className="max-[1440px]:text-base">Assignment Settings</DialogTitle>
-              <DialogDescription className="max-[1440px]:text-xs">
-                Update assignment info and choose target groups.
-              </DialogDescription>
             </DialogHeader>
             <div className="grid max-h-[70vh] grid-cols-12 gap-4 overflow-y-auto pr-1 max-[1440px]:gap-3 max-[1440px]:pr-0 max-[1440px]:text-sm">
               <Card className="col-span-12 lg:col-span-8">

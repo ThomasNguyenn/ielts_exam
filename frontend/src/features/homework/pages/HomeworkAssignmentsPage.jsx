@@ -84,6 +84,9 @@ export default function HomeworkAssignmentsPage() {
             <p>Teacher/Admin workspace for monthly assignments, resources, and grading dashboard.</p>
           </div>
           <div className="homework-actions">
+            <button type="button" className="homework-btn ghost" onClick={() => navigate("/")}>
+              Trang chủ
+            </button>
             <button type="button" className="homework-btn ghost" onClick={() => navigate("/homework/groups")}>
               Manage Groups
             </button>
@@ -171,11 +174,6 @@ export default function HomeworkAssignmentsPage() {
                     <span className="homework-chip neutral">{assignment.month || "--"}</span>
                   </div>
                 </div>
-
-                <p className="homework-item-meta">
-                  {assignment.description || "No description"}
-                </p>
-
                 <div className="homework-chip-row">
                   {(assignment.target_group_ids || []).map((group) => (
                     <span className="homework-chip neutral" key={group?._id || `${assignment._id}-${group?.name || "group"}`}>

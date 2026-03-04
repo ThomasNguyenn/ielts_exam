@@ -437,7 +437,10 @@ export const api = {
     request('/api/passages/ai/question-insights', { method: 'POST', body: JSON.stringify(body) }),
 
   // Sections (Listening)
-  getSections: () => request('/api/sections'),
+  getSections: (params = {}) => {
+    const query = toQueryString(params);
+    return request(`/api/sections${query ? `?${query}` : ''}`);
+  },
   getSectionById: (id) => request(`/api/sections/${id}`),
   createSection: (body) => request('/api/sections', { method: 'POST', body: JSON.stringify(body) }),
   updateSection: (id, body) => request(`/api/sections/${id}`, { method: 'PUT', body: JSON.stringify(body) }),

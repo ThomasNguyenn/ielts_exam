@@ -132,7 +132,44 @@ const deleteSectionAudioBestEffort = async (req, sectionId, audioStorageKey) => 
 
 export const getAllSections = async(req, res) => {
     try{
-        const sections = await Section.find({});
+        const summaryMode = ["1", "true", "yes"].includes(String(req.query?.summary || "").toLowerCase());
+        const limitValue = Number(req.query?.limit);
+        const limit =
+            Number.isFinite(limitValue) && limitValue > 0
+                ? Math.min(Math.floor(limitValue), 5000)
+                : null;
+
+        let sections;
+        if (summaryMode) {
+            const pipeline = [
+                { $sort: { updatedAt: -1, createdAt: -1 } },
+                {
+                    $project: {
+                        _id: 1,
+                        title: 1,
+                        source: 1,
+                        is_active: 1,
+                        createdAt: 1,
+                        updatedAt: 1,
+                        question_count: {
+                            $sum: {
+                                $map: {
+                                    input: { $ifNull: ["$question_groups", []] },
+                                    as: "group",
+                                    in: { $size: { $ifNull: ["$$group.questions", []] } },
+                                },
+                            },
+                        },
+                    },
+                },
+            ];
+            if (limit) pipeline.push({ $limit: limit });
+            sections = await Section.aggregate(pipeline);
+        } else {
+            let query = Section.find({});
+            if (limit) query = query.limit(limit);
+            sections = await query.lean();
+        }
         res.status(200).json({ success: true, data : sections});
     } catch(error){
         return handleControllerError(req, res, error);

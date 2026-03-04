@@ -209,8 +209,9 @@
   color: #1e40af;
   background: #dbeafe;
   border: 1px solid #bfdbfe;
-  border-radius: 999px;
+  border-radius: 20px;
   padding: 0.24rem 0.56rem;
+  align-content: center;
 }
 
 .homework-chip.neutral {
@@ -321,8 +322,32 @@
   gap: 0.42rem;
 }
 
+.homework-audio-recorder {
+  display: grid;
+  gap: 0.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.65rem;
+  background: #f8fafc;
+}
+
 .homework-danger {
   color: #b91c1c;
+}
+
+.homework-video-lite {
+  border-color: #d1d5db;
+  background: #000;
+}
+
+.homework-video-lite .yt-lite {
+  margin: 0;
+  max-width: 100%;
+  border-radius: 0;
+}
+
+.homework-video-lite .yt-lite > .lty-playbtn {
+  opacity: 0.95;
 }
 
 @media (max-width: 980px) {

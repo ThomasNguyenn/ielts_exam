@@ -7,7 +7,7 @@ import Section from "../models/Section.model.js";
 import Speaking from "../models/Speaking.model.js";
 import User from "../models/User.model.js";
 import Writing from "../models/Writing.model.js";
-import { ASSIGNMENT_STATUSES, TASK_RESOURCE_MODES } from "../models/MonthlyAssignment.model.js";
+import { ASSIGNMENT_STATUSES, CONTENT_BLOCK_TYPES, TASK_RESOURCE_MODES } from "../models/MonthlyAssignment.model.js";
 import {
   buildHomeworkResourceObjectKey,
   buildHomeworkSubmissionAudioObjectKey,
@@ -33,6 +33,7 @@ import { handleControllerError, sendControllerError } from "../utils/controllerE
 const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 const TASK_RESOURCE_MODES_SET = new Set(TASK_RESOURCE_MODES);
 const TASK_RESOURCE_REF_TYPES_SET = new Set(["passage", "section", "speaking", "writing"]);
+const CONTENT_BLOCK_TYPES_SET = new Set(CONTENT_BLOCK_TYPES);
 
 const HOMEWORK_IMAGE_MAX_BYTES = getHomeworkImageUploadLimitBytes();
 const HOMEWORK_IMAGE_MAX_FILES = getHomeworkImageMaxFiles();
@@ -71,6 +72,30 @@ const parseWeekOrNull = (value) => {
 const parseOptionalDateOrNull = (value) => {
   if (value === undefined || value === null || value === "") return null;
   return parseDateOrNull(value);
+};
+
+const sanitizeBlockData = (value) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return {};
+  }
+};
+
+const sanitizeContentBlocks = (blocks = []) => {
+  if (!Array.isArray(blocks)) return [];
+  return blocks
+    .map((block, index) => {
+      const type = normalizeOptionalString(block?.type);
+      if (!type || !CONTENT_BLOCK_TYPES_SET.has(type)) return null;
+      return {
+        type,
+        order: index,
+        data: sanitizeBlockData(block?.data),
+      };
+    })
+    .filter(Boolean);
 };
 
 const toUniqueObjectIds = (values = []) => {
@@ -122,6 +147,9 @@ const sanitizeTaskInput = (task = {}, index = 0) => {
     max_words: Number.isFinite(Number(task.max_words)) ? Math.max(0, Math.floor(Number(task.max_words))) : null,
     due_date: parseDateOrNull(task.due_date),
   };
+  if (Array.isArray(task.content_blocks)) {
+    normalized.content_blocks = sanitizeContentBlocks(task.content_blocks);
+  }
 
   const taskId = normalizeOptionalString(task._id);
   if (taskId && mongoose.Types.ObjectId.isValid(taskId)) {
@@ -150,6 +178,9 @@ const sanitizeLessonInput = (lesson = {}, index = 0) => {
     max_words: Number.isFinite(Number(lesson.max_words)) ? Math.max(0, Math.floor(Number(lesson.max_words))) : null,
     due_date: parseDateOrNull(lesson.due_date),
   };
+  if (Array.isArray(lesson.content_blocks)) {
+    normalized.content_blocks = sanitizeContentBlocks(lesson.content_blocks);
+  }
 
   const lessonId = toObjectIdIfValid(lesson._id);
   if (lessonId) normalized._id = lessonId;
@@ -204,6 +235,7 @@ const lessonToTaskPayload = (lesson = {}, index = 0) => {
       min_words: lesson.min_words,
       max_words: lesson.max_words,
       due_date: lesson.due_date,
+      content_blocks: lesson.content_blocks,
     },
     index,
   );
@@ -250,6 +282,9 @@ const buildLegacySectionsFromTasks = (tasks = []) => {
         requires_audio: toBoolean(task?.requires_audio, false),
         min_words: Number.isFinite(Number(task?.min_words)) ? Number(task.min_words) : null,
         max_words: Number.isFinite(Number(task?.max_words)) ? Number(task.max_words) : null,
+        content_blocks: Array.isArray(task?.content_blocks)
+          ? sanitizeContentBlocks(task.content_blocks)
+          : [],
       })),
     },
   ];

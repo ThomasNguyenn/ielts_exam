@@ -55,6 +55,9 @@ export default function MyHomeworkMonthPage() {
             <p>Track monthly assignments and task completion progress.</p>
           </div>
           <div className="homework-actions">
+            <button type="button" className="homework-btn ghost" onClick={() => navigate("/")}>
+              Trang chủ
+            </button>
             <input
               type="month"
               value={month}

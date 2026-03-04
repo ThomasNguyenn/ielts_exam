@@ -84,3 +84,65 @@ export const statusLabel = (status = "") => {
   if (normalized === "submitted") return "Submitted";
   return "Draft";
 };
+
+const normalizeUrl = (rawUrl = "") => {
+  const value = String(rawUrl || "").trim();
+  if (!value) return null;
+  try {
+    return new URL(value);
+  } catch {
+    try {
+      return new URL(`https://${value}`);
+    } catch {
+      return null;
+    }
+  }
+};
+
+const extractYoutubeId = (url) => {
+  const host = String(url?.hostname || "").replace(/^www\./, "").toLowerCase();
+  if (host === "youtu.be") {
+    return String(url.pathname || "").split("/").filter(Boolean)[0] || null;
+  }
+  if (host === "youtube.com" || host === "m.youtube.com") {
+    const byQuery = url.searchParams.get("v");
+    if (byQuery) return byQuery;
+    const parts = String(url.pathname || "").split("/").filter(Boolean);
+    if (parts[0] === "embed" || parts[0] === "shorts") {
+      return parts[1] || null;
+    }
+  }
+  return null;
+};
+
+const extractVimeoId = (url) => {
+  const host = String(url?.hostname || "").replace(/^www\./, "").toLowerCase();
+  if (host === "vimeo.com" || host === "player.vimeo.com") {
+    const parts = String(url.pathname || "").split("/").filter(Boolean);
+    const match = [...parts].reverse().find((part) => /^\d+$/.test(part));
+    return match || null;
+  }
+  return null;
+};
+
+export const resolveVideoPreview = (rawUrl = "") => {
+  const normalized = normalizeUrl(rawUrl);
+  if (!normalized) return { kind: "none", src: "", youtubeId: "" };
+
+  const youtubeId = extractYoutubeId(normalized);
+  if (youtubeId) {
+    return { kind: "youtube", src: normalized.toString(), youtubeId };
+  }
+
+  const vimeoId = extractVimeoId(normalized);
+  if (vimeoId) {
+    return { kind: "vimeo", src: `https://player.vimeo.com/video/${vimeoId}`, youtubeId: "" };
+  }
+
+  const path = String(normalized.pathname || "").toLowerCase();
+  if (/\.(mp4|webm|ogg|mov|m4v)$/.test(path)) {
+    return { kind: "direct", src: normalized.toString(), youtubeId: "" };
+  }
+
+  return { kind: "unsupported", src: normalized.toString(), youtubeId: "" };
+};

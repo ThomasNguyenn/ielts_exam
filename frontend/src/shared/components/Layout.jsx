@@ -113,7 +113,7 @@ const NAV_SCHEMA = {
     {
       key: 'student_homework',
       to: '/homework/my',
-      label: 'Bai tap thang',
+      label: 'Bài tập tháng',
       icon: 'assignment',
       visibility: 'student',
       isActive: (pathname) => pathname.startsWith('/homework/my'),
@@ -147,7 +147,7 @@ const NAV_SCHEMA = {
     {
       key: 'homework',
       to: '/homework',
-      label: 'Bai tap thang',
+      label: 'Bài tập tháng',
       icon: 'assignment',
       visibility: 'teacher_admin',
       isActive: (pathname) => pathname.startsWith('/homework'),
@@ -237,10 +237,11 @@ export default function Layout() {
     };
   }, []);
 
-  // Hide header on exam pages.
+  // Hide header on exam and homework pages.
   const isExamPage = pathname.includes('/exam');
+  const isHomeworkPage = pathname.startsWith('/homework');
   const isManageRoute = pathname.startsWith('/manage');
-  const hideHeader = isExamPage;
+  const hideHeader = isExamPage || isHomeworkPage;
 
   // Use wide layout for practice pages.
   const isPracticePage =

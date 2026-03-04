@@ -107,6 +107,9 @@ export default function HomeworkDashboardPage() {
             </p>
           </div>
           <div className="homework-actions">
+            <button type="button" className="homework-btn ghost" onClick={() => navigate("/")}>
+              Trang chủ
+            </button>
             <button type="button" className="homework-btn ghost" onClick={() => navigate(`/homework/assignments/${id}`)}>
               View Assignment
             </button>

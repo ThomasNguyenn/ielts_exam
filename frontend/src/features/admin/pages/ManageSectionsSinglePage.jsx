@@ -1,13 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { Plus, Search, Filter, Pencil, Trash2 } from 'lucide-react';
 import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
 import ConfirmationModal from '@/shared/components/ConfirmationModal';
 import { useNavigate, useParams } from 'react-router-dom';
-import AddSection from './AddSection';
 import './Manage.css';
 
 const ITEMS_PER_PAGE = 6;
+const AddSection = lazy(() => import('./AddSection'));
 
 const formatDate = (value) => {
   if (!value) return '-';
@@ -21,7 +21,9 @@ const formatDate = (value) => {
 };
 
 const countQuestions = (section) =>
-  (section?.question_groups || []).reduce((sum, group) => sum + (group?.questions?.length || 0), 0);
+  Number.isFinite(Number(section?.question_count))
+    ? Number(section.question_count)
+    : (section?.question_groups || []).reduce((sum, group) => sum + (group?.questions?.length || 0), 0);
 const getSortTimestamp = (item) => new Date(item?.updatedAt || item?.updated_at || item?.createdAt || item?.created_at || 0).getTime();
 
 export default function ManageSectionsSinglePage() {
@@ -47,7 +49,7 @@ export default function ManageSectionsSinglePage() {
   const loadSections = async () => {
     setLoading(true);
     try {
-      const res = await api.getSections();
+      const res = await api.getSections({ summary: 1 });
       setSections(res.data || []);
     } catch (err) {
       showNotification(err.message || 'Failed to load sections', 'error');
@@ -200,7 +202,6 @@ export default function ManageSectionsSinglePage() {
                 <tr>
                   <th>Title</th>
                   <th>Skill</th>
-                  <th>Difficulty</th>
                   <th>Questions</th>
                   <th>Status</th>
                   <th>Date</th>
@@ -210,7 +211,7 @@ export default function ManageSectionsSinglePage() {
               <tbody>
                 {!loading && paginatedSections.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="manage-main-empty">No sections found.</td>
+                    <td colSpan={6} className="manage-main-empty">No sections found.</td>
                   </tr>
                 )}
 
@@ -218,7 +219,6 @@ export default function ManageSectionsSinglePage() {
                   <tr key={row._id}>
                     <td className="manage-cell-title">{row.title || row._id}</td>
                     <td><span className="manage-pill skill-listening">Listening</span></td>
-                    <td>{row.difficulty || 'Medium'}</td>
                     <td>{countQuestions(row)}</td>
                     <td><span className={`manage-pill ${row.is_active === false ? 'status-archived' : 'status-published'}`}>{row.is_active === false ? 'Archived' : 'Published'}</span></td>
                     <td>{formatDate(row.updatedAt || row.updated_at || row.createdAt || row.created_at)}</td>
@@ -263,17 +263,19 @@ export default function ManageSectionsSinglePage() {
           </div>
         </>
       ) : (
-        <AddSection
-          editIdOverride={editingId}
-          embedded
-          hideExistingList
-          onSaved={handleSaved}
-          onCancel={() => {
-            setActiveTab('list');
-            setEditingId(null);
-            navigate('/manage/sections');
-          }}
-        />
+        <Suspense fallback={<div className="manage-main-card">Loading editor...</div>}>
+          <AddSection
+            editIdOverride={editingId}
+            embedded
+            hideExistingList
+            onSaved={handleSaved}
+            onCancel={() => {
+              setActiveTab('list');
+              setEditingId(null);
+              navigate('/manage/sections');
+            }}
+          />
+        </Suspense>
       )}
       <ConfirmationModal
         isOpen={confirmModal.isOpen}

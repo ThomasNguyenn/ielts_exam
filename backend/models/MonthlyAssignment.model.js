@@ -3,6 +3,16 @@ import mongoose from "mongoose";
 const ASSIGNMENT_STATUSES = ["draft", "published", "archived"];
 const TASK_RESOURCE_MODES = ["internal", "external_url", "uploaded"];
 const TASK_RESOURCE_REF_TYPES = ["passage", "section", "speaking", "writing", null];
+const CONTENT_BLOCK_TYPES = ["instruction", "video", "input", "title", "internal"];
+
+const AssignmentContentBlockSchema = new mongoose.Schema(
+  {
+    type: { type: String, enum: CONTENT_BLOCK_TYPES, required: true, trim: true },
+    order: { type: Number, default: 0, min: 0 },
+    data: { type: mongoose.Schema.Types.Mixed, default: {} },
+  },
+  { _id: false },
+);
 
 const AssignmentLessonSchema = new mongoose.Schema(
   {
@@ -30,6 +40,7 @@ const AssignmentLessonSchema = new mongoose.Schema(
     min_words: { type: Number, min: 0, default: null },
     max_words: { type: Number, min: 0, default: null },
     due_date: { type: Date, default: null },
+    content_blocks: [AssignmentContentBlockSchema],
   },
   { _id: true },
 );
@@ -69,6 +80,7 @@ const AssignmentTaskSchema = new mongoose.Schema(
     min_words: { type: Number, min: 0, default: null },
     max_words: { type: Number, min: 0, default: null },
     due_date: { type: Date, default: null },
+    content_blocks: [AssignmentContentBlockSchema],
   },
   { _id: true },
 );
@@ -120,5 +132,5 @@ const MonthlyAssignment =
   mongoose.models.MonthlyAssignment ||
   mongoose.model("MonthlyAssignment", MonthlyAssignmentSchema);
 
-export { ASSIGNMENT_STATUSES, TASK_RESOURCE_MODES, TASK_RESOURCE_REF_TYPES };
+export { ASSIGNMENT_STATUSES, TASK_RESOURCE_MODES, TASK_RESOURCE_REF_TYPES, CONTENT_BLOCK_TYPES };
 export default MonthlyAssignment;

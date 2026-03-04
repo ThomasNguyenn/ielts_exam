@@ -140,6 +140,9 @@ export default function HomeworkGroupsPage() {
             <p>Create and manage student groups used to target monthly assignments.</p>
           </div>
           <div className="homework-actions">
+            <button type="button" className="homework-btn ghost" onClick={() => navigate("/")}>
+              Trang chủ
+            </button>
             <button type="button" className="homework-btn ghost" onClick={() => navigate("/homework")}>
               Back to Assignments
             </button>

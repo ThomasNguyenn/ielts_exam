@@ -105,6 +105,9 @@ export default function HomeworkSubmissionGradePage() {
             </p>
           </div>
           <div className="homework-actions">
+            <button type="button" className="homework-btn ghost" onClick={() => navigate("/")}>
+              Trang chủ
+            </button>
             <button
               type="button"
               className="homework-btn ghost"

@@ -57,6 +57,8 @@ const SectionSchema = new mongoose.Schema({
     isSinglePart: { type: Boolean, default: false }
 }, { timestamps: true });
 
+SectionSchema.index({ updatedAt: -1, createdAt: -1 });
+
 
 const Section = mongoose.models.Section || mongoose.model('Section', SectionSchema);
 export default Section;

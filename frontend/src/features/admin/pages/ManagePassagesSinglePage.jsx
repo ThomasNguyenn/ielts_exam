@@ -200,7 +200,6 @@ export default function ManagePassagesSinglePage() {
                 <tr>
                   <th>Title</th>
                   <th>Skill</th>
-                  <th>Difficulty</th>
                   <th>Questions</th>
                   <th>Status</th>
                   <th>Date</th>
@@ -210,7 +209,7 @@ export default function ManagePassagesSinglePage() {
               <tbody>
                 {!loading && paginatedPassages.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="manage-main-empty">No passages found.</td>
+                    <td colSpan={6} className="manage-main-empty">No passages found.</td>
                   </tr>
                 )}
 
@@ -218,7 +217,6 @@ export default function ManagePassagesSinglePage() {
                   <tr key={row._id}>
                     <td className="manage-cell-title">{row.title || row._id}</td>
                     <td><span className="manage-pill skill-reading">Reading</span></td>
-                    <td>{row.difficulty || 'Medium'}</td>
                     <td>{countQuestions(row)}</td>
                     <td><span className={`manage-pill ${row.is_active === false ? 'status-archived' : 'status-published'}`}>{row.is_active === false ? 'Archived' : 'Published'}</span></td>
                     <td>{formatDate(row.updatedAt || row.updated_at || row.createdAt || row.created_at)}</td>
