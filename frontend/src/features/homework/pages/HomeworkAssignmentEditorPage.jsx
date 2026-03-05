@@ -477,6 +477,11 @@ export default function HomeworkAssignmentEditorPage() {
     label: "",
   });
 
+  const handleOpenStudentPreview = () => {
+    if (!editId) return;
+    window.open(`/student-ielts/homework/${editId}?preview=1`, "_blank", "noopener,noreferrer");
+  };
+
   const loadData = async () => {
     setLoading(true);
     setError("");
@@ -1054,10 +1059,15 @@ export default function HomeworkAssignmentEditorPage() {
                 <Button onClick={handleCreateSection} disabled={!canManage}>Save</Button>
               </div>
             ) : (
-              <Button onClick={() => setShowAddSection(true)} disabled={!canManage}>
-                <Plus className="mr-2 h-4 w-4" />
-                New Section
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={handleOpenStudentPreview} disabled={!editId}>
+                  Preview
+                </Button>
+                <Button onClick={() => setShowAddSection(true)} disabled={!canManage}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  New Section
+                </Button>
+              </div>
             )}
           </CardHeader>
           <CardContent className="space-y-3">

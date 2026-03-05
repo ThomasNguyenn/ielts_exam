@@ -63,8 +63,8 @@ const submissionUpload = multer({
     const mime = String(file?.mimetype || "").toLowerCase();
 
     if (fieldName === "images") {
-      if (!mime.startsWith("image/")) {
-        const error = new Error("Only image files are allowed in images[]");
+      if (!mime.startsWith("image/") && !mime.startsWith("video/")) {
+        const error = new Error("Only image/video files are allowed in images[]");
         error.statusCode = 415;
         error.code = "UNSUPPORTED_MEDIA_TYPE";
         return cb(error);

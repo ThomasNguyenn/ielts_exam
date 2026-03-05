@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowDown, ArrowLeft, ArrowUp, MoreVertical, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, MoreVertical, Plus, Trash2, Upload, X } from "lucide-react";
 import LiteYouTubeEmbed from "react-lite-youtube-embed";
 import "react-lite-youtube-embed/dist/LiteYouTubeEmbed.css";
 import { api } from "@/shared/api/client";
@@ -22,6 +22,7 @@ import {
   normalizeGapfillBlockData,
   parseGapfillTemplate,
 } from "./gapfill.utils";
+import DictationAudioPlayer from "./DictationAudioPlayer";
 import { resolveVideoPreview } from "./homework.utils";
 import "./Homework.css";
 
@@ -49,9 +50,12 @@ const createTempId = () =>
     ? crypto.randomUUID()
     : `tmp-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
+const HOMEWORK_RESOURCE_MAX_BYTES = 50 * 1024 * 1024;
+
 const BLOCK_TYPES = [
   { type: "instruction", label: "Instruction" },
   { type: "video", label: "Video" },
+  { type: "dictation", label: "Dictation" },
   { type: "input", label: "Input" },
   { type: "title", label: "Title" },
   { type: "passage", label: "Passage" },
@@ -263,6 +267,17 @@ const normalizeInputBlockData = (data = {}) => {
   };
 };
 
+const normalizeDictationBlockData = (data = {}) => {
+  const base = ensureBlockDataId(data);
+  return {
+    ...base,
+    prompt: String(base.prompt || ""),
+    audio_url: String(base.audio_url || base.url || ""),
+    audio_storage_key: String(base.audio_storage_key || base.storage_key || ""),
+    transcript: String(base.transcript || ""),
+  };
+};
+
 const resolveBlockDataId = (block = {}) =>
   normalizeBlockId(block?.data?.block_id) || normalizeBlockId(block?.id);
 
@@ -326,6 +341,13 @@ const createBlock = (type, data = {}) => {
       data: normalizeFindMistakeBlockData(baseData),
     };
   }
+  if (type === "dictation") {
+    return {
+      id: createTempId(),
+      type,
+      data: normalizeDictationBlockData(baseData),
+    };
+  }
   return {
     id: createTempId(),
     type: "internal",
@@ -338,21 +360,29 @@ const createBlock = (type, data = {}) => {
 };
 
 const buildBlocksFromLesson = (lesson = {}) => {
-  const savedBlocks = Array.isArray(lesson?.content_blocks)
-    ? lesson.content_blocks
-    : [];
-  if (savedBlocks.length) {
-    return savedBlocks
+  if (Array.isArray(lesson?.content_blocks)) {
+    return lesson.content_blocks
       .slice()
       .sort((a, b) => Number(a?.order || 0) - Number(b?.order || 0))
       .map((block) => createBlock(block?.type || "instruction", block?.data || {}));
   }
 
+  const hasLegacyFallbackData =
+    String(lesson?.instruction || "").trim() !== ""
+    || String(lesson?.resource_ref_id || "").trim() !== ""
+    || String(lesson?.resource_url || "").trim() !== ""
+    || Boolean(lesson?.requires_image)
+    || Boolean(lesson?.requires_audio)
+    || String(lesson?.min_words ?? "").trim() !== ""
+    || String(lesson?.max_words ?? "").trim() !== "";
+
+  if (!hasLegacyFallbackData) return [];
+
   const blocks = [];
   if (lesson.instruction) {
     blocks.push(createBlock("instruction", { text: lesson.instruction }));
   }
-  if (lesson.resource_mode === "internal") {
+  if (lesson.resource_mode === "internal" && String(lesson.resource_ref_id || "").trim() !== "") {
     blocks.push(
       createBlock("internal", {
         resource_ref_type: lesson.resource_ref_type || "passage",
@@ -360,7 +390,10 @@ const buildBlocksFromLesson = (lesson = {}) => {
       }),
     );
   }
-  if (lesson.resource_mode === "external_url" || lesson.resource_mode === "uploaded") {
+  if (
+    (lesson.resource_mode === "external_url" || lesson.resource_mode === "uploaded")
+    && String(lesson.resource_url || "").trim() !== ""
+  ) {
     blocks.push(createBlock("video", { url: lesson.resource_url || "" }));
   }
   const hasInputConfig =
@@ -381,15 +414,13 @@ const buildBlocksFromLesson = (lesson = {}) => {
       }),
     );
   }
-  if (!blocks.length) {
-    blocks.push(createBlock("instruction"));
-  }
   return blocks;
 };
 
 const applyBlocksToLesson = (lesson = {}, blocks = []) => {
   const next = { ...lesson };
   const normalizedBlocks = Array.isArray(blocks) ? blocks : [];
+  const hasDictationBlock = normalizedBlocks.some((block) => String(block?.type || "").trim() === "dictation");
   const passageBlockIdSet = new Set(
     normalizedBlocks
       .filter((block) => String(block?.type || "").trim() === "passage")
@@ -425,6 +456,9 @@ const applyBlocksToLesson = (lesson = {}, blocks = []) => {
       if (blockType === "find_mistake") {
         return normalizeFindMistakeBlockData(block?.data || {});
       }
+      if (blockType === "dictation") {
+        return normalizeDictationBlockData(block?.data || {});
+      }
       return ensureBlockDataId(block?.data || {});
     })(),
   }));
@@ -445,6 +479,12 @@ const applyBlocksToLesson = (lesson = {}, blocks = []) => {
     next.requires_audio = Boolean(normalizedInputData.requires_audio);
     next.min_words = normalizedInputData.min_words ?? "";
     next.max_words = normalizedInputData.max_words ?? "";
+  } else if (hasDictationBlock) {
+    next.requires_text = true;
+    next.requires_image = false;
+    next.requires_audio = false;
+    next.min_words = "";
+    next.max_words = "";
   } else {
     next.requires_text = false;
     next.requires_image = false;
@@ -468,11 +508,11 @@ const applyBlocksToLesson = (lesson = {}, blocks = []) => {
     next.resource_url = String(resourceBlock?.data?.url || "").trim();
     next.resource_storage_key = "";
   } else {
-    next.resource_mode = "internal";
-    next.resource_ref_type = null;
-    next.resource_ref_id = "";
-    next.resource_url = "";
-    next.resource_storage_key = "";
+    next.resource_mode = lesson?.resource_mode || "internal";
+    next.resource_ref_type = lesson?.resource_ref_type || "passage";
+    next.resource_ref_id = lesson?.resource_ref_id || "";
+    next.resource_url = lesson?.resource_url || "";
+    next.resource_storage_key = lesson?.resource_storage_key || "";
   }
 
   return next;
@@ -503,20 +543,24 @@ export default function HomeworkLessonEditorPage() {
     section: [],
     speaking: [],
     writing: [],
+    test: [],
   });
   const [searchKeyword, setSearchKeyword] = useState("");
   const [matchingSelections, setMatchingSelections] = useState({});
+  const [dictationUploadLoadingByBlockId, setDictationUploadLoadingByBlockId] = useState({});
+  const dictationFileInputRefs = useRef(new Map());
 
   const load = async () => {
     setLoading(true);
     setError("");
     try {
-      const [lessonRes, passageRes, sectionRes, speakingRes, writingRes] = await Promise.all([
+      const [lessonRes, passageRes, sectionRes, speakingRes, writingRes, testRes] = await Promise.all([
         api.homeworkGetAssignmentLessonById(id, lessonId),
         api.getPassages({ summary: 1 }),
         api.getSections({ summary: 1 }),
         api.getSpeakings({ summary: 1, limit: 200 }),
         api.getWritings({ summary: 1 }),
+        api.getTests({ summary: 1 }),
       ]);
 
       const payload = lessonRes?.data || {};
@@ -548,6 +592,7 @@ export default function HomeworkLessonEditorPage() {
         section: Array.isArray(sectionRes?.data) ? sectionRes.data : [],
         speaking: Array.isArray(speakingRes?.data) ? speakingRes.data : [],
         writing: Array.isArray(writingRes?.data) ? writingRes.data : [],
+        test: Array.isArray(testRes?.data) ? testRes.data : [],
       });
     } catch (loadError) {
       setError(loadError?.message || "Failed to load lesson");
@@ -565,7 +610,7 @@ export default function HomeworkLessonEditorPage() {
   const filteredResourcesByType = useMemo(() => {
     const keyword = String(searchKeyword || "").trim().toLowerCase();
     const next = {};
-    ["passage", "section", "speaking", "writing"].forEach((type) => {
+    ["passage", "section", "speaking", "writing", "test"].forEach((type) => {
       const list = catalog[type] || [];
       next[type] = !keyword
         ? list.slice(0, 40)
@@ -758,6 +803,100 @@ export default function HomeworkLessonEditorPage() {
     (Array.isArray(quizData?.questions) ? quizData.questions : []).map((question, questionIndex) =>
       normalizeQuizQuestionData(question, questionIndex),
     );
+
+  const updateDictationBlock = (blockId, updater) => {
+    setContentBlocks((prev) =>
+      prev.map((block) => {
+        if (String(block.id) !== String(blockId)) return block;
+        const currentData = normalizeDictationBlockData(block?.data || {});
+        const nextData =
+          typeof updater === "function"
+            ? normalizeDictationBlockData(updater(currentData))
+            : normalizeDictationBlockData({ ...currentData, ...(updater || {}) });
+        return {
+          ...block,
+          data: nextData,
+        };
+      }),
+    );
+  };
+
+  const setDictationUploadLoading = (blockId, nextLoading) => {
+    const normalizedBlockId = String(blockId || "");
+    setDictationUploadLoadingByBlockId((prev) => ({
+      ...prev,
+      [normalizedBlockId]: Boolean(nextLoading),
+    }));
+  };
+
+  const registerDictationFileInputRef = (blockId, node) => {
+    const normalizedBlockId = String(blockId || "");
+    if (!normalizedBlockId) return;
+    if (!node) {
+      dictationFileInputRefs.current.delete(normalizedBlockId);
+      return;
+    }
+    dictationFileInputRefs.current.set(normalizedBlockId, node);
+  };
+
+  const openDictationUploadPicker = (blockId) => {
+    const normalizedBlockId = String(blockId || "");
+    dictationFileInputRefs.current.get(normalizedBlockId)?.click();
+  };
+
+  const handleDictationAudioFileSelected = async (blockId, event) => {
+    const file = event.target?.files?.[0];
+    const resetInput = () => {
+      if (event?.target) event.target.value = "";
+    };
+    if (!file) {
+      resetInput();
+      return;
+    }
+
+    if (!String(file.type || "").toLowerCase().startsWith("audio/")) {
+      showNotification("Only audio files are allowed.", "error");
+      resetInput();
+      return;
+    }
+
+    if (file.size > HOMEWORK_RESOURCE_MAX_BYTES) {
+      showNotification("Audio file must be 50MB or smaller.", "error");
+      resetInput();
+      return;
+    }
+
+    setDictationUploadLoading(blockId, true);
+    try {
+      const formData = new FormData();
+      formData.append("resource", file);
+      if (String(id || "").trim()) {
+        formData.append("assignment_id", String(id || "").trim());
+      }
+      if (String(lessonId || "").trim()) {
+        formData.append("task_id", String(lessonId || "").trim());
+      }
+      const response = await api.uploadHomeworkResource(formData);
+      const uploadedUrl = String(response?.data?.url || "").trim();
+      const uploadedKey = String(response?.data?.key || "").trim();
+
+      if (!uploadedUrl || !uploadedKey) {
+        throw new Error("Upload succeeded but missing url/key.");
+      }
+
+      updateDictationBlock(blockId, (currentData) => ({
+        ...currentData,
+        audio_url: uploadedUrl,
+        audio_storage_key: uploadedKey,
+      }));
+      showNotification("Dictation audio uploaded.", "success");
+    } catch (uploadError) {
+      showNotification(uploadError?.message || "Failed to upload dictation audio.", "error");
+    } finally {
+      setDictationUploadLoading(blockId, false);
+      resetInput();
+    }
+  };
 
   const updateGapfillBlock = (blockId, updater) => {
     setContentBlocks((prev) =>
@@ -1030,6 +1169,15 @@ export default function HomeworkLessonEditorPage() {
   };
 
   const removeBlock = (blockId) => {
+    const normalizedBlockId = String(blockId || "");
+    dictationFileInputRefs.current.delete(normalizedBlockId);
+    setDictationUploadLoadingByBlockId((prev) => {
+      if (!Object.prototype.hasOwnProperty.call(prev, normalizedBlockId)) return prev;
+      const next = { ...prev };
+      delete next[normalizedBlockId];
+      return next;
+    });
+
     setMatchingSelections((prev) => {
       const key = String(blockId);
       if (!Object.prototype.hasOwnProperty.call(prev, key)) return prev;
@@ -1224,6 +1372,8 @@ export default function HomeworkLessonEditorPage() {
                   const blockTypeLabel = BLOCK_TYPES.find((item) => item.type === blockType)?.label || "Block";
                   const blockDataId = resolveBlockDataId(block);
                   const passageTextPreview = blockType === "passage" ? String(block?.data?.text || "").trim() : "";
+                  const dictationData = blockType === "dictation" ? normalizeDictationBlockData(block?.data || {}) : null;
+                  const isDictationUploadLoading = Boolean(dictationUploadLoadingByBlockId[String(block.id)]);
                   const quizData = blockType === "quiz" ? normalizeQuizBlockData(block?.data || {}) : null;
                   const quizQuestions = blockType === "quiz" ? resolveQuizQuestions(quizData) : [];
                   const quizParentPassageId = normalizeBlockId(quizData?.parent_passage_block_id);
@@ -1376,6 +1526,103 @@ export default function HomeworkLessonEditorPage() {
                             }
                             return null;
                           })()}
+                        </div>
+                      ) : null}
+
+                      {blockType === "dictation" ? (
+                        <div className="space-y-3">
+                          <div className="space-y-2">
+                            <Label>Prompt (optional)</Label>
+                            <Input
+                              value={dictationData?.prompt || ""}
+                              onChange={(event) =>
+                                updateDictationBlock(block.id, {
+                                  ...(dictationData || {}),
+                                  prompt: event.target.value,
+                                })}
+                              placeholder="Example: Listen and type exactly what you hear"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>Audio (MP3)</Label>
+                            <Input
+                              ref={(node) => registerDictationFileInputRef(block.id, node)}
+                              type="file"
+                              accept="audio/*"
+                              onChange={(event) => void handleDictationAudioFileSelected(block.id, event)}
+                              className="hidden"
+                            />
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => openDictationUploadPicker(block.id)}
+                                disabled={isDictationUploadLoading}
+                              >
+                                <Upload className="h-4 w-4" />
+                                {isDictationUploadLoading
+                                  ? "Uploading..."
+                                  : dictationData?.audio_url
+                                    ? "Replace Audio"
+                                    : "Upload Audio"}
+                              </Button>
+                              <span className="text-xs text-muted-foreground">Max file size: 50MB</span>
+                            </div>
+                            <Input
+                              value={dictationData?.audio_url || ""}
+                              onChange={(event) =>
+                                updateDictationBlock(block.id, {
+                                  ...(dictationData || {}),
+                                  audio_url: event.target.value,
+                                  audio_storage_key: "",
+                                })}
+                              placeholder="https://example.com/dictation.mp3"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Editing URL manually clears storage key to avoid deleting external audio.
+                            </p>
+                            {dictationData?.audio_url ? (
+                              <div className="space-y-2">
+                                <DictationAudioPlayer
+                                  src={dictationData.audio_url}
+                                  title={dictationData?.prompt || `Dictation ${index + 1}`}
+                                />
+                                <div className="flex justify-end">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() =>
+                                      updateDictationBlock(block.id, {
+                                        ...(dictationData || {}),
+                                        audio_url: "",
+                                        audio_storage_key: "",
+                                      })}
+                                  >
+                                    <X className="h-4 w-4" />
+                                    Clear audio
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>Transcript (teacher only)</Label>
+                            <Textarea
+                              value={dictationData?.transcript || ""}
+                              onChange={(event) =>
+                                updateDictationBlock(block.id, {
+                                  ...(dictationData || {}),
+                                  transcript: event.target.value,
+                                })}
+                              placeholder="Transcript will be hidden from students."
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Students will only see the audio and submission input.
+                            </p>
+                          </div>
                         </div>
                       ) : null}
 
@@ -2002,6 +2249,7 @@ export default function HomeworkLessonEditorPage() {
                                 <SelectItem value="section">Section</SelectItem>
                                 <SelectItem value="speaking">Speaking</SelectItem>
                                 <SelectItem value="writing">Writing</SelectItem>
+                                <SelectItem value="test">Test</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>

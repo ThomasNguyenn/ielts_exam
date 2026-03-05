@@ -4,6 +4,16 @@ import LiteYouTubeEmbed from "react-lite-youtube-embed";
 import "react-lite-youtube-embed/dist/LiteYouTubeEmbed.css";
 import { api } from "@/shared/api/client";
 import { useNotification } from "@/shared/context/NotificationContext";
+import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { IconCloud } from "@tabler/icons-react";
 import { formatDate, resolveVideoPreview, statusLabel } from "./homework.utils";
 import {
   createDraft,
@@ -18,6 +28,7 @@ import {
   normalizeGapfillBlockData,
   parseGapfillTemplate,
 } from "./gapfill.utils";
+import DictationAudioPlayer from "./DictationAudioPlayer";
 import { useHomeworkAssignmentDetail } from "./useHomeworkAssignmentDetail";
 import "./Homework.css";
 
@@ -178,6 +189,15 @@ const resolveMatchingData = (block = {}) => {
     leftItems,
     rightItems,
     pairs,
+  };
+};
+
+const normalizeDictationBlockData = (data = {}) => {
+  const normalizedData =
+    data && typeof data === "object" && !Array.isArray(data) ? data : {};
+  return {
+    prompt: String(normalizedData.prompt || "").trim(),
+    audio_url: String(normalizedData.audio_url || normalizedData.url || "").trim(),
   };
 };
 
@@ -410,6 +430,21 @@ const renderFindMistakeContent = ({ block }) => {
   );
 };
 
+const renderDictationContent = ({ block }) => {
+  const dictationData = normalizeDictationBlockData(block?.data || {});
+  if (!dictationData.audio_url) return null;
+
+  return (
+    <div className="rounded-md border bg-muted/20 p-3">
+      <p className="homework-item-title">Dictation</p>
+      {dictationData.prompt ? <p className="homework-task-sub">{dictationData.prompt}</p> : null}
+      <div className="mt-3">
+        <DictationAudioPlayer src={dictationData.audio_url} title={dictationData.prompt || "Dictation Audio"} />
+      </div>
+    </div>
+  );
+};
+
 const TASK_BLOCK_RENDERERS = {
   title: ({ block }) => {
     const text = String(block?.data?.text || "").trim();
@@ -467,6 +502,7 @@ const TASK_BLOCK_RENDERERS = {
   matching: ({ block }) => renderMatchingContent({ block }),
   gapfill: ({ block }) => renderGapfillContent({ block }),
   find_mistake: ({ block }) => renderFindMistakeContent({ block }),
+  dictation: ({ block }) => renderDictationContent({ block }),
 };
 
 export default function MyHomeworkLessonPage() {
@@ -490,6 +526,7 @@ export default function MyHomeworkLessonPage() {
   const streamsRef = useRef(new Map());
   const chunksRef = useRef(new Map());
   const previewUrlsRef = useRef(new Set());
+  const uploadInputRef = useRef(null);
 
   const lessonListPath = `/student-ielts/homework/${assignmentId}${isPreviewMode ? "?preview=1" : ""}`;
   const monthPath = "/student-ielts/homework";
@@ -915,18 +952,44 @@ export default function MyHomeworkLessonPage() {
 
                     {hasImageInput ? (
                       <div className="homework-field homework-span-12">
-                        <label>Images (max 5)</label>
                         <input
+                          ref={uploadInputRef}
                           type="file"
-                          accept="image/*"
+                          accept="image/*,video/*"
                           multiple
+                          className="hidden"
                           onChange={(event) =>
                             updateDraft(selectedTaskId, { image_files: Array.from(event.target.files || []) })
                           }
                           disabled={!canInteract}
                         />
+                        <Empty className="border border-dashed">
+                          <EmptyHeader>
+                            <EmptyMedia variant="icon">
+                              <IconCloud />
+                            </EmptyMedia>
+                            <EmptyTitle>Upload Bài Làm</EmptyTitle>
+                            <EmptyDescription>
+                              Upload ảnh hoặc video bài đã làm
+                            </EmptyDescription>
+                          </EmptyHeader>
+                          <EmptyContent>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => uploadInputRef.current?.click()}
+                              disabled={!canInteract}
+                            >
+                              Upload Files
+                            </Button>
+                          </EmptyContent>
+                        </Empty>
+                        {draft?.image_files?.length ? (
+                          <p className="homework-item-meta">Selected: {draft.image_files.length} file(s)</p>
+                        ) : null}
                         {submission?.image_items?.length ? (
-                          <p className="homework-item-meta">Current: {submission.image_items.length} image(s)</p>
+                          <p className="homework-item-meta">Current: {submission.image_items.length} file(s)</p>
                         ) : null}
                       </div>
                     ) : null}

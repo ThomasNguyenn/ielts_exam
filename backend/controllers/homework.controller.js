@@ -5,6 +5,7 @@ import MonthlyAssignmentSubmission from "../models/MonthlyAssignmentSubmission.m
 import Passage from "../models/Passage.model.js";
 import Section from "../models/Section.model.js";
 import Speaking from "../models/Speaking.model.js";
+import Test from "../models/Test.model.js";
 import User from "../models/User.model.js";
 import Writing from "../models/Writing.model.js";
 import { ASSIGNMENT_STATUSES, CONTENT_BLOCK_TYPES, TASK_RESOURCE_MODES } from "../models/MonthlyAssignment.model.js";
@@ -33,13 +34,14 @@ import { STUDENT_ROLE_VALUES } from "../utils/role.utils.js";
 
 const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 const TASK_RESOURCE_MODES_SET = new Set(TASK_RESOURCE_MODES);
-const TASK_RESOURCE_REF_TYPES_SET = new Set(["passage", "section", "speaking", "writing"]);
+const TASK_RESOURCE_REF_TYPES_SET = new Set(["passage", "section", "speaking", "writing", "test"]);
 const CONTENT_BLOCK_TYPES_SET = new Set(CONTENT_BLOCK_TYPES);
 const MATCH_COLOR_TOKENS = ["emerald", "sky", "amber", "fuchsia", "teal", "rose", "indigo", "lime"];
 
 const HOMEWORK_IMAGE_MAX_BYTES = getHomeworkImageUploadLimitBytes();
 const HOMEWORK_IMAGE_MAX_FILES = getHomeworkImageMaxFiles();
 const HOMEWORK_AUDIO_MAX_BYTES = getHomeworkAudioUploadLimitBytes();
+const HOMEWORK_SUBMISSION_MAX_BYTES = Math.max(HOMEWORK_IMAGE_MAX_BYTES, HOMEWORK_AUDIO_MAX_BYTES);
 
 const normalizeOptionalString = (value) => {
   if (value === undefined || value === null) return null;
@@ -280,12 +282,24 @@ const sanitizeFindMistakeBlockData = (data = {}, blockIndex = 0) => {
   };
 };
 
+const sanitizeDictationBlockData = (data = {}, blockIndex = 0) => {
+  const normalizedData = sanitizeBlockData(data);
+  return {
+    block_id: normalizeBlockId(normalizedData.block_id, `block-${blockIndex + 1}`),
+    prompt: String(normalizedData.prompt || ""),
+    audio_url: String(normalizedData.audio_url || ""),
+    audio_storage_key: String(normalizedData.audio_storage_key || ""),
+    transcript: String(normalizedData.transcript || ""),
+  };
+};
+
 const sanitizeBlockDataByType = (type, data, blockIndex) => {
   if (type === "passage") return sanitizePassageBlockData(data, blockIndex);
   if (type === "quiz") return sanitizeQuizBlockData(data, blockIndex);
   if (type === "matching") return sanitizeMatchingBlockData(data, blockIndex);
   if (type === "gapfill") return sanitizeGapfillBlockData(data, blockIndex);
   if (type === "find_mistake") return sanitizeFindMistakeBlockData(data, blockIndex);
+  if (type === "dictation") return sanitizeDictationBlockData(data, blockIndex);
 
   const normalizedData = sanitizeBlockData(data);
   return {
@@ -611,7 +625,7 @@ const validateTaskPayload = (task = {}, index = 0) => {
           taskIndex: index,
           order: taskOrder,
           field: "resource_ref_type",
-          message: "resource_ref_type must be one of passage|section|speaking|writing for internal mode",
+          message: "resource_ref_type must be one of passage|section|speaking|writing|test for internal mode",
         });
       }
       if (!task.resource_ref_id) {
@@ -810,6 +824,7 @@ const INTERNAL_REF_MODEL_MAP = {
   section: Section,
   speaking: Speaking,
   writing: Writing,
+  test: Test,
 };
 
 const assertInternalRefsOrRespond = async (req, res, tasks = []) => {
@@ -818,6 +833,7 @@ const assertInternalRefsOrRespond = async (req, res, tasks = []) => {
     section: new Set(),
     speaking: new Set(),
     writing: new Set(),
+    test: new Set(),
   };
 
   tasks.forEach((task) => {
@@ -873,15 +889,24 @@ const collectSubmissionStorageKeys = (submission = {}) => {
   return keys;
 };
 
-const collectAssignmentTaskStorageKeys = (assignment = {}) => {
+const collectTaskStorageKeys = (tasks = []) => {
   const keys = [];
-  const tasks = getAssignmentTasks(assignment);
-  tasks.forEach((task) => {
+  (Array.isArray(tasks) ? tasks : []).forEach((task) => {
     const key = normalizeOptionalString(task?.resource_storage_key);
     if (key) keys.push(key);
+    const blocks = Array.isArray(task?.content_blocks) ? task.content_blocks : [];
+    blocks.forEach((block) => {
+      const blockType = normalizeOptionalString(block?.type);
+      if (blockType !== "dictation") return;
+      const dictationKey = normalizeOptionalString(block?.data?.audio_storage_key);
+      if (dictationKey) keys.push(dictationKey);
+    });
   });
   return keys;
 };
+
+const collectAssignmentTaskStorageKeys = (assignment = {}) =>
+  collectTaskStorageKeys(getAssignmentTasks(assignment));
 
 const deleteHomeworkKeysBestEffort = async (req, keys = []) => {
   const uniqueKeys = Array.from(new Set((Array.isArray(keys) ? keys : []).filter(Boolean)));
@@ -974,13 +999,32 @@ const getRemovedLessonIds = (beforeSections = [], afterSections = []) => {
   return Array.from(beforeIds).filter((lessonId) => !afterIds.has(lessonId));
 };
 
+const removeDictationTranscriptFromSections = (sections = []) =>
+  (Array.isArray(sections) ? sections : []).map((section) => ({
+    ...section,
+    lessons: (Array.isArray(section?.lessons) ? section.lessons : []).map((lesson) => ({
+      ...lesson,
+      content_blocks: (Array.isArray(lesson?.content_blocks) ? lesson.content_blocks : []).map((block) => {
+        const blockType = normalizeOptionalString(block?.type);
+        if (blockType !== "dictation") return block;
+        const blockData = sanitizeBlockData(block?.data);
+        const { transcript, ...restData } = blockData;
+        return {
+          ...block,
+          data: restData,
+        };
+      }),
+    })),
+  }));
+
 const mapAssignmentForResponse = (assignment = {}, { forStudent = false } = {}) => {
   const plain = toPlainAssignmentObject(assignment);
   const sections = forStudent ? getEffectivePublishedSections(plain) : getAssignmentSections(plain);
-  const tasks = flattenSectionsToTasks(sections);
+  const normalizedSections = forStudent ? removeDictationTranscriptFromSections(sections) : sections;
+  const tasks = flattenSectionsToTasks(normalizedSections);
   return {
     ...plain,
-    sections,
+    sections: normalizedSections,
     tasks,
   };
 };
@@ -1076,23 +1120,9 @@ const mapAssignmentForStudent = (assignment = {}, submissions = []) => {
 
 const resolveAssignmentResourceKeysToDeleteOnUpdate = (existingAssignment, nextTasks = []) => {
   const currentTasks = getAssignmentTasks(existingAssignment);
-  const currentById = new Map();
-  currentTasks.forEach((task) => {
-    currentById.set(String(task._id), normalizeOptionalString(task.resource_storage_key));
-  });
-
-  const keepKeys = new Set();
-  nextTasks.forEach((task) => {
-    const key = normalizeOptionalString(task.resource_storage_key);
-    if (key) keepKeys.add(key);
-  });
-
-  const removedKeys = [];
-  currentById.forEach((storageKey) => {
-    if (!storageKey) return;
-    if (!keepKeys.has(storageKey)) removedKeys.push(storageKey);
-  });
-  return removedKeys;
+  const currentKeys = new Set(collectTaskStorageKeys(currentTasks));
+  const keepKeys = new Set(collectTaskStorageKeys(nextTasks));
+  return Array.from(currentKeys).filter((storageKey) => !keepKeys.has(storageKey));
 };
 
 const purgeSubmissionByLessonIds = async (req, assignmentId, lessonIds = []) => {
@@ -1973,23 +2003,27 @@ export const upsertMyHomeworkTaskSubmission = async (req, res) => {
       return sendControllerError(req, res, {
         statusCode: 413,
         code: "PAYLOAD_TOO_LARGE",
-        message: `Maximum ${HOMEWORK_IMAGE_MAX_FILES} images are allowed`,
+        message: `Maximum ${HOMEWORK_IMAGE_MAX_FILES} files are allowed`,
       });
     }
 
     for (const file of imageFiles) {
-      if (!String(file?.mimetype || "").toLowerCase().startsWith("image/")) {
+      const mime = String(file?.mimetype || "").toLowerCase();
+      const isImage = mime.startsWith("image/");
+      const isVideo = mime.startsWith("video/");
+      if (!isImage && !isVideo) {
         return sendControllerError(req, res, {
           statusCode: 415,
           code: "UNSUPPORTED_MEDIA_TYPE",
-          message: "Only image files are allowed in images[]",
+          message: "Only image/video files are allowed in images[]",
         });
       }
-      if (Number(file?.size || 0) > HOMEWORK_IMAGE_MAX_BYTES) {
+      const maxBytes = isImage ? HOMEWORK_IMAGE_MAX_BYTES : HOMEWORK_SUBMISSION_MAX_BYTES;
+      if (Number(file?.size || 0) > maxBytes) {
         return sendControllerError(req, res, {
           statusCode: 413,
           code: "PAYLOAD_TOO_LARGE",
-          message: `Image exceeds ${HOMEWORK_IMAGE_MAX_BYTES} bytes`,
+          message: `${isImage ? "Image" : "Video"} exceeds ${maxBytes} bytes`,
         });
       }
     }
@@ -2088,7 +2122,7 @@ export const upsertMyHomeworkTaskSubmission = async (req, res) => {
       if (task.requires_image && (!Array.isArray(nextImageItems) || nextImageItems.length === 0)) {
         return sendControllerError(req, res, {
           statusCode: 400,
-          message: "At least one image is required for this task",
+          message: "At least one uploaded file is required for this task",
         });
       }
       if (task.requires_audio && !nextAudioItem) {

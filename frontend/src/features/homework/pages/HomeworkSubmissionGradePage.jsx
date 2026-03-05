@@ -149,20 +149,20 @@ export default function HomeworkSubmissionGradePage() {
               {Array.isArray(submission?.image_items) && submission.image_items.length > 0 ? (
                 <Card className="border-border/70 shadow-none">
                   <CardHeader>
-                    <CardTitle className="text-base">Image Attachments</CardTitle>
+                    <CardTitle className="text-base">Uploaded Attachments</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
                       {submission.image_items.map((item) => (
-                        <a
-                          href={item?.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          key={item?.storage_key || item?.url}
-                          className="overflow-hidden rounded-md border"
-                        >
-                          <img src={item?.url} alt="Submission" className="aspect-[4/3] w-full object-cover" />
-                        </a>
+                        <div key={item?.storage_key || item?.url} className="overflow-hidden rounded-md border">
+                          {String(item?.mime || "").toLowerCase().startsWith("video/") ? (
+                            <video controls src={item?.url} className="aspect-[4/3] w-full object-cover" />
+                          ) : (
+                            <a href={item?.url} target="_blank" rel="noreferrer" className="block">
+                              <img src={item?.url} alt="Submission" className="aspect-[4/3] w-full object-cover" />
+                            </a>
+                          )}
+                        </div>
                       ))}
                     </div>
                   </CardContent>

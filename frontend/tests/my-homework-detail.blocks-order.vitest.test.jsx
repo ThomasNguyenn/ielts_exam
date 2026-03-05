@@ -263,4 +263,61 @@ describe("MyHomework lesson routing and block rendering", () => {
     expect(await screen.findByText("Legacy question?")).toBeInTheDocument();
     expect(screen.getByText("Legacy Option 1")).toBeInTheDocument();
   });
+
+  it("renders dictation block and does not render transcript text", async () => {
+    mockApi.homeworkGetMyAssignmentById.mockResolvedValue(
+      buildAssignmentResponse([
+        {
+          _id: "task-1",
+          title: "Task 1",
+          content_blocks: [
+            {
+              type: "dictation",
+              order: 0,
+              data: {
+                prompt: "Listen and write the sentence.",
+                audio_url: "https://cdn.example.com/dictation-a.mp3",
+                transcript: "Hidden transcript text should not appear",
+              },
+            },
+          ],
+        },
+      ]),
+    );
+
+    renderHomeworkRoutes(["/homework/my/assignment-1/lessons/task-1"]);
+
+    expect(await screen.findByText("Dictation")).toBeInTheDocument();
+    expect(screen.queryByText("Hidden transcript text should not appear")).not.toBeInTheDocument();
+    expect(getBlockOrderForTask()).toEqual(["dictation"]);
+  });
+
+  it("falls back to text answer when lesson has dictation but no input block", async () => {
+    mockApi.homeworkGetMyAssignmentById.mockResolvedValue(
+      buildAssignmentResponse([
+        {
+          _id: "task-1",
+          title: "Task 1",
+          content_blocks: [
+            {
+              type: "dictation",
+              order: 0,
+              data: {
+                prompt: "Type what you hear.",
+                audio_url: "https://cdn.example.com/dictation-b.mp3",
+              },
+            },
+          ],
+          requires_text: false,
+          requires_image: false,
+          requires_audio: false,
+        },
+      ]),
+    );
+
+    renderHomeworkRoutes(["/homework/my/assignment-1/lessons/task-1"]);
+
+    expect(await screen.findByText("Dictation")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Type your answer here...")).toBeInTheDocument();
+  });
 });

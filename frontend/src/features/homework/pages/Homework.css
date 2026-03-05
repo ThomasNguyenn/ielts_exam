@@ -249,8 +249,9 @@
 
 .homework-task-sub {
   margin: 0;
-  font-size: 0.8rem;
-  color: #475569;
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: black;
   white-space: pre-wrap;
 }
 

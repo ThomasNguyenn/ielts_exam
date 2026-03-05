@@ -28,6 +28,8 @@ export const resolveTaskInputType = (task = {}) => {
     latestInputBlock?.data && typeof latestInputBlock.data === "object" ? latestInputBlock.data : {};
   const typeFromBlock = resolveInputTypeFromBlockData(inputData);
   if (typeFromBlock) return typeFromBlock;
+  const hasDictationBlock = blocks.some((block) => String(block?.type || "").trim().toLowerCase() === "dictation");
+  if (hasDictationBlock) return "text";
   if (Boolean(task?.requires_audio)) return "audio";
   if (Boolean(task?.requires_image)) return "image";
   if (Boolean(task?.requires_text)) return "text";

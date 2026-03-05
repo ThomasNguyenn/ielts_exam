@@ -837,6 +837,8 @@ export const getSubmissionStatus = async (req, res) => {
             return sendControllerError(req, res, { statusCode: 403, message: "Forbidden"  });
         }
 
+        const enrichedAnswers = await enrichWritingAnswersWithTaskDetails(submission.writing_answers || []);
+
         return res.status(200).json({
             success: true,
             data: {
@@ -852,7 +854,7 @@ export const getSubmissionStatus = async (req, res) => {
                 scoring_state: submission.scoring_state || (submission.is_ai_graded ? "detail_ready" : "none"),
                 taxonomy_state: resolveTaxonomyState(submission),
                 taxonomy_updated_at: submission.taxonomy_updated_at || null,
-                writing_answers: submission.writing_answers || [],
+                writing_answers: enrichedAnswers,
                 submitted_at: submission.submitted_at,
                 time_taken_ms: Number.isFinite(Number(submission.time_taken_ms))
                     ? Number(submission.time_taken_ms)

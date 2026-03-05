@@ -2,8 +2,8 @@ import mongoose from "mongoose";
 
 const ASSIGNMENT_STATUSES = ["draft", "published", "archived"];
 const TASK_RESOURCE_MODES = ["internal", "external_url", "uploaded"];
-const TASK_RESOURCE_REF_TYPES = ["passage", "section", "speaking", "writing", null];
-const CONTENT_BLOCK_TYPES = ["instruction", "video", "input", "title", "internal", "passage", "quiz", "matching", "gapfill", "find_mistake"];
+const TASK_RESOURCE_REF_TYPES = ["passage", "section", "speaking", "writing", "test", null];
+const CONTENT_BLOCK_TYPES = ["instruction", "video", "input", "title", "internal", "passage", "quiz", "matching", "gapfill", "find_mistake", "dictation"];
 
 const isPlainObject = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
@@ -78,6 +78,15 @@ const isValidFindMistakeBlockData = (data) => {
   return true;
 };
 
+const isValidDictationBlockData = (data) => {
+  if (!isPlainObject(data)) return false;
+  if (data.prompt !== undefined && typeof data.prompt !== "string") return false;
+  if (data.audio_url !== undefined && typeof data.audio_url !== "string") return false;
+  if (data.audio_storage_key !== undefined && typeof data.audio_storage_key !== "string") return false;
+  if (data.transcript !== undefined && typeof data.transcript !== "string") return false;
+  return true;
+};
+
 const AssignmentContentBlockSchema = new mongoose.Schema(
   {
     type: { type: String, enum: CONTENT_BLOCK_TYPES, required: true, trim: true },
@@ -92,6 +101,7 @@ const AssignmentContentBlockSchema = new mongoose.Schema(
           if (String(this?.type || "") === "matching") return isValidMatchingBlockData(value);
           if (String(this?.type || "") === "gapfill") return isValidGapfillBlockData(value);
           if (String(this?.type || "") === "find_mistake") return isValidFindMistakeBlockData(value);
+          if (String(this?.type || "") === "dictation") return isValidDictationBlockData(value);
           return true;
         },
         message: "Invalid block data",
