@@ -145,6 +145,80 @@
   resize: vertical;
 }
 
+.homework-rich-editor {
+  --homework-editor-min-height: 160px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #ffffff;
+  overflow: hidden;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.homework-rich-editor:focus-within {
+  border-color: #94a3b8;
+  box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.2);
+}
+
+.homework-rich-editor__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border-bottom: 1px solid #e2e8f0;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.homework-rich-editor__content {
+  font-size: 0.92rem;
+}
+
+.homework-rich-editor__prosemirror {
+  min-height: var(--homework-editor-min-height);
+  padding: 0.72rem 0.78rem;
+  outline: none;
+  color: #0f172a;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.homework-rich-editor__prosemirror p {
+  margin: 0;
+}
+
+.homework-rich-editor__prosemirror p + p {
+  margin-top: 0.6rem;
+}
+
+.homework-rich-editor__prosemirror h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.homework-rich-editor__prosemirror h2 + p,
+.homework-rich-editor__prosemirror p + h2 {
+  margin-top: 0.6rem;
+}
+
+.homework-rich-editor__prosemirror ul {
+  margin: 0;
+  padding-left: 1.3rem;
+  list-style: disc;
+}
+
+.homework-rich-editor__prosemirror ul li + li {
+  margin-top: 0.2rem;
+}
+
+.homework-rich-editor__prosemirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: #94a3b8;
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
 .homework-kpi-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -250,7 +324,6 @@
 .homework-task-sub {
   margin: 0;
   font-size: 1.1rem;
-  font-weight: bold;
   color: black;
   white-space: pre-wrap;
 }

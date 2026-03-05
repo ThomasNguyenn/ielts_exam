@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import HomeworkRichTextEditor from "@/features/homework/components/HomeworkRichTextEditor";
 import {
   GAPFILL_MODE_NUMBERED,
   GAPFILL_MODE_PARAGRAPH,
@@ -1456,10 +1457,11 @@ export default function HomeworkLessonEditorPage() {
                       {blockType === "instruction" ? (
                         <div className="space-y-2">
                           <Label>Instruction</Label>
-                          <Textarea
+                          <HomeworkRichTextEditor
                             value={block.data.text || ""}
-                            onChange={(event) => updateBlockData(block.id, { text: event.target.value })}
+                            onChange={(nextText) => updateBlockData(block.id, { text: nextText })}
                             placeholder="Add instruction for students..."
+                            minHeight={150}
                           />
                         </div>
                       ) : null}
@@ -1610,14 +1612,15 @@ export default function HomeworkLessonEditorPage() {
 
                           <div className="space-y-2">
                             <Label>Transcript (teacher only)</Label>
-                            <Textarea
+                            <HomeworkRichTextEditor
                               value={dictationData?.transcript || ""}
-                              onChange={(event) =>
+                              onChange={(nextText) =>
                                 updateDictationBlock(block.id, {
                                   ...(dictationData || {}),
-                                  transcript: event.target.value,
+                                  transcript: nextText,
                                 })}
                               placeholder="Transcript will be hidden from students."
+                              minHeight={140}
                             />
                             <p className="text-xs text-muted-foreground">
                               Students will only see the audio and submission input.
@@ -1698,17 +1701,18 @@ export default function HomeworkLessonEditorPage() {
                           </div>
                           <div className="space-y-2">
                             <Label>Passage Text</Label>
-                            <Textarea
+                            <HomeworkRichTextEditor
                               value={block?.data?.text || ""}
-                              onChange={(event) =>
+                              onChange={(nextText) =>
                                 updateBlockData(
                                   block.id,
                                   normalizePassageBlockData({
                                     ...(block?.data || {}),
-                                    text: event.target.value,
+                                    text: nextText,
                                   }),
                                 )}
                               placeholder="Type the reading passage here..."
+                              minHeight={240}
                             />
                           </div>
                           <p className="text-xs text-muted-foreground">
@@ -1776,11 +1780,12 @@ export default function HomeworkLessonEditorPage() {
                                 </div>
                                 <div className="space-y-2">
                                   <Label>Question Text</Label>
-                                  <Textarea
+                                  <HomeworkRichTextEditor
                                     value={quizQuestion?.question || ""}
-                                    onChange={(event) =>
-                                      updateQuizQuestionField(block.id, questionId, { question: event.target.value })}
+                                    onChange={(nextText) =>
+                                      updateQuizQuestionField(block.id, questionId, { question: nextText })}
                                     placeholder="Type your quiz question..."
+                                    minHeight={130}
                                   />
                                 </div>
                                 <div className="space-y-2">
@@ -1856,11 +1861,12 @@ export default function HomeworkLessonEditorPage() {
                                 </div>
                                 <div className="space-y-2">
                                   <Label>Explanation (optional)</Label>
-                                  <Textarea
+                                  <HomeworkRichTextEditor
                                     value={quizQuestion?.explanation || ""}
-                                    onChange={(event) =>
-                                      updateQuizQuestionField(block.id, questionId, { explanation: event.target.value })}
+                                    onChange={(nextText) =>
+                                      updateQuizQuestionField(block.id, questionId, { explanation: nextText })}
                                     placeholder="Add explanation shown in review mode (optional)"
+                                    minHeight={120}
                                   />
                                 </div>
                               </div>
@@ -2009,14 +2015,15 @@ export default function HomeworkLessonEditorPage() {
                           {gapfillData?.mode === GAPFILL_MODE_PARAGRAPH ? (
                             <div className="space-y-2">
                               <Label>Paragraph</Label>
-                              <Textarea
+                              <HomeworkRichTextEditor
                                 value={gapfillData?.paragraph_text || ""}
-                                onChange={(event) =>
+                                onChange={(nextText) =>
                                   updateGapfillBlock(block.id, {
                                     ...(gapfillData || {}),
-                                    paragraph_text: event.target.value,
+                                    paragraph_text: nextText,
                                   })}
                                 placeholder="Example: The ocean is full of [*fish / cats / dogs] and the water is [blue]."
+                                minHeight={180}
                               />
                             </div>
                           ) : (

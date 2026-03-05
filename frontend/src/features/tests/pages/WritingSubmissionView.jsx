@@ -99,6 +99,7 @@ export default function WritingSubmissionView() {
           writingAnswers.map((answer, index) => {
             const taskImage = answer?.task_image || answer?.image_url || '';
             const shouldShowTaskImage = isTask1Answer(answer, index) && String(taskImage).trim();
+            const taskPrompt = String(answer?.task_prompt || answer?.prompt || '').trim();
 
             return (
               <section key={`writing-answer-${index}`} style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1rem 1.25rem' }}>
@@ -106,6 +107,15 @@ export default function WritingSubmissionView() {
                 <p className="muted" style={{ marginTop: '0.35rem' }}>
                   {Number.isFinite(Number(answer?.word_count)) ? `${Number(answer.word_count)} words` : 'Word count unavailable'}
                 </p>
+
+                {taskPrompt ? (
+                  <div style={{ marginTop: '0.75rem' }}>
+                    <p className="muted" style={{ marginBottom: '0.5rem' }}>Prompt Text</p>
+                    <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.65, color: '#1e293b' }}>
+                      {taskPrompt}
+                    </div>
+                  </div>
+                ) : null}
 
                 {shouldShowTaskImage ? (
                   <div style={{ marginTop: '0.75rem' }}>
