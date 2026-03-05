@@ -2,8 +2,8 @@ export const GROUP_LAYOUT_OPTIONS = [
   { value: 'default', label: 'Default' },
   { value: 'two_column', label: 'Two Column' },
   { value: 'with_reference', label: 'With Reference Text' },
-  { value: 'radio', label: 'Single Choice (Legacy)' },
-  { value: 'checkbox', label: 'Multi Choice (Legacy)' },
+  { value: 'radio', label: 'Single Answer' },
+  { value: 'checkbox', label: 'MultiChoice' },
 ];
 
 export const PASSAGE_QUESTION_TYPE_OPTIONS = [
@@ -31,7 +31,6 @@ export const SECTION_QUESTION_TYPE_OPTIONS = [
   { value: 'flow_chart_completion', label: 'Flow-chart Completion' },
   { value: 'sentence_completion', label: 'Sentence Completion' },
   { value: 'short_answer', label: 'Short-answer Questions' },
-  { value: 'matching', label: 'Matching' },
   { value: 'plan_map_diagram', label: 'Plan / Map / Diagram Labelling' },
   { value: 'listening_map', label: 'Listening Map' },
   { value: 'true_false_notgiven', label: 'True / False / Not Given' },

@@ -174,6 +174,11 @@ export default function QuestionGroup({
   const isFlowOrPlanType = group.type === 'flow_chart_completion' || group.type === 'plan_map_diagram';
   const isAnswerListOnlyType = ANSWER_LIST_ONLY_TYPES.has(group.type);
   const isMultiChoiceMode = group.group_layout === 'checkbox';
+  const multiChoiceLayoutOptions = GROUP_LAYOUT_OPTIONS.filter((item) => item.value === 'radio' || item.value === 'checkbox');
+  const activeLayoutOptions = isMultipleChoiceType ? multiChoiceLayoutOptions : GROUP_LAYOUT_OPTIONS;
+  const normalizedLayoutValue = isMultipleChoiceType
+    ? (group.group_layout === 'checkbox' ? 'checkbox' : 'radio')
+    : (group.group_layout || 'default');
   const canSyncPlaceholderQuestions = (PLACEHOLDER_SYNC_TYPES.has(group.type) || isFlowOrPlanType) && !isDiagramLabelType;
   const showReferenceText = (REFERENCE_TEXT_TYPES.has(group.type) || group.group_layout === 'with_reference')
     && !isDiagramLabelType
@@ -331,12 +336,15 @@ export default function QuestionGroup({
 
             <div className='space-y-2'>
               <Label>Layout</Label>
-              <Select value={group.group_layout || 'default'} onValueChange={(value) => onUpdateGroup(gi, 'group_layout', value)}>
+              <Select
+                value={normalizedLayoutValue}
+                onValueChange={(value) => onUpdateGroup(gi, 'group_layout', isMultipleChoiceType ? (value === 'checkbox' ? 'checkbox' : 'radio') : value)}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder='Layout' />
                 </SelectTrigger>
                 <SelectContent>
-                  {GROUP_LAYOUT_OPTIONS.map((item) => (
+                  {activeLayoutOptions.map((item) => (
                     <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
                   ))}
                 </SelectContent>
@@ -357,7 +365,7 @@ export default function QuestionGroup({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value='single'>Single Answer</SelectItem>
-                    <SelectItem value='multi'>Multiple Answers</SelectItem>
+                    <SelectItem value='multi'>MultiChoice</SelectItem>
                   </SelectContent>
                 </Select>
                 {isMultiChoiceMode ? (

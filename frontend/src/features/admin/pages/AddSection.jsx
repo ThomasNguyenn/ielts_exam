@@ -74,6 +74,14 @@ function canonicalizeQuestionType(type = '') {
   return normalized || 'mult_choice';
 }
 
+function normalizeGroupLayoutForType(type = '', layout = '') {
+  const normalizedType = canonicalizeQuestionType(type);
+  if (normalizedType === 'mult_choice') {
+    return layout === 'checkbox' ? 'checkbox' : 'radio';
+  }
+  return layout || 'default';
+}
+
 function emptyQuestion(qNumber = 1) {
   return {
     q_number: qNumber,
@@ -96,7 +104,7 @@ function emptyOption() {
 function emptyQuestionGroup() {
   return {
     type: 'mult_choice',
-    group_layout: 'default',
+    group_layout: 'radio',
     required_count: '',
     use_once: false,
     instructions: '',
@@ -126,42 +134,45 @@ function sectionToForm(section) {
   }
 
   const groups = Array.isArray(section.question_groups) && section.question_groups.length
-    ? section.question_groups.map((group) => ({
-      type: canonicalizeQuestionType(group.type),
-      group_layout: group.group_layout || 'default',
-      required_count: group.required_count ?? '',
-      use_once: Boolean(group.use_once),
-      instructions: group.instructions || '',
-      text: group.text || '',
-      image_url: group.image_url || '',
-      steps: (() => {
-        if (Array.isArray(group.steps) && group.steps.length) {
-          return group.steps.map((step) => String(step || '')).filter((step) => step.trim().length > 0);
-        }
-        if (isFlowOrPlanType(group.type) && String(group.text || '').trim()) {
-          return [String(group.text || '').trim()];
-        }
-        return [];
-      })(),
-      headings: Array.isArray(group.headings) ? group.headings.map((heading) => ({ id: heading.id || '', text: heading.text || '' })) : [],
-      options: Array.isArray(group.options) ? group.options.map((option) => ({ id: option.id || '', text: option.text || '' })) : [],
-      questions: Array.isArray(group.questions) && group.questions.length
-        ? group.questions.map((question, index) => ({
-          q_number: question.q_number ?? index + 1,
-          text: question.text || '',
-          option: Array.isArray(question.option) && question.option.length
-            ? question.option.map((item) => ({ label: item.label, text: item.text || '' }))
-            : OPTION_LABELS.map((label) => ({ label, text: '' })),
-          correct_answers_raw: Array.isArray(question.correct_answers) && question.correct_answers.length
-            ? question.correct_answers.join(', ')
-            : '',
-          correct_answers: Array.isArray(question.correct_answers) && question.correct_answers.length
-            ? [...question.correct_answers]
-            : [''],
-          explanation: question.explanation || '',
-        }))
-        : [emptyQuestion(1)],
-    }))
+    ? section.question_groups.map((group) => {
+      const normalizedType = canonicalizeQuestionType(group.type);
+      return {
+        type: normalizedType,
+        group_layout: normalizeGroupLayoutForType(normalizedType, group.group_layout),
+        required_count: group.required_count ?? '',
+        use_once: Boolean(group.use_once),
+        instructions: group.instructions || '',
+        text: group.text || '',
+        image_url: group.image_url || '',
+        steps: (() => {
+          if (Array.isArray(group.steps) && group.steps.length) {
+            return group.steps.map((step) => String(step || '')).filter((step) => step.trim().length > 0);
+          }
+          if (isFlowOrPlanType(group.type) && String(group.text || '').trim()) {
+            return [String(group.text || '').trim()];
+          }
+          return [];
+        })(),
+        headings: Array.isArray(group.headings) ? group.headings.map((heading) => ({ id: heading.id || '', text: heading.text || '' })) : [],
+        options: Array.isArray(group.options) ? group.options.map((option) => ({ id: option.id || '', text: option.text || '' })) : [],
+        questions: Array.isArray(group.questions) && group.questions.length
+          ? group.questions.map((question, index) => ({
+            q_number: question.q_number ?? index + 1,
+            text: question.text || '',
+            option: Array.isArray(question.option) && question.option.length
+              ? question.option.map((item) => ({ label: item.label, text: item.text || '' }))
+              : OPTION_LABELS.map((label) => ({ label, text: '' })),
+            correct_answers_raw: Array.isArray(question.correct_answers) && question.correct_answers.length
+              ? question.correct_answers.join(', ')
+              : '',
+            correct_answers: Array.isArray(question.correct_answers) && question.correct_answers.length
+              ? [...question.correct_answers]
+              : [''],
+            explanation: question.explanation || '',
+          }))
+          : [emptyQuestion(1)],
+      };
+    })
     : [emptyQuestionGroup()];
 
   return {
@@ -400,7 +411,18 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
     setForm((prev) => ({
       ...prev,
       question_groups: prev.question_groups.map((group, index) => (
-        index === groupIndex ? { ...group, [key]: value } : group
+        index === groupIndex
+          ? (() => {
+            const nextGroup = { ...group, [key]: value };
+            if (key === 'type') {
+              nextGroup.group_layout = normalizeGroupLayoutForType(value, nextGroup.group_layout);
+            }
+            if (key === 'group_layout') {
+              nextGroup.group_layout = normalizeGroupLayoutForType(nextGroup.type, value);
+            }
+            return nextGroup;
+          })()
+          : group
       )),
     }));
   };
@@ -843,7 +865,7 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
          isSinglePart: Boolean(form.isSinglePart),
         question_groups: form.question_groups.map((group) => ({
           type: canonicalizeQuestionType(group.type),
-          group_layout: group.group_layout || 'default',
+          group_layout: normalizeGroupLayoutForType(group.type, group.group_layout),
           required_count: group.required_count ? Number(group.required_count) : undefined,
           use_once: Boolean(group.use_once),
           instructions: group.instructions || undefined,

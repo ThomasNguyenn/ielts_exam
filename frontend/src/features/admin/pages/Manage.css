@@ -2,9 +2,11 @@
    Keep this file scoped and minimal to avoid cross-page style overrides. */
 
 :root {
-  --manage-primary: #6366f1;
-  --manage-primary-hover: #4f46e5;
-  --manage-primary-light: rgba(99, 102, 241, 0.14);
+  --manage-primary: var(--admin-shell-theme-accent, #2057e0);
+  --manage-primary-hover: var(--admin-shell-theme-accent-strong, #1a47b8);
+  --manage-primary-light: var(--admin-shell-theme-accent-soft, rgba(32, 87, 224, 0.14));
+  --manage-primary-foreground: var(--admin-shell-theme-accent-foreground, #ffffff);
+  --manage-primary-shadow: var(--admin-shell-theme-accent-shadow, rgba(32, 87, 224, 0.34));
   --manage-bg: #ffffff;
   --manage-bg-soft: #f8fafc;
   --manage-border: #e2e8f0;
@@ -189,10 +191,10 @@
 .manage-container .btn-manage-add {
   border: 1px solid var(--manage-primary);
   background: var(--manage-primary);
-  color: #fff;
+  color: var(--manage-primary-foreground);
   padding: 0.58rem 0.95rem;
   font-weight: 600;
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.22);
+  box-shadow: 0 2px 8px var(--manage-primary-shadow);
 }
 
 .manage-container .btn-manage-add:hover {

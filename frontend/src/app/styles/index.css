@@ -143,3 +143,9 @@
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 }
+
+@layer utilities {
+  .bg-primary {
+    background-color: var(--admin-shell-theme-accent, #000000) !important;
+  }
+}

@@ -1,5 +1,11 @@
 @import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap');
 
+:root {
+  --homework-primary: var(--admin-shell-theme-accent, #2057e0);
+  --homework-primary-hover: var(--admin-shell-theme-accent-strong, #1a47b8);
+  --homework-primary-foreground: var(--admin-shell-theme-accent-foreground, #ffffff);
+}
+
 .homework-page {
   min-height: calc(100vh - 70px);
   background: #f6f6f8;
@@ -73,14 +79,14 @@
 }
 
 .homework-btn.primary {
-  background: #0f49bd;
-  border-color: #0f49bd;
-  color: #fff;
+  background: var(--homework-primary);
+  border-color: var(--homework-primary);
+  color: var(--homework-primary-foreground);
 }
 
 .homework-btn.primary:hover:not(:disabled) {
-  background: #0d3d9e;
-  border-color: #0d3d9e;
+  background: var(--homework-primary-hover);
+  border-color: var(--homework-primary-hover);
 }
 
 .homework-btn.ghost {

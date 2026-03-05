@@ -79,6 +79,14 @@ function canonicalizeQuestionType(type = '') {
   return normalized || 'mult_choice';
 }
 
+function normalizeGroupLayoutForType(type = '', layout = '') {
+  const normalizedType = canonicalizeQuestionType(type);
+  if (normalizedType === 'mult_choice') {
+    return layout === 'checkbox' ? 'checkbox' : 'radio';
+  }
+  return layout || 'default';
+}
+
 function emptyQuestion(qNumber = 1) {
   return {
     q_number: qNumber,
@@ -139,7 +147,7 @@ const handleBoldShortcut = (event, value, applyValue) => {
 function emptyQuestionGroup() {
   return {
     type: 'mult_choice',
-    group_layout: 'default',
+    group_layout: 'radio',
     required_count: '',
     use_once: false,
     instructions: '',
@@ -155,41 +163,44 @@ function emptyQuestionGroup() {
 function passageToForm(p) {
   if (!p) return { _id: '', title: '', content: '', source: '', isActive: true, isSinglePart: false, question_groups: [emptyQuestionGroup()] };
   const groups = p.question_groups && p.question_groups.length
-    ? p.question_groups.map((g) => ({
-      type: canonicalizeQuestionType(g.type),
-      group_layout: g.group_layout || 'default',
-      required_count: g.required_count ?? '',
-      use_once: Boolean(g.use_once),
-      instructions: g.instructions || '',
-      text: g.text || '',
-      image_url: (g.image_url && String(g.image_url).trim())
-        ? String(g.image_url).trim()
-        : (canonicalizeQuestionType(g.type) === 'diagram_label_completion' && isLikelyAbsoluteUrl(g.text)
-          ? String(g.text).trim()
-          : ''),
-      steps: (() => {
-        if (Array.isArray(g.steps) && g.steps.length) {
-          return g.steps.map((step) => String(step || '')).filter((step) => step.trim().length > 0);
-        }
-        if (isFlowOrPlanType(g.type) && String(g.text || '').trim()) {
-          return [String(g.text || '').trim()];
-        }
-        return [];
-      })(),
-      headings: (g.headings || []).map((h) => ({ id: h.id || '', text: h.text || '' })),
-      options: (g.options || []).map((o) => ({ id: o.id || '', text: o.text || '' })),
-      questions: (g.questions || []).map((q, i) => ({
-        q_number: q.q_number ?? i + 1,
-        text: q.text || '',
-        option: (q.option && q.option.length > 0)
-          ? q.option.map(o => ({ label: o.label, text: o.text || '' }))
-          : OPTION_LABELS.map((label) => ({ label, text: '' })),
-        correct_answers_raw: (q.correct_answers && q.correct_answers.length) ? q.correct_answers.join(', ') : '',
-        correct_answers: (q.correct_answers && q.correct_answers.length) ? [...q.correct_answers] : [''],
-        explanation: q.explanation || '',
-        passage_reference: q.passage_reference || '',
-      })),
-    }))
+    ? p.question_groups.map((g) => {
+      const normalizedType = canonicalizeQuestionType(g.type);
+      return {
+        type: normalizedType,
+        group_layout: normalizeGroupLayoutForType(normalizedType, g.group_layout),
+        required_count: g.required_count ?? '',
+        use_once: Boolean(g.use_once),
+        instructions: g.instructions || '',
+        text: g.text || '',
+        image_url: (g.image_url && String(g.image_url).trim())
+          ? String(g.image_url).trim()
+          : (canonicalizeQuestionType(g.type) === 'diagram_label_completion' && isLikelyAbsoluteUrl(g.text)
+            ? String(g.text).trim()
+            : ''),
+        steps: (() => {
+          if (Array.isArray(g.steps) && g.steps.length) {
+            return g.steps.map((step) => String(step || '')).filter((step) => step.trim().length > 0);
+          }
+          if (isFlowOrPlanType(g.type) && String(g.text || '').trim()) {
+            return [String(g.text || '').trim()];
+          }
+          return [];
+        })(),
+        headings: (g.headings || []).map((h) => ({ id: h.id || '', text: h.text || '' })),
+        options: (g.options || []).map((o) => ({ id: o.id || '', text: o.text || '' })),
+        questions: (g.questions || []).map((q, i) => ({
+          q_number: q.q_number ?? i + 1,
+          text: q.text || '',
+          option: (q.option && q.option.length > 0)
+            ? q.option.map(o => ({ label: o.label, text: o.text || '' }))
+            : OPTION_LABELS.map((label) => ({ label, text: '' })),
+          correct_answers_raw: (q.correct_answers && q.correct_answers.length) ? q.correct_answers.join(', ') : '',
+          correct_answers: (q.correct_answers && q.correct_answers.length) ? [...q.correct_answers] : [''],
+          explanation: q.explanation || '',
+          passage_reference: q.passage_reference || '',
+        })),
+      };
+    })
     : [emptyQuestionGroup()];
   return {
     _id: p._id || '',
@@ -314,7 +325,18 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
     setForm((prev) => ({
       ...prev,
       question_groups: prev.question_groups.map((g, i) =>
-        i === groupIndex ? { ...g, [key]: value } : g
+        i === groupIndex
+          ? (() => {
+            const nextGroup = { ...g, [key]: value };
+            if (key === 'type') {
+              nextGroup.group_layout = normalizeGroupLayoutForType(value, nextGroup.group_layout);
+            }
+            if (key === 'group_layout') {
+              nextGroup.group_layout = normalizeGroupLayoutForType(nextGroup.type, value);
+            }
+            return nextGroup;
+          })()
+          : g
       ),
     }));
   };
@@ -796,7 +818,7 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
         isSinglePart: Boolean(form.isSinglePart),
         question_groups: form.question_groups.map((g) => ({
           type: canonicalizeQuestionType(g.type),
-          group_layout: g.group_layout,
+          group_layout: normalizeGroupLayoutForType(g.type, g.group_layout),
           required_count: g.required_count ? Number(g.required_count) : undefined,
           use_once: Boolean(g.use_once),
           instructions: g.instructions || undefined,

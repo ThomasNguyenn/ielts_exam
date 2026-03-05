@@ -44,6 +44,16 @@ const BOOLEAN_OPTIONS_BY_TYPE = {
 };
 
 const GROUP_LAYOUT_SET = new Set(QUESTION_GROUP_LAYOUTS);
+const GROUP_LAYOUT_ALIASES = {
+    single_answer: 'radio',
+    single_choice: 'radio',
+    one_answer: 'radio',
+    multichoice: 'checkbox',
+    multi_choice: 'checkbox',
+    multiple_choice: 'checkbox',
+    multiple_answers: 'checkbox',
+    multi_answer: 'checkbox',
+};
 
 const TYPE_ALIASES = {
     // Canonical
@@ -259,6 +269,7 @@ const parseNumberedQuestionsFromText = (raw = '') => {
 
 const normalizeGroupLayout = (value = '') => {
     const normalized = normalizeTypeToken(value);
+    if (GROUP_LAYOUT_ALIASES[normalized]) return GROUP_LAYOUT_ALIASES[normalized];
     if (GROUP_LAYOUT_SET.has(normalized)) return normalized;
     return 'default';
 };
@@ -459,8 +470,15 @@ const normalizeQuestionGroup = ({
     nextQNumberRef,
 }) => {
     const type = canonicalizeQuestionType(group?.type, isPassage, group);
-    const groupLayout = normalizeGroupLayout(group?.group_layout || group?.groupLayout || group?.layout || 'default');
     const requiredCount = parsePositiveInt(group?.required_count ?? group?.requiredCount);
+    const requestedGroupLayout = normalizeGroupLayout(group?.group_layout || group?.groupLayout || group?.layout || 'default');
+    const groupLayout = type === 'mult_choice'
+        ? (
+            requestedGroupLayout === 'checkbox' || requestedGroupLayout === 'radio'
+                ? requestedGroupLayout
+                : ((Number.isFinite(requiredCount) && requiredCount > 1) ? 'checkbox' : 'radio')
+        )
+        : requestedGroupLayout;
     const useOnce = Boolean(group?.use_once ?? group?.useOnce);
     const instructions = normalizeText(group?.instructions || '');
     const text = normalizeText(group?.text || group?.passage || group?.template || '');
@@ -733,6 +751,8 @@ Parsing rules:
 4) Multiple choice:
    - Include option labels A/B/C/... in each question.option.
    - Store correct_answers as option labels (example: ["B"] or ["A","C"]).
+   - Set group_layout to "radio" for Single Answer, or "checkbox" for MultiChoice.
+   - Do not use "default", "two_column", or "with_reference" when type is "mult_choice".
 5) TFNG and YNNG:
    - Do not invent custom options.
    - Use correct_answers with exact canonical values:
