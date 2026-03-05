@@ -118,7 +118,7 @@ export default function TestAttemptResult() {
   }, [questionReview]);
 
   if (loading) return <div className="page"><p className="muted">Loading result...</p></div>;
-  if (error) return <div className="page"><p className="error">{error}</p><Link to="/profile">Back to profile</Link></div>;
+  if (error) return <div className="page"><p className="error">{error}</p><Link to="/student-ielts/profile">Back to profile</Link></div>;
   if (!exam || !attempt) return <div className="page"><p className="muted">Attempt not found.</p></div>;
 
   if (mode === 'review' && step) {
@@ -219,7 +219,7 @@ export default function TestAttemptResult() {
                 Đây là bài thi thật - Bạn không thể xem chi tiết đáp án.
               </div>
             )}
-            <Link to="/profile" className="btn-exit-result">Về hồ sơ</Link>
+            <Link to="/student-ielts/profile" className="btn-exit-result">Về hồ sơ</Link>
           </div>
         </div>
       </div>
@@ -252,3 +252,4 @@ export default function TestAttemptResult() {
     </div>
   );
 }
+

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '@/shared/api/client';
 import { Link, useNavigate } from 'react-router-dom';
+import { toCanonicalAppPath } from '@/app/roleRouting';
 import PaginationControls from '@/shared/components/PaginationControls';
 import { ArrowLeft, History, CalendarDays, CheckCircle2, Circle, ChevronRight, Calendar } from 'lucide-react';
 import './StudyPlanFullView.css';
@@ -64,7 +65,7 @@ export default function StudyPlanFullView() {
                     <p style={{ color: '#64748b', maxWidth: 400, margin: '0 auto' }}>
                         Tạo lộ trình học tập cá nhân hóa dựa trên mục tiêu thực tế của bạn để đạt điểm số mong ước.
                     </p>
-                    <Link to="/study-plan/setup" className="empty-state-btn">
+                    <Link to="/student-ielts/study-plan/setup" className="empty-state-btn">
                         Thiết lập lộ trình ngay
                     </Link>
                 </div>
@@ -101,9 +102,10 @@ export default function StudyPlanFullView() {
     const tasksByDate = groupTasksByDate(displayTasks);
 
     const getTaskTypeInfo = (task) => {
-        if (task.link?.includes('/practice') || task.title?.toLowerCase().includes('luyện tập')) return { label: 'Thực hành', class: 'badge-practice' };
-        if (task.link?.includes('/learn') || task.title?.toLowerCase().includes('bài học')) return { label: 'Bài học', class: 'badge-lesson' };
-        if (task.link?.includes('/test') || task.title?.toLowerCase().includes('thi')) return { label: 'Kiểm tra', class: 'badge-exam' };
+        const canonicalLink = toCanonicalAppPath(task.link || '');
+        if (canonicalLink?.includes('/student-ielts/practice') || task.title?.toLowerCase().includes('luyện tập')) return { label: 'Thực hành', class: 'badge-practice' };
+        if (canonicalLink?.includes('/student-ielts/learn') || task.title?.toLowerCase().includes('bài học')) return { label: 'Bài học', class: 'badge-lesson' };
+        if (canonicalLink?.includes('/student-ielts/tests') || task.title?.toLowerCase().includes('thi')) return { label: 'Kiểm tra', class: 'badge-exam' };
         return { label: 'Nhiệm vụ', class: 'badge-practice' };
     };
 
@@ -160,8 +162,9 @@ export default function StudyPlanFullView() {
                                     {dayGroup.tasks.map((task) => {
                                         const isCompleted = task.status === 'completed';
                                         const typeInfo = getTaskTypeInfo(task);
-                                        const Wrapper = task.link ? Link : 'div';
-                                        const wrapperProps = task.link ? { to: task.link, className: `task-item ${isCompleted ? 'completed' : ''}` } : { className: `task-item ${isCompleted ? 'completed' : ''}` };
+                                        const canonicalTaskLink = toCanonicalAppPath(task.link || '');
+                                        const Wrapper = canonicalTaskLink ? Link : 'div';
+                                        const wrapperProps = canonicalTaskLink ? { to: canonicalTaskLink, className: `task-item ${isCompleted ? 'completed' : ''}` } : { className: `task-item ${isCompleted ? 'completed' : ''}` };
 
                                         return (
                                             <Wrapper key={task._id || task.referenceId} {...wrapperProps}>
@@ -180,7 +183,7 @@ export default function StudyPlanFullView() {
                                                     </span>
                                                 </div>
 
-                                                {task.link && (
+                                                {canonicalTaskLink && (
                                                     <div className="task-action">
                                                         <ChevronRight size={20} />
                                                     </div>
@@ -212,3 +215,4 @@ export default function StudyPlanFullView() {
         </div>
     );
 }
+

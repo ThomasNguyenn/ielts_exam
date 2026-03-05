@@ -1,9 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { FolderKanban, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { api } from "@/shared/api/client";
 import { useNotification } from "@/shared/context/NotificationContext";
 import { formatDate, statusLabel, toMonthValue } from "./homework.utils";
-import "./Homework.css";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const STATUS_OPTIONS = ["all", "draft", "published", "archived"];
 const OWNER_OPTIONS = ["all", "me"];
@@ -17,6 +33,8 @@ export default function HomeworkAssignmentsPage() {
   const [pagination, setPagination] = useState({ page: 1, limit: 20, totalItems: 0, totalPages: 1 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [deletingId, setDeletingId] = useState("");
+  const [deletingAssignment, setDeletingAssignment] = useState(null);
   const [filters, setFilters] = useState({
     month: toMonthValue(),
     status: "all",
@@ -57,161 +75,200 @@ export default function HomeworkAssignmentsPage() {
   };
 
   const handleDelete = async (assignmentId) => {
-    const confirmed = window.confirm("Delete this assignment and all submissions?");
-    if (!confirmed) return;
+    if (!assignmentId) return;
 
+    setDeletingId(String(assignmentId));
     try {
       await api.homeworkDeleteAssignment(assignmentId);
       showNotification("Assignment deleted", "success");
+      setDeletingAssignment(null);
       void loadAssignments(filters);
     } catch (deleteError) {
       showNotification(deleteError?.message || "Failed to delete assignment", "error");
+    } finally {
+      setDeletingId("");
     }
   };
 
   const canCreate = user?.role === "admin" || user?.role === "teacher";
+  const statusVariant = (status) => {
+    const normalized = String(status || "").toLowerCase();
+    if (normalized === "published") return "default";
+    if (normalized === "archived") return "outline";
+    return "secondary";
+  };
+
   const assignmentCountLabel = useMemo(() => {
     const total = Number(pagination?.totalItems || items.length || 0);
     return `${total} assignment${total === 1 ? "" : "s"}`;
   }, [items.length, pagination?.totalItems]);
 
   return (
-    <div className="homework-page">
-      <div className="homework-shell">
-        <section className="homework-header">
-          <div className="homework-title-wrap">
-            <h1>Bài Tập Tháng</h1>
-            <p>Teacher/Admin workspace for monthly assignments, resources, and grading dashboard.</p>
-          </div>
-          <div className="homework-actions">
-            <button type="button" className="homework-btn ghost" onClick={() => navigate("/")}>
-              Trang chủ
-            </button>
-            <button type="button" className="homework-btn ghost" onClick={() => navigate("/homework/groups")}>
-              Manage Groups
-            </button>
-            {canCreate ? (
-              <button
-                type="button"
-                className="homework-btn primary"
-                onClick={() => navigate("/homework/assignments/new")}
-              >
-                New Assignment
-              </button>
+    <div className="min-h-[calc(100vh-70px)] bg-muted/30">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 md:p-6">
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-1">
+              <CardTitle className="text-2xl tracking-tight">Homework Assignments</CardTitle>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" variant="outline" onClick={() => navigate("/homework/groups")}>
+                <FolderKanban className="h-4 w-4" />
+                Manage groups
+              </Button>
+              {canCreate ? (
+                <Button type="button" onClick={() => navigate("/homework/assignments/new")}>
+                  <Plus className="h-4 w-4" />
+                  New assignment
+                </Button>
+              ) : null}
+            </div>
+          </CardHeader>
+        </Card>
+
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Filters</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-4">
+              <div className="space-y-2">
+                <Label htmlFor="assignment-month">Month</Label>
+                <Input
+                  id="assignment-month"
+                  type="month"
+                  value={filters.month || ""}
+                  onChange={(event) => updateFilters({ month: event.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select value={filters.status} onValueChange={(value) => updateFilters({ status: value })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUS_OPTIONS.map((status) => (
+                      <SelectItem key={status} value={status}>
+                        {status === "all" ? "All" : statusLabel(status)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Owner</Label>
+                <Select value={filters.owner} onValueChange={(value) => updateFilters({ owner: value })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Owner" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {OWNER_OPTIONS.map((owner) => (
+                      <SelectItem key={owner} value={owner}>
+                        {owner === "all" ? "All" : "My assignments"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-end">
+                <Button type="button" variant="outline" onClick={() => void loadAssignments(filters)} className="w-full">
+                  <RefreshCw className="h-4 w-4" />
+                  Refresh
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Assignments</CardTitle>
+            <CardDescription>{assignmentCountLabel}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {loading ? <p className="text-sm text-muted-foreground">Loading assignments...</p> : null}
+            {error ? <p className="text-sm font-medium text-destructive">{error}</p> : null}
+
+            {!loading && !error && items.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+                No assignments found for current filters.
+              </div>
             ) : null}
-          </div>
-        </section>
 
-        <section className="homework-card">
-          <div className="homework-filter-row">
-            <div className="homework-field">
-              <label>Month</label>
-              <input
-                type="month"
-                value={filters.month || ""}
-                onChange={(event) => updateFilters({ month: event.target.value })}
-              />
-            </div>
-            <div className="homework-field">
-              <label>Status</label>
-              <select
-                value={filters.status}
-                onChange={(event) => updateFilters({ status: event.target.value })}
-              >
-                {STATUS_OPTIONS.map((status) => (
-                  <option key={status} value={status}>
-                    {status === "all" ? "All" : statusLabel(status)}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="homework-field">
-              <label>Owner</label>
-              <select
-                value={filters.owner}
-                onChange={(event) => updateFilters({ owner: event.target.value })}
-              >
-                {OWNER_OPTIONS.map((owner) => (
-                  <option key={owner} value={owner}>
-                    {owner === "all" ? "All" : "My assignments"}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="homework-field">
-              <label>&nbsp;</label>
-              <button type="button" className="homework-btn" onClick={() => void loadAssignments(filters)}>
-                Refresh
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <section className="homework-card">
-          <div className="homework-item-top">
-            <p className="homework-item-meta">{assignmentCountLabel}</p>
-          </div>
-
-          {loading ? <p className="homework-item-meta">Loading assignments...</p> : null}
-          {error ? <p className="homework-danger">{error}</p> : null}
-
-          {!loading && !error && items.length === 0 ? (
-            <div className="homework-empty">No assignments found for current filters.</div>
-          ) : null}
-
-          <div className="homework-list">
-            {items.map((assignment) => (
-              <article className="homework-item" key={assignment._id}>
-                <div className="homework-item-top">
-                  <div>
-                    <h2 className="homework-item-title">{assignment.title || "Untitled assignment"}</h2>
-                    <p className="homework-item-meta">
-                      Week {assignment.week || "--"} • Due {formatDate(assignment.due_date)}
+            <div className="space-y-3">
+              {items.map((assignment) => (
+                <Card key={assignment._id} className="border-border/70 shadow-none">
+                  <CardContent className="space-y-4 px-4 pb-4 pt-3">
+                    <div className="flex flex-nowrap items-center justify-between gap-3">
+                      <h3 className="m-0 min-w-0 flex-1 truncate text-base font-semibold">
+                        {assignment.title || "Untitled assignment"}
+                      </h3>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <Badge variant={statusVariant(assignment.status)}>{statusLabel(assignment.status)}</Badge>
+                        <Badge variant="outline">{assignment.month || "--"}</Badge>
+                      </div>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Week {assignment.week || "--"} - Due {formatDate(assignment.due_date)}
                     </p>
-                  </div>
-                  <div className="homework-chip-row">
-                    <span className="homework-chip">{statusLabel(assignment.status)}</span>
-                    <span className="homework-chip neutral">{assignment.month || "--"}</span>
-                  </div>
-                </div>
-                <div className="homework-chip-row">
-                  {(assignment.target_group_ids || []).map((group) => (
-                    <span className="homework-chip neutral" key={group?._id || `${assignment._id}-${group?.name || "group"}`}>
-                      {group?.name || "Group"}
-                    </span>
-                  ))}
-                </div>
-
-                <div className="homework-task-actions">
-                  <button
-                    type="button"
-                    className="homework-btn"
-                    onClick={() => navigate(`/homework/assignments/${assignment._id}`)}
-                  >
-                    {assignment.can_manage ? "Edit" : "View"}
-                  </button>
-                  <button
-                    type="button"
-                    className="homework-btn ghost"
-                    onClick={() => navigate(`/homework/assignments/${assignment._id}/dashboard`)}
-                  >
-                    Dashboard
-                  </button>
-                  {assignment.can_manage ? (
-                    <button
-                      type="button"
-                      className="homework-btn"
-                      onClick={() => handleDelete(assignment._id)}
-                    >
-                      Delete
-                    </button>
-                  ) : null}
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
+                    
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="button" size="sm" onClick={() => navigate(`/homework/assignments/${assignment._id}`)}>
+                        {assignment.can_manage ? "Edit" : "View"}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => navigate(`/homework/assignments/${assignment._id}/dashboard`)}
+                      >
+                        Dashboard
+                      </Button>
+                      {assignment.can_manage ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => setDeletingAssignment(assignment)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Delete
+                        </Button>
+                      ) : null}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
+
+      <AlertDialog
+        open={Boolean(deletingAssignment)}
+        onOpenChange={(open) => {
+          if (!open) setDeletingAssignment(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete assignment?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This assignment and all linked submissions will be deleted permanently.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={Boolean(deletingId)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void handleDelete(String(deletingAssignment?._id || ""))} disabled={Boolean(deletingId)}>
+              {deletingId ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

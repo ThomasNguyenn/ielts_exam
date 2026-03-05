@@ -26,6 +26,7 @@ vi.mock("../../models/Invitation.model.js", () => ({
 vi.mock("../../services/email.service.js", () => ({
   sendVerificationEmail: vi.fn(),
   sendPasswordResetEmail: vi.fn(),
+  sendEmailChangeVerificationEmail: vi.fn(),
 }));
 
 vi.mock("bcryptjs", () => ({

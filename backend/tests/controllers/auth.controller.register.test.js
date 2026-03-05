@@ -38,6 +38,7 @@ vi.mock("../../models/Invitation.model.js", () => ({
 vi.mock("../../services/email.service.js", () => ({
   sendVerificationEmail: sendVerificationEmailMock,
   sendPasswordResetEmail: sendPasswordResetEmailMock,
+  sendEmailChangeVerificationEmail: vi.fn(),
 }));
 
 vi.mock("../../services/invitationToken.redis.js", () => ({
@@ -117,6 +118,7 @@ describe("register", () => {
         email: "student@example.com",
         password: "Password1",
         name: "Student",
+        studyTrack: "ielts",
       },
     };
     const res = createMockResponse();
@@ -129,6 +131,7 @@ describe("register", () => {
     expect(userDeleteOneMock).not.toHaveBeenCalled();
     expect(createdUsers[0]?.refreshTokenHash).toBeTruthy();
     expect(createdUsers[0]?.lastSeenAt).toBeInstanceOf(Date);
+    expect(createdUsers[0]?.role).toBe("studentIELTS");
   });
 
   it("rolls back created user when verification email delivery fails", async () => {
@@ -138,6 +141,7 @@ describe("register", () => {
         email: "student@example.com",
         password: "Password1",
         name: "Student",
+        studyTrack: "ielts",
       },
     };
     const res = createMockResponse();

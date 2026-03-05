@@ -5,6 +5,7 @@ import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from 
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
+  ChevronDown,
   Copy,
   GripVertical,
   Loader2,
@@ -30,12 +31,18 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -262,12 +269,12 @@ function SortableLessonRow({
       </div>
 
       <div className="flex items-center gap-2">
-        <Input
-          type="date"
+        <DatePicker
           value={toDateInputValue(lesson.due_date)}
-          onChange={(event) => onDueDateChange(event.target.value)}
-          className="h-8 w-[9.5rem]"
+          onChange={onDueDateChange}
+          placeholder="Due date"
           disabled={!canManage}
+          buttonClassName="h-8 w-[9.5rem] justify-start px-2 text-xs"
         />
         <div className="flex items-center gap-1">
           <Label htmlFor={`lesson-publish-${lesson._id}`} className="text-xs text-muted-foreground">
@@ -508,6 +515,14 @@ export default function HomeworkAssignmentEditorPage() {
 
   useEffect(() => {
     void loadData();
+  }, [editId]);
+
+  useEffect(() => {
+    if (!editId) {
+      setIsSettingsDialogOpen(true);
+      return;
+    }
+    setIsSettingsDialogOpen(false);
   }, [editId]);
 
   const toggleGroup = (groupId) => {
@@ -761,7 +776,6 @@ export default function HomeworkAssignmentEditorPage() {
 
   const validateBeforeSubmit = () => {
     if (!String(form.title || "").trim()) return "Title is required";
-    if (!String(form.month || "").trim()) return "Month is required";
     if (!String(form.due_date || "").trim()) return "Due date is required";
     if (!Array.isArray(form.target_group_ids) || form.target_group_ids.length === 0) {
       return "Select at least one target group";
@@ -790,10 +804,14 @@ export default function HomeworkAssignmentEditorPage() {
 
     setSaving(true);
     try {
+      const assignmentMonth =
+        String(form.month || "").trim() ||
+        String(form.due_date || "").trim().slice(0, 7) ||
+        toMonthValue();
       const payload = {
         title: String(form.title || "").trim(),
         description: String(form.description || "").trim(),
-        month: form.month,
+        month: assignmentMonth,
         week: deriveWeekFromDueDate(form.due_date),
         due_date: form.due_date,
         status: form.status || "draft",
@@ -825,6 +843,17 @@ export default function HomeworkAssignmentEditorPage() {
     if (!editId) return "Draft local outline";
     return "Outline synced";
   }, [outlineSaving, editId]);
+
+  const selectedGroupsLabel = useMemo(() => {
+    const selectedIds = new Set((form.target_group_ids || []).map(String));
+    const selectedNames = groups
+      .filter((group) => selectedIds.has(String(group._id)))
+      .map((group) => String(group.name || "").trim())
+      .filter(Boolean);
+    if (!selectedNames.length) return "Select one or more groups";
+    if (selectedNames.length <= 2) return selectedNames.join(", ");
+    return `${selectedNames.length} groups selected`;
+  }, [form.target_group_ids, groups]);
 
   if (loading) {
     return (
@@ -896,8 +925,8 @@ export default function HomeworkAssignmentEditorPage() {
             <DialogHeader className="max-[1440px]:space-y-1">
               <DialogTitle className="max-[1440px]:text-base">Assignment Settings</DialogTitle>
             </DialogHeader>
-            <div className="grid max-h-[70vh] grid-cols-12 gap-4 overflow-y-auto pr-1 max-[1440px]:gap-3 max-[1440px]:pr-0 max-[1440px]:text-sm">
-              <Card className="col-span-12 lg:col-span-8">
+            <div className="max-h-[70vh] overflow-y-auto pr-1 max-[1440px]:pr-0 max-[1440px]:text-sm">
+              <Card>
                 <CardHeader className="max-[1440px]:space-y-1 max-[1440px]:px-4 max-[1440px]:py-3">
                   <CardTitle className="max-[1440px]:text-base">Assignment Settings</CardTitle>
                 </CardHeader>
@@ -922,27 +951,57 @@ export default function HomeworkAssignmentEditorPage() {
                   </div>
                   <div className="grid grid-cols-12 gap-3 max-[1440px]:gap-2">
                     <div className="col-span-12 space-y-2 max-[1440px]:space-y-1.5 md:col-span-6">
-                      <Label className="max-[1440px]:text-xs">Month</Label>
-                      <Input
-                        className="max-[1440px]:h-9 max-[1440px]:text-sm"
-                        type="month"
-                        value={form.month}
-                        onChange={(event) => setForm((prev) => ({ ...prev, month: event.target.value }))}
+                      <Label className="max-[1440px]:text-xs">Due date</Label>
+                      <DatePicker
+                        value={form.due_date}
+                        onChange={(value) => setForm((prev) => ({ ...prev, due_date: value }))}
                         disabled={!canManage}
+                        placeholder="Select due date"
+                        buttonClassName="h-9 w-full justify-start max-[1440px]:text-sm"
                       />
                     </div>
                     <div className="col-span-12 space-y-2 max-[1440px]:space-y-1.5 md:col-span-6">
-                      <Label className="max-[1440px]:text-xs">Due date</Label>
-                      <Input
-                        className="max-[1440px]:h-9 max-[1440px]:text-sm"
-                        type="date"
-                        value={form.due_date}
-                        onChange={(event) => setForm((prev) => ({ ...prev, due_date: event.target.value }))}
-                        disabled={!canManage}
-                      />
+                      <Label className="max-[1440px]:text-xs">Target Groups</Label>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full justify-between max-[1440px]:h-9 max-[1440px]:text-xs"
+                            disabled={!canManage}
+                          >
+                            <span className="truncate">{selectedGroupsLabel}</span>
+                            <ChevronDown className="ml-2 h-4 w-4 shrink-0" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="start"
+                          className="w-[var(--radix-dropdown-menu-trigger-width)] max-h-72 overflow-y-auto"
+                        >
+                          {groups.length ? (
+                            groups.map((group) => {
+                              const checked = form.target_group_ids.includes(String(group._id));
+                              return (
+                                <DropdownMenuCheckboxItem
+                                  key={group._id}
+                                  checked={checked}
+                                  onCheckedChange={() => toggleGroup(group._id)}
+                                  onSelect={(event) => event.preventDefault()}
+                                  disabled={!canManage}
+                                >
+                                  <span className="truncate">
+                                    {group.name} ({(group.student_ids || []).length || 0} students)
+                                  </span>
+                                </DropdownMenuCheckboxItem>
+                              );
+                            })
+                          ) : (
+                            <p className="px-2 py-1.5 text-sm text-muted-foreground">No groups yet.</p>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
-                  <p className="text-xs text-muted-foreground">Week is auto-calculated from due date.</p>
                   <div className="space-y-2 max-[1440px]:space-y-1.5">
                     <Label className="max-[1440px]:text-xs">Status</Label>
                     <div className="flex flex-wrap gap-2 max-[1440px]:gap-1.5">
@@ -960,41 +1019,6 @@ export default function HomeworkAssignmentEditorPage() {
                       ))}
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-
-              <Card className="col-span-12 lg:col-span-4">
-                <CardHeader className="max-[1440px]:space-y-1 max-[1440px]:px-4 max-[1440px]:py-3">
-                  <CardTitle className="max-[1440px]:text-base">Target Groups</CardTitle>
-                  <CardDescription className="max-[1440px]:text-xs">Select one or more groups.</CardDescription>
-                </CardHeader>
-                <CardContent className="max-[1440px]:px-4 max-[1440px]:pb-4">
-                  <ScrollArea className="h-[26rem] pr-2 max-[1440px]:h-[20rem] max-[1440px]:pr-1">
-                    <div className="space-y-3">
-                      {groups.map((group) => {
-                        const checked = form.target_group_ids.includes(String(group._id));
-                        return (
-                          <div
-                            key={group._id}
-                            className="flex items-center justify-between rounded-md border p-2 max-[1440px]:gap-2 max-[1440px]:p-1.5"
-                          >
-                            <div>
-                              <p className="text-sm font-medium max-[1440px]:text-xs">{group.name}</p>
-                              <p className="text-xs text-muted-foreground max-[1440px]:text-[11px]">
-                                {(group.student_ids || []).length || 0} students
-                              </p>
-                            </div>
-                            <Switch
-                              checked={checked}
-                              onCheckedChange={() => toggleGroup(group._id)}
-                              disabled={!canManage}
-                            />
-                          </div>
-                        );
-                      })}
-                      {!groups.length ? <p className="text-sm text-muted-foreground max-[1440px]:text-xs">No groups yet.</p> : null}
-                    </div>
-                  </ScrollArea>
                 </CardContent>
               </Card>
             </div>
@@ -1192,3 +1216,4 @@ export default function HomeworkAssignmentEditorPage() {
     </div>
   );
 }
+

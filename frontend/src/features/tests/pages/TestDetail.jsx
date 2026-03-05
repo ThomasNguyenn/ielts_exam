@@ -226,7 +226,7 @@ export default function TestDetail() {
           <p style={{ color: '#64748B', marginBottom: 32 }}>
             The test you&apos;re looking for doesn&apos;t exist.
           </p>
-          <Link to="/tests" className="td-btn-main" style={{ display: 'inline-flex', width: 'auto', padding: '0 24px' }}>
+          <Link to="/student-ielts/tests" className="td-btn-main" style={{ display: 'inline-flex', width: 'auto', padding: '0 24px' }}>
             <ArrowLeft size={16} />
             Back to Tests
           </Link>
@@ -261,7 +261,7 @@ export default function TestDetail() {
     <div className="test-detail-page">
       <div className="td-container">
         {/* Back Link */}
-        <Link to="/tests" className="td-back-link">
+        <Link to="/student-ielts/tests" className="td-back-link">
           <ArrowLeft size={16} />
           Back to all tests
         </Link>
@@ -320,7 +320,7 @@ export default function TestDetail() {
                       </div>
                     </div>
                     <Link
-                      to={`/tests/${id}/exam?part=${part.index}&mode=single`}
+                      to={`/student-ielts/tests/${id}/exam?part=${part.index}&mode=single`}
                       className="td-part-btn"
                     >
                       Start Part
@@ -360,7 +360,7 @@ export default function TestDetail() {
                 </div>
               </div>
 
-              <Link to={`/tests/${id}/exam`} className="td-btn-main">
+              <Link to={`/student-ielts/tests/${id}/exam`} className="td-btn-main">
                 Bắt đầu toàn bộ bài thi
                 <ArrowRight size={18} />
               </Link>
@@ -371,3 +371,4 @@ export default function TestDetail() {
     </div>
   );
 }
+

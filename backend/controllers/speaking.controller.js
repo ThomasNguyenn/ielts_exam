@@ -44,6 +44,8 @@ const canAccessSession = (session, user) => {
   if (String(session.userId) === String(user.userId)) return true;
   return user.role === "admin" || user.role === "teacher";
 };
+const isTeacherOrAdminRequest = (req) =>
+  req.user?.role === "teacher" || req.user?.role === "admin";
 
 const SPEAKING_FAST_SCORE_TIMEOUT_MS = Number(process.env.SPEAKING_FAST_SCORE_TIMEOUT_MS || 3500);
 const SPEAKING_TWO_PHASE_PIPELINE = ["1", "true", "yes", "on"].includes(
@@ -210,16 +212,19 @@ export const getRandomSpeaking = async (req, res) => {
 export const getSpeakings = async (req, res) => {
   try {
     const isTopicsOnly = String(req.query.topicsOnly || '').toLowerCase() === 'true';
+    const summaryMode = String(req.query.summary || '').toLowerCase();
+    const useSummaryMode = ['1', 'true', 'yes'].includes(summaryMode);
+    const privileged = isTeacherOrAdminRequest(req);
 
     if (isTopicsOnly) {
       // Do not use `distinct` here because it is blocked under Mongo API Version 1 with apiStrict=true.
-      const docs = await Speaking.find({ is_active: true }).select({ title: 1, _id: 0 }).lean();
+      const docs = await Speaking.find(privileged ? {} : { is_active: true }).select({ title: 1, _id: 0 }).lean();
       const topics = docs.map((doc) => doc?.title);
       return res.json({ success: true, topics: normalizeTopicList(topics) });
     }
 
     const shouldPaginate = req.query.page !== undefined || req.query.limit !== undefined;
-    const filter = { is_active: true };
+    const filter = privileged ? {} : { is_active: true };
 
     if (req.query.part && String(req.query.part).trim() !== 'all') {
       const part = Number.parseInt(req.query.part, 10);
@@ -244,16 +249,58 @@ export const getSpeakings = async (req, res) => {
       ];
     }
 
-    const baseQuery = Speaking.find(filter).sort({ created_at: -1 });
+    const sortSpec = { created_at: -1, createdAt: -1 };
+
+    if (useSummaryMode) {
+      const basePipeline = [
+        { $match: filter },
+        { $sort: sortSpec },
+        {
+          $project: {
+            _id: 1,
+            title: 1,
+            part: 1,
+            prompt: 1,
+            part2_question_title: 1,
+            is_active: 1,
+            isSinglePart: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            created_at: 1,
+            updated_at: 1,
+            question_count: { $size: { $ifNull: ["$sub_questions", []] } },
+          },
+        },
+      ];
+
+      if (!shouldPaginate) {
+        const topics = await Speaking.aggregate(basePipeline);
+        return res.json({ success: true, data: topics });
+      }
+
+      const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 12, maxLimit: 100 });
+      const [topics, totalItems] = await Promise.all([
+        Speaking.aggregate([...basePipeline, { $skip: skip }, { $limit: limit }]),
+        Speaking.countDocuments(filter),
+      ]);
+
+      return res.json({
+        success: true,
+        data: topics,
+        pagination: buildPaginationMeta({ page, limit, totalItems })
+      });
+    }
+
+    const baseQuery = Speaking.find(filter).sort(sortSpec);
 
     if (!shouldPaginate) {
-      const topics = await baseQuery;
+      const topics = await baseQuery.lean();
       return res.json({ success: true, data: topics });
     }
 
     const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 12, maxLimit: 100 });
     const [topics, totalItems] = await Promise.all([
-      baseQuery.skip(skip).limit(limit),
+      baseQuery.skip(skip).limit(limit).lean(),
       Speaking.countDocuments(filter)
     ]);
 
@@ -269,8 +316,12 @@ export const getSpeakings = async (req, res) => {
 
 export const getSpeakingById = async (req, res) => {
   try {
+    const privileged = isTeacherOrAdminRequest(req);
     const topic = await Speaking.findById(req.params.id);
     if (!topic) {
+      return sendControllerError(req, res, { statusCode: 404, message: "Speaking topic not found"  });
+    }
+    if (!privileged && topic.is_active === false) {
       return sendControllerError(req, res, { statusCode: 404, message: "Speaking topic not found"  });
     }
 

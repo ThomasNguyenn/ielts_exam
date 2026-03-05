@@ -2,7 +2,17 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "@/shared/api/client";
 import { formatDate, statusLabel } from "./homework.utils";
-import "./Homework.css";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 export default function HomeworkDashboardPage() {
   const { id } = useParams();
@@ -70,9 +80,11 @@ export default function HomeworkDashboardPage() {
 
   if (loading) {
     return (
-      <div className="homework-page">
-        <div className="homework-shell">
-          <div className="homework-card">Loading dashboard...</div>
+      <div className="min-h-[calc(100vh-70px)] bg-muted/30">
+        <div className="mx-auto w-full max-w-7xl p-4 md:p-6">
+          <Card className="border-border/70 shadow-sm">
+            <CardContent className="p-6 text-sm text-muted-foreground">Loading dashboard...</CardContent>
+          </Card>
         </div>
       </div>
     );
@@ -80,14 +92,16 @@ export default function HomeworkDashboardPage() {
 
   if (error && !dashboard) {
     return (
-      <div className="homework-page">
-        <div className="homework-shell">
-          <div className="homework-card">
-            <p className="homework-danger">{error}</p>
-            <button type="button" className="homework-btn" onClick={() => navigate("/homework")}>
-              Back
-            </button>
-          </div>
+      <div className="min-h-[calc(100vh-70px)] bg-muted/30">
+        <div className="mx-auto w-full max-w-7xl p-4 md:p-6">
+          <Card className="border-border/70 shadow-sm">
+            <CardContent className="space-y-4 p-6">
+              <p className="text-sm font-medium text-destructive">{error}</p>
+              <Button type="button" variant="outline" onClick={() => navigate("/homework")}>
+                Back
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </div>
     );
@@ -97,187 +111,241 @@ export default function HomeworkDashboardPage() {
   const assignment = dashboard?.assignment || {};
 
   return (
-    <div className="homework-page">
-      <div className="homework-shell">
-        <section className="homework-header">
-          <div className="homework-title-wrap">
-            <h1>Assignment Dashboard</h1>
-            <p>
-              {assignment?.title || "Assignment"} • Week {assignment?.week || "--"} • Due {formatDate(assignment?.due_date)}
-            </p>
-          </div>
-          <div className="homework-actions">
-            <button type="button" className="homework-btn ghost" onClick={() => navigate("/")}>
-              Trang chủ
-            </button>
-            <button type="button" className="homework-btn ghost" onClick={() => navigate(`/homework/assignments/${id}`)}>
-              View Assignment
-            </button>
-            <button type="button" className="homework-btn" onClick={() => navigate("/homework")}>
-              Back
-            </button>
-          </div>
-        </section>
+    <div className="min-h-[calc(100vh-70px)] bg-muted/30">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 md:p-6">
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-1">
+              <CardTitle className="text-2xl tracking-tight">Assignment Dashboard</CardTitle>
+              <CardDescription>
+                {assignment?.title || "Assignment"} - Week {assignment?.week || "--"} - Due {formatDate(assignment?.due_date)}
+              </CardDescription>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" variant="outline" onClick={() => navigate(`/homework/assignments/${id}`)}>
+                View assignment
+              </Button>
+              <Button type="button" variant="outline" onClick={() => navigate("/homework")}>
+                Back
+              </Button>
+            </div>
+          </CardHeader>
+        </Card>
 
         {error ? (
-          <section className="homework-card">
-            <p className="homework-danger">{error}</p>
-          </section>
+          <Card className="border-destructive/30 shadow-sm">
+            <CardContent className="p-4">
+              <p className="text-sm font-medium text-destructive">{error}</p>
+            </CardContent>
+          </Card>
         ) : null}
 
-        <section className="homework-card">
-          <div className="homework-kpi-grid">
-            <article className="homework-kpi">
-              <span>Students In Target</span>
-              <strong>{totals.students_in_target || 0}</strong>
-            </article>
-            <article className="homework-kpi">
-              <span>Students In Scope</span>
-              <strong>{totals.students_in_scope || 0}</strong>
-            </article>
-            <article className="homework-kpi">
-              <span>Submitted Slots</span>
-              <strong>{totals.submitted_total || 0}</strong>
-            </article>
-            <article className="homework-kpi">
-              <span>Pending Slots</span>
-              <strong>{totals.not_submitted_total || 0}</strong>
-            </article>
-          </div>
-        </section>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <Card className="border-border/70 shadow-sm">
+            <CardContent className="p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Students In Target</p>
+              <p className="mt-2 text-2xl font-semibold">{totals.students_in_target || 0}</p>
+            </CardContent>
+          </Card>
+          <Card className="border-border/70 shadow-sm">
+            <CardContent className="p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Students In Scope</p>
+              <p className="mt-2 text-2xl font-semibold">{totals.students_in_scope || 0}</p>
+            </CardContent>
+          </Card>
+          <Card className="border-border/70 shadow-sm">
+            <CardContent className="p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Submitted Slots</p>
+              <p className="mt-2 text-2xl font-semibold">{totals.submitted_total || 0}</p>
+            </CardContent>
+          </Card>
+          <Card className="border-border/70 shadow-sm">
+            <CardContent className="p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Pending Slots</p>
+              <p className="mt-2 text-2xl font-semibold">{totals.not_submitted_total || 0}</p>
+            </CardContent>
+          </Card>
+        </div>
 
-        <section className="homework-grid">
-          <article className="homework-card homework-span-6">
-            <h2 className="homework-item-title">Task Summary</h2>
-            <table className="homework-table">
-              <thead>
-                <tr>
-                  <th>Task</th>
-                  <th>Submitted</th>
-                  <th>Not Submitted</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(dashboard?.tasks || []).map((task) => (
-                  <tr key={String(task?.task_id || "")}>
-                    <td>
-                      <button
-                        type="button"
-                        className="homework-btn ghost"
-                        style={{ padding: "0.3rem 0.5rem" }}
-                        onClick={() => setSelectedTaskId(String(task?.task_id || ""))}
-                      >
-                        {task?.title || "Task"}
-                      </button>
-                    </td>
-                    <td>{task?.submitted || 0}</td>
-                    <td>{task?.not_submitted || 0}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </article>
-
-          <article className="homework-card homework-span-6">
-            <h2 className="homework-item-title">Students</h2>
-            <table className="homework-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Status Snapshot</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(dashboard?.students || []).map((student) => {
-                  const submittedCount = (student?.tasks || []).filter((task) => task.submitted).length;
-                  return (
-                    <tr key={student?._id}>
-                      <td>{student?.name || "Student"}</td>
-                      <td>{student?.email || "--"}</td>
-                      <td>
-                        {submittedCount}/{(student?.tasks || []).length || 0} submitted
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </article>
-        </section>
-
-        <section className="homework-card">
-          <div className="homework-item-top">
-            <h2 className="homework-item-title">
-              Task Drilldown {currentTask ? `• ${currentTask.title}` : ""}
-            </h2>
-            <span className="homework-chip neutral">
-              {currentTask ? statusLabel("submitted") : "Select task"}
-            </span>
-          </div>
-
-          {taskLoading ? <p className="homework-item-meta">Loading task submissions...</p> : null}
-
-          {!taskLoading && selectedTaskId ? (
-            <div className="homework-grid">
-              <article className="homework-span-8">
-                <h3 className="homework-item-title">Submitted</h3>
-                <table className="homework-table">
-                  <thead>
-                    <tr>
-                      <th>Student</th>
-                      <th>Status</th>
-                      <th>Score</th>
-                      <th>Submitted At</th>
-                      <th>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(taskData.submissions || []).map((submission) => (
-                      <tr key={submission?._id}>
-                        <td>{submission?.student?.name || submission?.student_id || "--"}</td>
-                        <td>{statusLabel(submission?.status)}</td>
-                        <td>{submission?.score ?? "--"}</td>
-                        <td>{formatDate(submission?.submitted_at)}</td>
-                        <td>
-                          <button
+        <div className="grid gap-6 xl:grid-cols-12">
+          <Card className="border-border/70 shadow-sm xl:col-span-6">
+            <CardHeader>
+              <CardTitle>Task Summary</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Task</TableHead>
+                    <TableHead>Submitted</TableHead>
+                    <TableHead>Not Submitted</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(dashboard?.tasks || []).map((task) => {
+                    const taskId = String(task?.task_id || "");
+                    const isActive = taskId === String(selectedTaskId || "");
+                    return (
+                      <TableRow key={taskId}>
+                        <TableCell>
+                          <Button
                             type="button"
-                            className="homework-btn"
-                            onClick={() => navigate(`/homework/submissions/${submission._id}`)}
+                            variant={isActive ? "secondary" : "ghost"}
+                            size="sm"
+                            className="h-7 px-2"
+                            onClick={() => setSelectedTaskId(taskId)}
                           >
-                            Grade
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                    {!taskData.submissions.length ? (
-                      <tr>
-                        <td colSpan={5}>No submissions yet.</td>
-                      </tr>
-                    ) : null}
-                  </tbody>
-                </table>
-              </article>
-
-              <article className="homework-span-4">
-                <h3 className="homework-item-title">Not Submitted</h3>
-                <div className="homework-list">
-                  {(taskData.not_submitted_students || []).map((student) => (
-                    <div className="homework-item" key={student?._id}>
-                      <strong>{student?.name || "Student"}</strong>
-                      <p className="homework-item-meta">{student?.email || "--"}</p>
-                    </div>
-                  ))}
-                  {!taskData.not_submitted_students.length ? (
-                    <div className="homework-empty">Everyone submitted for this task.</div>
+                            {task?.title || "Task"}
+                          </Button>
+                        </TableCell>
+                        <TableCell>{task?.submitted || 0}</TableCell>
+                        <TableCell>{task?.not_submitted || 0}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {!(dashboard?.tasks || []).length ? (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-muted-foreground">
+                        No tasks in this assignment.
+                      </TableCell>
+                    </TableRow>
                   ) : null}
-                </div>
-              </article>
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/70 shadow-sm xl:col-span-6">
+            <CardHeader>
+              <CardTitle>Students</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Status Snapshot</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(dashboard?.students || []).map((student) => {
+                    const submittedCount = (student?.tasks || []).filter((task) => task.submitted).length;
+                    return (
+                      <TableRow key={student?._id || student?.email || student?.name}>
+                        <TableCell>{student?.name || "Student"}</TableCell>
+                        <TableCell className="text-muted-foreground">{student?.email || "--"}</TableCell>
+                        <TableCell>
+                          {submittedCount}/{(student?.tasks || []).length || 0} submitted
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {!(dashboard?.students || []).length ? (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-muted-foreground">
+                        No students in scope.
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-1">
+              <CardTitle>Task Drilldown</CardTitle>
+              <CardDescription>{currentTask ? currentTask.title : "Select a task to inspect submissions."}</CardDescription>
             </div>
-          ) : (
-            <div className="homework-empty">Select a task to view submissions.</div>
-          )}
-        </section>
+            <Badge variant={currentTask ? "default" : "outline"}>{currentTask ? "Task selected" : "No task"}</Badge>
+          </CardHeader>
+
+          <CardContent className="space-y-4">
+            {taskLoading ? <p className="text-sm text-muted-foreground">Loading task submissions...</p> : null}
+
+            {!taskLoading && selectedTaskId ? (
+              <div className="grid gap-6 xl:grid-cols-12">
+                <div className="xl:col-span-8">
+                  <Card className="border-border/70 shadow-none">
+                    <CardHeader>
+                      <CardTitle className="text-base">Submitted</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Student</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Score</TableHead>
+                            <TableHead>Submitted At</TableHead>
+                            <TableHead>Action</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {(taskData.submissions || []).map((submission) => (
+                            <TableRow key={submission?._id}>
+                              <TableCell>{submission?.student?.name || submission?.student_id || "--"}</TableCell>
+                              <TableCell>{statusLabel(submission?.status)}</TableCell>
+                              <TableCell>{submission?.score ?? "--"}</TableCell>
+                              <TableCell>{formatDate(submission?.submitted_at)}</TableCell>
+                              <TableCell>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => navigate(`/homework/submissions/${submission._id}`)}
+                                >
+                                  Grade
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                          {!taskData.submissions.length ? (
+                            <TableRow>
+                              <TableCell colSpan={5} className="text-muted-foreground">
+                                No submissions yet.
+                              </TableCell>
+                            </TableRow>
+                          ) : null}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="xl:col-span-4">
+                  <Card className="border-border/70 shadow-none">
+                    <CardHeader>
+                      <CardTitle className="text-base">Not Submitted</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {(taskData.not_submitted_students || []).map((student) => (
+                        <div key={student?._id || student?.email || student?.name} className="rounded-md border px-3 py-2">
+                          <p className="text-sm font-medium">{student?.name || "Student"}</p>
+                          <p className="text-xs text-muted-foreground">{student?.email || "--"}</p>
+                        </div>
+                      ))}
+                      {!taskData.not_submitted_students.length ? (
+                        <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+                          Everyone submitted for this task.
+                        </div>
+                      ) : null}
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            ) : null}
+
+            {!taskLoading && !selectedTaskId ? (
+              <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+                Select a task to view submissions.
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

@@ -8,7 +8,7 @@ const router = express.Router();
 const testsCatalogCache = createResponseCache({
   namespace: "tests-catalog",
   ttlSec: getCacheTtlSec("API_RESPONSE_CACHE_TTL_TESTS_SEC", 180),
-  scope: "public",
+  scope: "role",
   tags: ["catalog:tests"],
 });
 const testsDetailCache = createResponseCache({
@@ -30,8 +30,8 @@ const invalidateCurrentTestDetail = createCacheInvalidator({
   },
 });
 
-router.get("/", testsCatalogCache, getAllTests);
-router.get("/categories", testsCatalogCache, getTestCategories);
+router.get("/", optionalVerifyToken, testsCatalogCache, getAllTests);
+router.get("/categories", optionalVerifyToken, testsCatalogCache, getTestCategories);
 router.post("/", verifyToken, isTeacherOrAdmin, invalidateTestsCatalog, createTest);
 router.get("/my-attempts-summary", verifyToken, getMyAttemptSummary);
 router.get("/my-latest-attempts", verifyToken, getMyLatestAttempts);

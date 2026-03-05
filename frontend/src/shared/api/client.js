@@ -1,3 +1,4 @@
+import { clearActiveUIRole } from '@/app/activeUIRole';
 const API_BASE = import.meta.env?.DEV
   ? ''
   : (import.meta.env?.VITE_API_URL || '');
@@ -377,6 +378,9 @@ export const api = {
   verifyEmail: (token) => request('/api/auth/verify-email', { method: 'POST', body: JSON.stringify({ token }) }),
   forgotPassword: (email) => request('/api/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
   resetPassword: (token, newPassword) => request('/api/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, newPassword }) }),
+  changePassword: (body) => request('/api/auth/change-password', { method: 'POST', body: JSON.stringify(body) }),
+  requestEmailChange: (body) => request('/api/auth/change-email/request', { method: 'POST', body: JSON.stringify(body) }),
+  confirmEmailChange: (token) => request('/api/auth/change-email/confirm', { method: 'POST', body: JSON.stringify({ token }) }),
   getProfile: () => request('/api/auth/profile'),
   updateProfile: (body) => request('/api/auth/profile', { method: 'PUT', body: JSON.stringify(body) }),
   validateInvitation: (token) => request(`/api/auth/invite/${encodeURIComponent(String(token || ''))}`),
@@ -395,6 +399,7 @@ export const api = {
     } catch {
       // Ignore server logout errors and clear local session anyway.
     } finally {
+      clearActiveUIRole();
       removeToken();
       removeUser();
     }
@@ -428,11 +433,19 @@ export const api = {
 
 
   // Passages (Reading)
-  getPassages: () => request('/api/passages'),
+  getPassages: (params = {}) => {
+    const query = toQueryString(params);
+    return request(`/api/passages${query ? `?${query}` : ''}`);
+  },
   getPassageById: (id) => request(`/api/passages/${id}`),
   createPassage: (body) => request('/api/passages', { method: 'POST', body: JSON.stringify(body) }),
   updatePassage: (id, body) => request(`/api/passages/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deletePassage: (id) => request(`/api/passages/${id}`, { method: 'DELETE' }),
+  uploadPassageDiagramImage: (formData) => request('/api/passages/upload-diagram-image', {
+    method: 'POST',
+    body: formData,
+    headers: { 'Content-Type': undefined },
+  }),
   generatePassageQuestionInsights: (body) =>
     request('/api/passages/ai/question-insights', { method: 'POST', body: JSON.stringify(body) }),
 
@@ -452,7 +465,10 @@ export const api = {
   }),
 
   // Writing
-  getWritings: () => request('/api/writings'),
+  getWritings: (params = {}) => {
+    const query = toQueryString(params);
+    return request(`/api/writings${query ? `?${query}` : ''}`);
+  },
   getWritingById: (id) => request(`/api/writings/${id}`),
   getWritingExam: (id) => request(`/api/writings/${id}/exam`),
   submitWriting: (id, body) => request(`/api/writings/${id}/submit`, { method: 'POST', body: JSON.stringify(body) }),

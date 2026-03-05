@@ -38,7 +38,10 @@ const QuestionGroupSchema = new mongoose.Schema({
 
     instructions: { type: String, required: false }, // Huong dan cho nhom cau hoi
     text: { type: String, required: false }, // Noi dung summary (cho summary_completion)
+    image_url: { type: String, required: false }, // Diagram image URL for diagram_label_completion
+    steps: [{ type: String, required: false }], // Flow/plan step lines with [n] placeholders
     group_layout: { type: String, enum: QUESTION_GROUP_LAYOUTS, default: 'default' }, // Controls rendering mode
+    use_once: { type: Boolean, default: false }, // Enforce one-time option usage for matching-style groups
     headings: [QuestionHeadingSchema],
     options: [QuestionHeadingSchema], // Danh sach lua chon sharing (cho summary_completion)
     questions: [QuestionSchema] // Mang cac cau hoi thuoc nhom cau hoi nay

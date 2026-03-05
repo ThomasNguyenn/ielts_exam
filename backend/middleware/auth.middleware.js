@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import { JWT_SECRET } from "../config/security.config.js";
 import User from "../models/User.model.js";
+import { isStudentRole, STUDENT_ROLE_VALUES } from "../utils/role.utils.js";
 
 const STUDENT_PRESENCE_THROTTLE_MS = 60 * 1000;
 const studentPresenceTouchedAt = new Map();
@@ -27,7 +28,7 @@ export const touchStudentLastSeen = ({ userId, sessionId }) => {
   User.updateOne(
     {
       _id: safeUserId,
-      role: "student",
+      role: { $in: STUDENT_ROLE_VALUES },
       activeSessionId: safeSessionId,
     },
     {
@@ -49,7 +50,7 @@ export const validateStudentSingleSession = async (decodedToken) => {
     throw new Error("Invalid token payload");
   }
 
-  if (decodedToken.role !== "student") {
+  if (!isStudentRole(decodedToken.role)) {
     return decodedToken;
   }
 
@@ -98,7 +99,7 @@ export const verifyToken = async (req, res, next) => {
     const validated = await verifyAccessToken(token);
 
     req.user = validated;
-    if (validated?.role === "student") {
+    if (isStudentRole(validated?.role)) {
       touchStudentLastSeen({
         userId: validated.userId,
         sessionId: validated.sessionId,

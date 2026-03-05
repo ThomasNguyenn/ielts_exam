@@ -1,17 +1,76 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '@/shared/api/client';
-import './Manage.css';
 import { useNotification } from '@/shared/context/NotificationContext';
 import AIContentGeneratorModal from '@/shared/components/AIContentGeneratorModal';
 import ConfirmationModal from '@/shared/components/ConfirmationModal';
 import QuestionGroup from './QuestionGroup';
 import { PASSAGE_QUESTION_TYPE_OPTIONS, PLACEHOLDER_FROM_PASSAGE_CONTENT_TYPES } from './questionGroupConfig';
 import { buildQuestionsFromPlaceholders, parseCorrectAnswersRaw } from './manageQuestionInputUtils';
-import { X } from 'lucide-react';
+import { MoreVertical, X } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D'];
+const MAX_DIAGRAM_IMAGE_BYTES = 5 * 1024 * 1024;
+
+function isFlowOrPlanType(type = '') {
+  const normalized = canonicalizeQuestionType(type);
+  return normalized === 'flow_chart_completion' || normalized === 'plan_map_diagram';
+}
+
+function isLikelyAbsoluteUrl(value = '') {
+  return /^https?:\/\//i.test(String(value || '').trim());
+}
+
+function normalizeOptionToken(raw = '') {
+  return String(raw || '').trim().toUpperCase().replace(/\s+/g, ' ');
+}
+
+function dedupeOptionIds(values = []) {
+  const seen = new Set();
+  const result = [];
+  values.forEach((value) => {
+    const normalized = normalizeOptionToken(value);
+    if (!normalized || seen.has(normalized)) return;
+    seen.add(normalized);
+    result.push(normalized);
+  });
+  return result;
+}
+
+function resolveCanonicalOptionId(options = [], rawToken = '') {
+  const normalized = normalizeOptionToken(rawToken);
+  if (!normalized) return '';
+
+  for (const option of options || []) {
+    const label = normalizeOptionToken(option?.label || option?.id || '');
+    if (label && label === normalized) return label;
+  }
+
+  for (const option of options || []) {
+    const text = normalizeOptionToken(option?.text || '');
+    const label = normalizeOptionToken(option?.label || option?.id || '');
+    if (text && label && text === normalized) return label;
+  }
+
+  return normalized;
+}
+
+function getQuestionOptionIds(question = {}, options = []) {
+  const fromArray = Array.isArray(question?.correct_answers) ? question.correct_answers : [];
+  const fromRaw = parseCorrectAnswersRaw(question?.correct_answers_raw || '');
+  const source = fromArray.length ? fromArray : fromRaw;
+  const canonical = source.map((token) => resolveCanonicalOptionId(options, token));
+  return dedupeOptionIds(canonical);
+}
 
 function canonicalizeQuestionType(type = '') {
   const normalized = String(type || '').trim().toLowerCase();
@@ -87,6 +146,8 @@ function emptyQuestionGroup() {
     headings: [],
     options: [],
     text: '',
+    image_url: '',
+    steps: [],
     questions: [emptyQuestion(1)],
   };
 }
@@ -101,6 +162,20 @@ function passageToForm(p) {
       use_once: Boolean(g.use_once),
       instructions: g.instructions || '',
       text: g.text || '',
+      image_url: (g.image_url && String(g.image_url).trim())
+        ? String(g.image_url).trim()
+        : (canonicalizeQuestionType(g.type) === 'diagram_label_completion' && isLikelyAbsoluteUrl(g.text)
+          ? String(g.text).trim()
+          : ''),
+      steps: (() => {
+        if (Array.isArray(g.steps) && g.steps.length) {
+          return g.steps.map((step) => String(step || '')).filter((step) => step.trim().length > 0);
+        }
+        if (isFlowOrPlanType(g.type) && String(g.text || '').trim()) {
+          return [String(g.text || '').trim()];
+        }
+        return [];
+      })(),
       headings: (g.headings || []).map((h) => ({ id: h.id || '', text: h.text || '' })),
       options: (g.options || []).map((o) => ({ id: o.id || '', text: o.text || '' })),
       questions: (g.questions || []).map((q, i) => ({
@@ -141,6 +216,7 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
   const [error, setError] = useState(null);
   const [existingSearch, setExistingSearch] = useState('');
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
+  const [isMetadataOpen, setIsMetadataOpen] = useState(false);
   const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
   const [confirmModal, setConfirmModal] = useState({
     isOpen: false,
@@ -191,7 +267,15 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
       setLoadError(null);
       api
         .getPassageById(editId)
-        .then((res) => setForm(passageToForm(res.data)))
+        .then((res) => {
+          const nextForm = passageToForm(res.data);
+          setForm(nextForm);
+          setCollapsedGroups(
+            nextForm.isActive
+              ? new Set(nextForm.question_groups.map((_, index) => index))
+              : new Set(),
+          );
+        })
         .catch((err) => {
           setLoadError(err.message);
           showNotification('Error loading passage: ' + err.message, 'error');
@@ -200,12 +284,13 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
     } else {
       setLoading(false);
       setForm({ _id: `passage-${Date.now()}`, title: '', content: '', source: '', isActive: true, question_groups: [emptyQuestionGroup()] });
+      setCollapsedGroups(new Set());
     }
   }, [editId]);
 
   useEffect(() => {
     if (!hideExistingList) {
-      api.getPassages().then((res) => setPassages(res.data || [])).catch(() => setPassages([]));
+      api.getPassages({ summary: 1 }).then((res) => setPassages(res.data || [])).catch(() => setPassages([]));
     }
   }, [editId, hideExistingList]);
 
@@ -232,6 +317,37 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
         i === groupIndex ? { ...g, [key]: value } : g
       ),
     }));
+  };
+
+  const updateGroupSteps = (groupIndex, steps = []) => {
+    const normalizedSteps = Array.isArray(steps) ? steps.map((step) => String(step ?? '')) : [];
+    updateQuestionGroup(groupIndex, 'steps', normalizedSteps);
+  };
+
+  const uploadDiagramImage = async (groupIndex, file) => {
+    if (!file) return;
+    if (!String(file.type || '').toLowerCase().startsWith('image/')) {
+      showNotification('Only image files are allowed for diagram upload.', 'error');
+      return;
+    }
+    if (file.size > MAX_DIAGRAM_IMAGE_BYTES) {
+      showNotification('Diagram image must be 5MB or smaller.', 'error');
+      return;
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const response = await api.uploadPassageDiagramImage(formData);
+      const uploadedUrl = response?.data?.url || '';
+      if (!uploadedUrl) {
+        throw new Error('Upload succeeded but did not return an image URL.');
+      }
+      updateQuestionGroup(groupIndex, 'image_url', uploadedUrl);
+      showNotification('Diagram image uploaded successfully.', 'success');
+    } catch (uploadError) {
+      showNotification(uploadError.message || 'Failed to upload diagram image.', 'error');
+    }
   };
 
   const getNextQuestionNumber = (currentQuestionGroups) => {
@@ -372,6 +488,58 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
           }
           : group
       ),
+    }));
+  };
+
+  const setMultiChoiceCorrectAnswers = (groupIndex, selectedIds = []) => {
+    setForm((prev) => ({
+      ...prev,
+      question_groups: prev.question_groups.map((group, gi) => {
+        if (gi !== groupIndex) return group;
+        const primaryQuestion = group.questions?.[0] || {};
+        const primaryOptions = Array.isArray(primaryQuestion.option) && primaryQuestion.option.length
+          ? primaryQuestion.option
+          : OPTION_LABELS.map((label) => ({ label, text: '' }));
+        const canonicalIds = dedupeOptionIds(
+          (selectedIds || []).map((value) => resolveCanonicalOptionId(primaryOptions, value))
+        );
+        const nextRaw = canonicalIds.join(', ');
+        return {
+          ...group,
+          questions: (group.questions || []).map((question) => ({
+            ...question,
+            correct_answers_raw: nextRaw,
+            correct_answers: canonicalIds.length ? [...canonicalIds] : [''],
+          })),
+        };
+      }),
+    }));
+  };
+
+  const syncMultiChoiceSharedQuestion = (groupIndex, patch = {}) => {
+    if (!patch || typeof patch !== 'object') return;
+
+    setForm((prev) => ({
+      ...prev,
+      question_groups: prev.question_groups.map((group, gi) => {
+        if (gi !== groupIndex) return group;
+
+        const normalizedPatch = { ...patch };
+        if (Array.isArray(normalizedPatch.option)) {
+          normalizedPatch.option = normalizedPatch.option.map((option, optionIndex) => ({
+            label: String.fromCharCode(65 + optionIndex),
+            text: option?.text || '',
+          }));
+        }
+
+        return {
+          ...group,
+          questions: (group.questions || []).map((question) => ({
+            ...question,
+            ...normalizedPatch,
+          })),
+        };
+      }),
     }));
   };
 
@@ -529,8 +697,11 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
     const targetGroup = form.question_groups[groupIndex];
     if (!targetGroup) return;
 
-    const sourceText = PLACEHOLDER_FROM_PASSAGE_CONTENT_TYPES.has(targetGroup.type)
+    const normalizedType = canonicalizeQuestionType(targetGroup.type);
+    const sourceText = PLACEHOLDER_FROM_PASSAGE_CONTENT_TYPES.has(normalizedType)
       ? (form.content || '')
+      : isFlowOrPlanType(normalizedType)
+        ? (Array.isArray(targetGroup.steps) ? targetGroup.steps.join('\n') : '')
       : (targetGroup.text || '');
 
     const nextQuestions = buildQuestionsFromPlaceholders({
@@ -540,7 +711,12 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
     });
 
     if (!nextQuestions.length) {
-      showNotification('No placeholders found. Use [1], [2], ... in reference text.', 'warning');
+      showNotification(
+        isFlowOrPlanType(normalizedType)
+          ? 'No placeholders found. Use [1], [2], ... in ListSteps.'
+          : 'No placeholders found. Use [1], [2], ... in reference text.',
+        'warning',
+      );
       return;
     }
 
@@ -570,7 +746,7 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
         try {
           await api.deletePassage(passageId);
           showNotification('Passage deleted.', 'success');
-          const res = await api.getPassages();
+          const res = await api.getPassages({ summary: 1 });
           setPassages(res.data || []);
         } catch (err) {
           setError(err.message);
@@ -584,6 +760,29 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
     if (!form._id.trim() || !form.title.trim() || !form.content.trim()) {
       showNotification('ID, title and content are required.', 'error');
       return;
+    }
+
+    for (let groupIndex = 0; groupIndex < form.question_groups.length; groupIndex += 1) {
+      const group = form.question_groups[groupIndex];
+      if (canonicalizeQuestionType(group.type) !== 'mult_choice' || group.group_layout !== 'checkbox') continue;
+
+      const parsedRequired = Number(group.required_count);
+      const requiredCount = Number.isFinite(parsedRequired) && parsedRequired > 0
+        ? parsedRequired
+        : Math.max(1, group.questions?.length || 1);
+      const primaryQuestion = group.questions?.[0] || {};
+      const primaryOptions = Array.isArray(primaryQuestion.option) && primaryQuestion.option.length
+        ? primaryQuestion.option
+        : OPTION_LABELS.map((label) => ({ label, text: '' }));
+      const selectedOptionIds = getQuestionOptionIds(primaryQuestion, primaryOptions);
+
+      if (selectedOptionIds.length !== requiredCount) {
+        showNotification(
+          `Group ${groupIndex + 1}: multiple-answer requires exactly ${requiredCount} selected option ID(s), currently ${selectedOptionIds.length}.`,
+          'error',
+        );
+        return;
+      }
     }
 
     setSubmitLoading(true);
@@ -602,6 +801,10 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
           use_once: Boolean(g.use_once),
           instructions: g.instructions || undefined,
           text: g.text || undefined,
+          image_url: g.image_url?.trim() || undefined,
+          steps: (g.steps || []).map((step) => String(step || '').trim()).filter(Boolean).length
+            ? (g.steps || []).map((step) => String(step || '').trim()).filter(Boolean)
+            : undefined,
           headings: (g.headings || []).filter((h) => h.id || h.text).length
             ? (g.headings || []).filter((h) => h.id || h.text)
             : undefined,
@@ -625,8 +828,11 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
         await api.createPassage(payload);
         showNotification(asDraft ? 'Draft saved.' : 'Passage created successfully.', 'success');
         if (!editIdOverride) {
-          navigate(`/manage/passages/${form._id}`);
+          navigate(`/admin/manage/passages/${form._id}`);
         }
+      }
+      if (!asDraft) {
+        setCollapsedGroups(new Set(form.question_groups.map((_, index) => index)));
       }
       if (asDraft) {
         setForm((prev) => ({ ...prev, isActive: false }));
@@ -727,62 +933,40 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
     await savePassage({ asDraft: false });
   };
 
-  if (editId && loading) return <div className="manage-container"><div className="loading-spinner"></div></div>;
-  if (editId && loadError) return <div className="manage-container"><p className="form-error">{loadError}</p><Link to="/manage/passages">Back to passages</Link></div>;
+  if (editId && loading) {
+    return (
+      <div className='min-h-[calc(100vh-70px)] bg-muted/30 p-4 md:p-6'>
+        <Card className='mx-auto max-w-7xl border-border/70 shadow-sm'>
+          <CardContent className='p-6 text-sm text-muted-foreground'>Loading passage...</CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (editId && loadError) {
+    return (
+      <div className='min-h-[calc(100vh-70px)] bg-muted/30 p-4 md:p-6'>
+        <Card className='mx-auto max-w-7xl border-border/70 shadow-sm'>
+          <CardContent className='space-y-4 p-6'>
+            <p className='text-sm font-medium text-destructive'>{loadError}</p>
+            <Button type='button' variant='outline' onClick={() => navigate('/admin/manage/passages')}>
+              Back to passages
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const totalQuestions = form.question_groups.reduce((acc, g) => acc + g.questions.length, 0);
 
   return (
-    <div className="manage-container">
-      {/* Header with Title and Actions */}
-      <div className="manage-editor-topbar">
-        <div className="manage-editor-title">
-          <button
-            type="button"
-            className="manage-editor-close"
-            onClick={() => { if (typeof onCancel === 'function') onCancel(); else navigate('/manage/passages'); }}
-            title="Close editor"
-          >
-            <X size={18} />
-          </button>
-          <div>
-          <h1 style={{ margin: 0, fontSize: '1.8rem' }}>{editId ? 'Edit Reading Passage' : 'Create Reading Passage'}</h1>
-          <p className="muted" style={{ marginTop: '0.5rem' }}>Reading comprehension passage with question groups</p>
-          </div>
-        </div>
-
-        <div className="manage-header-actions">
-          <label className="status-toggle">
-            {form.isActive ? 'Active' : 'Inactive'}
-            <div className="switch">
-              <input
-                type="checkbox"
-                checked={form.isActive}
-                onChange={(e) => updateForm('isActive', e.target.checked)}
-              />
-              <span className="slider"></span>
-            </div>
-          </label>
-
-          <button type="button" className="btn-ghost" onClick={handleSaveDraft}>Save Draft</button>
-
-          <button
-            type="button"
-            className="btn-manage-add"
-            onClick={handleSubmit}
-            disabled={submitLoading}
-            style={{ padding: '0.75rem 1.5rem', fontSize: '1rem' }}
-          >
-            {submitLoading ? 'Saving...' : 'Save Passage'}
-          </button>
-        </div>
-      </div>
-
+    <div className='min-h-[calc(100vh-70px)] bg-muted/30'>
       <AIContentGeneratorModal
         isOpen={isAIModalOpen}
         onClose={() => setIsAIModalOpen(false)}
         onGenerated={handleAIGenerated}
-        type="passage"
+        type='passage'
       />
       <ConfirmationModal
         isOpen={confirmModal.isOpen}
@@ -793,204 +977,200 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
         isDanger={confirmModal.isDanger}
       />
 
-      {error && <div className="form-error" style={{ marginBottom: '1rem' }}>{error}</div>}
-
-      <div className="manage-layout-columns">
-        {/* LEFT COLUMN: Main Content */}
-        <div className="manage-main">
-
-          {/* Basic Information Card */}
-          <div className="manage-card card-accent-purple">
-            <h3>Basic Information</h3>
-            <div className="manage-form">
-              <div className="manage-input-group">
-                <label className="manage-input-label">Passage ID</label>
-                <input
-                  className="manage-input-field"
-                  value={form._id}
-                  onChange={(e) => updateForm('_id', e.target.value)}
-                  required
-                  readOnly={!!editId}
-                  placeholder="e.g., READ_AC_001"
-                />
-              </div>
-
-              <div className="manage-input-group">
-                <label className="manage-input-label">Title</label>
-                <input
-                  className="manage-input-field"
-                  value={form.title}
-                  onChange={(e) => updateForm('title', e.target.value)}
-                  required
-                  placeholder="Enter passage title"
-                />
-              </div>
-
-              <div className="manage-input-group">
-                <label className="manage-input-label">Source</label>
-                <input
-                  className="manage-input-field"
-                  value={form.source}
-                  onChange={(e) => updateForm('source', e.target.value)}
-                  placeholder="e.g., Cambridge IELTS 18"
-                />
-              </div>
-
-              <div className="manage-input-group">
-                <label className="manage-input-label">Passage Content</label>
-                <textarea
-                  className="manage-input-field manage-textarea-large"
-                  value={form.content}
-                  onChange={(e) => updateForm('content', e.target.value)}
-                  onKeyDown={(e) => handleBoldShortcut(e, form.content, (next) => updateForm('content', next))}
-                  required
-                  placeholder="Enter the full reading passage text here..."
-                />
-                <div style={{ marginTop: '0.5rem', display: 'flex', justifyContent: 'flex-end' }}>
-                  <button
-                    type="button"
-                    className="btn-sm btn-ghost"
-                    style={{ color: '#6366F1' }}
-                    onClick={() => setIsAIModalOpen(true)}
-                  >
-                    ✨ Generate with AI
-                  </button>
-                </div>
+      <div className='mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 md:p-6'>
+        <Card className='border-border/70 shadow-sm'>
+          <CardHeader className='flex flex-col gap-4 md:flex-row md:items-center md:justify-between'>
+            <div className='flex items-start gap-3'>
+              <Button
+                type='button'
+                variant='outline'
+                size='icon'
+                onClick={() => {
+                  if (typeof onCancel === 'function') onCancel();
+                  else navigate('/admin/manage/passages');
+                }}
+              >
+                <X className='h-4 w-4' />
+              </Button>
+              <div className='space-y-1'>
+                <CardTitle className='text-2xl tracking-tight'>{editId ? 'Edit Reading Passage' : 'Create Reading Passage'}</CardTitle>
+                <CardDescription>Reading comprehension passage with question groups.</CardDescription>
               </div>
             </div>
-          </div>
+            <div className='flex flex-wrap items-center gap-3'>
+              <div className='flex items-center gap-2 rounded-md border px-3 py-2'>
+                <Switch checked={form.isActive} onCheckedChange={(checked) => updateForm('isActive', checked)} />
+                <span className='text-sm'>{form.isActive ? 'Active' : 'Inactive'}</span>
+              </div>
+              <Button type='button' variant='outline' onClick={handleSaveDraft}>Save Draft</Button>
+              <Button type='button' variant='outline' size='icon' onClick={() => setIsMetadataOpen(true)} aria-label='Open metadata'>
+                <MoreVertical className='h-4 w-4' />
+              </Button>
+              <Button type='button' onClick={handleSubmit} disabled={submitLoading}>
+                {submitLoading ? 'Saving...' : 'Save Passage'}
+              </Button>
+            </div>
+          </CardHeader>
+        </Card>
 
-          {/* Question Groups Section */}
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h3 style={{ margin: 0, color: '#1e293b' }}>Question Groups</h3>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                <button
-                  type="button"
-                  className="btn-ghost"
-                  onClick={handleGenerateQuestionInsights}
-                  disabled={isGeneratingInsights}
-                  style={{ fontSize: '0.85rem', borderColor: '#c7d2fe', color: '#4f46e5' }}
-                >
-                  {isGeneratingInsights ? 'Generating...' : 'Generate Explain + Reference (AI)'}
-                </button>
-                <button type="button" className="btn-manage-add" onClick={addQuestionGroup} style={{ padding: '0.6rem 1.25rem', fontSize: '0.9rem' }}>
-                  + Add Group
-                </button>
+        <Dialog open={isMetadataOpen} onOpenChange={setIsMetadataOpen}>
+          <DialogContent className='sm:max-w-md'>
+            <DialogHeader>
+              <DialogTitle>Metadata</DialogTitle>
+            </DialogHeader>
+            <div className='space-y-3'>
+              <div className='flex items-center justify-between text-sm'>
+                <span className='text-muted-foreground'>Created</span>
+                <span>{form.createdAt ? new Date(form.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+              </div>
+              <div className='flex items-center justify-between text-sm'>
+                <span className='text-muted-foreground'>Status</span>
+                <Badge variant={form.isActive ? 'default' : 'secondary'}>{form.isActive ? 'Active' : 'Inactive'}</Badge>
+              </div>
+              <div className='flex items-center justify-between'>
+                <Label htmlFor='single-part'>Standalone Part</Label>
+                <Switch id='single-part' checked={form.isSinglePart} onCheckedChange={(checked) => updateForm('isSinglePart', checked)} />
+              </div>
+              <div className='flex items-center justify-between text-sm'>
+                <span className='text-muted-foreground'>Total Questions</span>
+                <Badge variant='outline'>{totalQuestions}</Badge>
+              </div>
+              <div className='flex items-center justify-between text-sm'>
+                <span className='text-muted-foreground'>Question Groups</span>
+                <Badge variant='outline'>{form.question_groups.length}</Badge>
               </div>
             </div>
+          </DialogContent>
+        </Dialog>
 
-            {form.question_groups.length === 0 ? (
-              <div className="manage-card" style={{ padding: '3rem', textAlign: 'center', color: '#64748b', borderStyle: 'dashed' }}>
-                <div style={{ marginBottom: '1rem', fontSize: '2rem' }}>📄</div>
-                <p>No question groups yet</p>
-                <p className="muted">Click "Add Group" to create your first question group</p>
-              </div>
-            ) : (
-              form.question_groups.map((group, gi) => (
-                <QuestionGroup
-                  key={gi}
-                  group={group}
-                  gi={gi}
-                  totalGroups={form.question_groups.length}
-                  isGroupCollapsed={collapsedGroups.has(gi)}
-                  collapsedQuestions={collapsedQuestions}
-                  questionTypeOptions={PASSAGE_QUESTION_TYPE_OPTIONS}
-                  onToggleGroupCollapse={toggleGroupCollapse}
-                  onToggleQuestionCollapse={toggleQuestionCollapse}
-                  onMove={moveGroup}
-                  onRemove={removeQuestionGroup}
-                  onUpdateGroup={updateQuestionGroup}
-                  onUpdateQuestion={updateQuestion}
-                  onAddQuestion={addQuestion}
-                  onRemoveQuestion={removeQuestion}
-                  onSetQuestionOption={setQuestionOption}
-                  onSetCorrectAnswers={setCorrectAnswers}
-                  onAddHeading={addHeading}
-                  onRemoveHeading={removeHeading}
-                  onUpdateHeading={updateHeading}
-                  onAddOption={addOption}
-                  onRemoveOption={removeOption}
-                  onUpdateOption={updateOption}
-                  onAddQuestionOption={addQuestionOption}
-                  onRemoveQuestionOption={removeQuestionOption}
-                  onSyncQuestionsFromText={syncQuestionsFromGroupText}
-                  onSyncMultiChoiceCount={syncMultiChoiceCount}
-                  showPassageReferenceField={true}
-                  handleBoldShortcut={(e, val, cb) => handleBoldShortcut(e, val, cb)}
-                />
-              ))
-            )}
+        {error ? (
+          <Card className='border-destructive/30 shadow-sm'>
+            <CardContent className='p-4 text-sm font-medium text-destructive'>{error}</CardContent>
+          </Card>
+        ) : null}
 
-            {form.question_groups.length > 0 && (
-              <button type="button" className="btn-manage-add" onClick={addQuestionGroup} style={{ width: '100%', marginTop: '1rem' }}>
-                + Add Another Group
-              </button>
-            )}
-          </div>
-
-        </div>
-
-        {/* RIGHT COLUMN: Sidebar (Metadata & Tips) */}
-        <div className="manage-sidebar-column">
-
-          {/* Metadata Card */}
-          <div className="manage-card">
-            <h3>Metadata</h3>
-            <div className="metadata-list">
-              <div className="meta-item">
-                <span className="meta-label">Created</span>
-                <span className="meta-value">
-                  {form.createdAt ? new Date(form.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                </span>
-              </div>
-
-              <div className="meta-item">
-                <span className="meta-label">Status</span>
-                <span className={`meta-badge ${form.isActive ? 'badge-active' : 'badge-draft'}`}>
-                  {form.isActive ? 'Active' : 'Inactive'}
-                </span>
-              </div>
-
-              <div className="meta-item">
-                <span className="meta-label">Standalone Part</span>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={form.isSinglePart}
-                    onChange={(e) => updateForm('isSinglePart', e.target.checked)}
+        <div className='grid gap-6 xl:grid-cols-12'>
+          <div className='space-y-6 xl:col-span-12'>
+            <Card className='border-border/70 shadow-sm'>
+              <CardHeader>
+                <CardTitle>Basic Information</CardTitle>
+              </CardHeader>
+              <CardContent className='space-y-4'>
+                <div className='space-y-2'>
+                  <Label htmlFor='passage-id'>Passage ID</Label>
+                  <Input
+                    id='passage-id'
+                    value={form._id}
+                    onChange={(event) => updateForm('_id', event.target.value)}
+                    readOnly={Boolean(editId)}
+                    placeholder='e.g., READ_AC_001'
                   />
-                  <span className="meta-value">Show in Parts view</span>
-                </label>
-              </div>
+                </div>
 
-              <div className="meta-item" style={{ marginTop: '0.5rem', background: '#F8FAFC', padding: '0.75rem', borderRadius: '0.5rem' }}>
-                <span className="meta-label">Total Questions</span>
-                <span className="meta-value" style={{ fontSize: '1.2rem', color: '#6366F1' }}>{totalQuestions}</span>
-              </div>
+                <div className='space-y-2'>
+                  <Label htmlFor='passage-title'>Title</Label>
+                  <Input
+                    id='passage-title'
+                    value={form.title}
+                    onChange={(event) => updateForm('title', event.target.value)}
+                    placeholder='Enter passage title'
+                  />
+                </div>
 
-              <div className="meta-item" style={{ background: '#F8FAFC', padding: '0.75rem', borderRadius: '0.5rem' }}>
-                <span className="meta-label">Question Groups</span>
-                <span className="meta-value" style={{ fontSize: '1.2rem' }}>{form.question_groups.length}</span>
-              </div>
-            </div>
-          </div>
+                <div className='space-y-2'>
+                  <Label htmlFor='passage-source'>Source</Label>
+                  <Input
+                    id='passage-source'
+                    value={form.source}
+                    onChange={(event) => updateForm('source', event.target.value)}
+                    placeholder='e.g., Cambridge IELTS 18'
+                  />
+                </div>
 
-          {/* Tips Card */}
-          <div className="manage-card tips-card">
-            <h3>💡 Tips</h3>
-            <ul className="tips-list">
-              <li>Use clear and concise passage titles</li>
-              <li>Organize questions by type and difficulty</li>
-              <li>Always provide detailed explanations</li>
-              <li>Test questions thoroughly before publishing</li>
-              <li>Include source attribution when applicable</li>
-            </ul>
+                <div className='space-y-2'>
+                  <Label htmlFor='passage-content'>Passage Content</Label>
+                  <Textarea
+                    id='passage-content'
+                    value={form.content}
+                    onChange={(event) => updateForm('content', event.target.value)}
+                    onKeyDown={(event) => handleBoldShortcut(event, form.content, (next) => updateForm('content', next))}
+                    rows={12}
+                    placeholder='Enter the full reading passage text here...'
+                  />
+                </div>
+
+                <div className='flex justify-end'>
+                  <Button type='button' variant='outline' onClick={() => setIsAIModalOpen(true)}>
+                    Generate with AI
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className='border-border/70 shadow-sm'>
+              <CardHeader className='flex flex-col gap-3 md:flex-row md:items-center md:justify-between'>
+                <CardTitle>Question Groups</CardTitle>
+                <div className='flex flex-wrap items-center gap-2'>
+                  <Button type='button' variant='outline' onClick={handleGenerateQuestionInsights} disabled={isGeneratingInsights}>
+                    {isGeneratingInsights ? 'Generating...' : 'Generate Explain + Reference'}
+                  </Button>
+                  <Button type='button' onClick={addQuestionGroup}>+ Add Group</Button>
+                </div>
+              </CardHeader>
+              <CardContent className='space-y-4'>
+                {form.question_groups.length === 0 ? (
+                  <div className='rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground'>
+                    No question groups yet. Click "Add Group" to create the first one.
+                  </div>
+                ) : (
+                  form.question_groups.map((group, gi) => (
+                    <QuestionGroup
+                      key={gi}
+                      group={group}
+                      gi={gi}
+                      totalGroups={form.question_groups.length}
+                      isGroupCollapsed={collapsedGroups.has(gi)}
+                      collapsedQuestions={collapsedQuestions}
+                      questionTypeOptions={PASSAGE_QUESTION_TYPE_OPTIONS}
+                      onToggleGroupCollapse={toggleGroupCollapse}
+                      onToggleQuestionCollapse={toggleQuestionCollapse}
+                      onMove={moveGroup}
+                      onRemove={removeQuestionGroup}
+                      onUpdateGroup={updateQuestionGroup}
+                      onUpdateQuestion={updateQuestion}
+                      onAddQuestion={addQuestion}
+                      onRemoveQuestion={removeQuestion}
+                      onSetQuestionOption={setQuestionOption}
+                      onSetCorrectAnswers={setCorrectAnswers}
+                      onAddHeading={addHeading}
+                      onRemoveHeading={removeHeading}
+                      onUpdateHeading={updateHeading}
+                      onAddOption={addOption}
+                      onRemoveOption={removeOption}
+                      onUpdateOption={updateOption}
+                      onAddQuestionOption={addQuestionOption}
+                      onRemoveQuestionOption={removeQuestionOption}
+                      onSyncQuestionsFromText={syncQuestionsFromGroupText}
+                      onSyncMultiChoiceCount={syncMultiChoiceCount}
+                      onSetMultiChoiceCorrectAnswers={setMultiChoiceCorrectAnswers}
+                      onSyncMultiChoiceSharedQuestion={syncMultiChoiceSharedQuestion}
+                      onUpdateGroupSteps={updateGroupSteps}
+                      onUploadDiagramImage={uploadDiagramImage}
+                      showPassageReferenceField={true}
+                      handleBoldShortcut={(e, val, cb) => handleBoldShortcut(e, val, cb)}
+                    />
+                  ))
+                )}
+
+                {form.question_groups.length > 0 ? (
+                  <Button type='button' className='w-full' onClick={addQuestionGroup}>+ Add Another Group</Button>
+                ) : null}
+              </CardContent>
+            </Card>
           </div>
 
         </div>
       </div>
-
     </div>
   );
 }

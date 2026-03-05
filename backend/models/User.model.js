@@ -1,4 +1,11 @@
 import mongoose from "mongoose";
+import {
+  ROLE_ADMIN,
+  ROLE_STUDENT,
+  ROLE_STUDENT_ACA,
+  ROLE_STUDENT_IELTS,
+  ROLE_TEACHER,
+} from "../utils/role.utils.js";
 
 const userSchema = new mongoose.Schema({
   email: {
@@ -26,8 +33,8 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['student', 'teacher', 'admin'],
-    default: 'student',
+    enum: [ROLE_STUDENT, ROLE_STUDENT_IELTS, ROLE_STUDENT_ACA, ROLE_TEACHER, ROLE_ADMIN],
+    default: ROLE_STUDENT,
   },
   homeroom_teacher_id: {
     type: mongoose.Schema.Types.ObjectId,
@@ -66,6 +73,9 @@ const userSchema = new mongoose.Schema({
   verificationTokenExpires: { type: Date, default: null },
   resetPasswordToken: { type: String, default: null },
   resetPasswordExpires: { type: Date, default: null },
+  pendingEmail: { type: String, default: null, lowercase: true, trim: true },
+  emailChangeTokenHash: { type: String, default: null },
+  emailChangeTokenExpires: { type: Date, default: null },
   refreshTokenHash: { type: String, default: null },
   refreshTokenExpiresAt: { type: Date, default: null },
   refreshTokenIssuedAt: { type: Date, default: null },

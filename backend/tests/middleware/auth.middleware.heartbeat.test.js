@@ -73,7 +73,7 @@ describe("auth middleware student presence heartbeat", () => {
     expect(userUpdateOneMock).toHaveBeenCalledWith(
       {
         _id: "student-1",
-        role: "student",
+        role: { $in: ["student", "studentIELTS", "studentACA"] },
         activeSessionId: "session-1",
       },
       {

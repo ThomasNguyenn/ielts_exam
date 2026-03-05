@@ -72,7 +72,7 @@ export default function WritingSubmissionView() {
   );
 
   if (loading) return <div className="page"><p className="muted">Loading writing...</p></div>;
-  if (error) return <div className="page"><p className="error">{error}</p><Link to="/profile">Back to profile</Link></div>;
+  if (error) return <div className="page"><p className="error">{error}</p><Link to="/student-ielts/profile">Back to profile</Link></div>;
   if (!submission) return <div className="page"><p className="muted">Submission not found.</p></div>;
 
   return (
@@ -88,9 +88,9 @@ export default function WritingSubmissionView() {
           ) : null}
         </div>
         <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <Link to="/profile" className="btn btn-ghost">Về hồ sơ</Link>
+          <Link to="/student-ielts/profile" className="btn btn-ghost">Về hồ sơ</Link>
           <Link to="/writing-live/join" className="btn btn-ghost">Nhập mã Live Room</Link>
-          <Link to={`/tests/writing/result-ai/${submission._id}`} className="btn btn-primary">Xem AI Result</Link>
+          <Link to={`/student-ielts/tests/writing/result-ai/${submission._id}`} className="btn btn-primary">Xem AI Result</Link>
         </div>
       </div>
 
@@ -131,3 +131,4 @@ export default function WritingSubmissionView() {
     </div>
   );
 }
+

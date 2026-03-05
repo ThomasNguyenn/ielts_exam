@@ -80,7 +80,7 @@ const EnhancedReviewPhase = ({ question, essay, sessionData, onRestart }) => {
         return (
             <div className="enhanced-review-phase error">
                 <h2>❌ Failed to load results</h2>
-                <button onClick={() => navigate('/practice')}>Back to Practice</button>
+                <button onClick={() => navigate('/student-ielts/practice')}>Back to Practice</button>
             </div>
         );
     }
@@ -113,7 +113,7 @@ const EnhancedReviewPhase = ({ question, essay, sessionData, onRestart }) => {
                     <p>Comprehensive analysis and growth recommendations</p>
                 </div>
                 <div className="header-actions">
-                    <button onClick={() => navigate('/practice')} className="btn-back-practice">
+                    <button onClick={() => navigate('/student-ielts/practice')} className="btn-back-practice">
                         ← Back to Practice
                     </button>
                     <button onClick={onRestart} className="btn-try-again">
@@ -400,3 +400,4 @@ const EnhancedReviewPhase = ({ question, essay, sessionData, onRestart }) => {
 };
 
 export default EnhancedReviewPhase;
+

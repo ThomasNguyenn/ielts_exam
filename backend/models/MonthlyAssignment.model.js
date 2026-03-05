@@ -3,13 +3,100 @@ import mongoose from "mongoose";
 const ASSIGNMENT_STATUSES = ["draft", "published", "archived"];
 const TASK_RESOURCE_MODES = ["internal", "external_url", "uploaded"];
 const TASK_RESOURCE_REF_TYPES = ["passage", "section", "speaking", "writing", null];
-const CONTENT_BLOCK_TYPES = ["instruction", "video", "input", "title", "internal"];
+const CONTENT_BLOCK_TYPES = ["instruction", "video", "input", "title", "internal", "passage", "quiz", "matching", "gapfill", "find_mistake"];
+
+const isPlainObject = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+const isValidQuizQuestion = (question) => {
+  if (!isPlainObject(question)) return false;
+  if (question.options !== undefined && !Array.isArray(question.options)) return false;
+  return true;
+};
+
+const isValidQuizBlockData = (data) => {
+  if (!isPlainObject(data)) return false;
+  if (data.questions !== undefined) {
+    if (!Array.isArray(data.questions)) return false;
+    return data.questions.every((question) => isValidQuizQuestion(question));
+  }
+
+  // Backward-compatible legacy shape support: question/options at block root.
+  if (data.options !== undefined && !Array.isArray(data.options)) return false;
+  return true;
+};
+
+const isValidMatchingBlockData = (data) => {
+  if (!isPlainObject(data)) return false;
+  if (data.left_items !== undefined && !Array.isArray(data.left_items)) return false;
+  if (data.right_items !== undefined && !Array.isArray(data.right_items)) return false;
+  if (data.matches !== undefined && !Array.isArray(data.matches)) return false;
+
+  if (Array.isArray(data.left_items) && data.left_items.some((item) => !isPlainObject(item))) return false;
+  if (Array.isArray(data.right_items) && data.right_items.some((item) => !isPlainObject(item))) return false;
+  if (
+    Array.isArray(data.matches)
+    && data.matches.some(
+      (pair) =>
+        !isPlainObject(pair)
+        || !String(pair.left_id || "").trim()
+        || !String(pair.right_id || "").trim(),
+    )
+  ) {
+    return false;
+  }
+
+  return true;
+};
+
+const isValidGapfillBlockData = (data) => {
+  if (!isPlainObject(data)) return false;
+
+  if (data.mode !== undefined) {
+    const mode = String(data.mode || "").trim().toLowerCase();
+    if (!["numbered", "paragraph"].includes(mode)) return false;
+  }
+
+  if (data.numbered_items !== undefined) {
+    if (!Array.isArray(data.numbered_items)) return false;
+    if (data.numbered_items.some((item) => typeof item !== "string")) return false;
+  }
+
+  if (data.paragraph_text !== undefined && typeof data.paragraph_text !== "string") return false;
+  if (data.prompt !== undefined && typeof data.prompt !== "string") return false;
+  return true;
+};
+
+const isValidFindMistakeBlockData = (data) => {
+  if (!isPlainObject(data)) return false;
+
+  if (data.numbered_items !== undefined) {
+    if (!Array.isArray(data.numbered_items)) return false;
+    if (data.numbered_items.some((item) => typeof item !== "string")) return false;
+  }
+
+  if (data.prompt !== undefined && typeof data.prompt !== "string") return false;
+  return true;
+};
 
 const AssignmentContentBlockSchema = new mongoose.Schema(
   {
     type: { type: String, enum: CONTENT_BLOCK_TYPES, required: true, trim: true },
     order: { type: Number, default: 0, min: 0 },
-    data: { type: mongoose.Schema.Types.Mixed, default: {} },
+    data: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+      validate: {
+        validator(value) {
+          if (!isPlainObject(value)) return false;
+          if (String(this?.type || "") === "quiz") return isValidQuizBlockData(value);
+          if (String(this?.type || "") === "matching") return isValidMatchingBlockData(value);
+          if (String(this?.type || "") === "gapfill") return isValidGapfillBlockData(value);
+          if (String(this?.type || "") === "find_mistake") return isValidFindMistakeBlockData(value);
+          return true;
+        },
+        message: "Invalid block data",
+      },
+    },
   },
   { _id: false },
 );

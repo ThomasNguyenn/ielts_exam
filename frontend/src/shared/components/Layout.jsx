@@ -18,6 +18,7 @@ import AppsOutlined from '@mui/icons-material/AppsOutlined';
 import WorkspacesOutlined from '@mui/icons-material/WorkspacesOutlined';
 import AssignmentTurnedInOutlined from '@mui/icons-material/AssignmentTurnedInOutlined';
 import { api } from '@/shared/api/client';
+import { isStudentFamilyRole } from '@/app/roleRouting';
 import LevelProgress from './LevelProgress';
 import './Navigation.css';
 import './Navigation-mobile.css';
@@ -45,78 +46,78 @@ const NAV_SCHEMA = {
     },
     {
       key: 'profile',
-      to: '/profile',
+      to: '/student-ielts/profile',
       label: 'Dashboard',
       icon: 'space_dashboard',
       visibility: 'auth',
-      isActive: (pathname) => pathname.startsWith('/profile'),
+      isActive: (pathname) => pathname.startsWith('/student-ielts/profile'),
     },
     {
       key: 'tests',
-      to: '/tests',
+      to: '/student-ielts/tests',
       label: 'Luyện thi',
       icon: 'library_books',
       visibility: 'all',
-      isActive: (pathname) => pathname === '/tests' || pathname.startsWith('/tests/'),
+      isActive: (pathname) => pathname === '/student-ielts/tests' || pathname.startsWith('/student-ielts/tests/'),
     },
     {
       key: 'writing',
-      to: '/practice',
+      to: '/student-ielts/practice',
       label: 'Luyện viết',
       icon: 'edit_square',
       visibility: 'all',
-      isActive: (pathname) => pathname.startsWith('/practice') && !pathname.includes('/speaking'),
+      isActive: (pathname) => pathname.startsWith('/student-ielts/practice') && !pathname.includes('/student-ielts/speaking'),
     },
     {
       key: 'speaking',
-      to: '/speaking',
+      to: '/student-ielts/speaking',
       label: 'Luyện nói',
       icon: 'record_voice_over',
       visibility: 'all',
-      isActive: (pathname) => pathname.includes('/speaking'),
+      isActive: (pathname) => pathname.includes('/student-ielts/speaking'),
     },
     {
       key: 'skills',
-      to: '/learn',
+      to: '/student-ielts/learn',
       label: 'Lý thuyết',
       icon: 'menu_book',
       visibility: 'all',
-      isActive: (pathname) => pathname.startsWith('/learn'),
+      isActive: (pathname) => pathname.startsWith('/student-ielts/learn'),
     },
     {
       key: 'analytics',
-      to: '/analytics',
+      to: '/student-ielts/analytics',
       label: 'Phân tích sâu',
       icon: 'analytics',
       visibility: 'auth',
-      isActive: (pathname) => pathname.startsWith('/analytics'),
+      isActive: (pathname) => pathname.startsWith('/student-ielts/analytics'),
     },
   ],
   direct: [],
   more: [
     {
       key: 'vocabulary',
-      to: '/vocabulary',
+      to: '/student-ielts/vocabulary',
       label: 'Vocabulary',
       icon: 'translate',
       visibility: 'auth',
-      isActive: (pathname) => pathname.startsWith('/vocabulary'),
+      isActive: (pathname) => pathname.startsWith('/student-ielts/vocabulary'),
     },
     {
       key: 'achievements',
-      to: '/achievements',
+      to: '/student-ielts/achievements',
       label: 'Thành tựu',
       icon: 'military_tech',
       visibility: 'auth',
-      isActive: (pathname) => pathname.startsWith('/achievements'),
+      isActive: (pathname) => pathname.startsWith('/student-ielts/achievements'),
     },
     {
       key: 'student_homework',
-      to: '/homework/my',
+      to: '/student-ielts/homework',
       label: 'Bài tập tháng',
       icon: 'assignment',
       visibility: 'student',
-      isActive: (pathname) => pathname.startsWith('/homework/my'),
+      isActive: (pathname) => pathname.startsWith('/student-ielts/homework'),
     },
   ],
   workspace: [
@@ -154,11 +155,11 @@ const NAV_SCHEMA = {
     },
     {
       key: 'manage',
-      to: '/manage',
+      to: '/admin/manage',
       label: 'Quản lý',
       icon: 'admin_panel_settings',
       visibility: 'admin',
-      isActive: (pathname) => pathname.startsWith('/manage'),
+      isActive: (pathname) => pathname.startsWith('/admin/manage'),
     },
   ],
 };
@@ -185,7 +186,7 @@ const isItemVisible = (item, user) => {
   if (item.visibility === 'auth') return Boolean(user);
   if (item.visibility === 'teacher_admin') return user?.role === 'teacher' || user?.role === 'admin';
   if (item.visibility === 'admin') return user?.role === 'admin';
-  if (item.visibility === 'student') return user?.role === 'student';
+  if (item.visibility === 'student') return isStudentFamilyRole(user?.role);
   return false;
 };
 
@@ -240,16 +241,16 @@ export default function Layout() {
   // Hide header on exam and homework pages.
   const isExamPage = pathname.includes('/exam');
   const isHomeworkPage = pathname.startsWith('/homework');
-  const isManageRoute = pathname.startsWith('/manage');
+  const isManageRoute = pathname.startsWith('/admin/manage');
   const hideHeader = isExamPage || isHomeworkPage;
 
   // Use wide layout for practice pages.
   const isPracticePage =
-    pathname.includes('/practice') ||
-    pathname.startsWith('/learn') ||
-    pathname.startsWith('/speaking');
+    pathname.includes('/student-ielts/practice') ||
+    pathname.startsWith('/student-ielts/learn') ||
+    pathname.startsWith('/student-ielts/speaking');
   // Use full width layout for manage pages and test list.
-  const isManagePage = isManageRoute || pathname === '/tests' || pathname.startsWith('/scores') || pathname.startsWith('/evaluate') || pathname.startsWith('/homework');
+  const isManagePage = isManageRoute || pathname === '/student-ielts/tests' || pathname.startsWith('/scores') || pathname.startsWith('/evaluate') || pathname.startsWith('/homework');
 
   // Use full width layout for grading pages.
   const isGradingPage = pathname.startsWith('/grading');
@@ -258,14 +259,14 @@ export default function Layout() {
   const isResultAiPage = pathname.includes('/result-ai');
   const isWritingLivePage = pathname.startsWith('/writing-live/');
 
-  // Test detail pages (e.g. /tests/abc123 but not /tests or /tests/abc123/exam).
-  const isTestDetailPage = /^\/tests\/[^/]+$/.test(pathname);
-  const isTestHistoryPage = /^\/tests\/[^/]+\/history$/.test(pathname);
+  // Test detail pages (e.g. /student-ielts/tests/abc123 but not /student-ielts/tests or /student-ielts/tests/abc123/exam).
+  const isTestDetailPage = /^\/student-ielts\/tests\/[^/]+$/.test(pathname);
+  const isTestHistoryPage = /^\/student-ielts\/tests\/[^/]+\/history$/.test(pathname);
 
   // Profile page custom width.
-  const isProfilePage = pathname.startsWith('/profile');
-  const isAnalyticsPage = pathname.startsWith('/analytics');
-  const isAchievementsPage = pathname.startsWith('/achievements');
+  const isProfilePage = pathname.startsWith('/student-ielts/profile');
+  const isAnalyticsPage = pathname.startsWith('/student-ielts/analytics');
+  const isAchievementsPage = pathname.startsWith('/student-ielts/achievements');
 
   const coreItems = useMemo(
     () => NAV_SCHEMA.core.filter((item) => isItemVisible(item, user) && (item.key !== 'home' || !user)),
@@ -504,3 +505,5 @@ export default function Layout() {
     </div>
   );
 }
+
+

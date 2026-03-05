@@ -12,28 +12,28 @@ const SKILL_CARDS = [
     description: 'Nắm vững tất cả 14 dạng câu hỏi với các đoạn văn IELTS thực tế và lời giải thích chi tiết.',
     icon: BookOpenCheck,
     tone: 'indigo',
-    link: '/tests',
+    link: '/student-ielts/tests',
   },
   {
     title: 'Bài tập nghe thực tế',
     description: 'Thực hành với âm thanh chất lượng cao, phản ánh các điều kiện và định dạng kỳ thi thực tế.',
     icon: Headphones,
     tone: 'amber',
-    link: '/tests',
+    link: '/student-ielts/tests',
   },
   {
     title: 'Bài tập viết toàn diện',
     description: 'Nhận phản hồi AI về Task 1 và Task 2 với điểm số dự đoán.',
     icon: PenSquare,
     tone: 'green',
-    link: '/tests',
+    link: '/student-ielts/tests',
   },
   {
     title: 'Luyện nói với AI',
     description: 'Thực hành cả ba phần Speaking với gợi ý và tiêu chí đánh giá thực tế.',
     icon: Mic,
     tone: 'violet',
-    link: '/speaking',
+    link: '/student-ielts/speaking',
   },
 ];
 
@@ -107,11 +107,11 @@ export default function Home() {
             </p>
 
             <div className="home-hero-actions">
-              <Link to="/tests" className="home-btn home-btn--primary">
+              <Link to="/student-ielts/tests" className="home-btn home-btn--primary">
                 Bắt đầu luyện tập ngay
                 <ArrowRight size={18} />
               </Link>
-              <Link to="/analytics" className="home-btn home-btn--ghost">
+              <Link to="/student-ielts/analytics" className="home-btn home-btn--ghost">
                 Xem tiến trình
               </Link>
             </div>
@@ -240,7 +240,7 @@ export default function Home() {
               ))}
             </ul>
 
-            <Link to="/tests" className="home-btn home-btn--primary">
+            <Link to="/student-ielts/tests" className="home-btn home-btn--primary">
               Khám phá bài kiểm tra
               <ArrowRight size={18} />
             </Link>
@@ -271,11 +271,11 @@ export default function Home() {
             Tham gia cùng hàng nghìn học viên đã đạt band mục tiêu với nền tảng luyện thi IELTS toàn diện.
           </p>
           <div className="home-cta-actions">
-            <Link to="/tests" className="home-btn home-btn--white">
+            <Link to="/student-ielts/tests" className="home-btn home-btn--white">
               Bắt đầu luyện tập miễn phí
               <ArrowRight size={18} />
             </Link>
-            <Link to="/analytics" className="home-btn home-btn--outline">
+            <Link to="/student-ielts/analytics" className="home-btn home-btn--outline">
               Xem biểu đồ phân tích
             </Link>
           </div>
@@ -291,14 +291,14 @@ export default function Home() {
           </div>
           <div>
             <h4>Platform</h4>
-            <Link to="/tests">Tests</Link>
-            <Link to="/analytics">Analytics</Link>
-            <Link to="/profile">Profile</Link>
-            <Link to="/speaking">Speaking</Link>
+            <Link to="/student-ielts/tests">Tests</Link>
+            <Link to="/student-ielts/analytics">Analytics</Link>
+            <Link to="/student-ielts/profile">Profile</Link>
+            <Link to="/student-ielts/speaking">Speaking</Link>
           </div>
           <div>
             <h4>Resources</h4>
-            <Link to="/learn">Study Guide</Link>
+            <Link to="/student-ielts/learn">Study Guide</Link>
             <a href="#features">Practice Tips</a>
             <a href="#benefits">Band Scores</a>
             <a href="#results">FAQs</a>
@@ -318,3 +318,4 @@ export default function Home() {
     </div>
   );
 }
+

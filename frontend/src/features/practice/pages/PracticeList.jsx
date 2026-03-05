@@ -372,7 +372,7 @@ export default function PracticeList() {
                     <div className="sp2-card-body">
                       <h3>{title}</h3>
                       <p>{description}</p>
-                      <Link to={`/practice/${item?._id}`} className="sp2-primary-cta">
+                      <Link to={`/student-ielts/practice/${item?._id}`} className="sp2-primary-cta">
                         <EditOutlined className="sp2-icon" />
                         Practice with AI
                         <ArrowForwardOutlined className="sp2-icon" />
@@ -429,3 +429,4 @@ export default function PracticeList() {
     </div>
   );
 }
+

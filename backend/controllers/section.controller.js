@@ -12,7 +12,7 @@ import {
 import { handleControllerError, sendControllerError } from '../utils/controllerError.js';
 
 const pickSectionPayload = (body = {}, { allowId = false } = {}) => {
-    const allowed = ["title", "content", "audio_url", "audio_storage_key", "question_groups", "source", "is_active", "isSinglePart"];
+    const allowed = ["title", "content", "transcript", "audio_url", "audio_storage_key", "question_groups", "source", "is_active", "isSinglePart"];
     if (allowId) {
         allowed.push("_id");
     }

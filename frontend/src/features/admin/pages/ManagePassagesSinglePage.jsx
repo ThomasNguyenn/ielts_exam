@@ -1,13 +1,24 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Plus, Search, Filter, Pencil, Trash2 } from 'lucide-react';
+﻿import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { Plus, Search, Pencil, Trash2 } from 'lucide-react';
 import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
 import ConfirmationModal from '@/shared/components/ConfirmationModal';
 import { useNavigate, useParams } from 'react-router-dom';
-import AddEditPassage from './AddEditPassage';
-import './Manage.css';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 const ITEMS_PER_PAGE = 6;
+const AddEditPassage = lazy(() => import('./AddEditPassage'));
 
 const formatDate = (value) => {
   if (!value) return '-';
@@ -21,7 +32,9 @@ const formatDate = (value) => {
 };
 
 const countQuestions = (passage) =>
-  (passage?.question_groups || []).reduce((sum, group) => sum + (group?.questions?.length || 0), 0);
+  Number.isFinite(Number(passage?.question_count))
+    ? Number(passage.question_count)
+    : (passage?.question_groups || []).reduce((sum, group) => sum + (group?.questions?.length || 0), 0);
 const getSortTimestamp = (item) => new Date(item?.updatedAt || item?.updated_at || item?.createdAt || item?.created_at || 0).getTime();
 
 export default function ManagePassagesSinglePage() {
@@ -47,7 +60,7 @@ export default function ManagePassagesSinglePage() {
   const loadPassages = async () => {
     setLoading(true);
     try {
-      const res = await api.getPassages();
+      const res = await api.getPassages({ summary: 1 });
       setPassages(res.data || []);
     } catch (err) {
       showNotification(err.message || 'Failed to load passages', 'error');
@@ -75,17 +88,14 @@ export default function ManagePassagesSinglePage() {
     const matched = !query
       ? passages
       : passages.filter((item) =>
-      String(item.title || '').toLowerCase().includes(query) ||
-      String(item._id || '').toLowerCase().includes(query)
-    );
+        String(item.title || '').toLowerCase().includes(query) ||
+        String(item._id || '').toLowerCase().includes(query)
+      );
     return [...matched].sort((a, b) => getSortTimestamp(b) - getSortTimestamp(a));
   }, [passages, searchQuery]);
 
   const totalPages = Math.max(1, Math.ceil(filteredPassages.length / ITEMS_PER_PAGE));
-  const paginatedPassages = filteredPassages.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-  );
+  const paginatedPassages = filteredPassages.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   const handleDelete = (id) => {
     setConfirmModal({
@@ -108,13 +118,13 @@ export default function ManagePassagesSinglePage() {
   const openCreateTab = () => {
     setEditingId(null);
     setActiveTab('editor');
-    navigate('/manage/passages/new');
+    navigate('/admin/manage/passages/new');
   };
 
   const openEditTab = (id) => {
     setEditingId(id);
     setActiveTab('editor');
-    navigate(`/manage/passages/${id}`);
+    navigate(`/admin/manage/passages/${id}`);
   };
 
   const handleSaved = async () => {
@@ -122,157 +132,134 @@ export default function ManagePassagesSinglePage() {
     setActiveTab('list');
     setEditingId(null);
     setCurrentPage(1);
-    navigate('/manage/passages');
+    navigate('/admin/manage/passages');
   };
 
   const listStart = filteredPassages.length ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0;
   const listEnd = Math.min(currentPage * ITEMS_PER_PAGE, filteredPassages.length);
 
   return (
-    <div className="manage-main-content">
-      {activeTab === 'list' && (
-        <div className="manage-main-tabs">
-          <button
-            type="button"
-            className={`manage-tab-btn ${activeTab === 'list' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveTab('list');
-              setEditingId(null);
-              navigate('/manage/passages');
-            }}
-          >
-            Manage Passages
-          </button>
-          <button
-            type="button"
-            className={`manage-tab-btn ${activeTab === 'editor' ? 'active' : ''}`}
-            onClick={() => {
-              if (editingId) {
-                setActiveTab('editor');
-                navigate(`/manage/passages/${editingId}`);
-                return;
-              }
-              openCreateTab();
-            }}
-          >
-            {editingId ? 'Edit Passage' : 'Add Passage'}
-          </button>
-        </div>
-      )}
-
+    <div className='space-y-4'>
       {activeTab === 'list' ? (
         <>
-          <div className="manage-main-topbar">
-            <div>
-              <h1 className="manage-main-title">Manage Passages</h1>
-              <p className="manage-main-subtitle">{filteredPassages.length} items total</p>
-            </div>
-
-            <div className="manage-main-controls">
-              <div className="manage-main-search">
-                <Search className="manage-main-search-icon" />
-                <input
-                  type="text"
-                  placeholder="Search passages..."
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                />
-              </div>
-
-              <button type="button" className="manage-main-filter-btn">
-                <Filter size={16} />
-                Filter
-              </button>
-
-              <button type="button" className="manage-main-add-btn" onClick={openCreateTab}>
-                <Plus size={16} />
-                Add New
-              </button>
-            </div>
+          <div className='flex flex-wrap items-center gap-2'>
+            <Button type='button' variant='default' onClick={() => { setActiveTab('list'); setEditingId(null); navigate('/admin/manage/passages'); }}>
+              Manage Passages
+            </Button>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={() => {
+                if (editingId) {
+                  setActiveTab('editor');
+                  navigate(`/admin/manage/passages/${editingId}`);
+                  return;
+                }
+                openCreateTab();
+              }}
+            >
+              {editingId ? 'Edit Passage' : 'Add Passage'}
+            </Button>
           </div>
 
-          <div className="manage-main-table-card">
-            <table className="manage-main-table">
-              <thead>
-                <tr>
-                  <th>Title</th>
-                  <th>Skill</th>
-                  <th>Questions</th>
-                  <th>Status</th>
-                  <th>Date</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {!loading && paginatedPassages.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="manage-main-empty">No passages found.</td>
-                  </tr>
-                )}
-
-                {paginatedPassages.map((row) => (
-                  <tr key={row._id}>
-                    <td className="manage-cell-title">{row.title || row._id}</td>
-                    <td><span className="manage-pill skill-reading">Reading</span></td>
-                    <td>{countQuestions(row)}</td>
-                    <td><span className={`manage-pill ${row.is_active === false ? 'status-archived' : 'status-published'}`}>{row.is_active === false ? 'Archived' : 'Published'}</span></td>
-                    <td>{formatDate(row.updatedAt || row.updated_at || row.createdAt || row.created_at)}</td>
-                    <td>
-                      <div className="manage-row-actions">
-                        <button type="button" className="icon-btn" onClick={() => openEditTab(row._id)} title="Edit">
-                          <Pencil size={15} />
-                        </button>
-                        <button type="button" className="icon-btn danger" onClick={() => handleDelete(row._id)} title="Delete">
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            <div className="manage-main-pagination">
-              <span>
-                Showing {listStart}-{listEnd} of {filteredPassages.length}
-              </span>
-
-              <div className="manage-main-pagination-buttons">
-                <button
-                  type="button"
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                >
-                  Prev
-                </button>
-                <span>{currentPage}/{totalPages}</span>
-                <button
-                  type="button"
-                  disabled={currentPage === totalPages}
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                >
-                  Next
-                </button>
+          <Card className='border-border/70 shadow-sm'>
+            <CardHeader className='flex flex-col gap-4 md:flex-row md:items-center md:justify-between'>
+              <div>
+                <CardTitle>Manage Passages</CardTitle>
+                <CardDescription>{filteredPassages.length} items total</CardDescription>
               </div>
-            </div>
-          </div>
+              <div className='flex w-full flex-col gap-2 sm:w-auto sm:flex-row'>
+                <div className='relative min-w-[240px]'>
+                  <Search className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
+                  <Input
+                    type='text'
+                    className='pl-9'
+                    placeholder='Search passages...'
+                    value={searchQuery}
+                    onChange={(event) => {
+                      setSearchQuery(event.target.value);
+                      setCurrentPage(1);
+                    }}
+                  />
+                </div>
+                <Button type='button' onClick={openCreateTab}>
+                  <Plus className='h-4 w-4' />
+                  Add New
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className='space-y-4'>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Title</TableHead>
+                    <TableHead>Skill</TableHead>
+                    <TableHead>Questions</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {!loading && paginatedPassages.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className='text-center text-muted-foreground'>No passages found.</TableCell>
+                    </TableRow>
+                  ) : null}
+
+                  {paginatedPassages.map((row) => (
+                    <TableRow key={row._id}>
+                      <TableCell className='font-medium'>{row.title || row._id}</TableCell>
+                      <TableCell><Badge variant='secondary'>Reading</Badge></TableCell>
+                      <TableCell>{countQuestions(row)}</TableCell>
+                      <TableCell>
+                        <Badge variant={row.is_active === false ? 'outline' : 'default'}>
+                          {row.is_active === false ? 'Archived' : 'Published'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{formatDate(row.updatedAt || row.updated_at || row.createdAt || row.created_at)}</TableCell>
+                      <TableCell>
+                        <div className='flex items-center gap-1'>
+                          <Button type='button' size='icon' variant='ghost' onClick={() => openEditTab(row._id)} title='Edit'>
+                            <Pencil className='h-4 w-4' />
+                          </Button>
+                          <Button type='button' size='icon' variant='ghost' className='text-destructive' onClick={() => handleDelete(row._id)} title='Delete'>
+                            <Trash2 className='h-4 w-4' />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              <div className='flex flex-col gap-2 border-t pt-3 text-sm sm:flex-row sm:items-center sm:justify-between'>
+                <span className='text-muted-foreground'>Showing {listStart}-{listEnd} of {filteredPassages.length}</span>
+                <div className='flex items-center gap-2'>
+                  <Button type='button' size='sm' variant='outline' disabled={currentPage === 1} onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}>Prev</Button>
+                  <span>{currentPage}/{totalPages}</span>
+                  <Button type='button' size='sm' variant='outline' disabled={currentPage === totalPages} onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}>Next</Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </>
       ) : (
-        <AddEditPassage
-          editIdOverride={editingId}
-          embedded
-          hideExistingList
-          onSaved={handleSaved}
-          onCancel={() => {
-            setActiveTab('list');
-            setEditingId(null);
-            navigate('/manage/passages');
-          }}
-        />
+        <Suspense fallback={<Card className='border-border/70 shadow-sm'><CardContent className='p-6 text-sm text-muted-foreground'>Loading editor...</CardContent></Card>}>
+          <AddEditPassage
+            editIdOverride={editingId}
+            embedded
+            hideExistingList
+            onSaved={handleSaved}
+            onCancel={() => {
+              setActiveTab('list');
+              setEditingId(null);
+              navigate('/admin/manage/passages');
+            }}
+          />
+        </Suspense>
       )}
+
       <ConfirmationModal
         isOpen={confirmModal.isOpen}
         onClose={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}

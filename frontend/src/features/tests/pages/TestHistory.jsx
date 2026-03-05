@@ -186,10 +186,10 @@ export default function TestHistory() {
           <h2>Unable to load test history</h2>
           <p>{error}</p>
           <div className="th-state-actions">
-            <Link to="/tests" className="th-btn th-btn--ghost">
+            <Link to="/student-ielts/tests" className="th-btn th-btn--ghost">
               Back to tests
             </Link>
-            <Link to={`/tests/${id}`} className="th-btn th-btn--primary">
+            <Link to={`/student-ielts/tests/${id}`} className="th-btn th-btn--primary">
               Start this test
             </Link>
           </div>
@@ -202,7 +202,7 @@ export default function TestHistory() {
     <div className="page test-history">
       <section className="th-hero-card">
         <div className="th-hero-top">
-          <Link to="/tests" className="th-back-link">
+          <Link to="/student-ielts/tests" className="th-back-link">
             <ArrowBackRoundedIcon className="th-back-icon" />
             All tests
           </Link>
@@ -215,10 +215,10 @@ export default function TestHistory() {
             <p>Review every submission, spot patterns, and plan your next improvement cycle.</p>
           </div>
           <div className="th-hero-actions">
-            <Link to={`/tests/${id}`} className="th-btn th-btn--primary">
+            <Link to={`/student-ielts/tests/${id}`} className="th-btn th-btn--primary">
               Retake test
             </Link>
-            <Link to="/tests" className="th-btn th-btn--ghost">
+            <Link to="/student-ielts/tests" className="th-btn th-btn--ghost">
               Browse tests
             </Link>
           </div>
@@ -263,7 +263,7 @@ export default function TestHistory() {
           <h2>No attempts yet</h2>
           <p>Start your first attempt and this page will track all history for this test.</p>
           <div className="th-state-actions">
-            <Link to={`/tests/${id}`} className="th-btn th-btn--primary">
+            <Link to={`/student-ielts/tests/${id}`} className="th-btn th-btn--primary">
               Start this test
             </Link>
           </div>
@@ -367,3 +367,4 @@ export default function TestHistory() {
     </div>
   );
 }
+

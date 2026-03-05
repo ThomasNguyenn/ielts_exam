@@ -13,6 +13,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { api } from '@/shared/api/client';
+import { DatePicker } from '@/components/ui/date-picker';
 import PaginationControls from '@/shared/components/PaginationControls';
 import './GradingDashboard.css';
 
@@ -663,11 +664,21 @@ export default function GradingDashboard() {
                 <div id="grading-date-filter-panel" className="grading-dashboard__date-panel" role="dialog" aria-label="Date range filter">
                   <div className="grading-dashboard__date-field">
                     <span className="grading-dashboard__date-label">Start date</span>
-                    <input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
+                    <DatePicker
+                      value={startDate}
+                      onChange={setStartDate}
+                      placeholder="Select start date"
+                      buttonClassName="h-9 w-full justify-start bg-white"
+                    />
                   </div>
                   <div className="grading-dashboard__date-field">
                     <span className="grading-dashboard__date-label">End date</span>
-                    <input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
+                    <DatePicker
+                      value={endDate}
+                      onChange={setEndDate}
+                      placeholder="Select end date"
+                      buttonClassName="h-9 w-full justify-start bg-white"
+                    />
                   </div>
                   <div className="grading-dashboard__date-actions">
                     <button type="button" className="grading-dashboard__date-btn" onClick={clearDateFilter}>Clear</button>
@@ -909,3 +920,4 @@ export default function GradingDashboard() {
     </div>
   );
 }
+

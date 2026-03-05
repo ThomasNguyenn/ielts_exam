@@ -180,11 +180,13 @@ a {
   position: fixed;
   bottom: 20px;
   left: 20px;
+  right: auto;
   padding: 10px 20px;
   background-color: #333;
   color: #fff;
   border-radius: 4px;
   font-size: 0.9rem;
+  max-width: min(420px, calc(100vw - 24px));
   z-index: 9999;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
   animation: fadeInOut 2s ease-in-out forwards;

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '@/shared/api/client';
 import { useNavigate } from 'react-router-dom';
 import { useNotification } from '@/shared/context/NotificationContext';
+import { DatePicker } from '@/components/ui/date-picker';
 
 export default function StudyPlanSetup({ onCreated, mode = 'create', initialData = null }) {
     const [targetDate, setTargetDate] = useState('');
@@ -24,6 +25,10 @@ export default function StudyPlanSetup({ onCreated, mode = 'create', initialData
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (!targetDate) {
+            showNotification('Vui lòng chọn ngày thi dự kiến.', 'warning');
+            return;
+        }
         setLoading(true);
 
         try {
@@ -34,7 +39,7 @@ export default function StudyPlanSetup({ onCreated, mode = 'create', initialData
             }
 
             if (onCreated) onCreated();
-            else navigate('/dashboard');
+            else navigate('/student-ielts/profile');
         } catch (error) {
             console.error(`Failed to ${isEditMode ? 'update' : 'create'} plan`, error);
             showNotification(`Failed to ${isEditMode ? 'update' : 'create'} study plan: ${error.message}`, 'error');
@@ -50,12 +55,10 @@ export default function StudyPlanSetup({ onCreated, mode = 'create', initialData
             <form onSubmit={handleSubmit}>
                 <div style={{ marginBottom: '1.5rem' }}>
                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>Ngày thi dự kiến</label>
-                    <input
-                        type="date"
-                        required
+                    <DatePicker
                         value={targetDate}
-                        onChange={(e) => setTargetDate(e.target.value)}
-                        style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                        onChange={setTargetDate}
+                        buttonClassName="h-12 w-full justify-start rounded-lg border-[#e2e8f0] px-3"
                     />
                 </div>
 

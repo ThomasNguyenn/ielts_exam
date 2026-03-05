@@ -1,13 +1,24 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Plus, Search, Filter, Pencil, Trash2 } from 'lucide-react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { Plus, Search, Pencil, Trash2 } from 'lucide-react';
 import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
 import ConfirmationModal from '@/shared/components/ConfirmationModal';
 import { useNavigate, useParams } from 'react-router-dom';
-import AddSpeaking from './AddSpeaking';
-import './Manage.css';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 const ITEMS_PER_PAGE = 6;
+const AddSpeaking = lazy(() => import('./AddSpeaking'));
 
 const formatDate = (value) => {
   if (!value) return '-';
@@ -44,7 +55,7 @@ export default function ManageSpeakingSinglePage() {
   const loadSpeakings = async () => {
     setLoading(true);
     try {
-      const res = await api.getSpeakings();
+      const res = await api.getSpeakings({ summary: 1 });
       setSpeakings(res.data || []);
     } catch (err) {
       showNotification(err.message || 'Failed to load speaking topics', 'error');
@@ -107,13 +118,13 @@ export default function ManageSpeakingSinglePage() {
   const openCreateTab = () => {
     setEditingId(null);
     setActiveTab('editor');
-    navigate('/manage/speaking/new');
+    navigate('/admin/manage/speaking/new');
   };
 
   const openEditTab = (id) => {
     setEditingId(id);
     setActiveTab('editor');
-    navigate(`/manage/speaking/${id}`);
+    navigate(`/admin/manage/speaking/${id}`);
   };
 
   const handleSaved = async () => {
@@ -121,147 +132,136 @@ export default function ManageSpeakingSinglePage() {
     setActiveTab('list');
     setEditingId(null);
     setCurrentPage(1);
-    navigate('/manage/speaking');
+    navigate('/admin/manage/speaking');
   };
 
   const listStart = filteredSpeakings.length ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0;
   const listEnd = Math.min(currentPage * ITEMS_PER_PAGE, filteredSpeakings.length);
 
   return (
-    <div className="manage-main-content">
-      {activeTab === 'list' && (
-        <div className="manage-main-tabs">
-          <button
-            type="button"
-            className={`manage-tab-btn ${activeTab === 'list' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveTab('list');
-              setEditingId(null);
-              navigate('/manage/speaking');
-            }}
-          >
-            Manage Speaking Topics
-          </button>
-          <button
-            type="button"
-            className={`manage-tab-btn ${activeTab === 'editor' ? 'active' : ''}`}
-            onClick={() => {
-              if (editingId) {
-                setActiveTab('editor');
-                navigate(`/manage/speaking/${editingId}`);
-                return;
-              }
-              openCreateTab();
-            }}
-          >
-            {editingId ? 'Edit Speaking' : 'Add Speaking'}
-          </button>
-        </div>
-      )}
-
+    <div className='space-y-4'>
       {activeTab === 'list' ? (
         <>
-          <div className="manage-main-topbar">
-            <div>
-              <h1 className="manage-main-title">Manage Speaking Topics</h1>
-              <p className="manage-main-subtitle">{filteredSpeakings.length} items total</p>
-            </div>
-
-            <div className="manage-main-controls">
-              <div className="manage-main-search">
-                <Search className="manage-main-search-icon" />
-                <input
-                  type="text"
-                  placeholder="Search speaking topics..."
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                />
-              </div>
-
-              <button type="button" className="manage-main-filter-btn">
-                <Filter size={16} />
-                Filter
-              </button>
-
-              <button type="button" className="manage-main-add-btn" onClick={openCreateTab}>
-                <Plus size={16} />
-                Add New
-              </button>
-            </div>
+          <div className='flex flex-wrap items-center gap-2'>
+            <Button type='button' variant='default' onClick={() => { setActiveTab('list'); setEditingId(null); navigate('/admin/manage/speaking'); }}>
+              Manage Speaking Topics
+            </Button>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={() => {
+                if (editingId) {
+                  setActiveTab('editor');
+                  navigate(`/admin/manage/speaking/${editingId}`);
+                  return;
+                }
+                openCreateTab();
+              }}
+            >
+              {editingId ? 'Edit Speaking' : 'Add Speaking'}
+            </Button>
           </div>
 
-          <div className="manage-main-table-card">
-            <table className="manage-main-table">
-              <thead>
-                <tr>
-                  <th>Title</th>
-                  <th>Skill</th>
-                  <th>Part</th>
-                  <th>Questions</th>
-                  <th>Status</th>
-                  <th>Date</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {!loading && paginatedSpeakings.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className="manage-main-empty">No speaking topics found.</td>
-                  </tr>
-                )}
-
-                {paginatedSpeakings.map((row) => (
-                  <tr key={row._id}>
-                    <td className="manage-cell-title">{row.title || row._id}</td>
-                    <td><span className="manage-pill skill-speaking">Speaking</span></td>
-                    <td>Part {row.part || 1}</td>
-                    <td>{Array.isArray(row.sub_questions) ? row.sub_questions.length : 0}</td>
-                    <td><span className={`manage-pill ${row.is_active === false ? 'status-archived' : 'status-published'}`}>{row.is_active === false ? 'Archived' : 'Published'}</span></td>
-                    <td>{formatDate(row.updatedAt || row.updated_at || row.createdAt || row.created_at)}</td>
-                    <td>
-                      <div className="manage-row-actions">
-                        <button type="button" className="icon-btn" onClick={() => openEditTab(row._id)} title="Edit">
-                          <Pencil size={15} />
-                        </button>
-                        <button type="button" className="icon-btn danger" onClick={() => handleDelete(row._id)} title="Delete">
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            <div className="manage-main-pagination">
-              <span>
-                Showing {listStart}-{listEnd} of {filteredSpeakings.length}
-              </span>
-
-              <div className="manage-main-pagination-buttons">
-                <button type="button" disabled={currentPage === 1} onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}>Prev</button>
-                <span>{currentPage}/{totalPages}</span>
-                <button type="button" disabled={currentPage === totalPages} onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}>Next</button>
+          <Card className='border-border/70 shadow-sm'>
+            <CardHeader className='flex flex-col gap-4 md:flex-row md:items-center md:justify-between'>
+              <div>
+                <CardTitle>Manage Speaking Topics</CardTitle>
+                <CardDescription>{filteredSpeakings.length} items total</CardDescription>
               </div>
-            </div>
-          </div>
+              <div className='flex w-full flex-col gap-2 sm:w-auto sm:flex-row'>
+                <div className='relative min-w-[240px]'>
+                  <Search className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
+                  <Input
+                    type='text'
+                    className='pl-9'
+                    placeholder='Search speaking topics...'
+                    value={searchQuery}
+                    onChange={(event) => {
+                      setSearchQuery(event.target.value);
+                      setCurrentPage(1);
+                    }}
+                  />
+                </div>
+                <Button type='button' onClick={openCreateTab}>
+                  <Plus className='h-4 w-4' />
+                  Add New
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className='space-y-4'>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Title</TableHead>
+                    <TableHead>Skill</TableHead>
+                    <TableHead>Part</TableHead>
+                    <TableHead>Questions</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {!loading && paginatedSpeakings.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className='text-center text-muted-foreground'>No speaking topics found.</TableCell>
+                    </TableRow>
+                  ) : null}
+
+                  {paginatedSpeakings.map((row) => (
+                    <TableRow key={row._id}>
+                      <TableCell className='font-medium'>{row.title || row._id}</TableCell>
+                      <TableCell><Badge variant='secondary'>Speaking</Badge></TableCell>
+                      <TableCell>Part {row.part || 1}</TableCell>
+                      <TableCell>{Number.isFinite(Number(row?.question_count)) ? Number(row.question_count) : (Array.isArray(row.sub_questions) ? row.sub_questions.length : 0)}</TableCell>
+                      <TableCell>
+                        <Badge variant={row.is_active === false ? 'outline' : 'default'}>
+                          {row.is_active === false ? 'Archived' : 'Published'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{formatDate(row.updatedAt || row.updated_at || row.createdAt || row.created_at)}</TableCell>
+                      <TableCell>
+                        <div className='flex items-center gap-1'>
+                          <Button type='button' size='icon' variant='ghost' onClick={() => openEditTab(row._id)} title='Edit'>
+                            <Pencil className='h-4 w-4' />
+                          </Button>
+                          <Button type='button' size='icon' variant='ghost' className='text-destructive' onClick={() => handleDelete(row._id)} title='Delete'>
+                            <Trash2 className='h-4 w-4' />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              <div className='flex flex-col gap-2 border-t pt-3 text-sm sm:flex-row sm:items-center sm:justify-between'>
+                <span className='text-muted-foreground'>Showing {listStart}-{listEnd} of {filteredSpeakings.length}</span>
+                <div className='flex items-center gap-2'>
+                  <Button type='button' size='sm' variant='outline' disabled={currentPage === 1} onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}>Prev</Button>
+                  <span>{currentPage}/{totalPages}</span>
+                  <Button type='button' size='sm' variant='outline' disabled={currentPage === totalPages} onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}>Next</Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </>
       ) : (
-        <AddSpeaking
-          editIdOverride={editingId}
-          embedded
-          hideExistingList
-          onSaved={handleSaved}
-          onCancel={() => {
-            setActiveTab('list');
-            setEditingId(null);
-            navigate('/manage/speaking');
-          }}
-        />
+        <Suspense fallback={<Card className='border-border/70 shadow-sm'><CardContent className='p-6 text-sm text-muted-foreground'>Loading editor...</CardContent></Card>}>
+          <AddSpeaking
+            editIdOverride={editingId}
+            embedded
+            hideExistingList
+            onSaved={handleSaved}
+            onCancel={() => {
+              setActiveTab('list');
+              setEditingId(null);
+              navigate('/admin/manage/speaking');
+            }}
+          />
+        </Suspense>
       )}
+
       <ConfirmationModal
         isOpen={confirmModal.isOpen}
         onClose={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
@@ -273,3 +273,4 @@ export default function ManageSpeakingSinglePage() {
     </div>
   );
 }
+

@@ -20,6 +20,7 @@ vi.mock("../../models/Invitation.model.js", () => ({
 vi.mock("../../services/email.service.js", () => ({
   sendVerificationEmail: vi.fn(),
   sendPasswordResetEmail: sendPasswordResetEmailMock,
+  sendEmailChangeVerificationEmail: vi.fn(),
 }));
 
 vi.mock("bcryptjs", () => ({

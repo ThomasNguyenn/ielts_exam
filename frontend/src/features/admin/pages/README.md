@@ -55,13 +55,18 @@ Giao vien nhap:
 
 - `Question Text`
 - Block `Options` cua cau hoi (A, B, C, D...)
-- `Correct Answer(s)` co the nhap `label/id/text` (uu tien nhap label hoac id, vd: `A`)
+- Chon dap an dung bang nut `ID` ben trai tung option (A/B/C/...)
+- `Correct Answer(s)` la **read-only**, he thong tu dong dien theo ID da chon
 
 Neu la dang "chon N dap an":
 
 - Dat `Layout = checkbox`
-- Tao N question slots trong cung group
-- Dung 1 bo options dung chung
+- `Sync Question Slots` de tao N slot data
+- UI chi hien **1 shared editor** (khong lap lai N card)
+- Click nhieu ID option de toggle dap an dung
+- `Correct Answer(s)` hien danh sach ID theo CSV (`A, C, D`)
+- Moi slot trong group se duoc dong bo cung 1 danh sach dap an
+- Save chi hop le khi so ID da chon = `required_count` (hoac fallback bang so slot)
 
 ### D. Matching (`matching_headings`, `matching_features`, `matching_info`, `matching_information`, `matching`)
 
@@ -88,10 +93,7 @@ Ap dung cho:
 - `summary_completion`
 - `note_completion`
 - `table_completion`
-- `flow_chart_completion`
-- `diagram_label_completion`
 - `form_completion`
-- `plan_map_diagram`
 - `listening_map`
 
 Giao vien nhap:
@@ -108,6 +110,34 @@ Luu y:
 - Rieng `summary_completion` co 2 mode runtime:
   - Neu `Options List` co item hop le (`id` hoac `text`) => Exam render drag-drop.
   - Neu `Options List` rong/khong hop le => Exam tu dong render nhu `note_completion` (text input cho moi placeholder).
+
+### E1. `diagram_label_completion` (new workflow)
+
+Giao vien nhap:
+
+- `Diagram Image` (upload hoac URL)
+- `ListQuestion` (so dong = so input can co tren anh)
+- `Question Text` la **optional** (co the de trong)
+- `Correct Answer(s)` theo tung dong
+
+Luu y:
+
+- Neu `Question Text` de trong, Exam van hien `Q{number}` + input.
+- `Options List` khong dung cho type nay nua.
+
+### E2. `flow_chart_completion` + `plan_map_diagram` (new workflow)
+
+Giao vien nhap:
+
+- `ListSteps` (moi step 1 dong text)
+- Dat placeholder trong step: `[1]`, `[2]`, ...
+- Bam `Sync Questions from [n]` de tao/cap nhat answer rows
+- Nhap `Correct Answer(s)` cho tung `q_number`
+
+Luu y:
+
+- `Options List` khong dung cho 2 type nay nua.
+- Exam render steps theo chieu doc, co mui ten xuong giua cac step.
 
 ### F. `gap_fill` (legacy) / `note_completion`
 
@@ -154,6 +184,7 @@ Giao vien nhap:
 
 - Ap dung cho: `mult_choice`, nhom matching, va completion co option pool.
 - Neu token trong `Correct Answer(s)` khong map duoc vao `id/label/text` hop le, backend tra `400` va block save.
+- Rieng `mult_choice` + `checkbox`: frontend block save neu so dap an da chon khong dung `required_count`.
 
 ## 4) Minimal checklist truoc khi Save
 

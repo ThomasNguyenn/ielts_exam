@@ -225,7 +225,7 @@ export default function WritingAIResult() {
         <div className="writing-ai-container">
           <section className="writing-fast-error">
             <p>{error}</p>
-            <button type="button" onClick={() => navigate('/tests')}>Back to Tests</button>
+            <button type="button" onClick={() => navigate('/student-ielts/tests')}>Back to Tests</button>
           </section>
         </div>
       </div>
@@ -238,13 +238,13 @@ export default function WritingAIResult() {
         <WritingDetailResultView
           submission={submission}
           detailResult={detailResult}
-          onBack={() => navigate('/tests')}
+          onBack={() => navigate('/student-ielts/tests')}
         />
       ) : (
         <WritingFastResultView
           submission={submission}
           fastResult={fastResult || { criteria_scores: {} }}
-          onBack={() => navigate('/tests')}
+          onBack={() => navigate('/student-ielts/tests')}
           onRequestDetail={startDetailScoring}
           onRetryFast={async () => {
             try {
@@ -271,3 +271,4 @@ export default function WritingAIResult() {
     </>
   );
 }
+

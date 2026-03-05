@@ -49,7 +49,7 @@ const RANGE_OPTIONS = [
 ];
 
 const SKILL_OPTIONS = [
-    { value: 'all', label: 'Tất cả kỹ năng' },
+    { value: 'all', label: 'Tất cả kĩ năng' },
     { value: 'reading', label: 'Đọc' },
     { value: 'listening', label: 'Nghe' },
     { value: 'writing', label: 'Viết' },
@@ -204,7 +204,7 @@ export default function EnhancedAnalyticsDashboard() {
 
         const basePath = studentId
             ? `/analytics/student/${studentId}/errors`
-            : '/analytics/errors';
+            : '/student-ielts/analytics/errors';
         const query = params.toString();
         navigate(query ? `${basePath}?${query}` : basePath);
     };
@@ -520,3 +520,4 @@ export default function EnhancedAnalyticsDashboard() {
         </div>
     );
 }
+

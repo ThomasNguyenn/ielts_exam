@@ -3,7 +3,12 @@ import { useNavigate, useParams } from "react-router-dom";
 import { api } from "@/shared/api/client";
 import { useNotification } from "@/shared/context/NotificationContext";
 import { clampScore, formatDate, statusLabel } from "./homework.utils";
-import "./Homework.css";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function HomeworkSubmissionGradePage() {
   const { submissionId } = useParams();
@@ -63,16 +68,15 @@ export default function HomeworkSubmissionGradePage() {
   const assignment = submission.assignment || {};
   const student = submission.student || {};
 
-  const canPlayAudio = useMemo(
-    () => Boolean(submission?.audio_item?.url),
-    [submission?.audio_item?.url],
-  );
+  const canPlayAudio = useMemo(() => Boolean(submission?.audio_item?.url), [submission?.audio_item?.url]);
 
   if (loading) {
     return (
-      <div className="homework-page">
-        <div className="homework-shell">
-          <div className="homework-card">Loading submission...</div>
+      <div className="min-h-[calc(100vh-70px)] bg-muted/30">
+        <div className="mx-auto w-full max-w-7xl p-4 md:p-6">
+          <Card className="border-border/70 shadow-sm">
+            <CardContent className="p-6 text-sm text-muted-foreground">Loading submission...</CardContent>
+          </Card>
         </div>
       </div>
     );
@@ -80,93 +84,121 @@ export default function HomeworkSubmissionGradePage() {
 
   if (error) {
     return (
-      <div className="homework-page">
-        <div className="homework-shell">
-          <div className="homework-card">
-            <p className="homework-danger">{error}</p>
-            <button type="button" className="homework-btn" onClick={() => navigate(-1)}>
-              Back
-            </button>
-          </div>
+      <div className="min-h-[calc(100vh-70px)] bg-muted/30">
+        <div className="mx-auto w-full max-w-7xl p-4 md:p-6">
+          <Card className="border-border/70 shadow-sm">
+            <CardContent className="space-y-4 p-6">
+              <p className="text-sm font-medium text-destructive">{error}</p>
+              <Button type="button" variant="outline" onClick={() => navigate(-1)}>
+                Back
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="homework-page">
-      <div className="homework-shell">
-        <section className="homework-header">
-          <div className="homework-title-wrap">
-            <h1>Grade Submission</h1>
-            <p>
-              {assignment?.title || "Assignment"} • Student: {student?.name || "Unknown"} • Status:{" "}
-              {statusLabel(submission?.status)}
-            </p>
-          </div>
-          <div className="homework-actions">
-            <button type="button" className="homework-btn ghost" onClick={() => navigate("/")}>
-              Trang chủ
-            </button>
-            <button
-              type="button"
-              className="homework-btn ghost"
-              onClick={() => navigate(`/homework/assignments/${assignment?._id}/dashboard`)}
-            >
-              Dashboard
-            </button>
-            <button type="button" className="homework-btn" onClick={() => navigate(-1)}>
-              Back
-            </button>
-          </div>
-        </section>
+    <div className="min-h-[calc(100vh-70px)] bg-muted/30">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 md:p-6">
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-1">
+              <CardTitle className="text-2xl tracking-tight">Grade Submission</CardTitle>
+              <CardDescription>
+                {assignment?.title || "Assignment"} - Student: {student?.name || "Unknown"}
+              </CardDescription>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="outline">{statusLabel(submission?.status)}</Badge>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => navigate(`/homework/assignments/${assignment?._id}/dashboard`)}
+              >
+                Dashboard
+              </Button>
+              <Button type="button" variant="outline" onClick={() => navigate(-1)}>
+                Back
+              </Button>
+            </div>
+          </CardHeader>
+        </Card>
 
-        <section className="homework-grid">
-          <article className="homework-card homework-span-8">
-            <h2 className="homework-item-title">Submission Content</h2>
-            <p className="homework-item-meta">
-              Submitted at {formatDate(submission?.submitted_at)} • Updated {formatDate(submission?.updatedAt)}
-            </p>
+        <div className="grid gap-6 xl:grid-cols-12">
+          <Card className="border-border/70 shadow-sm xl:col-span-8">
+            <CardHeader>
+              <CardTitle>Submission Content</CardTitle>
+              <CardDescription>
+                Submitted at {formatDate(submission?.submitted_at)} - Updated {formatDate(submission?.updatedAt)}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {submission?.text_answer ? (
+                <Card className="border-border/70 shadow-none">
+                  <CardHeader>
+                    <CardTitle className="text-base">Text Answer</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="whitespace-pre-wrap text-sm text-foreground/90">{submission.text_answer}</p>
+                  </CardContent>
+                </Card>
+              ) : null}
 
-            {submission?.text_answer ? (
-              <div className="homework-card" style={{ marginTop: "0.7rem" }}>
-                <h3 className="homework-item-title">Text Answer</h3>
-                <p className="homework-task-sub">{submission.text_answer}</p>
-              </div>
-            ) : null}
+              {Array.isArray(submission?.image_items) && submission.image_items.length > 0 ? (
+                <Card className="border-border/70 shadow-none">
+                  <CardHeader>
+                    <CardTitle className="text-base">Image Attachments</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+                      {submission.image_items.map((item) => (
+                        <a
+                          href={item?.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          key={item?.storage_key || item?.url}
+                          className="overflow-hidden rounded-md border"
+                        >
+                          <img src={item?.url} alt="Submission" className="aspect-[4/3] w-full object-cover" />
+                        </a>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : null}
 
-            {Array.isArray(submission?.image_items) && submission.image_items.length > 0 ? (
-              <div className="homework-card" style={{ marginTop: "0.7rem" }}>
-                <h3 className="homework-item-title">Image Attachments</h3>
-                <div className="homework-media-grid">
-                  {submission.image_items.map((item) => (
-                    <a href={item?.url} target="_blank" rel="noreferrer" key={item?.storage_key || item?.url}>
-                      <img src={item?.url} alt="Submission" />
-                    </a>
-                  ))}
+              {canPlayAudio ? (
+                <Card className="border-border/70 shadow-none">
+                  <CardHeader>
+                    <CardTitle className="text-base">Audio Attachment</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <audio controls src={submission.audio_item.url} className="w-full" />
+                    <p className="text-xs text-muted-foreground">Type: {submission.audio_item?.mime || "audio"}</p>
+                  </CardContent>
+                </Card>
+              ) : null}
+
+              {!submission?.text_answer && !(submission?.image_items || []).length && !canPlayAudio ? (
+                <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+                  Submission has no content.
                 </div>
-              </div>
-            ) : null}
+              ) : null}
+            </CardContent>
+          </Card>
 
-            {canPlayAudio ? (
-              <div className="homework-card" style={{ marginTop: "0.7rem" }}>
-                <h3 className="homework-item-title">Audio Attachment</h3>
-                <audio controls src={submission.audio_item.url} style={{ width: "100%" }} />
-                <p className="homework-item-meta">Type: {submission.audio_item?.mime || "audio"} </p>
-              </div>
-            ) : null}
-
-            {!submission?.text_answer && !(submission?.image_items || []).length && !canPlayAudio ? (
-              <div className="homework-empty">Submission has no content.</div>
-            ) : null}
-          </article>
-
-          <article className="homework-card homework-span-4">
-            <h2 className="homework-item-title">Grade</h2>
-            <div className="homework-stacked">
-              <div className="homework-field">
-                <label>Score (0-10)</label>
-                <input
+          <Card className="border-border/70 shadow-sm xl:col-span-4">
+            <CardHeader>
+              <CardTitle>Grade</CardTitle>
+              <CardDescription>Save score and actionable teacher feedback.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="submission-score">Score (0-10)</Label>
+                <Input
+                  id="submission-score"
                   type="number"
                   step="0.1"
                   min={0}
@@ -175,20 +207,24 @@ export default function HomeworkSubmissionGradePage() {
                   onChange={(event) => setScore(event.target.value)}
                 />
               </div>
-              <div className="homework-field">
-                <label>Feedback</label>
-                <textarea
+
+              <div className="space-y-2">
+                <Label htmlFor="submission-feedback">Feedback</Label>
+                <Textarea
+                  id="submission-feedback"
                   value={feedback}
                   onChange={(event) => setFeedback(event.target.value)}
                   placeholder="Write actionable feedback for student..."
+                  rows={8}
                 />
               </div>
-              <button type="button" className="homework-btn primary" onClick={handleSave} disabled={saving}>
+
+              <Button type="button" onClick={handleSave} disabled={saving} className="w-full">
                 {saving ? "Saving..." : "Save Grade"}
-              </button>
-            </div>
-          </article>
-        </section>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

@@ -1,0 +1,537 @@
+﻿.admin-people-shell {
+  --apw-primary: #1152d4;
+  --apw-primary-strong: #0c44b5;
+  --apw-text-main: #0f172a;
+  --apw-text-sub: #475569;
+  --apw-text-muted: #64748b;
+  --apw-border: #e2e8f0;
+  --apw-surface: #ffffff;
+  --apw-surface-soft: #f8fafc;
+  --apw-bg: #f6f6f8;
+  --apw-success: #15803d;
+  --apw-danger: #b91c1c;
+  --apw-warning: #b45309;
+
+  background: var(--apw-bg);
+  color: var(--apw-text-main);
+  font-family: "Lexend", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  padding: 1.25rem;
+}
+
+.admin-people-shell * {
+  box-sizing: border-box;
+}
+
+.admin-people-hero {
+  background: var(--apw-surface);
+  border: 1px solid var(--apw-border);
+  border-radius: 16px;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.05);
+  padding: 1rem 1.1rem;
+}
+
+.admin-people-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+}
+
+.admin-people-title-row h1 {
+  margin: 0;
+  font-size: clamp(1.25rem, 2vw, 1.6rem);
+  line-height: 1.25;
+  color: var(--apw-text-main);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.admin-people-title-row p {
+  margin: 0.3rem 0 0;
+  color: var(--apw-text-muted);
+  font-size: 0.9rem;
+}
+
+.admin-people-count-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  border: 1px solid #dbe4f4;
+  background: #f8fbff;
+  color: var(--apw-primary);
+  font-size: 0.82rem;
+  font-weight: 800;
+  padding: 0 0.65rem;
+  white-space: nowrap;
+}
+
+.admin-people-alert {
+  margin-top: 0.9rem;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  background: #fff1f2;
+  color: #9f1239;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.admin-people-panel {
+  margin-top: 0.9rem;
+  background: var(--apw-surface);
+  border: 1px solid var(--apw-border);
+  border-radius: 16px;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.04);
+  padding: 0.95rem;
+}
+
+.admin-people-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.85rem;
+}
+
+.admin-people-filter-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.admin-people-pill {
+  border: 1px solid var(--apw-border);
+  background: #ffffff;
+  color: var(--apw-text-sub);
+  border-radius: 999px;
+  padding: 0.42rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.admin-people-pill:hover:not(:disabled) {
+  color: var(--apw-primary);
+  border-color: #bfd4ff;
+}
+
+.admin-people-pill.active {
+  border-color: var(--apw-primary);
+  background: var(--apw-primary);
+  color: #ffffff;
+  box-shadow: 0 4px 10px rgba(17, 82, 212, 0.22);
+}
+
+.admin-people-search {
+  position: relative;
+  width: min(100%, 360px);
+}
+
+.admin-people-search input,
+.admin-people-field input,
+.admin-people-field select {
+  width: 100%;
+  border: 1px solid var(--apw-border);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--apw-text-main);
+  font-size: 0.88rem;
+  font-weight: 500;
+  padding: 0.55rem 0.75rem;
+  transition: all 0.2s ease;
+}
+
+.admin-people-search input {
+  padding-left: 2rem;
+}
+
+.admin-people-search input:focus,
+.admin-people-field input:focus,
+.admin-people-field select:focus {
+  outline: none;
+  border-color: var(--apw-primary);
+  box-shadow: 0 0 0 3px rgba(17, 82, 212, 0.14);
+}
+
+.admin-people-search-icon {
+  position: absolute;
+  left: 0.68rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  width: 15px;
+  height: 15px;
+  pointer-events: none;
+}
+
+.admin-people-btn {
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 0.5rem 0.8rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.admin-people-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.admin-people-btn-primary {
+  background: var(--apw-primary);
+  color: #ffffff;
+  border-color: var(--apw-primary);
+}
+
+.admin-people-btn-primary:hover:not(:disabled) {
+  background: var(--apw-primary-strong);
+  border-color: var(--apw-primary-strong);
+}
+
+.admin-people-btn-outline {
+  background: #ffffff;
+  border-color: var(--apw-border);
+  color: var(--apw-text-sub);
+}
+
+.admin-people-btn-outline:hover:not(:disabled) {
+  border-color: #bfd4ff;
+  color: var(--apw-primary);
+}
+
+.admin-people-btn-danger {
+  background: #ffffff;
+  border-color: #fecaca;
+  color: var(--apw-danger);
+}
+
+.admin-people-btn-danger:hover:not(:disabled) {
+  border-color: #fca5a5;
+  background: #fff1f2;
+}
+
+.admin-people-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.admin-people-card {
+  border: 1px solid var(--apw-border);
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 0.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  transition: all 0.2s ease;
+}
+
+.admin-people-card:hover {
+  border-color: #bfd4ff;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+}
+
+.admin-people-card-main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex: 1;
+}
+
+.admin-people-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: #edf4ff;
+  border: 1px solid #cfe2ff;
+  color: var(--apw-primary);
+  font-size: 0.8rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.admin-people-identity {
+  min-width: 0;
+}
+
+.admin-people-name {
+  margin: 0;
+  color: var(--apw-text-main);
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.3;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.admin-people-email {
+  margin: 0.15rem 0 0;
+  color: var(--apw-text-muted);
+  font-size: 0.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-people-meta {
+  margin-top: 0.2rem;
+  color: #94a3b8;
+  font-size: 0.74rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+}
+
+.admin-people-card-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-shrink: 0;
+}
+
+.admin-people-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 999px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  border: 1px solid transparent;
+  line-height: 1;
+}
+
+.admin-people-chip--admin {
+  background: #fff1f2;
+  color: #9f1239;
+  border-color: #fecdd3;
+}
+
+.admin-people-chip--teacher {
+  background: #ecfeff;
+  color: #0f766e;
+  border-color: #bae6fd;
+}
+
+.admin-people-chip--student {
+  background: #f8fafc;
+  color: #475569;
+  border-color: #e2e8f0;
+}
+
+.admin-people-chip--online {
+  background: #ecfdf3;
+  color: #166534;
+  border-color: #bbf7d0;
+}
+
+.admin-people-chip--pending {
+  background: #fffbeb;
+  color: #a16207;
+  border-color: #fde68a;
+}
+
+.admin-people-chip--accepted {
+  background: #ecfdf3;
+  color: #166534;
+  border-color: #bbf7d0;
+}
+
+.admin-people-chip--expired {
+  background: #fff1f2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.admin-people-empty {
+  border: 1px dashed #cbd5e1;
+  background: #f8fafc;
+  border-radius: 14px;
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--apw-text-muted);
+}
+
+.admin-people-empty h3 {
+  margin: 0;
+  color: #334155;
+  font-size: 1.02rem;
+  font-weight: 800;
+}
+
+.admin-people-empty p {
+  margin: 0.45rem 0 0;
+  font-size: 0.85rem;
+}
+
+.admin-people-empty-icon {
+  width: 36px;
+  height: 36px;
+  margin: 0 auto 0.6rem;
+  color: #94a3b8;
+}
+
+.admin-people-skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.admin-people-skeleton-card {
+  border: 1px solid var(--apw-border);
+  border-radius: 14px;
+  background: #ffffff;
+  height: 78px;
+  position: relative;
+  overflow: hidden;
+}
+
+.admin-people-skeleton-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(241, 245, 249, 0) 0%, rgba(241, 245, 249, 0.85) 50%, rgba(241, 245, 249, 0) 100%);
+  transform: translateX(-100%);
+  animation: adminPeopleShimmer 1.25s ease-in-out infinite;
+}
+
+@keyframes adminPeopleShimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.admin-people-form-card {
+  border: 1px solid var(--apw-border);
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 0.95rem;
+  margin-bottom: 0.85rem;
+}
+
+.admin-people-form-title {
+  margin: 0;
+  color: var(--apw-text-main);
+  font-size: 0.98rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.admin-people-form-help {
+  margin: 0.35rem 0 0.8rem;
+  color: var(--apw-text-muted);
+  font-size: 0.82rem;
+}
+
+.admin-people-invite-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 2fr) minmax(130px, 1fr) auto;
+  gap: 0.65rem;
+  align-items: end;
+}
+
+.admin-people-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.admin-people-field label {
+  color: var(--apw-text-sub);
+  font-size: 0.77rem;
+  font-weight: 700;
+}
+
+.admin-people-field-icon-wrap {
+  position: relative;
+}
+
+.admin-people-field-icon-wrap input {
+  padding-left: 2rem;
+}
+
+.admin-people-field-icon {
+  position: absolute;
+  left: 0.7rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  width: 15px;
+  height: 15px;
+}
+
+.admin-people-pagination-wrap {
+  margin-top: 0.65rem;
+}
+
+@media (max-width: 900px) {
+  .admin-people-card {
+    align-items: flex-start;
+  }
+
+  .admin-people-card-actions {
+    flex-direction: column;
+    align-items: flex-end;
+  }
+
+  .admin-people-invite-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-people-search {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-people-shell {
+    padding: 0.85rem;
+  }
+
+  .admin-people-hero,
+  .admin-people-panel {
+    border-radius: 14px;
+    padding: 0.8rem;
+  }
+
+  .admin-people-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-people-card-actions {
+    width: 100%;
+    justify-content: flex-start;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .admin-people-email {
+    white-space: normal;
+  }
+}
+

@@ -38,7 +38,7 @@ const PracticeFlowContainer = () => {
           setQuestion(res.data);
         } else {
           showNotification('Failed to load writing task', 'error');
-          navigate('/practice');
+          navigate('/student-ielts/practice');
         }
       } else {
         const q = await api.getRandomQuestion();
@@ -77,7 +77,7 @@ const PracticeFlowContainer = () => {
     if (currentPhase > 1) {
       setCurrentPhase(currentPhase - 1);
     } else {
-      navigate('/practice');
+      navigate('/student-ielts/practice');
     }
   };
 
@@ -94,7 +94,7 @@ const PracticeFlowContainer = () => {
     return (
       <div className="practice-container" style={{ textAlign: 'center', padding: '4rem' }}>
         <h2>Question not found</h2>
-        <button onClick={() => navigate('/practice')} className="btn">
+        <button onClick={() => navigate('/student-ielts/practice')} className="btn">
           Back to Practice List
         </button>
       </div>
@@ -171,3 +171,4 @@ const PracticeFlowContainer = () => {
 };
 
 export default PracticeFlowContainer;
+

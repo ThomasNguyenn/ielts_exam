@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '@/shared/api/client';
+import { getDefaultRouteForUser } from '@/app/roleRouting';
 import { Sparkles, Mail, Lock, BookOpen, Check, AlertCircle } from 'lucide-react';
 import './Auth.css';
 
@@ -19,7 +20,7 @@ export default function Login() {
       const res = await api.login(form);
       api.setToken(res.data.token);
       api.setUser(res.data.user);
-      navigate('/profile', { replace: true });
+      navigate(getDefaultRouteForUser(res.data.user), { replace: true });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -132,3 +133,4 @@ export default function Login() {
     </div>
   );
 }
+

@@ -282,7 +282,7 @@ export default function AddSkillModules() {
           await api.deleteSkillModule(id);
           showNotification('Skill module disabled.', 'success');
           await loadModules();
-          if (editId === id) navigate('/manage/skill-modules');
+          if (editId === id) navigate('/admin/manage/skill-modules');
         } catch (error) {
           showNotification(error.message || 'Failed to disable module', 'error');
         }
@@ -506,7 +506,7 @@ export default function AddSkillModules() {
             {submitLoading ? 'Saving...' : editId ? 'Update Skill Module' : 'Create Skill Module'}
           </button>
           {editId && (
-            <Link to="/manage/skill-modules" className="btn btn-ghost">
+            <Link to="/admin/manage/skill-modules" className="btn btn-ghost">
               Cancel
             </Link>
           )}
@@ -600,7 +600,7 @@ export default function AddSkillModules() {
                       </span>
                     </div>
                     <div className="item-actions">
-                      <Link to={`/manage/skill-modules/${module._id}`} className="btn btn-ghost btn-sm">
+                      <Link to={`/admin/manage/skill-modules/${module._id}`} className="btn btn-ghost btn-sm">
                         Edit
                       </Link>
                       {module.isActive && (
@@ -628,3 +628,4 @@ export default function AddSkillModules() {
     </div>
   );
 }
+

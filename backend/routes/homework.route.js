@@ -1,6 +1,7 @@
 import express from "express";
 import multer from "multer";
 import { verifyToken, isTeacherOrAdmin } from "../middleware/auth.middleware.js";
+import { isStudentRole } from "../utils/role.utils.js";
 import {
   getHomeworkAssignments,
   getHomeworkAssignmentById,
@@ -42,7 +43,7 @@ const HOMEWORK_AUDIO_MAX_BYTES = getHomeworkAudioUploadLimitBytes();
 const HOMEWORK_SUBMISSION_MAX_BYTES = Math.max(HOMEWORK_IMAGE_MAX_BYTES, HOMEWORK_AUDIO_MAX_BYTES);
 
 const isStudent = (req, res, next) => {
-  if (req.user?.role === "student") return next();
+  if (isStudentRole(req.user?.role)) return next();
   return sendControllerError(req, res, {
     statusCode: 403,
     message: "Forbidden: Student access required",

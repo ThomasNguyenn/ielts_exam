@@ -222,7 +222,6 @@
 
 .homework-task-card {
   border: 1px solid #dbeafe;
-  border-left: 4px solid #2563eb;
   background: #ffffff;
   border-radius: 12px;
   padding: 0.82rem;
@@ -247,6 +246,11 @@
   font-size: 0.8rem;
   color: #475569;
   white-space: pre-wrap;
+}
+
+.homework-task-blocks {
+  display: grid;
+  gap: 0.5rem;
 }
 
 .homework-task-actions {
@@ -348,6 +352,23 @@
 
 .homework-video-lite .yt-lite > .lty-playbtn {
   opacity: 0.95;
+}
+
+.homework-breadcrumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #475569;
+  font-size: 0.9rem;
+}
+
+.homework-breadcrumb a {
+  color: #0f49bd;
+  text-decoration: none;
+}
+
+.homework-breadcrumb a:hover {
+  text-decoration: underline;
 }
 
 @media (max-width: 980px) {

@@ -29,11 +29,13 @@ import {
 } from "../services/homeworkAccess.service.js";
 import { parsePagination, buildPaginationMeta } from "../utils/pagination.js";
 import { handleControllerError, sendControllerError } from "../utils/controllerError.js";
+import { STUDENT_ROLE_VALUES } from "../utils/role.utils.js";
 
 const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 const TASK_RESOURCE_MODES_SET = new Set(TASK_RESOURCE_MODES);
 const TASK_RESOURCE_REF_TYPES_SET = new Set(["passage", "section", "speaking", "writing"]);
 const CONTENT_BLOCK_TYPES_SET = new Set(CONTENT_BLOCK_TYPES);
+const MATCH_COLOR_TOKENS = ["emerald", "sky", "amber", "fuchsia", "teal", "rose", "indigo", "lime"];
 
 const HOMEWORK_IMAGE_MAX_BYTES = getHomeworkImageUploadLimitBytes();
 const HOMEWORK_IMAGE_MAX_FILES = getHomeworkImageMaxFiles();
@@ -83,19 +85,248 @@ const sanitizeBlockData = (value) => {
   }
 };
 
+const normalizeBlockId = (value, fallback = "") => {
+  const normalized = String(value || "").trim();
+  return normalized || String(fallback || "").trim();
+};
+
+const resolveMatchColorToken = (value, fallbackIndex = 0) => {
+  const normalized = String(value || "").trim();
+  if (MATCH_COLOR_TOKENS.includes(normalized)) return normalized;
+  return MATCH_COLOR_TOKENS[fallbackIndex % MATCH_COLOR_TOKENS.length];
+};
+
+const sanitizeQuizOptionData = (option = {}, optionIndex = 0) => {
+  const normalizedOption = option && typeof option === "object" && !Array.isArray(option) ? option : {};
+  return {
+    id: normalizeBlockId(normalizedOption.id, `option-${optionIndex + 1}`),
+    text: normalizeOptionalString(normalizedOption.text) || "",
+  };
+};
+
+const sanitizeQuizQuestionData = (question = {}, questionIndex = 0) => {
+  const normalizedQuestion = question && typeof question === "object" && !Array.isArray(question) ? question : {};
+  const rawOptions = Array.isArray(normalizedQuestion.options) ? normalizedQuestion.options : [];
+  const normalizedOptions = rawOptions
+    .map((option, optionIndex) => sanitizeQuizOptionData(option, optionIndex))
+    .filter((option) => Boolean(option.id));
+  const options = normalizedOptions.length >= 2
+    ? normalizedOptions
+    : [
+        ...normalizedOptions,
+        ...Array.from({ length: Math.max(0, 2 - normalizedOptions.length) }, (_, index) =>
+          sanitizeQuizOptionData({}, normalizedOptions.length + index),
+        ),
+      ];
+
+  const optionIdSet = new Set(options.map((option) => option.id));
+  const allowMultiple = toBoolean(normalizedQuestion.allow_multiple, false);
+  const requestedCorrectOptionIds = Array.isArray(normalizedQuestion.correct_option_ids)
+    ? normalizedQuestion.correct_option_ids
+    : normalizeOptionalString(normalizedQuestion.correct_option_id)
+      ? [normalizedQuestion.correct_option_id]
+      : [];
+
+  const filteredCorrectOptionIds = requestedCorrectOptionIds
+    .map((value) => normalizeBlockId(value))
+    .filter((value) => optionIdSet.has(value));
+  const uniqueCorrectOptionIds = Array.from(new Set(filteredCorrectOptionIds));
+
+  return {
+    id: normalizeBlockId(normalizedQuestion.id, `question-${questionIndex + 1}`),
+    question: normalizeOptionalString(normalizedQuestion.question ?? normalizedQuestion.text) || "",
+    explanation: normalizeOptionalString(normalizedQuestion.explanation) || "",
+    allow_multiple: allowMultiple,
+    options,
+    correct_option_ids: allowMultiple ? uniqueCorrectOptionIds : uniqueCorrectOptionIds.slice(0, 1),
+  };
+};
+
+const sanitizePassageBlockData = (data = {}, blockIndex = 0) => {
+  const normalizedData = sanitizeBlockData(data);
+  return {
+    ...normalizedData,
+    block_id: normalizeBlockId(normalizedData.block_id, `block-${blockIndex + 1}`),
+    text: String(normalizedData.text || ""),
+  };
+};
+
+const sanitizeQuizBlockData = (data = {}, blockIndex = 0) => {
+  const normalizedData = sanitizeBlockData(data);
+  const hasLegacySingleQuestion =
+    Boolean(normalizeOptionalString(normalizedData.question))
+    || Boolean(normalizeOptionalString(normalizedData.text))
+    || (Array.isArray(normalizedData.options) && normalizedData.options.length > 0);
+
+  const rawQuestions = Array.isArray(normalizedData.questions) && normalizedData.questions.length > 0
+    ? normalizedData.questions
+    : hasLegacySingleQuestion
+      ? [normalizedData]
+      : [{}];
+
+  const questions = rawQuestions
+    .map((question, questionIndex) => sanitizeQuizQuestionData(question, questionIndex))
+    .filter((question) => question.question || question.options.length > 0);
+
+  return {
+    block_id: normalizeBlockId(normalizedData.block_id, `block-${blockIndex + 1}`),
+    parent_passage_block_id: normalizeBlockId(normalizedData.parent_passage_block_id),
+    questions: questions.length > 0 ? questions : [sanitizeQuizQuestionData({}, 0)],
+  };
+};
+
+const sanitizeMatchingItemData = (item = {}, itemIndex = 0, side = "left") => {
+  const normalizedItem = item && typeof item === "object" && !Array.isArray(item) ? item : {};
+  return {
+    id: normalizeBlockId(normalizedItem.id, `${side}-${itemIndex + 1}`),
+    text: String(normalizedItem.text || ""),
+  };
+};
+
+const sanitizeMatchingBlockData = (data = {}, blockIndex = 0) => {
+  const normalizedData = sanitizeBlockData(data);
+  const normalizedLeftItems = Array.isArray(normalizedData.left_items)
+    ? normalizedData.left_items
+        .map((item, itemIndex) => sanitizeMatchingItemData(item, itemIndex, "left"))
+        .filter((item) => Boolean(item.id))
+    : [];
+  const normalizedRightItems = Array.isArray(normalizedData.right_items)
+    ? normalizedData.right_items
+        .map((item, itemIndex) => sanitizeMatchingItemData(item, itemIndex, "right"))
+        .filter((item) => Boolean(item.id))
+    : [];
+  const normalizedRowCount = Math.max(normalizedLeftItems.length, normalizedRightItems.length, 2);
+  const leftItems = Array.from({ length: normalizedRowCount }, (_, itemIndex) =>
+    sanitizeMatchingItemData(normalizedLeftItems[itemIndex] || {}, itemIndex, "left"),
+  );
+  const rightItems = Array.from({ length: normalizedRowCount }, (_, itemIndex) =>
+    sanitizeMatchingItemData(normalizedRightItems[itemIndex] || {}, itemIndex, "right"),
+  );
+
+  const leftIdSet = new Set(leftItems.map((item) => item.id));
+  const rightIdSet = new Set(rightItems.map((item) => item.id));
+  const usedLeft = new Set();
+  const usedRight = new Set();
+  const usedColors = new Set();
+  const rawMatches = Array.isArray(normalizedData.matches) ? normalizedData.matches : [];
+  const matches = [];
+
+  rawMatches.forEach((pair, pairIndex) => {
+    const leftId = normalizeBlockId(pair?.left_id);
+    const rightId = normalizeBlockId(pair?.right_id);
+    if (!leftId || !rightId) return;
+    if (!leftIdSet.has(leftId) || !rightIdSet.has(rightId)) return;
+    if (usedLeft.has(leftId) || usedRight.has(rightId)) return;
+
+    let colorKey = resolveMatchColorToken(pair?.color_key, pairIndex);
+    if (usedColors.has(colorKey)) {
+      colorKey =
+        MATCH_COLOR_TOKENS.find((token) => !usedColors.has(token))
+        || MATCH_COLOR_TOKENS[matches.length % MATCH_COLOR_TOKENS.length];
+    }
+
+    usedLeft.add(leftId);
+    usedRight.add(rightId);
+    usedColors.add(colorKey);
+    matches.push({
+      left_id: leftId,
+      right_id: rightId,
+      color_key: colorKey,
+    });
+  });
+
+  return {
+    block_id: normalizeBlockId(normalizedData.block_id, `block-${blockIndex + 1}`),
+    prompt: String(normalizedData.prompt || ""),
+    left_items: leftItems,
+    right_items: rightItems,
+    matches,
+  };
+};
+
+const sanitizeGapfillBlockData = (data = {}, blockIndex = 0) => {
+  const normalizedData = sanitizeBlockData(data);
+  const mode = ["numbered", "paragraph"].includes(String(normalizedData.mode || "").trim().toLowerCase())
+    ? String(normalizedData.mode || "").trim().toLowerCase()
+    : "numbered";
+  const numberedItems = Array.isArray(normalizedData.numbered_items)
+    ? normalizedData.numbered_items.map((item) => String(item || ""))
+    : Array.isArray(normalizedData.sentences)
+      ? normalizedData.sentences.map((item) => String(item || ""))
+      : [];
+
+  return {
+    block_id: normalizeBlockId(normalizedData.block_id, `block-${blockIndex + 1}`),
+    mode,
+    prompt: String(normalizedData.prompt || ""),
+    numbered_items: mode === "numbered" ? (numberedItems.length > 0 ? numberedItems : [""]) : numberedItems,
+    paragraph_text: String(normalizedData.paragraph_text || normalizedData.text || ""),
+  };
+};
+
+const sanitizeFindMistakeBlockData = (data = {}, blockIndex = 0) => {
+  const normalizedData = sanitizeBlockData(data);
+  const numberedItems = Array.isArray(normalizedData.numbered_items)
+    ? normalizedData.numbered_items.map((item) => String(item || ""))
+    : Array.isArray(normalizedData.sentences)
+      ? normalizedData.sentences.map((item) => String(item || ""))
+      : [];
+
+  return {
+    block_id: normalizeBlockId(normalizedData.block_id, `block-${blockIndex + 1}`),
+    mode: "numbered",
+    prompt: String(normalizedData.prompt || ""),
+    numbered_items: numberedItems.length > 0 ? numberedItems : [""],
+  };
+};
+
+const sanitizeBlockDataByType = (type, data, blockIndex) => {
+  if (type === "passage") return sanitizePassageBlockData(data, blockIndex);
+  if (type === "quiz") return sanitizeQuizBlockData(data, blockIndex);
+  if (type === "matching") return sanitizeMatchingBlockData(data, blockIndex);
+  if (type === "gapfill") return sanitizeGapfillBlockData(data, blockIndex);
+  if (type === "find_mistake") return sanitizeFindMistakeBlockData(data, blockIndex);
+
+  const normalizedData = sanitizeBlockData(data);
+  return {
+    ...normalizedData,
+    block_id: normalizeBlockId(normalizedData.block_id, `block-${blockIndex + 1}`),
+  };
+};
+
 const sanitizeContentBlocks = (blocks = []) => {
   if (!Array.isArray(blocks)) return [];
-  return blocks
+  const normalizedBlocks = blocks
     .map((block, index) => {
       const type = normalizeOptionalString(block?.type);
       if (!type || !CONTENT_BLOCK_TYPES_SET.has(type)) return null;
       return {
         type,
         order: index,
-        data: sanitizeBlockData(block?.data),
+        data: sanitizeBlockDataByType(type, block?.data, index),
       };
     })
     .filter(Boolean);
+
+  const passageBlockIdSet = new Set(
+    normalizedBlocks
+      .filter((block) => block.type === "passage")
+      .map((block) => normalizeBlockId(block?.data?.block_id))
+      .filter(Boolean),
+  );
+
+  return normalizedBlocks.map((block) => {
+    if (block.type !== "quiz") return block;
+    const parentPassageBlockId = normalizeBlockId(block?.data?.parent_passage_block_id);
+    if (!parentPassageBlockId || passageBlockIdSet.has(parentPassageBlockId)) return block;
+    return {
+      ...block,
+      data: {
+        ...block.data,
+        parent_passage_block_id: "",
+      },
+    };
+  });
 };
 
 const toUniqueObjectIds = (values = []) => {
@@ -528,7 +759,7 @@ const assertStudentsValidOrRespond = async (req, res, studentIds = []) => {
 
   const students = await User.find({
     _id: { $in: studentIds },
-    role: "student",
+    role: { $in: STUDENT_ROLE_VALUES },
   })
     .select("_id")
     .lean();
@@ -776,7 +1007,7 @@ const getAssignmentTargetStudents = async (assignment = {}) => {
 
   const students = await User.find({
     _id: { $in: Array.from(studentIdSet).map((id) => new mongoose.Types.ObjectId(id)) },
-    role: "student",
+    role: { $in: STUDENT_ROLE_VALUES },
   })
     .select("_id name email homeroom_teacher_id")
     .lean();

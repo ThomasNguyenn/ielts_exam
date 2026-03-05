@@ -201,7 +201,39 @@ const resolveSubmissionSort = ({ sortBy, sortOrder }) => {
 export const getAllWritings = async (req, res) => {
     try {
         const privileged = isTeacherOrAdminRequest(req);
-        const writings = await Writing.find(privileged ? {} : { is_active: true });
+        const summaryMode = ["1", "true", "yes"].includes(String(req.query?.summary || "").toLowerCase());
+        const limitValue = Number(req.query?.limit);
+        const limit =
+            Number.isFinite(limitValue) && limitValue > 0
+                ? Math.min(Math.floor(limitValue), 5000)
+                : null;
+        const filter = privileged ? {} : { is_active: true };
+
+        let query = Writing.find(filter);
+        if (summaryMode) {
+            query = query.select([
+                "_id",
+                "title",
+                "type",
+                "prompt",
+                "task_type",
+                "writing_task_type",
+                "image_url",
+                "word_limit",
+                "essay_word_limit",
+                "time_limit",
+                "is_active",
+                "is_real_test",
+                "isSinglePart",
+                "createdAt",
+                "updatedAt",
+                "created_at",
+                "updated_at",
+            ].join(" "));
+        }
+        if (limit) query = query.limit(limit);
+        const writings = await query.lean();
+
         if (privileged) {
             return res.status(200).json({ success: true, data: writings });
         }

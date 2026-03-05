@@ -178,7 +178,7 @@ export default function SpeakingFlow() {
       })
       .catch((err) => {
         console.error(err);
-        navigate('/practice');
+        navigate('/student-ielts/practice');
       })
       .finally(() => setLoading(false));
   }, [id, navigate]);
@@ -366,7 +366,7 @@ export default function SpeakingFlow() {
     <div className="practice-flow-container" style={containerStyle}>
       {!isResultPhase && (
         <div className="practice-header">
-          <button onClick={() => navigate('/speaking')} className="btn-ghost" style={{ marginBottom: '1rem' }}>
+          <button onClick={() => navigate('/student-ielts/speaking')} className="btn-ghost" style={{ marginBottom: '1rem' }}>
             {'<-'} Back to list
           </button>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
@@ -478,3 +478,4 @@ export default function SpeakingFlow() {
     </div>
   );
 }
+

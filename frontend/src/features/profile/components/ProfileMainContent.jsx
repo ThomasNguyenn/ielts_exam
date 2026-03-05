@@ -46,21 +46,21 @@ export default function ProfileMainContent({ summary, badges, activities }) {
 
     if (type === 'writing' && submissionId) {
       return {
-        to: `/tests/writing/submissions/${submissionId}`,
+        to: `/student-ielts/tests/writing/submissions/${submissionId}`,
         label: 'View Writing',
       };
     }
 
     if ((type === 'reading' || type === 'listening') && testId && attemptId) {
       return {
-        to: `/tests/${testId}/attempts/${attemptId}/result`,
+        to: `/student-ielts/tests/${testId}/attempts/${attemptId}/result`,
         label: 'View Result',
       };
     }
 
     if (type === 'writing' && testId) {
       return {
-        to: `/tests/${testId}/history`,
+        to: `/student-ielts/tests/${testId}/history`,
         label: 'View History',
       };
     }
@@ -121,7 +121,7 @@ export default function ProfileMainContent({ summary, badges, activities }) {
       <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-slate-900 text-xl font-bold">Achievement Badges</h2>
-          <Link to="/achievements" className="text-sm text-[#1152d4] font-medium hover:underline">
+          <Link to="/student-ielts/achievements" className="text-sm text-[#1152d4] font-medium hover:underline">
             View All
           </Link>
         </div>
@@ -240,3 +240,4 @@ export default function ProfileMainContent({ summary, badges, activities }) {
     </div>
   );
 }
+

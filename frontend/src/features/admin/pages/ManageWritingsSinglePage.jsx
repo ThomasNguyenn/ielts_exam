@@ -1,14 +1,25 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Plus, Search, Filter, Pencil, Trash2 } from 'lucide-react';
+﻿import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { Plus, Search, Pencil, Trash2 } from 'lucide-react';
 import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
 import ConfirmationModal from '@/shared/components/ConfirmationModal';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getWritingTaskTypeLabel } from '@/shared/constants/writingTaskTypes';
-import AddWriting from './AddWriting';
-import './Manage.css';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 const ITEMS_PER_PAGE = 6;
+const AddWriting = lazy(() => import('./AddWriting'));
 
 const formatDate = (value) => {
   if (!value) return '-';
@@ -45,7 +56,7 @@ export default function ManageWritingsSinglePage() {
   const loadWritings = async () => {
     setLoading(true);
     try {
-      const res = await api.getWritings();
+      const res = await api.getWritings({ summary: 1 });
       setWritings(res.data || []);
     } catch (err) {
       showNotification(err.message || 'Failed to load writings', 'error');
@@ -73,17 +84,14 @@ export default function ManageWritingsSinglePage() {
     const matched = !query
       ? writings
       : writings.filter((item) =>
-      String(item.title || '').toLowerCase().includes(query) ||
-      String(item._id || '').toLowerCase().includes(query)
-    );
+        String(item.title || '').toLowerCase().includes(query) ||
+        String(item._id || '').toLowerCase().includes(query)
+      );
     return [...matched].sort((a, b) => getSortTimestamp(b) - getSortTimestamp(a));
   }, [writings, searchQuery]);
 
   const totalPages = Math.max(1, Math.ceil(filteredWritings.length / ITEMS_PER_PAGE));
-  const paginatedWritings = filteredWritings.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-  );
+  const paginatedWritings = filteredWritings.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   const handleDelete = (id) => {
     setConfirmModal({
@@ -106,13 +114,13 @@ export default function ManageWritingsSinglePage() {
   const openCreateTab = () => {
     setEditingId(null);
     setActiveTab('editor');
-    navigate('/manage/writings/new');
+    navigate('/admin/manage/writings/new');
   };
 
   const openEditTab = (id) => {
     setEditingId(id);
     setActiveTab('editor');
-    navigate(`/manage/writings/${id}`);
+    navigate(`/admin/manage/writings/${id}`);
   };
 
   const handleSaved = async () => {
@@ -120,149 +128,138 @@ export default function ManageWritingsSinglePage() {
     setActiveTab('list');
     setEditingId(null);
     setCurrentPage(1);
-    navigate('/manage/writings');
+    navigate('/admin/manage/writings');
   };
 
   const listStart = filteredWritings.length ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0;
   const listEnd = Math.min(currentPage * ITEMS_PER_PAGE, filteredWritings.length);
 
   return (
-    <div className="manage-main-content">
-      {activeTab === 'list' && (
-        <div className="manage-main-tabs">
-          <button
-            type="button"
-            className={`manage-tab-btn ${activeTab === 'list' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveTab('list');
-              setEditingId(null);
-              navigate('/manage/writings');
-            }}
-          >
-            Manage Writing Tasks
-          </button>
-          <button
-            type="button"
-            className={`manage-tab-btn ${activeTab === 'editor' ? 'active' : ''}`}
-            onClick={() => {
-              if (editingId) {
-                setActiveTab('editor');
-                navigate(`/manage/writings/${editingId}`);
-                return;
-              }
-              openCreateTab();
-            }}
-          >
-            {editingId ? 'Edit Writing' : 'Add Writing'}
-          </button>
-        </div>
-      )}
-
+    <div className='space-y-4'>
       {activeTab === 'list' ? (
         <>
-          <div className="manage-main-topbar">
-            <div>
-              <h1 className="manage-main-title">Manage Writing Tasks</h1>
-              <p className="manage-main-subtitle">{filteredWritings.length} items total</p>
-            </div>
-
-            <div className="manage-main-controls">
-              <div className="manage-main-search">
-                <Search className="manage-main-search-icon" />
-                <input
-                  type="text"
-                  placeholder="Search writings..."
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                />
-              </div>
-
-              <button type="button" className="manage-main-filter-btn">
-                <Filter size={16} />
-                Filter
-              </button>
-
-              <button type="button" className="manage-main-add-btn" onClick={openCreateTab}>
-                <Plus size={16} />
-                Add New
-              </button>
-            </div>
+          <div className='flex flex-wrap items-center gap-2'>
+            <Button type='button' variant='default' onClick={() => { setActiveTab('list'); setEditingId(null); navigate('/admin/manage/writings'); }}>
+              Manage Writing Tasks
+            </Button>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={() => {
+                if (editingId) {
+                  setActiveTab('editor');
+                  navigate(`/admin/manage/writings/${editingId}`);
+                  return;
+                }
+                openCreateTab();
+              }}
+            >
+              {editingId ? 'Edit Writing' : 'Add Writing'}
+            </Button>
           </div>
 
-          <div className="manage-main-table-card">
-            <table className="manage-main-table">
-              <thead>
-                <tr>
-                  <th>Title</th>
-                  <th>Skill</th>
-                  <th>Type</th>
-                  <th>Variant</th>
-                  <th>Word Limit</th>
-                  <th>Status</th>
-                  <th>Date</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {!loading && paginatedWritings.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="manage-main-empty">No writings found.</td>
-                  </tr>
-                )}
-
-                {paginatedWritings.map((row) => (
-                  <tr key={row._id}>
-                    <td className="manage-cell-title">{row.title || row._id}</td>
-                    <td><span className="manage-pill skill-writing">Writing</span></td>
-                    <td>{String(row.task_type || 'task1').toUpperCase()}</td>
-                    <td>{getWritingTaskTypeLabel(row.writing_task_type) || '—'}</td>
-                    <td>{row.essay_word_limit || row.word_limit || 250}</td>
-                    <td><span className={`manage-pill ${row.is_active === false ? 'status-archived' : 'status-published'}`}>{row.is_active === false ? 'Archived' : 'Published'}</span></td>
-                    <td>{formatDate(row.updatedAt || row.updated_at || row.createdAt || row.created_at)}</td>
-                    <td>
-                      <div className="manage-row-actions">
-                        <button type="button" className="icon-btn" onClick={() => openEditTab(row._id)} title="Edit">
-                          <Pencil size={15} />
-                        </button>
-                        <button type="button" className="icon-btn danger" onClick={() => handleDelete(row._id)} title="Delete">
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            <div className="manage-main-pagination">
-              <span>
-                Showing {listStart}-{listEnd} of {filteredWritings.length}
-              </span>
-
-              <div className="manage-main-pagination-buttons">
-                <button type="button" disabled={currentPage === 1} onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}>Prev</button>
-                <span>{currentPage}/{totalPages}</span>
-                <button type="button" disabled={currentPage === totalPages} onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}>Next</button>
+          <Card className='border-border/70 shadow-sm'>
+            <CardHeader className='flex flex-col gap-4 md:flex-row md:items-center md:justify-between'>
+              <div>
+                <CardTitle>Manage Writing Tasks</CardTitle>
+                <CardDescription>{filteredWritings.length} items total</CardDescription>
               </div>
-            </div>
-          </div>
+              <div className='flex w-full flex-col gap-2 sm:w-auto sm:flex-row'>
+                <div className='relative min-w-[240px]'>
+                  <Search className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
+                  <Input
+                    type='text'
+                    className='pl-9'
+                    placeholder='Search writings...'
+                    value={searchQuery}
+                    onChange={(event) => {
+                      setSearchQuery(event.target.value);
+                      setCurrentPage(1);
+                    }}
+                  />
+                </div>
+                <Button type='button' onClick={openCreateTab}>
+                  <Plus className='h-4 w-4' />
+                  Add New
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className='space-y-4'>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Title</TableHead>
+                    <TableHead>Skill</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Variant</TableHead>
+                    <TableHead>Word Limit</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {!loading && paginatedWritings.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className='text-center text-muted-foreground'>No writings found.</TableCell>
+                    </TableRow>
+                  ) : null}
+
+                  {paginatedWritings.map((row) => (
+                    <TableRow key={row._id}>
+                      <TableCell className='font-medium'>{row.title || row._id}</TableCell>
+                      <TableCell><Badge variant='secondary'>Writing</Badge></TableCell>
+                      <TableCell>{String(row.task_type || 'task1').toUpperCase()}</TableCell>
+                      <TableCell>{getWritingTaskTypeLabel(row.writing_task_type) || '-'}</TableCell>
+                      <TableCell>{row.essay_word_limit || row.word_limit || 250}</TableCell>
+                      <TableCell>
+                        <Badge variant={row.is_active === false ? 'outline' : 'default'}>
+                          {row.is_active === false ? 'Archived' : 'Published'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{formatDate(row.updatedAt || row.updated_at || row.createdAt || row.created_at)}</TableCell>
+                      <TableCell>
+                        <div className='flex items-center gap-1'>
+                          <Button type='button' size='icon' variant='ghost' onClick={() => openEditTab(row._id)} title='Edit'>
+                            <Pencil className='h-4 w-4' />
+                          </Button>
+                          <Button type='button' size='icon' variant='ghost' className='text-destructive' onClick={() => handleDelete(row._id)} title='Delete'>
+                            <Trash2 className='h-4 w-4' />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              <div className='flex flex-col gap-2 border-t pt-3 text-sm sm:flex-row sm:items-center sm:justify-between'>
+                <span className='text-muted-foreground'>Showing {listStart}-{listEnd} of {filteredWritings.length}</span>
+                <div className='flex items-center gap-2'>
+                  <Button type='button' size='sm' variant='outline' disabled={currentPage === 1} onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}>Prev</Button>
+                  <span>{currentPage}/{totalPages}</span>
+                  <Button type='button' size='sm' variant='outline' disabled={currentPage === totalPages} onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}>Next</Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </>
       ) : (
-        <AddWriting
-          editIdOverride={editingId}
-          embedded
-          hideExistingList
-          onSaved={handleSaved}
-          onCancel={() => {
-            setActiveTab('list');
-            setEditingId(null);
-            navigate('/manage/writings');
-          }}
-        />
+        <Suspense fallback={<Card className='border-border/70 shadow-sm'><CardContent className='p-6 text-sm text-muted-foreground'>Loading editor...</CardContent></Card>}>
+          <AddWriting
+            editIdOverride={editingId}
+            embedded
+            hideExistingList
+            onSaved={handleSaved}
+            onCancel={() => {
+              setActiveTab('list');
+              setEditingId(null);
+              navigate('/admin/manage/writings');
+            }}
+          />
+        </Suspense>
       )}
+
       <ConfirmationModal
         isOpen={confirmModal.isOpen}
         onClose={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}

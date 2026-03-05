@@ -21,7 +21,7 @@ const WritingScoreDashboard = ({ result, onRestart }) => {
                 <div className="flex gap-3">
                     <button
                         className="px-5 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50 hover:text-slate-800 transition-all shadow-sm"
-                        onClick={() => navigate('/tests')}
+                        onClick={() => navigate('/student-ielts/tests')}
                     >
                         Return to Tests
                     </button>
@@ -118,3 +118,4 @@ const WritingScoreDashboard = ({ result, onRestart }) => {
 };
 
 export default WritingScoreDashboard;
+

@@ -71,7 +71,7 @@ export default function WritingLiveJoin() {
           <button type="submit" className="btn btn-primary" disabled={loading}>
             {loading ? 'Joining...' : 'Join room'}
           </button>
-          <button type="button" className="btn btn-ghost" onClick={() => navigate('/profile')} disabled={loading}>
+          <button type="button" className="btn btn-ghost" onClick={() => navigate('/student-ielts/profile')} disabled={loading}>
             Back
           </button>
         </div>
@@ -79,4 +79,5 @@ export default function WritingLiveJoin() {
     </div>
   );
 }
+
 

@@ -33,7 +33,7 @@ export default function LearnModuleDetail() {
       } catch (error) {
         if (!cancelled) {
           showNotification(error.message || 'Failed to load module', 'error');
-          navigate('/learn', { replace: true });
+          navigate('/student-ielts/learn', { replace: true });
         }
       } finally {
         if (!cancelled) {
@@ -61,7 +61,7 @@ export default function LearnModuleDetail() {
       try {
         await api.markModuleComplete(module._id, score);
         showNotification(`Module completed! Score: ${score}%`, 'success');
-        navigate('/learn');
+        navigate('/student-ielts/learn');
       } catch (error) {
         showNotification(error.message || 'Failed to save progress', 'error');
       }
@@ -93,7 +93,7 @@ export default function LearnModuleDetail() {
       {!showQuiz ? (
         <LessonViewer
           module={module}
-          onClose={() => navigate('/learn')}
+          onClose={() => navigate('/student-ielts/learn')}
           onStartQuiz={() => setShowQuiz(true)}
           isCompleted={isCompleted}
         />
@@ -107,3 +107,4 @@ export default function LearnModuleDetail() {
     </div>
   );
 }
+

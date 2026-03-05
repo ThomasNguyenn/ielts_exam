@@ -391,7 +391,7 @@ export default function SpeakingList() {
                     <div className="sp2-card-body">
                       <h3>{heading}</h3>
                       <p>{description}</p>
-                      <Link to={`/practice/speaking/${item?._id}`} className="sp2-primary-cta">
+                      <Link to={`/student-ielts/speaking/${item?._id}`} className="sp2-primary-cta">
                         <MicOutlined className="sp2-icon" />
                         Practice with AI
                         <ArrowForwardOutlined className="sp2-icon" />
@@ -449,3 +449,4 @@ export default function SpeakingList() {
     </div>
   );
 }
+

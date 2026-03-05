@@ -147,7 +147,55 @@ const buildObjectiveQuestionReview = ({ attempt, test, examType }) => {
 export const getAllTests = async (req, res) => {
     try {
         const shouldPaginate = req.query.page !== undefined || req.query.limit !== undefined;
+        const summaryMode = parseTruthyQueryFlag(req.query.summary);
         const filter = buildTestFilter(req.query);
+        const activeOnly = parseTruthyQueryFlag(req.query.activeOnly);
+        if (activeOnly || !isTeacherOrAdminRequest(req)) {
+            filter.is_active = true;
+        }
+
+        if (summaryMode) {
+            const basePipeline = [
+                { $match: filter },
+                { $sort: { created_at: -1, createdAt: -1 } },
+                {
+                    $project: {
+                        _id: 1,
+                        title: 1,
+                        category: 1,
+                        type: 1,
+                        duration: 1,
+                        is_active: 1,
+                        is_real_test: 1,
+                        createdAt: 1,
+                        updatedAt: 1,
+                        created_at: 1,
+                        updated_at: 1,
+                        reading_count: { $size: { $ifNull: ["$reading_passages", []] } },
+                        listening_count: { $size: { $ifNull: ["$listening_sections", []] } },
+                        writing_count: { $size: { $ifNull: ["$writing_tasks", []] } },
+                    },
+                },
+            ];
+
+            if (!shouldPaginate) {
+                const tests = await Test.aggregate(basePipeline);
+                return res.status(200).json({ success: true, data: tests });
+            }
+
+            const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 12, maxLimit: 100 });
+            const [tests, totalItems] = await Promise.all([
+                Test.aggregate([...basePipeline, { $skip: skip }, { $limit: limit }]),
+                Test.countDocuments(filter),
+            ]);
+
+            return res.status(200).json({
+                success: true,
+                data: tests,
+                pagination: buildPaginationMeta({ page, limit, totalItems })
+            });
+        }
+
         const includeQuestionGroupTypes = parseTruthyQueryFlag(req.query.includeQuestionGroupTypes);
         const readingSelect = includeQuestionGroupTypes ? 'title question_groups.type' : 'title';
         const listeningSelect = includeQuestionGroupTypes ? 'title question_groups.type' : 'title';
@@ -182,6 +230,10 @@ export const getAllTests = async (req, res) => {
 export const getTestCategories = async (req, res) => {
     try {
         const filter = buildTestFilter(req.query, { includeCategory: false });
+        const activeOnly = parseTruthyQueryFlag(req.query.activeOnly);
+        if (activeOnly || !isTeacherOrAdminRequest(req)) {
+            filter.is_active = true;
+        }
 
         const rows = await Test.aggregate([
             { $match: filter },
@@ -597,12 +649,16 @@ function stripForExam(item) {
         _id: item._id,
         title: item.title,
         content: item.content,
+        transcript: item.transcript || '',
         audio_url: item.audio_url || null,
         question_groups: (item.question_groups || []).map((g) => ({
             type: g.type,
             group_layout: g.group_layout, // Include group_layout
+            use_once: Boolean(g.use_once),
             instructions: g.instructions,
             text: g.text, // Include summary text
+            image_url: g.image_url || null,
+            steps: Array.isArray(g.steps) ? g.steps : [],
             headings: g.headings,
             options: g.options, // Include summary options
             questions: (g.questions || []).map((q) => ({

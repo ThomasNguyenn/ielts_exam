@@ -1,9 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { X } from 'lucide-react';
+import { MoreVertical, X } from 'lucide-react';
 import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
-import './Manage.css';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 
 function speakingToForm(speaking) {
   if (!speaking) {
@@ -67,6 +75,7 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
   const [submitLoading, setSubmitLoading] = useState(false);
   const [generateAudioLoading, setGenerateAudioLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [isMetadataOpen, setIsMetadataOpen] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -84,7 +93,7 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
         }
       } catch (loadErr) {
         setLoadError(loadErr.message);
-        showNotification(`Lỗi tải bài thi nói: ${loadErr.message}`, 'error');
+        showNotification(`Error loading speaking test: ${loadErr.message}`, 'error');
       } finally {
         setLoading(false);
       }
@@ -133,7 +142,7 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
 
     const sourcePrompt = form.part === '2' ? form.part2_question_title : form.prompt;
     if (!sourcePrompt.trim()) {
-      showNotification('Vui long them cau hoi chinh truoc.', 'warning');
+      showNotification('Please enter the main prompt first.', 'warning');
       return;
     }
 
@@ -154,10 +163,10 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
       }
 
       updateForm('generatedAudioUrl', audioUrl);
-      showNotification('Da tao file mp3 cho cau hoi thanh cong.', 'success');
+      showNotification('Generated MP3 successfully.', 'success');
     } catch (generateErr) {
       console.error('Generate speaking read-aloud failed:', generateErr);
-      showNotification(generateErr.message || 'Khong the tao am thanh. Vui long thu lai.', 'error');
+      showNotification(generateErr.message || 'Could not generate audio. Please try again.', 'error');
     } finally {
       setGenerateAudioLoading(false);
     }
@@ -168,16 +177,12 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
 
     const normalizedPart = Number(form.part);
     const normalizedTitle = form.title.trim();
-    const normalizedPart2QuestionTitle = normalizedPart === 2
-      ? String(form.part2_question_title || '').trim()
-      : '';
-    const normalizedPrompt = normalizedPart === 2
-      ? normalizedPart2QuestionTitle
-      : form.prompt.trim();
+    const normalizedPart2QuestionTitle = normalizedPart === 2 ? String(form.part2_question_title || '').trim() : '';
+    const normalizedPrompt = normalizedPart === 2 ? normalizedPart2QuestionTitle : form.prompt.trim();
     const normalizedCueCard = form.cue_card?.trim() || '';
 
     if (!form._id.trim() || !normalizedTitle || !normalizedPrompt || (normalizedPart === 2 && !normalizedPart2QuestionTitle)) {
-      showNotification('ID, topic category, and question title are required.', 'error');
+      showNotification('ID, topic category, and prompt title are required.', 'error');
       return;
     }
 
@@ -198,20 +203,18 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
           provider: form.aiProvider || null,
           model: form.aiModel || null,
           voice: form.aiVoice || null,
-          prompt: form.generatedAudioUrl
-            ? { url: form.generatedAudioUrl }
-            : undefined,
+          prompt: form.generatedAudioUrl ? { url: form.generatedAudioUrl } : undefined,
         },
       };
 
       if (editId) {
         await api.updateSpeaking(editId, payload);
-        showNotification('Đã cập nhật bài thi nói.', 'success');
+        showNotification('Speaking task updated.', 'success');
       } else {
         await api.createSpeaking(payload);
-        showNotification('Đã tạo bài thi nói mới.', 'success');
+        showNotification('Speaking task created.', 'success');
         if (!editIdOverride) {
-          navigate(`/manage/speaking/${form._id}`);
+          navigate(`/admin/manage/speaking/${form._id}`);
         }
       }
 
@@ -236,314 +239,325 @@ export default function AddSpeaking({ editIdOverride = null, embedded = false, o
     await saveSpeaking({ asDraft: true });
   };
 
-  if (loading) return <div className="manage-container"><p className="muted">Đang tải...</p></div>;
-  if (loadError) return <div className="manage-container"><p className="form-error">{loadError}</p></div>;
+  if (loading) {
+    return (
+      <div className='min-h-[calc(100vh-70px)] bg-muted/30 p-4 md:p-6'>
+        <Card className='mx-auto max-w-7xl border-border/70 shadow-sm'>
+          <CardContent className='p-6 text-sm text-muted-foreground'>Loading...</CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className='min-h-[calc(100vh-70px)] bg-muted/30 p-4 md:p-6'>
+        <Card className='mx-auto max-w-7xl border-border/70 shadow-sm'>
+          <CardContent className='p-6 text-sm font-medium text-destructive'>{loadError}</CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
-    <div className="manage-container">
-      <div className="manage-editor-topbar">
-        <div className="manage-editor-title">
-          <button
-            type="button"
-            className="manage-editor-close"
-            onClick={() => {
-              if (typeof onCancel === 'function') onCancel();
-              else navigate('/manage/speaking');
-            }}
-            title="Close editor"
-          >
-            <X size={18} />
-          </button>
-          <div>
-            <h1 style={{ margin: 0, fontSize: '1.8rem' }}>{editId ? 'Chỉnh sửa Bài thi Nói' : 'Tạo Bài thi Nói'}</h1>
-            <p className="muted" style={{ marginTop: '0.5rem' }}>Trình soạn thảo bài thi IELTS Speaking với câu hỏi theo sau và cài đặt giọng nói AI.</p>
-          </div>
-        </div>
-
-        <div className="manage-header-actions">
-          <label className="status-toggle">
-            {form.isActive ? 'Hoạt động' : 'Đã tắt'}
-            <div className="switch">
-              <input type="checkbox" checked={form.isActive} onChange={(event) => updateForm('isActive', event.target.checked)} />
-              <span className="slider"></span>
-            </div>
-          </label>
-
-          <button type="button" className="btn-ghost" onClick={handleSaveDraft}>Lưu bản nháp</button>
-
-          <button type="button" className="btn-manage-add" onClick={handleSubmit} disabled={submitLoading}>
-            {submitLoading ? 'Đang lưu...' : 'Lưu bài thi'}
-          </button>
-        </div>
-      </div>
-
-      {error && <div className="form-error" style={{ marginBottom: '1rem' }}>{error}</div>}
-
-      <div className="manage-layout-columns">
-        <div className="manage-main">
-          <div className="manage-card" style={{ borderLeft: '4px solid #F59E0B' }}>
-            <h3>Thông tin Cơ bản</h3>
-
-            <div className="manage-input-group">
-              <label className="manage-input-label">ID Bài thi Nói</label>
-              <input
-                className="manage-input-field"
-                value={form._id}
-                onChange={(event) => updateForm('_id', event.target.value)}
-                readOnly={!!editId}
-                placeholder="VD: SPEAK_P2_001"
-              />
-            </div>
-
-            <div className="manage-input-group">
-              <label className="manage-input-label">
-                {form.part === '2' ? 'Tiêu đề (Topic Category)' : 'Tiêu đề'}
-              </label>
-              <input
-                className="manage-input-field"
-                value={form.title}
-                onChange={(event) => updateForm('title', event.target.value)}
-                placeholder={form.part === '2' ? 'Education, Travel, Environment...' : 'Tiêu đề bài thi'}
-              />
-            </div>
-
-            {form.part === '2' ? (
-              <div className="manage-input-group">
-                <label className="manage-input-label">Part 2 Question Title</label>
-                <input
-                  className="manage-input-field"
-                  value={form.part2_question_title}
-                  onChange={(event) => updateForm('part2_question_title', event.target.value)}
-                  placeholder="Describe a teacher who influenced you"
-                />
-              </div>
-            ) : null}
-
-            <div className="manage-input-group" style={{ marginBottom: 0 }}>
-              <label className="manage-input-label">Phần thi Nói</label>
-              <select className="manage-input-field" value={form.part} onChange={(event) => updateForm('part', event.target.value)}>
-                <option value="1">Part 1 - Giới thiệu & Phỏng vấn</option>
-                <option value="2">Part 2 - Nói tự do (Cue Card)</option>
-                <option value="3">Part 3 - Thảo luận</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="manage-card">
-            <h3>{form.part === '2' ? 'Cue Card' : 'Câu hỏi Chính'}</h3>
-            <div className="manage-input-group" style={{ marginBottom: 0 }}>
-              {form.part === '2' ? (
-                <>
-                  <label className="manage-input-label">Cue Card Bullets (one point per line)</label>
-                  <textarea
-                    className="manage-input-field"
-                    value={form.cue_card}
-                    onChange={(event) => updateForm('cue_card', event.target.value)}
-                    rows={8}
-                    placeholder={'Describe a time you learned something new\nWhere it happened\nWho taught you\nWhy it was memorable'}
-                  />
-                </>
-              ) : (
-                <>
-                  <label className="manage-input-label">Câu hỏi Chính</label>
-                  <textarea
-                    className="manage-input-field"
-                    value={form.prompt}
-                    onChange={(event) => updateForm('prompt', event.target.value)}
-                    rows={8}
-                    placeholder="Bạn thích nghe thể loại nhạc nào?"
-                  />
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="manage-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ marginBottom: 0 }}>Câu hỏi Tiếp nối</h3>
-              <button type="button" className="btn btn-sm" style={{ background: '#FEF3C7', color: '#B45309' }} onClick={addSubQuestion}>
-                + Thêm Câu hỏi
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', gap: '0.5rem', margin: '1rem 0' }}>
-              <input
-                className="manage-input-field"
-                value={newSubQuestion}
-                onChange={(event) => setNewSubQuestion(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
-                    addSubQuestion();
-                  }
+    <div className='min-h-[calc(100vh-70px)] bg-muted/30'>
+      <div className='mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 md:p-6'>
+        <Card className='border-border/70 shadow-sm'>
+          <CardHeader className='flex flex-col gap-4 md:flex-row md:items-center md:justify-between'>
+            <div className='flex items-start gap-3'>
+              <Button
+                type='button'
+                variant='outline'
+                size='icon'
+                onClick={() => {
+                  if (typeof onCancel === 'function') onCancel();
+                  else navigate('/admin/manage/speaking');
                 }}
-                placeholder="Nhập câu hỏi tiếp nối"
-              />
-              <button type="button" className="btn btn-ghost btn-sm" onClick={addSubQuestion}>Thêm</button>
-            </div>
-
-            {form.sub_questions.length === 0 ? (
-              <p className="muted">Chưa có câu hỏi tiếp nối nào.</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                {form.sub_questions.map((question, index) => (
-                  <div key={`sq-${index}`} style={{ display: 'flex', gap: '0.65rem', alignItems: 'center' }}>
-                    <span style={{ minWidth: 18, fontWeight: 700, color: '#F59E0B' }}>{index + 1}</span>
-                    <textarea
-                      className="manage-input-field"
-                      value={question}
-                      onChange={(event) => {
-                        const next = [...form.sub_questions];
-                        next[index] = event.target.value;
-                        updateForm('sub_questions', next);
-                      }}
-                      rows={2}
-                    />
-                    <button type="button" className="btn btn-ghost btn-sm" style={{ color: '#EF4444' }} onClick={() => removeSubQuestion(index)}>
-                      Xóa
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="manage-card">
-            <h3>Cài đặt Âm thanh AI</h3>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
-              <div className="manage-input-group" style={{ marginBottom: 0 }}>
-                <label className="manage-input-label">Nhà cung cấp</label>
-                <select className="manage-input-field" value={form.aiProvider} onChange={(event) => updateForm('aiProvider', event.target.value)}>
-                  <option value="openai">OpenAI</option>
-                </select>
-              </div>
-              <div className="manage-input-group" style={{ marginBottom: 0 }}>
-                <label className="manage-input-label">Mô hình</label>
-                <input className="manage-input-field" value={form.aiModel} onChange={(event) => updateForm('aiModel', event.target.value)} />
-              </div>
-              <div className="manage-input-group" style={{ marginBottom: 0 }}>
-                <label className="manage-input-label">Giọng nói</label>
-                <input className="manage-input-field" value={form.aiVoice} onChange={(event) => updateForm('aiVoice', event.target.value)} />
-              </div>
-            </div>
-
-            <div style={{ marginTop: '1rem' }}>
-              <button
-                type="button"
-                className="btn-manage-add"
-                onClick={handleGenerateAudio}
-                disabled={generateAudioLoading}
               >
-                {generateAudioLoading ? 'Dang tao mp3...' : 'Tao Am thanh Cau hoi'}
-              </button>
+                <X className='h-4 w-4' />
+              </Button>
+              <div className='space-y-1'>
+                <CardTitle className='text-2xl tracking-tight'>{editId ? 'Edit Speaking Task' : 'Create Speaking Task'}</CardTitle>
+                <CardDescription>IELTS speaking task editor with AI voice options.</CardDescription>
+              </div>
             </div>
-
-            {form.generatedAudioUrl && (
-              <div style={{ marginTop: '0.75rem', background: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: '0.7rem', padding: '0.75rem' }}>
-                <div style={{ fontSize: '0.8rem', color: '#9A3412', fontWeight: 600 }}>Đường dẫn Âm thanh đã tạo</div>
-                <div style={{ marginTop: '0.35rem', wordBreak: 'break-all', fontSize: '0.85rem' }}>{form.generatedAudioUrl}</div>
+            <div className='flex flex-wrap items-center gap-3'>
+              <div className='flex items-center gap-2 rounded-md border px-3 py-2'>
+                <Switch checked={form.isActive} onCheckedChange={(checked) => updateForm('isActive', checked)} />
+                <span className='text-sm'>{form.isActive ? 'Active' : 'Inactive'}</span>
               </div>
-            )}
-          </div>
+              <Button type='button' variant='outline' onClick={handleSaveDraft}>Save Draft</Button>
+              <Button type='button' variant='outline' size='icon' onClick={() => setIsMetadataOpen(true)} aria-label='Open metadata'>
+                <MoreVertical className='h-4 w-4' />
+              </Button>
+              <Button type='button' onClick={handleSubmit} disabled={submitLoading}>
+                {submitLoading ? 'Saving...' : 'Save Speaking'}
+              </Button>
+            </div>
+          </CardHeader>
+        </Card>
 
-          <div className="manage-card">
-            <h3>Từ khóa & Gợi ý Câu trả lời</h3>
-
-            <div className="manage-input-group">
-              <label className="manage-input-label">Từ khóa</label>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <input
-                  className="manage-input-field"
-                  value={keywordInput}
-                  onChange={(event) => setKeywordInput(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      addKeyword();
-                    }
-                  }}
-                  placeholder="Nhập từ khóa và nhấn Enter"
-                />
-                <button type="button" className="btn btn-ghost btn-sm" onClick={addKeyword}>Thêm</button>
+        <Dialog open={isMetadataOpen} onOpenChange={setIsMetadataOpen}>
+          <DialogContent className='sm:max-w-md'>
+            <DialogHeader>
+              <DialogTitle>Metadata</DialogTitle>
+            </DialogHeader>
+            <div className='space-y-3'>
+              <div className='flex items-center justify-between text-sm'>
+                <span className='text-muted-foreground'>Created</span>
+                <span>{metadataDate}</span>
               </div>
+              <div className='flex items-center justify-between text-sm'>
+                <span className='text-muted-foreground'>Status</span>
+                <Badge variant={form.isActive ? 'default' : 'secondary'}>{form.isActive ? 'Active' : 'Inactive'}</Badge>
+              </div>
+              <div className='flex items-center justify-between text-sm'>
+                <span className='text-muted-foreground'>Speaking Part</span>
+                <Badge variant='outline'>Part {form.part}</Badge>
+              </div>
+              <div className='flex items-center justify-between text-sm'>
+                <span className='text-muted-foreground'>Follow-up Questions</span>
+                <span>{form.sub_questions.length}</span>
+              </div>
+              <div className='flex items-center justify-between text-sm'>
+                <span className='text-muted-foreground'>Keywords</span>
+                <span>{form.keywords.length}</span>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
-              {form.keywords.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.65rem' }}>
-                  {form.keywords.map((keyword, index) => (
-                    <span
-                      key={`kw-${index}`}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.35rem',
-                        background: '#FFEDD5',
-                        color: '#C2410C',
-                        borderRadius: '999px',
-                        padding: '0.25rem 0.65rem',
-                        fontSize: '0.8rem',
-                        fontWeight: 600,
-                      }}
-                    >
-                      {keyword}
-                      <button type="button" onClick={() => removeKeyword(index)} style={{ border: 0, background: 'transparent', cursor: 'pointer', color: '#9A3412' }}>
-                        ×
-                      </button>
-                    </span>
-                  ))}
+        {error ? (
+          <Card className='border-destructive/30 shadow-sm'>
+            <CardContent className='p-4 text-sm font-medium text-destructive'>{error}</CardContent>
+          </Card>
+        ) : null}
+
+        <div className='grid gap-6 xl:grid-cols-12'>
+          <div className='space-y-6 xl:col-span-12'>
+            <Card className='border-border/70 shadow-sm'>
+              <CardHeader>
+                <CardTitle>Basic Information</CardTitle>
+              </CardHeader>
+              <CardContent className='space-y-4'>
+                <div className='space-y-2'>
+                  <Label htmlFor='speaking-id'>Speaking ID</Label>
+                  <Input
+                    id='speaking-id'
+                    value={form._id}
+                    onChange={(event) => updateForm('_id', event.target.value)}
+                    readOnly={Boolean(editId)}
+                    placeholder='e.g., SPEAK_P2_001'
+                  />
                 </div>
-              )}
-            </div>
 
-            <div className="manage-input-group" style={{ marginBottom: 0 }}>
-              <label className="manage-input-label">Gợi ý Ý chính</label>
-              <textarea
-                className="manage-input-field"
-                value={form.sample_highlights}
-                onChange={(event) => updateForm('sample_highlights', event.target.value)}
-                rows={6}
-                placeholder="Cung cấp các ý chính cần đề cập..."
-              />
-            </div>
-          </div>
-        </div>
+                <div className='grid gap-4 md:grid-cols-2'>
+                  <div className='space-y-2'>
+                    <Label htmlFor='speaking-title'>{form.part === '2' ? 'Topic Category' : 'Title'}</Label>
+                    <Input
+                      id='speaking-title'
+                      value={form.title}
+                      onChange={(event) => updateForm('title', event.target.value)}
+                      placeholder={form.part === '2' ? 'Education, Travel, Environment...' : 'Speaking title'}
+                    />
+                  </div>
+                  <div className='space-y-2'>
+                    <Label>Speaking Part</Label>
+                    <Select value={form.part} onValueChange={(value) => updateForm('part', value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder='Part' />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value='1'>Part 1 - Intro and interview</SelectItem>
+                        <SelectItem value='2'>Part 2 - Cue card</SelectItem>
+                        <SelectItem value='3'>Part 3 - Discussion</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
 
-        <div className="manage-sidebar-column">
-          <div className="manage-card">
-            <h3>Siêu dữ liệu</h3>
-            <div className="metadata-list">
-              <div className="meta-item">
-                <span className="meta-label">Đã tạo lúc</span>
-                <span className="meta-value">{metadataDate}</span>
-              </div>
-              <div className="meta-item">
-                <span className="meta-label">Trạng thái</span>
-                <span className={`meta-badge ${form.isActive ? 'badge-active' : 'badge-draft'}`}>{form.isActive ? 'Hoạt động' : 'Đã tắt'}</span>
-              </div>
-              <div className="meta-item" style={{ background: '#FFF7ED', padding: '0.75rem', borderRadius: '0.6rem' }}>
-                <span className="meta-label">Phần thi Nói</span>
-                <span className="meta-value" style={{ color: '#D97706', fontSize: '1.15rem' }}>Part {form.part}</span>
-              </div>
-              <div className="meta-item" style={{ background: '#F8FAFC', padding: '0.75rem', borderRadius: '0.6rem' }}>
-                <span className="meta-label">Câu hỏi Tiếp nối</span>
-                <span className="meta-value">{form.sub_questions.length}</span>
-              </div>
-              <div className="meta-item" style={{ background: '#F8FAFC', padding: '0.75rem', borderRadius: '0.6rem' }}>
-                <span className="meta-label">Từ khóa</span>
-                <span className="meta-value">{form.keywords.length}</span>
-              </div>
-            </div>
+                {form.part === '2' ? (
+                  <div className='space-y-2'>
+                    <Label htmlFor='part2-title'>Part 2 Question Title</Label>
+                    <Input
+                      id='part2-title'
+                      value={form.part2_question_title}
+                      onChange={(event) => updateForm('part2_question_title', event.target.value)}
+                      placeholder='Describe a teacher who influenced you'
+                    />
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+
+            <Card className='border-border/70 shadow-sm'>
+              <CardHeader>
+                <CardTitle>{form.part === '2' ? 'Cue Card' : 'Main Prompt'}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {form.part === '2' ? (
+                  <div className='space-y-2'>
+                    <Label htmlFor='cue-card'>Cue Card Bullets</Label>
+                    <Textarea
+                      id='cue-card'
+                      value={form.cue_card}
+                      onChange={(event) => updateForm('cue_card', event.target.value)}
+                      rows={8}
+                      placeholder={'Describe a time you learned something new\nWhere it happened\nWho taught you\nWhy it was memorable'}
+                    />
+                  </div>
+                ) : (
+                  <div className='space-y-2'>
+                    <Label htmlFor='main-prompt'>Main Prompt</Label>
+                    <Textarea
+                      id='main-prompt'
+                      value={form.prompt}
+                      onChange={(event) => updateForm('prompt', event.target.value)}
+                      rows={8}
+                      placeholder='What kind of music do you like to listen to?'
+                    />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className='border-border/70 shadow-sm'>
+              <CardHeader className='flex flex-row items-center justify-between'>
+                <CardTitle>Follow-up Questions</CardTitle>
+                <Button type='button' size='sm' variant='outline' onClick={addSubQuestion}>+ Add Question</Button>
+              </CardHeader>
+              <CardContent className='space-y-4'>
+                <div className='flex flex-col gap-2 sm:flex-row'>
+                  <Input
+                    value={newSubQuestion}
+                    onChange={(event) => setNewSubQuestion(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        addSubQuestion();
+                      }
+                    }}
+                    placeholder='Enter a follow-up question'
+                  />
+                  <Button type='button' variant='outline' onClick={addSubQuestion}>Add</Button>
+                </div>
+
+                {!form.sub_questions.length ? (
+                  <div className='rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground'>No follow-up questions yet.</div>
+                ) : (
+                  <div className='space-y-2'>
+                    {form.sub_questions.map((question, index) => (
+                      <div key={`sq-${index}`} className='space-y-2 rounded-md border p-3'>
+                        <div className='flex items-center justify-between'>
+                          <Badge variant='outline'>Question {index + 1}</Badge>
+                          <Button type='button' size='sm' variant='ghost' onClick={() => removeSubQuestion(index)}>Remove</Button>
+                        </div>
+                        <Textarea
+                          value={question}
+                          onChange={(event) => {
+                            const next = [...form.sub_questions];
+                            next[index] = event.target.value;
+                            updateForm('sub_questions', next);
+                          }}
+                          rows={2}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className='border-border/70 shadow-sm'>
+              <CardHeader>
+                <CardTitle>AI Voice Settings</CardTitle>
+                <CardDescription>Generate read-aloud audio for the main prompt.</CardDescription>
+              </CardHeader>
+              <CardContent className='space-y-4'>
+                <div className='grid gap-4 md:grid-cols-3'>
+                  <div className='space-y-2'>
+                    <Label>Provider</Label>
+                    <Select value={form.aiProvider} onValueChange={(value) => updateForm('aiProvider', value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder='Provider' />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value='openai'>OpenAI</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className='space-y-2'>
+                    <Label htmlFor='ai-model'>Model</Label>
+                    <Input id='ai-model' value={form.aiModel} onChange={(event) => updateForm('aiModel', event.target.value)} />
+                  </div>
+                  <div className='space-y-2'>
+                    <Label htmlFor='ai-voice'>Voice</Label>
+                    <Input id='ai-voice' value={form.aiVoice} onChange={(event) => updateForm('aiVoice', event.target.value)} />
+                  </div>
+                </div>
+
+                <Button type='button' onClick={handleGenerateAudio} disabled={generateAudioLoading}>
+                  {generateAudioLoading ? 'Generating MP3...' : 'Generate Prompt Audio'}
+                </Button>
+
+                {form.generatedAudioUrl ? (
+                  <div className='space-y-2 rounded-lg border bg-muted/20 p-3'>
+                    <p className='text-xs font-medium text-muted-foreground'>Generated audio URL</p>
+                    <p className='break-all text-sm'>{form.generatedAudioUrl}</p>
+                    <audio controls src={form.generatedAudioUrl} className='w-full' />
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+
+            <Card className='border-border/70 shadow-sm'>
+              <CardHeader>
+                <CardTitle>Keywords and Highlights</CardTitle>
+              </CardHeader>
+              <CardContent className='space-y-4'>
+                <div className='space-y-2'>
+                  <Label>Keywords</Label>
+                  <div className='flex flex-col gap-2 sm:flex-row'>
+                    <Input
+                      value={keywordInput}
+                      onChange={(event) => setKeywordInput(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          addKeyword();
+                        }
+                      }}
+                      placeholder='Type keyword and press Enter'
+                    />
+                    <Button type='button' variant='outline' onClick={addKeyword}>Add</Button>
+                  </div>
+
+                  {form.keywords.length ? (
+                    <div className='mt-2 flex flex-wrap gap-2'>
+                      {form.keywords.map((keyword, index) => (
+                        <Badge key={`kw-${index}`} variant='secondary' className='gap-2'>
+                          {keyword}
+                          <button type='button' className='text-xs' onClick={() => removeKeyword(index)}>x</button>
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className='space-y-2'>
+                  <Label htmlFor='sample-highlights'>Sample Highlights</Label>
+                  <Textarea
+                    id='sample-highlights'
+                    value={form.sample_highlights}
+                    onChange={(event) => updateForm('sample_highlights', event.target.value)}
+                    rows={6}
+                    placeholder='Provide key ideas for expected response...'
+                  />
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
-          <div className="manage-card tips-card" style={{ background: 'linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 100%)' }}>
-            <h3 style={{ color: '#C2410C' }}>Mẹo</h3>
-            <ul className="tips-list">
-              <li>Part 1 nên là các câu hỏi cá nhân và trả lời ngắn gọn.</li>
-              <li>Part 2 nên bao gồm các ý chính (bullets) rõ ràng cho cue-card.</li>
-              <li>Part 3 nên hướng tới thảo luận trừu tượng và lập luận.</li>
-              <li>Định nghĩa từ khóa để hướng dẫn đánh giá nhất quán.</li>
-            </ul>
-          </div>
         </div>
       </div>
     </div>

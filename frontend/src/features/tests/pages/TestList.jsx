@@ -24,6 +24,7 @@ import {
 import "./TestList.css";
 
 const PAGE_SIZE = 12;
+const PLACEHOLDER_CARD_COUNT = PAGE_SIZE;
 const isActiveContent = (item) => item?.is_active !== false && item?.isActive !== false;
 const isStandaloneContent = (item) => item?.isSinglePart === true;
 
@@ -128,6 +129,7 @@ export default function TestList() {
       type: selectedType !== "all" ? selectedType : undefined,
       q: searchQuery.trim() || undefined,
       includeQuestionGroupTypes: true,
+      activeOnly: true,
     };
 
     if (viewMode === "full") {
@@ -158,6 +160,7 @@ export default function TestList() {
       .getTestCategories({
         type: selectedType !== "all" ? selectedType : undefined,
         q: searchQuery.trim() || undefined,
+        activeOnly: true,
       })
       .then((res) => {
         if (!isMounted) return;
@@ -197,7 +200,7 @@ export default function TestList() {
     let isMounted = true;
 
     api
-      .getTests({ page: 1, limit: 1 })
+      .getTests({ page: 1, limit: 1, activeOnly: true })
       .then((response) => {
         if (!isMounted) return;
         setOverallTotalTests(Number(response?.pagination?.totalItems || 0));
@@ -494,7 +497,7 @@ export default function TestList() {
         label: "Passage 1",
         questionGroupTypes,
         isStandalone: true,
-        linkTo: `/tests/${encodeURIComponent(passage._id)}/exam?mode=single&part=0&standalone=reading`,
+        linkTo: `/student-ielts/tests/${encodeURIComponent(passage._id)}/exam?mode=single&part=0&standalone=reading`,
         originLabel: "Standalone reading passage",
       });
     });
@@ -534,7 +537,7 @@ export default function TestList() {
         label: "Section 1",
         questionGroupTypes,
         isStandalone: true,
-        linkTo: `/tests/${encodeURIComponent(section._id)}/exam?mode=single&part=0&standalone=listening`,
+        linkTo: `/student-ielts/tests/${encodeURIComponent(section._id)}/exam?mode=single&part=0&standalone=listening`,
         originLabel: "Standalone listening section",
       });
     });
@@ -566,7 +569,7 @@ export default function TestList() {
         label: "Task 1",
         questionGroupTypes: [],
         isStandalone: true,
-        linkTo: `/tests/${encodeURIComponent(writing._id)}/exam?mode=single&part=0&standalone=writing`,
+        linkTo: `/student-ielts/tests/${encodeURIComponent(writing._id)}/exam?mode=single&part=0&standalone=writing`,
         originLabel: "Standalone writing task",
       });
     });
@@ -670,9 +673,9 @@ export default function TestList() {
                 <div className="tl-skeleton tl-skeleton-block" />
               </div>
             </aside>
-            <section className="test-main">
+            <section className={`test-main ${viewMode === "full" ? "test-main--full" : "test-main--parts"}`}>
               <ul className="test-cards" aria-busy="true" aria-live="polite">
-                {[1, 2, 3, 4, 5, 6].map((index) => (
+                {Array.from({ length: PLACEHOLDER_CARD_COUNT }, (_, index) => (
                   <li key={`loading-skeleton-${index}`}>
                     <TestCardSkeleton />
                   </li>
@@ -765,7 +768,7 @@ export default function TestList() {
         <div className="test-list-layout">
           <aside className="tl-sidebar-desktop">{renderSidebar()}</aside>
 
-          <section className="test-main">
+          <section className={`test-main ${viewMode === "full" ? "test-main--full" : "test-main--parts"}`}>
             <div className="tl-category-wrap">
               <ScrollArea className="tl-category-scroll">
                 <div className="test-category-filter tl-category-row">
@@ -802,7 +805,7 @@ export default function TestList() {
 
             {isFetching ? (
               <ul className="test-cards" aria-busy="true" aria-live="polite">
-                {[1, 2, 3, 4, 5, 6].map((index) => (
+                {Array.from({ length: PLACEHOLDER_CARD_COUNT }, (_, index) => (
                   <li key={`fetching-skeleton-${index}`}>
                     <TestCardSkeleton />
                   </li>
@@ -880,3 +883,4 @@ export default function TestList() {
     </div>
   );
 }
+

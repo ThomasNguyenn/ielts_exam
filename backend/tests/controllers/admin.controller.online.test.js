@@ -82,7 +82,7 @@ describe("admin online student controllers", () => {
 
     expect(userCountDocumentsMock).toHaveBeenCalledTimes(1);
     const filter = userCountDocumentsMock.mock.calls[0][0];
-    expect(filter.role).toBe("student");
+    expect(filter.role).toEqual({ $in: ["student", "studentIELTS", "studentACA"] });
     expect(filter.lastSeenAt?.$gte).toBeInstanceOf(Date);
     expect(Array.isArray(filter.$or)).toBe(true);
     expect(filter.$or).toHaveLength(2);

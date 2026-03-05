@@ -1,13 +1,19 @@
 import express from 'express';
 import multer from 'multer';
 import { verifyToken, isTeacherOrAdmin } from "../middleware/auth.middleware.js";
-import { createCacheInvalidator } from '../middleware/responseCache.middleware.js';
+import { createCacheInvalidator, createResponseCache, getCacheTtlSec } from '../middleware/responseCache.middleware.js';
 import Test from '../models/Test.model.js';
 import { getSectionAudioUploadLimitBytes } from "../services/objectStorage.service.js";
 import { sendControllerError } from "../utils/controllerError.js";
 
 import { getAllSections, getSectionById, createSection, updateSection, deleteSection, uploadSectionAudio } from '../controllers/section.controller.js';
 const router = express.Router();
+const sectionsCatalogCache = createResponseCache({
+  namespace: "sections-catalog",
+  ttlSec: getCacheTtlSec("API_RESPONSE_CACHE_TTL_SECTIONS_SEC", 180),
+  scope: "role",
+  tags: ["catalog:sections"],
+});
 
 const MAX_SECTION_AUDIO_BYTES = getSectionAudioUploadLimitBytes();
 
@@ -78,10 +84,10 @@ const collectAffectedSectionTestTags = async (req, _res, next) => {
     const allTestIds = [...new Set([...explicitTestIds, ...relatedTestIds])];
     const testTags = allTestIds.map((testId) => `test:${testId}`);
 
-    req.cacheInvalidationTags = ['catalog:tests', ...testTags];
+    req.cacheInvalidationTags = ['catalog:sections', 'catalog:tests', ...testTags];
     return next();
   } catch {
-    req.cacheInvalidationTags = ['catalog:tests'];
+    req.cacheInvalidationTags = ['catalog:sections', 'catalog:tests'];
     return next();
   }
 };
@@ -91,11 +97,11 @@ const invalidateTestsCache = createCacheInvalidator({
     if (Array.isArray(req.cacheInvalidationTags) && req.cacheInvalidationTags.length > 0) {
       return req.cacheInvalidationTags;
     }
-    return ['catalog:tests'];
+    return ['catalog:sections', 'catalog:tests'];
   },
 });
 
-router.get("/", verifyToken, isTeacherOrAdmin, getAllSections);
+router.get("/", verifyToken, isTeacherOrAdmin, sectionsCatalogCache, getAllSections);
 router.get("/:id", verifyToken, isTeacherOrAdmin, getSectionById);
 router.post("/upload-audio", verifyToken, isTeacherOrAdmin, handleSectionAudioUpload, uploadSectionAudio);
 router.post("/", verifyToken, isTeacherOrAdmin, collectAffectedSectionTestTags, invalidateTestsCache, createSection);

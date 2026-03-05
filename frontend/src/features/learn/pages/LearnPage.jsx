@@ -236,7 +236,7 @@ export default function LearnPage() {
   const activeCategoryMeta = CATEGORY_META[activeCategory] || CATEGORY_META.writing;
 
   const handleOpenModule = (moduleId) => {
-    navigate(`/learn/${moduleId}`);
+    navigate(`/student-ielts/learn/${moduleId}`);
   };
 
   return (
@@ -377,4 +377,5 @@ export default function LearnPage() {
     </div>
   );
 }
+
 

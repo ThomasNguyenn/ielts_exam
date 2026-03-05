@@ -4,8 +4,38 @@ import { PanelGroup, Panel, PanelResizeHandle } from 'react-resizable-panels';
 import parse from 'html-react-parser';
 import HighlightableContent, { HighlightableWrapper, tokenizeHtml } from '@/shared/components/HighlightableContent';
 import { toSanitizedInnerHtml } from '@/shared/utils/safeHtml';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from '@/components/ui/drawer';
 
 const IELTSAudioPlayer = lazy(() => import('@/shared/components/IELTSAudioPlayer'));
+
+function getMatchingOptionToken(option = {}) {
+  const idToken = String(option?.id ?? '').trim();
+  if (idToken) return idToken;
+  const labelToken = String(option?.label ?? '').trim();
+  if (labelToken) return labelToken;
+  const textToken = String(option?.text ?? '').trim();
+  return textToken;
+}
+
+function getMatchingOptionLabel(option = {}) {
+  const idToken = String(option?.id ?? '').trim();
+  const textToken = String(option?.text ?? '').trim();
+  if (idToken && textToken) return `${idToken}. ${textToken}`;
+  return textToken || idToken || getMatchingOptionToken(option);
+}
 
 function QuestionInput({
   slot,
@@ -16,9 +46,11 @@ function QuestionInput({
   showResult,
   passageStates,
   isListening = false,
-  reviewMode = false
+  reviewMode = false,
+  useMatchingDropdown = false,
 }) {
   const id = `q-${index}`;
+  const [matchingDragOver, setMatchingDragOver] = useState(false);
   const [strikethroughOptions, setStrikethroughOptions] = useState(() => {
     // Load from localStorage if available
     const saved = localStorage.getItem(`strikethrough_${id}`);
@@ -130,7 +162,7 @@ function QuestionInput({
     );
   }
 
-  // --- MATCHING (Drag and Drop) - Just render drop zone, options pool is at group level ---
+  // --- MATCHING ---
   if (
     slot.type === 'matching_headings' ||
     slot.type === 'matching_features' ||
@@ -141,10 +173,10 @@ function QuestionInput({
     const options = slot.headings || [];
     const normalizedValue = normalizeReviewText(value);
     const selectedOption = normalizedValue
-      ? options.find((h) => {
-          const normalizedId = normalizeReviewText(h?.id);
-          const normalizedLabel = normalizeReviewText(h?.label);
-          const normalizedText = normalizeReviewText(h?.text);
+      ? options.find((option) => {
+          const normalizedId = normalizeReviewText(option?.id);
+          const normalizedLabel = normalizeReviewText(option?.label);
+          const normalizedText = normalizeReviewText(option?.text);
           return (
             (normalizedId && normalizedId === normalizedValue) ||
             (normalizedLabel && normalizedLabel === normalizedValue) ||
@@ -172,45 +204,15 @@ function QuestionInput({
       );
     }
 
-    const handleDrop = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const droppedId =
-        e.dataTransfer.getData('headingId') ||
-        e.dataTransfer.getData('text/plain');
-      if (droppedId) {
-        onChange(droppedId);
-        e.currentTarget.classList.remove('drag-over');
-      }
-    };
-
-    const handleDragOver = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      e.dataTransfer.dropEffect = 'move';
-      e.currentTarget.classList.add('drag-over');
-    };
-
-    const handleDragLeave = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      e.currentTarget.classList.remove('drag-over');
-    };
-
-    const handleRemove = (e) => {
-      e.stopPropagation();
-      onChange('');
-    };
-
     // Result display logic
     if (showResult) {
       const clean = (str) => (str || '').toLowerCase().replace(/^[ivx]+\.?\s*/i, '').trim();
 
       // Find correct answer object - resilient search
-      let correctOption = options.find(h => h.id === slot.correct_answer);
+      let correctOption = options.find((option) => option.id === slot.correct_answer);
       if (!correctOption) {
         // Fallback: try to find by text content
-        correctOption = options.find(h => clean(h.text) === clean(slot.correct_answer));
+        correctOption = options.find((option) => clean(option.text) === clean(slot.correct_answer));
       }
 
       let isCorrect = value === slot.correct_answer;
@@ -234,9 +236,7 @@ function QuestionInput({
               <span className="matching-chip-text">{selectedOption.text}</span>
             </div>
           ) : (
-            <div className="matching-placeholder">
-              (No answer)
-            </div>
+            <div className="matching-placeholder">(No answer)</div>
           )}
           {!isCorrect && correctOption && (
             <div className="matching-correct-ans">
@@ -247,38 +247,92 @@ function QuestionInput({
       );
     }
 
+    const selectedToken = selectedOption ? getMatchingOptionToken(selectedOption) : '';
+
+    if (useMatchingDropdown) {
+      return (
+        <div
+          id={id}
+          data-question-index={index}
+          tabIndex={-1}
+          className={`matching-dropzone ${selectedOption ? 'has-value' : ''}`}
+        >
+          <Select
+            value={selectedToken || undefined}
+            onValueChange={(nextValue) => !reviewMode && onChange(nextValue)}
+            disabled={reviewMode}
+          >
+            <SelectTrigger
+              className="matching-dropdown-trigger"
+              aria-label={`Question ${index + 1} matching answer`}
+            >
+              <SelectValue placeholder="Select answer" />
+            </SelectTrigger>
+            <SelectContent
+              className="matching-dropdown-content"
+              position="popper"
+              collisionPadding={12}
+              sideOffset={8}
+            >
+            {options.map((option) => {
+              const optionToken = getMatchingOptionToken(option);
+              if (!optionToken) return null;
+              const optionId = String(option?.id ?? '').trim();
+              const optionText = String(option?.text ?? '').trim();
+              const optionLabel = optionId && optionText ? `${optionId}. ${optionText}` : optionText || optionId || optionToken;
+
+              return (
+                <SelectItem key={optionToken} value={optionToken}>
+                  {optionLabel}
+                </SelectItem>
+              );
+            })}
+            </SelectContent>
+          </Select>
+        </div>
+      );
+    }
+
     return (
       <div
         id={id}
         data-question-index={index}
         tabIndex={-1}
-        className={`matching-dropzone ${selectedOption ? 'has-value' : ''}`}
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
+        className={`matching-dropzone ${selectedOption ? 'has-value' : ''} ${matchingDragOver ? 'drag-over' : ''}`}
+        onDragOver={(event) => {
+          if (reviewMode) return;
+          event.preventDefault();
+          setMatchingDragOver(true);
+        }}
+        onDragLeave={() => setMatchingDragOver(false)}
+        onDrop={(event) => {
+          if (reviewMode) return;
+          event.preventDefault();
+          setMatchingDragOver(false);
+          const droppedToken =
+            event.dataTransfer.getData('application/x-matching-token') ||
+            event.dataTransfer.getData('text/plain');
+          if (droppedToken) onChange(droppedToken);
+        }}
       >
         {selectedOption ? (
           <div className="matching-selected">
-            {/* <span className="matching-chip-id">{selectedOption.id}</span> */}
-            <span className="matching-chip-text">{selectedOption.id}. {selectedOption.text}</span>
+            <span className="matching-chip-text">{selectedOption.text || selectedOption.id || selectedToken}</span>
             <button
               type="button"
               className="matching-remove"
-              onClick={handleRemove}
-              title="Remove selection"
+              onClick={() => !reviewMode && onChange('')}
+              aria-label={`Clear question ${index + 1} answer`}
             >
-              ✕
+              x
             </button>
           </div>
         ) : (
-          <div className="matching-placeholder">
-            Drag here
-          </div>
+          <div className="matching-placeholder">Drop answer here</div>
         )}
       </div>
     );
   }
-
   // Mặc định (Fallback)
   return (
     <input
@@ -292,7 +346,7 @@ function QuestionInput({
   );
 }
 
-/** Inline Drop Zone for Summary Completion */
+/** Inline Dropdown for Summary Completion */
 function SummaryDropZone({
   value,
   onChange,
@@ -300,24 +354,14 @@ function SummaryDropZone({
   options,
   displayNumber,
   reviewMode = false,
-  questionIndex
+  questionIndex,
+  useDropdown = false,
 }) {
   const anchorIndex = Number.isFinite(questionIndex) ? questionIndex : index;
   const anchorId = `q-${anchorIndex}`;
+  const [isDragOver, setIsDragOver] = useState(false);
   const selectedOption = findSummaryOptionByAnswer(options || [], value);
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    const droppedId =
-      e.dataTransfer.getData('optionId') ||
-      e.dataTransfer.getData('text/plain');
-    if (droppedId) onChange(droppedId);
-  };
-
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  };
+  const selectedToken = selectedOption?.token || '';
 
   if (reviewMode) {
     return (
@@ -338,29 +382,83 @@ function SummaryDropZone({
     );
   }
 
+  if (useDropdown) {
+    return (
+      <span
+        id={anchorId}
+        data-question-index={anchorIndex}
+        tabIndex={-1}
+        className={`summary-dropzone ${selectedOption ? 'has-value' : ''}`}
+        title="Choose answer"
+      >
+        <Select
+          value={selectedToken || undefined}
+          onValueChange={(nextValue) => onChange(nextValue)}
+        >
+          <SelectTrigger
+            className="summary-dropdown-trigger"
+            aria-label={`Question ${displayNumber || index + 1} summary answer`}
+          >
+            <SelectValue placeholder={`${displayNumber || index + 1}`} />
+          </SelectTrigger>
+          <SelectContent
+            className="summary-dropdown-content"
+            position="popper"
+            collisionPadding={12}
+            sideOffset={8}
+          >
+          {(options || []).map((option) => (
+            <SelectItem key={option.token} value={option.token}>
+              {getSummaryDisplayText(option)}
+            </SelectItem>
+          ))}
+          </SelectContent>
+        </Select>
+      </span>
+    );
+  }
+
   return (
     <span
       id={anchorId}
       data-question-index={anchorIndex}
       tabIndex={-1}
-      className={`summary-dropzone ${selectedOption ? 'has-value' : ''}`}
-      onDrop={handleDrop}
-      onDragOver={handleDragOver}
-      onClick={() => onChange('')}
-      title={selectedOption ? "Click to remove" : "Drop answer here"}
+      className={`summary-dropzone ${selectedOption ? 'has-value' : ''} ${isDragOver ? 'drag-over' : ''}`}
+      onDragOver={(event) => {
+        if (reviewMode) return;
+        event.preventDefault();
+        setIsDragOver(true);
+      }}
+      onDragLeave={() => setIsDragOver(false)}
+      onDrop={(event) => {
+        if (reviewMode) return;
+        event.preventDefault();
+        setIsDragOver(false);
+        const droppedToken =
+          event.dataTransfer.getData('application/x-summary-token') ||
+          event.dataTransfer.getData('text/plain');
+        if (droppedToken) onChange(droppedToken);
+      }}
+      title="Drop answer"
     >
       {selectedOption ? (
         <span className="summary-selected-chip">
-          {/* <span className="summary-chip-id">{selectedOption.id}</span> */}
           <span className="summary-chip-text">{selectedOption.text || selectedOption.id || selectedOption.token}</span>
+          <button
+            type="button"
+            className="matching-remove"
+            onClick={() => onChange('')}
+            aria-label={`Clear question ${displayNumber || index + 1} answer`}
+          >
+            x
+          </button>
         </span>
       ) : (
-        <span style={{ color: '#9ca3af', fontSize: '0.9rem', fontWeight: 'bold' }}>{displayNumber || index + 1}</span>
+        <span style={{ color: '#64748b', fontSize: '0.86rem', fontWeight: 700 }}>Drop answer here</span>
       )}
     </span>
   );
 }
-
 /** Component for IELTS Listening Map questions with Image + Matching Grid */
 function ListeningMapGrid({ group, slots, answers, setAnswer, startSlotIndex, reviewMode = false }) {
   const options = group.options || []; // e.g. [{id: 'A', text: ''}, ...]
@@ -438,6 +536,13 @@ function getGroupTextHtml(rawText) {
   return tokenizeHtml(rawText.replace(/\n/g, '<br />'));
 }
 
+function hasAnsweredValue(value) {
+  if (Array.isArray(value)) {
+    return value.some((item) => String(item ?? '').trim().length > 0);
+  }
+  return String(value ?? '').trim().length > 0;
+}
+
 function ReadingStepLayout({
   item,
   contentHtml,
@@ -449,8 +554,10 @@ function ReadingStepLayout({
   isListening,
   handleHtmlUpdate,
   questionsBlock,
-  reviewMode = false
+  reviewMode = false,
+  useMobileReadingDrawer = false,
 }) {
+  const useDropdownForDragDrop = Boolean(useMobileReadingDrawer);
   // Identify valid matching question placeholders in passage text.
   const matchingQuestionNumbers = new Set();
   (item.question_groups || []).forEach((g) => {
@@ -472,13 +579,248 @@ function ReadingStepLayout({
 
   const [embeddedNodes, setEmbeddedNodes] = useState([]);
   const passageContainerRef = useRef(null);
+  const [mobileQuestionsOpen, setMobileQuestionsOpen] = useState(false);
+  const [mobileSnapPoint, setMobileSnapPoint] = useState(0.55);
+  const [activeMobileQuestionIndex, setActiveMobileQuestionIndex] = useState(null);
+  const mobileDrawerQuestionsRef = useRef(null);
+
+  const questionItems = useMemo(() => {
+    const items = [];
+    let runningSlotIndex = startSlotIndex;
+
+    (item.question_groups || []).forEach((group) => {
+      (group.questions || []).forEach((question, questionIndex) => {
+        const slotIdx = runningSlotIndex + questionIndex;
+        items.push({
+          slotIndex: slotIdx,
+          qNumber: question?.q_number ?? (slotIdx + 1),
+          answered: hasAnsweredValue(answers[slotIdx]),
+        });
+      });
+      runningSlotIndex += (group.questions || []).length;
+    });
+
+    return items;
+  }, [item.question_groups, startSlotIndex, answers]);
+
+  const answeredQuestionCount = useMemo(
+    () => questionItems.reduce((count, question) => count + (question.answered ? 1 : 0), 0),
+    [questionItems],
+  );
 
   useEffect(() => {
     if (passageContainerRef.current) {
       const nodes = passageContainerRef.current.querySelectorAll('.embedded-dropzone');
       setEmbeddedNodes(Array.from(nodes));
+      return;
     }
+    setEmbeddedNodes([]);
   }, [processedContentHtml]);
+
+  useEffect(() => {
+    if (!questionItems.length) {
+      setActiveMobileQuestionIndex(null);
+      return;
+    }
+    setActiveMobileQuestionIndex((current) => {
+      if (questionItems.some((question) => question.slotIndex === current)) {
+        return current;
+      }
+      return questionItems[0].slotIndex;
+    });
+  }, [questionItems]);
+
+  useEffect(() => {
+    setMobileQuestionsOpen(false);
+    setMobileSnapPoint(0.55);
+  }, [item?._id, useMobileReadingDrawer]);
+
+  const scrollToQuestionInDrawer = (targetQuestionIndex) => {
+    const container = mobileDrawerQuestionsRef.current;
+    if (!container) return false;
+
+    const selector = `[data-question-index="${targetQuestionIndex}"]`;
+    const target =
+      container.querySelector(selector) ||
+      container.querySelector(`#q-${targetQuestionIndex}`);
+
+    if (!target) return false;
+
+    const targetRect = target.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    const nextTop =
+      targetRect.top - containerRect.top + container.scrollTop - 12;
+
+    container.scrollTo({
+      top: Math.max(0, nextTop),
+      behavior: 'smooth',
+    });
+
+    if (typeof target.focus === 'function') {
+      target.focus({ preventScroll: true });
+    }
+    return true;
+  };
+
+  const handleMobileQuestionSelect = (targetQuestionIndex) => {
+    setActiveMobileQuestionIndex(targetQuestionIndex);
+    if (!mobileQuestionsOpen) {
+      setMobileQuestionsOpen(true);
+      return;
+    }
+    const didScroll = scrollToQuestionInDrawer(targetQuestionIndex);
+    if (!didScroll) {
+      window.requestAnimationFrame(() => {
+        scrollToQuestionInDrawer(targetQuestionIndex);
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (!useMobileReadingDrawer || !mobileQuestionsOpen || activeMobileQuestionIndex == null) return undefined;
+    let timeoutId = null;
+    const rafId = window.requestAnimationFrame(() => {
+      const didScroll = scrollToQuestionInDrawer(activeMobileQuestionIndex);
+      if (!didScroll) {
+        timeoutId = window.setTimeout(() => {
+          scrollToQuestionInDrawer(activeMobileQuestionIndex);
+        }, 120);
+      }
+    });
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      if (timeoutId) window.clearTimeout(timeoutId);
+    };
+  }, [useMobileReadingDrawer, mobileQuestionsOpen, activeMobileQuestionIndex]);
+
+  if (useMobileReadingDrawer && !reviewMode) {
+    return (
+      <div className="reading-mobile-layout">
+        <div className="passage-scrollable reading-mobile-passage">
+          <HighlightableContent
+            ref={passageContainerRef}
+            htmlContent={processedContentHtml}
+            onUpdateHtml={(html) => handleHtmlUpdate(item._id, html)}
+            id={item._id}
+          />
+          {embeddedNodes.map((node) => {
+            const qNum = node.getAttribute('data-question-number');
+
+            let targetGroup = null;
+            let targetQuestion = null;
+            let targetSlotIndex = -1;
+            let targetGroupStartIndex = -1;
+            let runningSlotIndex = startSlotIndex;
+
+            (item.question_groups || []).forEach((group) => {
+              const groupStartIndex = runningSlotIndex;
+              const foundQuestionIndex = group.questions.findIndex((question) => String(question.q_number) === qNum);
+              if (foundQuestionIndex !== -1) {
+                targetGroup = group;
+                targetQuestion = group.questions[foundQuestionIndex];
+                targetSlotIndex = groupStartIndex + foundQuestionIndex;
+                targetGroupStartIndex = groupStartIndex;
+              }
+              runningSlotIndex += (group.questions || []).length;
+            });
+
+            if (!targetGroup || !targetQuestion || targetSlotIndex === -1 || targetGroupStartIndex === -1) return null;
+
+            const currentValue = answers[targetSlotIndex] || '';
+            return ReactDOM.createPortal(
+              <div className="embedded-matching-slot" style={{ display: 'inline-block', verticalAlign: 'middle', margin: '0 5px' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 'bold', marginRight: '4px', color: '#666' }}>{qNum}</span>
+                <QuestionInput
+                  slot={{
+                    type: 'matching_headings',
+                    ...targetQuestion,
+                    headings: targetGroup.headings,
+                    correct_answer: targetQuestion.correct_answer
+                  }}
+                  value={currentValue}
+                  onChange={(value) =>
+                    setMatchingAnswerWithSingleUse({
+                      group: targetGroup,
+                      groupStartIndex: targetGroupStartIndex,
+                      questionCount: (targetGroup.questions || []).length,
+                      targetIndex: targetSlotIndex,
+                      nextValue: value,
+                      answers,
+                      setAnswer,
+                    })}
+                  passageStates={passageStates}
+                  showResult={showResult}
+                  index={targetSlotIndex}
+                  isListening={isListening}
+                  reviewMode={reviewMode}
+                  useMatchingDropdown={useDropdownForDragDrop}
+                />
+              </div>,
+              node
+            );
+          })}
+        </div>
+
+        {questionItems.length > 0 ? (
+          <button
+            type="button"
+            className="reading-mobile-drawer-trigger"
+            onClick={() => setMobileQuestionsOpen(true)}
+          >
+            Questions ({answeredQuestionCount}/{questionItems.length})
+          </button>
+        ) : null}
+
+        <Drawer
+          open={mobileQuestionsOpen}
+          onOpenChange={setMobileQuestionsOpen}
+          direction="bottom"
+          snapPoints={[0.3, 0.55, 0.9]}
+          activeSnapPoint={mobileSnapPoint}
+          setActiveSnapPoint={setMobileSnapPoint}
+        >
+          <DrawerContent className="reading-mobile-drawer-content">
+            <DrawerHeader className="reading-mobile-drawer-header">
+              <div className="reading-mobile-drawer-header-row">
+                <DrawerTitle className="text-base">Questions</DrawerTitle>
+                <button
+                  type="button"
+                  className="reading-mobile-drawer-close"
+                  onClick={() => setMobileQuestionsOpen(false)}
+                  aria-label="Close question panel"
+                >
+                  ×
+                </button>
+              </div>
+              <DrawerDescription>
+                Answered {answeredQuestionCount}/{questionItems.length}. Drag up/down to resize.
+              </DrawerDescription>
+            </DrawerHeader>
+
+            <div ref={mobileDrawerQuestionsRef} className="reading-mobile-drawer-questions questions-scrollable">
+              {questionsBlock}
+            </div>
+
+            {questionItems.length > 0 ? (
+              <div className="reading-mobile-question-nav">
+                {questionItems.map((question) => (
+                  <button
+                    key={`mobile-question-${question.slotIndex}`}
+                    type="button"
+                    className={`reading-mobile-question-chip ${question.answered ? 'is-answered' : ''} ${activeMobileQuestionIndex === question.slotIndex ? 'is-active' : ''}`}
+                    onClick={() => handleMobileQuestionSelect(question.slotIndex)}
+                    aria-label={`Question ${question.qNumber}`}
+                  >
+                    {question.qNumber}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </DrawerContent>
+        </Drawer>
+      </div>
+    );
+  }
 
   return (
     <PanelGroup direction="horizontal" className="ielts-reading-layout">
@@ -496,19 +838,22 @@ function ReadingStepLayout({
             let targetGroup = null;
             let targetQuestion = null;
             let targetSlotIndex = -1;
+            let targetGroupStartIndex = -1;
             let runningSlotIndex = startSlotIndex;
 
             (item.question_groups || []).forEach((g) => {
+              const groupStartIndex = runningSlotIndex;
               const foundQIndex = g.questions.findIndex((q) => String(q.q_number) === qNum);
               if (foundQIndex !== -1) {
                 targetGroup = g;
                 targetQuestion = g.questions[foundQIndex];
-                targetSlotIndex = runningSlotIndex + foundQIndex;
+                targetSlotIndex = groupStartIndex + foundQIndex;
+                targetGroupStartIndex = groupStartIndex;
               }
               runningSlotIndex += (g.questions || []).length;
             });
 
-            if (!targetGroup || !targetQuestion || targetSlotIndex === -1) return null;
+            if (!targetGroup || !targetQuestion || targetSlotIndex === -1 || targetGroupStartIndex === -1) return null;
 
             const currentValue = answers[targetSlotIndex] || '';
             return ReactDOM.createPortal(
@@ -522,12 +867,22 @@ function ReadingStepLayout({
                     correct_answer: targetQuestion.correct_answer
                   }}
                   value={currentValue}
-                  onChange={(val) => setAnswer(targetSlotIndex, val)}
+                  onChange={(val) =>
+                    setMatchingAnswerWithSingleUse({
+                      group: targetGroup,
+                      groupStartIndex: targetGroupStartIndex,
+                      questionCount: (targetGroup.questions || []).length,
+                      targetIndex: targetSlotIndex,
+                      nextValue: val,
+                      answers,
+                      setAnswer,
+                    })}
                   passageStates={passageStates}
                   showResult={showResult}
                   index={targetSlotIndex}
                   isListening={isListening}
                   reviewMode={reviewMode}
+                  useMatchingDropdown={useDropdownForDragDrop}
                 />
               </div>,
               node
@@ -553,6 +908,53 @@ function ReadingStepLayout({
 /** One step: passage/section content + its questions (with slot indices) */
 function normalizeReviewText(value) {
   return String(value ?? '').trim().replace(/\s+/g, ' ').toUpperCase().replace(/[.,]+$/, '');
+}
+
+function normalizeMatchingGroupType(value = '') {
+  const raw = String(value || '').trim().toLowerCase();
+  if (raw === 'matching_info') return 'matching_information';
+  return raw;
+}
+
+function shouldUseMatchingOptionOnce(group = {}) {
+  if (Boolean(group?.use_once)) return true;
+  return normalizeMatchingGroupType(group?.type) === 'matching_headings';
+}
+
+function setMatchingAnswerWithSingleUse({
+  group,
+  groupStartIndex,
+  questionCount,
+  targetIndex,
+  nextValue,
+  answers,
+  setAnswer,
+}) {
+  const nextToken = String(nextValue ?? '').trim();
+  const shouldEnforceSingleUse = shouldUseMatchingOptionOnce(group);
+
+  if (
+    !shouldEnforceSingleUse ||
+    !nextToken ||
+    !Array.isArray(answers) ||
+    !Number.isFinite(groupStartIndex) ||
+    !Number.isFinite(questionCount) ||
+    questionCount <= 0
+  ) {
+    setAnswer(targetIndex, nextValue);
+    return;
+  }
+
+  const normalizedNextToken = normalizeReviewText(nextToken);
+  for (let offset = 0; offset < questionCount; offset += 1) {
+    const questionIndex = groupStartIndex + offset;
+    if (questionIndex === targetIndex) continue;
+    if (normalizeReviewText(answers[questionIndex]) === normalizedNextToken) {
+      setAnswer(questionIndex, '');
+    }
+  }
+
+  setAnswer(targetIndex, nextValue);
 }
 
 function formatReviewAnswer(value) {
@@ -655,6 +1057,10 @@ function escapeRegexForReview(value = '') {
   return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function isLikelyHttpUrl(value = '') {
+  return /^https?:\/\//i.test(String(value || '').trim());
+}
+
 function normalizeReferenceToken(value = '') {
   return String(value || '')
     .toLowerCase()
@@ -746,13 +1152,16 @@ function StepContent({
   listeningAudioInitialTimeSec = 0,
   onListeningAudioTimeUpdate,
   reviewMode = false,
-  reviewLookup = {}
+  reviewLookup = {},
+  useMobileReadingDrawer = false,
+  isMobileViewport = false,
 }) {
   const { item, startSlotIndex, type } = step;
   const isReading = type === 'reading';
   const isListening = type === 'listening';
   const audioUrl = isListening ? (listeningAudioUrl || item.audio_url || null) : item.audio_url;
   const hasAudio = isListening && Boolean(audioUrl);
+  const useDropdownForDragDrop = Boolean(isMobileViewport);
   let slotIndex = startSlotIndex;
   const getReviewForQuestion = (qNumber) => reviewLookup?.[String(qNumber)] || null;
   const [expandedReviewQuestions, setExpandedReviewQuestions] = useState({});
@@ -760,16 +1169,23 @@ function StepContent({
 
   // Use persisted HTML if available, otherwise original content
   const contentHtml = (passageStates && passageStates[item._id]) || (item.content || '').replace(/\n/g, '<br />');
+  const transcriptHtml = String(item?.transcript || '').replace(/\n/g, '<br />');
+  const hasReviewTranscript = reviewMode && isListening && String(item?.transcript || '').trim().length > 0;
   const activeReviewReference = useMemo(() => {
-    if (!reviewMode || !isReading || !activeReviewQuestionNumber) return '';
+    if (!reviewMode || !(isReading || isListening) || !activeReviewQuestionNumber) return '';
     const activeReviewItem = getReviewForQuestion(activeReviewQuestionNumber);
     return String(activeReviewItem?.passage_reference || activeReviewItem?.passageReference || '').trim();
-  }, [reviewMode, isReading, activeReviewQuestionNumber, reviewLookup]);
+  }, [reviewMode, isReading, isListening, activeReviewQuestionNumber, reviewLookup]);
 
   const renderedContentHtml = useMemo(() => {
     if (!reviewMode || !isReading) return contentHtml;
     return applyReferenceHighlightToHtml(contentHtml, activeReviewReference);
   }, [reviewMode, isReading, contentHtml, activeReviewReference]);
+
+  const renderedTranscriptHtml = useMemo(() => {
+    if (!hasReviewTranscript) return transcriptHtml;
+    return applyReferenceHighlightToHtml(transcriptHtml, activeReviewReference);
+  }, [hasReviewTranscript, transcriptHtml, activeReviewReference]);
 
   useEffect(() => {
     if (!reviewMode) return;
@@ -806,10 +1222,20 @@ function StepContent({
           group.type === 'matching';
         const isSummary = group.type === 'summary_completion';
         const isGapLike = group.type === 'gap_fill' || group.type === 'note_completion';
+        const isFlowOrPlan = group.type === 'flow_chart_completion' || group.type === 'plan_map_diagram';
+        const isDiagramLabel = group.type === 'diagram_label_completion';
         const summaryOptions = isSummary ? getNormalizedSummaryOptions(group.options || []) : [];
         const hasSummaryOptions = summaryOptions.length > 0;
-
         const groupStartIndex = slotIndex;
+        const groupQuestionCount = (group.questions || []).length;
+        const matchingPoolOptions = isMatching ? (group.headings || []) : [];
+        const shouldRenderMatchingPool = !reviewMode && !useDropdownForDragDrop && matchingPoolOptions.length > 0;
+        const shouldRenderSummaryPool = !reviewMode && !useDropdownForDragDrop && isSummary && hasSummaryOptions;
+        const selectedTokens = new Set();
+        for (let offset = 0; offset < groupQuestionCount; offset += 1) {
+          const rawAnswer = String(answers[groupStartIndex + offset] ?? '').trim();
+          if (rawAnswer) selectedTokens.add(normalizeReviewText(rawAnswer));
+        }
 
         return (
           <div key={group.type + slotIndex + groupIdx} className={`exam-group ${group.type === 'summary_completion' ? 'summary-completion' : ''}`}>
@@ -833,61 +1259,67 @@ function StepContent({
               )
             )}
 
-            {/* Shared options pool for matching questions */}
-            {isMatching && group.questions && group.questions.length > 0 && (() => {
-              // Get headings from first question's slot
-              const firstSlot = slots[groupStartIndex];
-              const headings = firstSlot?.headings || [];
-
-              // Calculate used headings for this group (to hide them from list)
-              const usedIds = new Set();
-              if (group.type === 'matching_headings') {
-                for (let i = 0; i < (group.questions || []).length; i++) {
-                  const ans = answers[groupStartIndex + i];
-                  if (ans) usedIds.add(ans);
-                }
-              }
-
-              return headings.length > 0 ? (
-                <div className="">
-                  <div className={`matching-options-pool ${isListening ? 'matching-options-pool-listening' : ''}`}>
-                    {/* <div className="matching-options-label">Available Options - Drag to Questions Below:</div> */}
-                    <div className={`matching-chips ${group.type === 'matching_headings' ? 'matching-chips-column' : 'matching-chips-row'}`}>
-                      {headings.map((h) => {
-                        // Check if heading is used (and group type is matching_headings)
-                        if (group.type === 'matching_headings' && usedIds.has(h.id)) return null;
-
-                        return (
-                          <div
-                            key={h.id}
-                            className="matching-chip"
-                            draggable={!reviewMode}
-                            onDragStart={(e) => {
-                              if (reviewMode) return;
-                              // Cross-browser support: set text/plain as well
-                              e.dataTransfer.setData('headingId', h.id);
-                              e.dataTransfer.setData('text/plain', h.id);
-                              e.dataTransfer.effectAllowed = 'move';
-                              e.currentTarget.classList.add('dragging');
-                            }}
-                            onDragEnd={(e) => {
-                              e.currentTarget.classList.remove('dragging');
-                            }}
-                          >
-                            {(group.type === 'matching_headings' || group.type === 'matching_features') && !reviewMode ? <span className="matching-chip-id">{h.id}</span> : null}
-                            {/* {console.log(group.type)} */}
-                            <span className="matching-chip-text">{h.text}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
+            {shouldRenderMatchingPool ? (
+              <div className="matching-options-pool">
+                <div className="matching-chips matching-chips-row">
+                  {matchingPoolOptions.map((option, optionIndex) => {
+                    const optionToken = getMatchingOptionToken(option);
+                    if (!optionToken) return null;
+                    const normalizedToken = normalizeReviewText(optionToken);
+                    const isUsed = selectedTokens.has(normalizedToken);
+                    return (
+                      <button
+                        key={`matching-pool-${groupIdx}-${optionToken}-${optionIndex}`}
+                        type="button"
+                        className={`matching-chip ${isUsed ? 'used' : ''}`}
+                        draggable={!reviewMode}
+                        onDragStart={(event) => {
+                          event.dataTransfer.setData('application/x-matching-token', optionToken);
+                          event.dataTransfer.setData('text/plain', optionToken);
+                          event.dataTransfer.effectAllowed = 'copy';
+                          event.currentTarget.classList.add('dragging');
+                        }}
+                        onDragEnd={(event) => event.currentTarget.classList.remove('dragging')}
+                      >
+                        <span className="matching-chip-id">{String(option?.id ?? '').trim() || String(option?.label ?? '').trim()}</span>
+                        <span className="matching-chip-text">{String(option?.text ?? '').trim() || getMatchingOptionLabel(option)}</span>
+                      </button>
+                    );
+                  })}
                 </div>
-              ) : null;
-            })()}
+              </div>
+            ) : null}
 
-
-
+            {shouldRenderSummaryPool ? (
+              <div className="matching-options-pool">
+                <div className="matching-chips matching-chips-row">
+                  {summaryOptions.map((option, optionIndex) => {
+                    const optionToken = String(option?.token || '').trim();
+                    if (!optionToken) return null;
+                    const normalizedToken = normalizeReviewText(optionToken);
+                    const isUsed = selectedTokens.has(normalizedToken);
+                    return (
+                      <button
+                        key={`summary-pool-${groupIdx}-${optionToken}-${optionIndex}`}
+                        type="button"
+                        className={`matching-chip ${isUsed ? 'used' : ''}`}
+                        draggable={!reviewMode}
+                        onDragStart={(event) => {
+                          event.dataTransfer.setData('application/x-summary-token', optionToken);
+                          event.dataTransfer.setData('text/plain', optionToken);
+                          event.dataTransfer.effectAllowed = 'copy';
+                          event.currentTarget.classList.add('dragging');
+                        }}
+                        onDragEnd={(event) => event.currentTarget.classList.remove('dragging')}
+                      >
+                        <span className="matching-chip-id">{String(option?.id || '').trim() || String(option?.label || '').trim()}</span>
+                        <span className="matching-chip-text">{getSummaryDisplayText(option)}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
 
             {/* Questions Rendering (Summary Text or Standard List) */}
             {(() => {
@@ -904,6 +1336,131 @@ function StepContent({
                     startSlotIndex={currentGroupStartIndex}
                     reviewMode={reviewMode}
                   />
+                );
+              }
+
+              if (isDiagramLabel) {
+                const currentGroupStartIndex = slotIndex;
+                slotIndex += group.questions.length;
+                const diagramImageUrl = String(group.image_url || '').trim() || (isLikelyHttpUrl(group.text) ? String(group.text || '').trim() : '');
+
+                return (
+                  <div className="diagram-label-group">
+                    {diagramImageUrl ? (
+                      <div className="diagram-label-image-wrapper">
+                        <img src={diagramImageUrl} alt="Diagram" className="diagram-label-image" />
+                      </div>
+                    ) : null}
+
+                    <div className="diagram-label-questions">
+                      {(group.questions || []).map((question, questionIndex) => {
+                        const currentIndex = currentGroupStartIndex + questionIndex;
+                        const slot = slots[currentIndex];
+                        if (!slot) return null;
+                        const questionLabel = String(question?.text || '').trim();
+
+                        return (
+                          <div key={`diagram-row-${currentIndex}`} className="diagram-label-question-row">
+                            <label className="diagram-label-question-title">
+                              <strong>Q{question.q_number}</strong>
+                              {questionLabel ? <span>{` ${questionLabel}`}</span> : null}
+                            </label>
+                            <QuestionInput
+                              slot={slot}
+                              value={answers[currentIndex]}
+                              onChange={(value) => setAnswer(currentIndex, value)}
+                              index={currentIndex}
+                              onHighlightUpdate={handleHtmlUpdate}
+                              showResult={showResult}
+                              passageStates={passageStates}
+                              isListening={isListening}
+                              reviewMode={reviewMode}
+                              useMatchingDropdown={useDropdownForDragDrop}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              }
+
+              if (isFlowOrPlan) {
+                const currentGroupStartIndex = slotIndex;
+                slotIndex += group.questions.length;
+                const steps = Array.isArray(group.steps) && group.steps.length
+                  ? group.steps.map((step) => String(step || ''))
+                  : (String(group.text || '').trim() ? [String(group.text || '')] : []);
+                const questionIndexByNumber = new Map(
+                  (group.questions || []).map((question, index) => [Number(question.q_number), index]),
+                );
+                const placeholderRegex = /\[\s*[Qq]?(\d+)\s*\]/g;
+
+                const renderStepText = (stepText = '') => parse(
+                  String(stepText || '').replace(/\n/g, '<br />'),
+                  {
+                    replace: (domNode) => {
+                      if (domNode.type !== 'text') return undefined;
+                      const text = String(domNode.data || '');
+                      const parts = text.split(placeholderRegex);
+                      if (parts.length === 1) return domNode;
+
+                      return (
+                        <>
+                          {parts.map((part, index) => {
+                            if (!/^\d+$/.test(part)) return <span key={`step-text-${index}`}>{part}</span>;
+
+                            const qNumber = Number(part);
+                            const qIndexInGroup = questionIndexByNumber.get(qNumber);
+                            if (typeof qIndexInGroup !== 'number') {
+                              return <span key={`step-missing-${qNumber}-${index}`}>[Q{qNumber}?]</span>;
+                            }
+
+                            const realSlotIndex = currentGroupStartIndex + qIndexInGroup;
+                            return (
+                              <input
+                                key={`step-input-${realSlotIndex}`}
+                                id={`q-${realSlotIndex}`}
+                                data-question-index={realSlotIndex}
+                                type="text"
+                                className={`gap-fill-input ${isListening ? 'gap-fill-input-listening' : ''}`}
+                                placeholder={`${qNumber}`}
+                                value={answers[realSlotIndex] || ''}
+                                onChange={(event) => !reviewMode && setAnswer(realSlotIndex, event.target.value)}
+                                readOnly={reviewMode}
+                                disabled={reviewMode}
+                                autoComplete="off"
+                              />
+                            );
+                          })}
+                        </>
+                      );
+                    },
+                  },
+                );
+
+                if (!steps.length) {
+                  return (
+                    <div className="summary-missing-warning">
+                      <strong>Flow steps are missing.</strong> Please update this group in the Manage interface.
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="flow-steps-group">
+                    {steps.map((step, stepIndex) => (
+                      <div key={`flow-step-${stepIndex}`} className="flow-step-wrapper">
+                        <div className="flow-step-item">
+                          <span className="flow-step-number">{stepIndex + 1}.</span>
+                          <span className="flow-step-content">{renderStepText(step)}</span>
+                        </div>
+                        {stepIndex < steps.length - 1 ? (
+                          <div className="flow-step-arrow" aria-hidden="true">&darr;</div>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
                 );
               }
 
@@ -948,6 +1505,7 @@ function StepContent({
                                       onChange={(val) => setAnswer(realSlotIndex, val)}
                                       options={summaryOptions}
                                       reviewMode={reviewMode}
+                                      useDropdown={useDropdownForDragDrop}
                                     />
                                   );
                                 } else {
@@ -979,48 +1537,8 @@ function StepContent({
                   }
                 };
 
-                // NEW: Calculate used options for the pool (within the summary block)
-                const usedValues = new Set();
-                let tempIdx = currentGroupStartIndex;
-                group.questions.forEach(() => {
-                  const normalizedAnswer = normalizeReviewText(answers[tempIdx]);
-                  if (normalizedAnswer) usedValues.add(normalizedAnswer);
-                  tempIdx++;
-                });
-
                 return (
                   <div className={isListening ? "summary-completion-wrapper" : ""}>
-                    {isSummary && hasSummaryOptions && (
-                      <div className={`matching-options-pool ${isListening ? 'matching-options-pool-listening' : ''}`}>
-                        <div className="matching-chips">
-                          {summaryOptions.map((opt) => {
-                            const isUsed = usedValues.has(normalizeReviewText(opt.token));
-                            return (
-                              <div
-                                key={opt.token}
-                                className={`matching-chip ${isUsed ? 'used' : ''}`}
-                                draggable={!isUsed && !reviewMode}
-                                onDragStart={(e) => {
-                                  if (!isUsed && !reviewMode) {
-                                    // Cross-browser support: set text/plain as well
-                                    e.dataTransfer.setData('optionId', opt.token);
-                                    e.dataTransfer.setData('text/plain', opt.token);
-                                    e.dataTransfer.effectAllowed = 'move';
-                                    e.currentTarget.classList.add('dragging');
-                                  }
-                                }}
-                                onDragEnd={(e) => {
-                                  e.currentTarget.classList.remove('dragging');
-                                }}
-                              >
-                                <span className="matching-chip-text">{getSummaryDisplayText(opt)}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
                     <div className="exam-summary-text">
                       {groupTextHtml ? (
                         <HighlightableWrapper
@@ -1193,6 +1711,7 @@ function StepContent({
                                       passageStates={passageStates}
                                       isListening={isListening}
                                       reviewMode={reviewMode}
+                                      useMatchingDropdown={useDropdownForDragDrop}
                                     />
                                   </span>
                                 )}
@@ -1221,7 +1740,7 @@ function StepContent({
                     new RegExp(`data-question-number=["']?${q.q_number}["']?`).test(contentHtml)
                   );
 
-                  if (isEmbedded) {
+                  if (isEmbedded && !useMobileReadingDrawer) {
                     return null; // Skip rendering if embedded
                   }
 
@@ -1240,13 +1759,23 @@ function StepContent({
                       <QuestionInput
                         slot={slot}
                         value={answers[currentIndex]}
-                        onChange={(v) => setAnswer(currentIndex, v)}
+                        onChange={(v) =>
+                          setMatchingAnswerWithSingleUse({
+                            group,
+                            groupStartIndex,
+                            questionCount: (group.questions || []).length,
+                            targetIndex: currentIndex,
+                            nextValue: v,
+                            answers,
+                            setAnswer,
+                          })}
                         index={currentIndex}
                         onHighlightUpdate={handleHtmlUpdate}
                         showResult={showResult}
                         passageStates={passageStates}
                         isListening={isListening}
                         reviewMode={reviewMode}
+                        useMatchingDropdown={useDropdownForDragDrop}
                       />
                     </div>
                   );
@@ -1277,6 +1806,7 @@ function StepContent({
                         passageStates={passageStates}
                         isListening={isListening}
                         reviewMode={reviewMode}
+                        useMatchingDropdown={useDropdownForDragDrop}
                       />
                     </div>
                   );
@@ -1387,6 +1917,43 @@ function StepContent({
   // IELTS LISTENING LAYOUT: Centered questions with audio at bottom
   // ==========================================================
   if (isListening) {
+    if (reviewMode) {
+      if (hasReviewTranscript) {
+        return (
+          <PanelGroup direction="horizontal" className="ielts-reading-layout">
+            <Panel defaultSize={50} minSize={20} className="ielts-passage-panel">
+              <div className="passage-scrollable">
+                <div
+                  className="listening-transcript-content"
+                  dangerouslySetInnerHTML={toSanitizedInnerHtml(renderedTranscriptHtml)}
+                />
+              </div>
+            </Panel>
+
+            <PanelResizeHandle className="ielts-resizer">
+              <div className="resizer-handle-button" />
+            </PanelResizeHandle>
+
+            <Panel defaultSize={50} minSize={20} className="ielts-questions-panel">
+              <div className="questions-scrollable">
+                {questionsBlock}
+              </div>
+            </Panel>
+          </PanelGroup>
+        );
+      }
+
+      return (
+        <div className="ielts-listening-layout">
+          <div className="listening-content-area-top-padded listening-content-area-no-audio">
+            <div className="listening-questions-centered">
+              {questionsBlock}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="ielts-listening-layout">
         {hasAudio && (
@@ -1435,6 +2002,7 @@ function StepContent({
         handleHtmlUpdate={handleHtmlUpdate}
         questionsBlock={questionsBlock}
         reviewMode={reviewMode}
+        useMobileReadingDrawer={useMobileReadingDrawer}
       />
     );
   }
@@ -1446,4 +2014,5 @@ function StepContent({
 /** Writing step content with big textarea and real-time word count */
 
 export default StepContent;
+
 

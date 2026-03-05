@@ -4,24 +4,68 @@ import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
 import AIContentGeneratorModal from '@/shared/components/AIContentGeneratorModal';
 import ConfirmationModal from '@/shared/components/ConfirmationModal';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from '@/components/ui/empty';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 import QuestionGroup from './QuestionGroup';
 import { PLACEHOLDER_FROM_PASSAGE_CONTENT_TYPES, SECTION_QUESTION_TYPE_OPTIONS } from './questionGroupConfig';
 import { buildQuestionsFromPlaceholders, parseCorrectAnswersRaw } from './manageQuestionInputUtils';
-import { IconCloud } from '@tabler/icons-react';
-import { X } from 'lucide-react';
-import './Manage.css';
+import { MoreVertical, X } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D'];
 const SECTION_AUDIO_MAX_BYTES = 50 * 1024 * 1024;
+
+function isFlowOrPlanType(type = '') {
+  const normalized = canonicalizeQuestionType(type);
+  return normalized === 'flow_chart_completion' || normalized === 'plan_map_diagram';
+}
+
+function normalizeOptionToken(raw = '') {
+  return String(raw || '').trim().toUpperCase().replace(/\s+/g, ' ');
+}
+
+function dedupeOptionIds(values = []) {
+  const seen = new Set();
+  const result = [];
+  values.forEach((value) => {
+    const normalized = normalizeOptionToken(value);
+    if (!normalized || seen.has(normalized)) return;
+    seen.add(normalized);
+    result.push(normalized);
+  });
+  return result;
+}
+
+function resolveCanonicalOptionId(options = [], rawToken = '') {
+  const normalized = normalizeOptionToken(rawToken);
+  if (!normalized) return '';
+
+  for (const option of options || []) {
+    const label = normalizeOptionToken(option?.label || option?.id || '');
+    if (label && label === normalized) return label;
+  }
+
+  for (const option of options || []) {
+    const text = normalizeOptionToken(option?.text || '');
+    const label = normalizeOptionToken(option?.label || option?.id || '');
+    if (text && label && text === normalized) return label;
+  }
+
+  return normalized;
+}
+
+function getQuestionOptionIds(question = {}, options = []) {
+  const fromArray = Array.isArray(question?.correct_answers) ? question.correct_answers : [];
+  const fromRaw = parseCorrectAnswersRaw(question?.correct_answers_raw || '');
+  const source = fromArray.length ? fromArray : fromRaw;
+  const canonical = source.map((token) => resolveCanonicalOptionId(options, token));
+  return dedupeOptionIds(canonical);
+}
 
 function canonicalizeQuestionType(type = '') {
   const normalized = String(type || '').trim().toLowerCase();
@@ -57,6 +101,8 @@ function emptyQuestionGroup() {
     use_once: false,
     instructions: '',
     text: '',
+    image_url: '',
+    steps: [],
     headings: [],
     options: [],
     questions: [emptyQuestion(1)],
@@ -69,6 +115,7 @@ function sectionToForm(section) {
       _id: '',
       title: '',
       content: '',
+      transcript: '',
       audio_url: '',
       audio_storage_key: '',
       source: '',
@@ -86,6 +133,16 @@ function sectionToForm(section) {
       use_once: Boolean(group.use_once),
       instructions: group.instructions || '',
       text: group.text || '',
+      image_url: group.image_url || '',
+      steps: (() => {
+        if (Array.isArray(group.steps) && group.steps.length) {
+          return group.steps.map((step) => String(step || '')).filter((step) => step.trim().length > 0);
+        }
+        if (isFlowOrPlanType(group.type) && String(group.text || '').trim()) {
+          return [String(group.text || '').trim()];
+        }
+        return [];
+      })(),
       headings: Array.isArray(group.headings) ? group.headings.map((heading) => ({ id: heading.id || '', text: heading.text || '' })) : [],
       options: Array.isArray(group.options) ? group.options.map((option) => ({ id: option.id || '', text: option.text || '' })) : [],
       questions: Array.isArray(group.questions) && group.questions.length
@@ -111,6 +168,7 @@ function sectionToForm(section) {
     _id: section._id || '',
     title: section.title || '',
     content: section.content || '',
+    transcript: section.transcript || '',
     audio_url: section.audio_url || '',
     audio_storage_key: section.audio_storage_key || '',
     source: section.source || '',
@@ -169,6 +227,7 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
     _id: '',
     title: '',
     content: '',
+    transcript: '',
     audio_url: '',
     audio_storage_key: '',
     source: '',
@@ -182,6 +241,7 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
   const [audioUploadLoading, setAudioUploadLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
+  const [isMetadataOpen, setIsMetadataOpen] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState(new Set());
   const [collapsedQuestions, setCollapsedQuestions] = useState(new Set());
   const [confirmModal, setConfirmModal] = useState({
@@ -200,12 +260,19 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
       try {
         if (editId) {
           const response = await api.getSectionById(editId);
-          setForm(sectionToForm(response.data));
+          const nextForm = sectionToForm(response.data);
+          setForm(nextForm);
+          setCollapsedGroups(
+            nextForm.isActive
+              ? new Set(nextForm.question_groups.map((_, index) => index))
+              : new Set(),
+          );
         } else {
           setForm({
             _id: `section-${Date.now()}`,
             title: '',
             content: '',
+            transcript: '',
             audio_url: '',
             audio_storage_key: '',
             source: '',
@@ -213,6 +280,7 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
             isSinglePart: false,
             question_groups: [emptyQuestionGroup()],
           });
+          setCollapsedGroups(new Set());
         }
       } catch (loadErr) {
         setLoadError(loadErr.message);
@@ -337,6 +405,11 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
     }));
   };
 
+  const updateGroupSteps = (groupIndex, steps = []) => {
+    const normalizedSteps = Array.isArray(steps) ? steps.map((step) => String(step ?? '')) : [];
+    updateQuestionGroup(groupIndex, 'steps', normalizedSteps);
+  };
+
   const addQuestionGroup = () => {
     setForm((prev) => {
       const nextNumber = getNextQuestionNumber(prev.question_groups);
@@ -459,6 +532,59 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
           }
           : group
       )),
+    }));
+  };
+
+  const setMultiChoiceCorrectAnswers = (groupIndex, selectedIds = []) => {
+    setForm((prev) => ({
+      ...prev,
+      question_groups: prev.question_groups.map((group, groupIdx) => {
+        if (groupIdx !== groupIndex) return group;
+        const primaryQuestion = group.questions?.[0] || {};
+        const primaryOptions = Array.isArray(primaryQuestion.option) && primaryQuestion.option.length
+          ? primaryQuestion.option
+          : OPTION_LABELS.map((label) => ({ label, text: '' }));
+        const canonicalIds = dedupeOptionIds(
+          (selectedIds || []).map((value) => resolveCanonicalOptionId(primaryOptions, value))
+        );
+        const nextRaw = canonicalIds.join(', ');
+
+        return {
+          ...group,
+          questions: (group.questions || []).map((question) => ({
+            ...question,
+            correct_answers_raw: nextRaw,
+            correct_answers: canonicalIds.length ? [...canonicalIds] : [''],
+          })),
+        };
+      }),
+    }));
+  };
+
+  const syncMultiChoiceSharedQuestion = (groupIndex, patch = {}) => {
+    if (!patch || typeof patch !== 'object') return;
+
+    setForm((prev) => ({
+      ...prev,
+      question_groups: prev.question_groups.map((group, groupIdx) => {
+        if (groupIdx !== groupIndex) return group;
+
+        const normalizedPatch = { ...patch };
+        if (Array.isArray(normalizedPatch.option)) {
+          normalizedPatch.option = normalizedPatch.option.map((option, optionIndex) => ({
+            label: String.fromCharCode(65 + optionIndex),
+            text: option?.text || '',
+          }));
+        }
+
+        return {
+          ...group,
+          questions: (group.questions || []).map((question) => ({
+            ...question,
+            ...normalizedPatch,
+          })),
+        };
+      }),
     }));
   };
 
@@ -613,8 +739,11 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
     const targetGroup = form.question_groups[groupIndex];
     if (!targetGroup) return;
 
-    const sourceText = PLACEHOLDER_FROM_PASSAGE_CONTENT_TYPES.has(targetGroup.type)
+    const normalizedType = canonicalizeQuestionType(targetGroup.type);
+    const sourceText = PLACEHOLDER_FROM_PASSAGE_CONTENT_TYPES.has(normalizedType)
       ? (form.content || '')
+      : isFlowOrPlanType(normalizedType)
+        ? (Array.isArray(targetGroup.steps) ? targetGroup.steps.join('\n') : '')
       : (targetGroup.text || '');
 
     const nextQuestions = buildQuestionsFromPlaceholders({
@@ -624,7 +753,12 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
     });
 
     if (!nextQuestions.length) {
-      showNotification('No placeholders found. Use [1], [2], ... in reference text.', 'warning');
+      showNotification(
+        isFlowOrPlanType(normalizedType)
+          ? 'No placeholders found. Use [1], [2], ... in ListSteps.'
+          : 'No placeholders found. Use [1], [2], ... in reference text.',
+        'warning',
+      );
       return;
     }
 
@@ -650,6 +784,7 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
       ...prev,
       title: normalized.title || prev.title,
       content: normalized.content || prev.content,
+      transcript: normalized.transcript || prev.transcript,
       source: normalized.source || prev.source,
       audio_url: normalized.audio_url || prev.audio_url,
       audio_storage_key: normalized.audio_storage_key || prev.audio_storage_key,
@@ -669,6 +804,29 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
       return;
     }
 
+    for (let groupIndex = 0; groupIndex < form.question_groups.length; groupIndex += 1) {
+      const group = form.question_groups[groupIndex];
+      if (canonicalizeQuestionType(group.type) !== 'mult_choice' || group.group_layout !== 'checkbox') continue;
+
+      const parsedRequired = Number(group.required_count);
+      const requiredCount = Number.isFinite(parsedRequired) && parsedRequired > 0
+        ? parsedRequired
+        : Math.max(1, group.questions?.length || 1);
+      const primaryQuestion = group.questions?.[0] || {};
+      const primaryOptions = Array.isArray(primaryQuestion.option) && primaryQuestion.option.length
+        ? primaryQuestion.option
+        : OPTION_LABELS.map((label) => ({ label, text: '' }));
+      const selectedOptionIds = getQuestionOptionIds(primaryQuestion, primaryOptions);
+
+      if (selectedOptionIds.length !== requiredCount) {
+        showNotification(
+          `Group ${groupIndex + 1}: multiple-answer requires exactly ${requiredCount} selected option ID(s), currently ${selectedOptionIds.length}.`,
+          'error',
+        );
+        return;
+      }
+    }
+
     setSubmitLoading(true);
     try {
       const normalizedAudioUrl = form.audio_url?.trim() || null;
@@ -677,6 +835,7 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
         _id: form._id.trim(),
         title: form.title.trim(),
         content: form.content.trim(),
+        transcript: form.transcript?.trim() || undefined,
         audio_url: normalizedAudioUrl,
         audio_storage_key: normalizedAudioStorageKey,
         source: form.source?.trim() || undefined,
@@ -689,6 +848,10 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
           use_once: Boolean(group.use_once),
           instructions: group.instructions || undefined,
           text: group.text || undefined,
+          image_url: group.image_url?.trim() || undefined,
+          steps: (group.steps || []).map((step) => String(step || '').trim()).filter(Boolean).length
+            ? (group.steps || []).map((step) => String(step || '').trim()).filter(Boolean)
+            : undefined,
           headings: (group.headings || []).filter((heading) => heading.id || heading.text).length
             ? (group.headings || []).filter((heading) => heading.id || heading.text)
             : undefined,
@@ -712,8 +875,11 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
         await api.createSection(payload);
         showNotification(asDraft ? 'Draft saved.' : 'Section created successfully.', 'success');
         if (!editIdOverride) {
-          navigate(`/manage/sections/${form._id}`);
+          navigate(`/admin/manage/sections/${form._id}`);
         }
+      }
+      if (!asDraft) {
+        setCollapsedGroups(new Set(form.question_groups.map((_, index) => index)));
       }
 
       if (asDraft) {
@@ -733,52 +899,33 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
     await saveSection({ asDraft: false });
   };
 
-  if (loading) return <div className="manage-container"><p className="muted">Loading...</p></div>;
-  if (loadError) return <div className="manage-container"><p className="form-error">{loadError}</p></div>;
+  if (loading) {
+    return (
+      <div className='min-h-[calc(100vh-70px)] bg-muted/30 p-4 md:p-6'>
+        <Card className='mx-auto max-w-7xl border-border/70 shadow-sm'>
+          <CardContent className='p-6 text-sm text-muted-foreground'>Loading section...</CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className='min-h-[calc(100vh-70px)] bg-muted/30 p-4 md:p-6'>
+        <Card className='mx-auto max-w-7xl border-border/70 shadow-sm'>
+          <CardContent className='p-6 text-sm font-medium text-destructive'>{loadError}</CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
-    <div className="manage-container">
-      <div className="manage-editor-topbar">
-        <div className="manage-editor-title">
-          <button
-            type="button"
-            className="manage-editor-close"
-            onClick={() => {
-              if (typeof onCancel === 'function') onCancel();
-              else navigate('/manage/sections');
-            }}
-            title="Close editor"
-          >
-            <X size={18} />
-          </button>
-          <div>
-          <h1 style={{ margin: 0, fontSize: '1.8rem' }}>{editId ? 'Edit Listening Section' : 'Create Listening Section'}</h1>
-          <p className="muted" style={{ marginTop: '0.5rem' }}>Listening comprehension section with question groups and audio.</p>
-          </div>
-        </div>
-
-        <div className="manage-header-actions">
-          <label className="status-toggle">
-            {form.isActive ? 'Active' : 'Inactive'}
-            <div className="switch">
-              <input type="checkbox" checked={form.isActive} onChange={(event) => updateForm('isActive', event.target.checked)} />
-              <span className="slider"></span>
-            </div>
-          </label>
-
-          <button type="button" className="btn-ghost" onClick={handleSaveDraft}>Save Draft</button>
-
-          <button type="button" className="btn-manage-add" onClick={handleSubmit} disabled={submitLoading}>
-            {submitLoading ? 'Saving...' : 'Save Section'}
-          </button>
-        </div>
-      </div>
-
+    <div className='min-h-[calc(100vh-70px)] bg-muted/30'>
       <AIContentGeneratorModal
         isOpen={isAIModalOpen}
         onClose={() => setIsAIModalOpen(false)}
         onGenerated={handleAIGenerated}
-        type="section"
+        type='section'
       />
       <ConfirmationModal
         isOpen={confirmModal.isOpen}
@@ -789,221 +936,219 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
         isDanger={confirmModal.isDanger}
       />
 
-      {error && <div className="form-error" style={{ marginBottom: '1rem' }}>{error}</div>}
-
-      <div className="manage-layout-columns">
-        <div className="manage-main">
-          <div className="manage-card card-accent-blue">
-            <h3>Basic Information</h3>
-
-            <div className="manage-input-group">
-              <label className="manage-input-label">Section ID</label>
-              <input
-                className="manage-input-field"
-                value={form._id}
-                onChange={(event) => updateForm('_id', event.target.value)}
-                readOnly={!!editId}
-                placeholder="e.g., LIST_SEC_001"
-              />
-            </div>
-
-            <div className="manage-input-group">
-              <label className="manage-input-label">Title</label>
-              <input
-                className="manage-input-field"
-                value={form.title}
-                onChange={(event) => updateForm('title', event.target.value)}
-                placeholder="Enter section title"
-              />
-            </div>
-
-            <div className="manage-input-group">
-              <label className="manage-input-label">Source</label>
-              <input
-                className="manage-input-field"
-                value={form.source}
-                onChange={(event) => updateForm('source', event.target.value)}
-                placeholder="e.g., Cambridge IELTS 18"
-              />
-            </div>
-
-            <div className="manage-input-group">
-              <label className="manage-input-label">Listening Audio</label>
-              <input
-                ref={audioFileInputRef}
-                type="file"
-                accept="audio/*"
-                onChange={handleAudioFileSelected}
-                style={{ display: 'none' }}
-              />
-
-              {!form.audio_url?.trim() ? (
-                <Empty className="border border-dashed border-slate-300 bg-slate-50/70">
-                  <EmptyHeader>
-                    <EmptyMedia variant="icon">
-                      <IconCloud size={20} />
-                    </EmptyMedia>
-                    <EmptyTitle>Audio Is Empty</EmptyTitle>
-                    <EmptyDescription>
-                      Upload listening audio to DigitalOcean Spaces, or paste a manual URL below.
-                    </EmptyDescription>
-                  </EmptyHeader>
-                  <EmptyContent>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={openAudioUploadPicker}
-                      disabled={audioUploadLoading}
-                    >
-                      {audioUploadLoading ? 'Uploading...' : 'Upload Files'}
-                    </Button>
-                  </EmptyContent>
-                </Empty>
-              ) : (
-                <div style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={openAudioUploadPicker}
-                    disabled={audioUploadLoading}
-                  >
-                    {audioUploadLoading ? 'Uploading...' : 'Replace Audio'}
-                  </Button>
-                  <span className="muted" style={{ fontSize: '0.85rem' }}>
-                    {form.audio_storage_key ? 'Managed by Spaces upload.' : 'Manual URL mode.'}
-                  </span>
-                </div>
-              )}
-
-              <input
-                className="manage-input-field"
-                value={form.audio_url}
-                onChange={handleAudioUrlChange}
-                placeholder="https://example.com/audio.mp3"
-              />
-              <p className="muted" style={{ marginTop: '0.45rem', fontSize: '0.85rem' }}>
-                Manual URL edit will clear managed storage key to avoid deleting external audio.
-              </p>
-            </div>
-
-            <div className="manage-input-group">
-              <label className="manage-input-label">Context / Description</label>
-              <textarea
-                className="manage-input-field"
-                value={form.content}
-                onChange={(event) => updateForm('content', event.target.value)}
-                onKeyDown={(event) => handleBoldShortcut(event, form.content, (next) => updateForm('content', next))}
-                rows={5}
-                placeholder="Brief context for this listening section..."
-              />
-              <div style={{ marginTop: '0.5rem', display: 'flex', justifyContent: 'flex-end' }}>
-                <button type="button" className="btn-sm btn-ghost" style={{ color: '#6366F1' }} onClick={() => setIsAIModalOpen(true)}>
-                  Generate with AI
-                </button>
+      <div className='mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 md:p-6'>
+        <Card className='border-border/70 shadow-sm'>
+          <CardHeader className='flex flex-col gap-4 md:flex-row md:items-center md:justify-between'>
+            <div className='flex items-start gap-3'>
+              <Button
+                type='button'
+                variant='outline'
+                size='icon'
+                onClick={() => {
+                  if (typeof onCancel === 'function') onCancel();
+                  else navigate('/admin/manage/sections');
+                }}
+              >
+                <X className='h-4 w-4' />
+              </Button>
+              <div className='space-y-1'>
+                <CardTitle className='text-2xl tracking-tight'>{editId ? 'Edit Listening Section' : 'Create Listening Section'}</CardTitle>
+                <CardDescription>Listening section with question groups and audio.</CardDescription>
               </div>
             </div>
-          </div>
 
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-              <h3 style={{ margin: 0, color: '#1E293B' }}>Question Groups</h3>
-              <button type="button" className="btn-manage-add" onClick={addQuestionGroup} style={{ padding: '0.6rem 1rem', fontSize: '0.9rem' }}>
-                + Add Group
-              </button>
+            <div className='flex flex-wrap items-center gap-3'>
+              <div className='flex items-center gap-2 rounded-md border px-3 py-2'>
+                <Switch checked={form.isActive} onCheckedChange={(checked) => updateForm('isActive', checked)} />
+                <span className='text-sm'>{form.isActive ? 'Active' : 'Inactive'}</span>
+              </div>
+              <Button type='button' variant='outline' onClick={handleSaveDraft}>Save Draft</Button>
+              <Button type='button' variant='outline' size='icon' onClick={() => setIsMetadataOpen(true)} aria-label='Open metadata'>
+                <MoreVertical className='h-4 w-4' />
+              </Button>
+              <Button type='button' onClick={handleSubmit} disabled={submitLoading}>
+                {submitLoading ? 'Saving...' : 'Save Section'}
+              </Button>
             </div>
+          </CardHeader>
+        </Card>
 
-            {form.question_groups.length === 0 ? (
-              <div className="manage-card" style={{ textAlign: 'center', color: '#64748B', borderStyle: 'dashed' }}>
-                <p>No question groups yet.</p>
+        <Dialog open={isMetadataOpen} onOpenChange={setIsMetadataOpen}>
+          <DialogContent className='sm:max-w-md'>
+            <DialogHeader>
+              <DialogTitle>Metadata</DialogTitle>
+            </DialogHeader>
+            <div className='space-y-3'>
+              <div className='flex items-center justify-between text-sm'>
+                <span className='text-muted-foreground'>Created</span>
+                <span>{form.createdAt ? new Date(form.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
               </div>
-            ) : (
-              form.question_groups.map((group, gi) => (
-                <QuestionGroup
-                  key={`group-${gi}`}
-                  group={group}
-                  gi={gi}
-                  totalGroups={form.question_groups.length}
-                  isGroupCollapsed={collapsedGroups.has(gi)}
-                  collapsedQuestions={collapsedQuestions}
-                  questionTypeOptions={SECTION_QUESTION_TYPE_OPTIONS}
-                  onToggleGroupCollapse={toggleGroupCollapse}
-                  onToggleQuestionCollapse={toggleQuestionCollapse}
-                  onMove={moveGroup}
-                  onRemove={removeQuestionGroup}
-                  onUpdateGroup={updateQuestionGroup}
-                  onUpdateQuestion={updateQuestion}
-                  onAddQuestion={addQuestion}
-                  onRemoveQuestion={removeQuestion}
-                  onSetQuestionOption={setQuestionOption}
-                  onSetCorrectAnswers={setCorrectAnswers}
-                  onAddHeading={addHeading}
-                  onRemoveHeading={removeHeading}
-                  onUpdateHeading={updateHeading}
-                  onAddOption={addOption}
-                  onRemoveOption={removeOption}
-                  onUpdateOption={updateOption}
-                  onAddQuestionOption={addQuestionOption}
-                  onRemoveQuestionOption={removeQuestionOption}
-                  onSyncQuestionsFromText={syncQuestionsFromGroupText}
-                  onSyncMultiChoiceCount={syncMultiChoiceCount}
-                  handleBoldShortcut={(event, value, callback) => handleBoldShortcut(event, value, callback)}
-                />
-              ))
-            )}
-          </div>
-        </div>
+              <div className='flex items-center justify-between text-sm'>
+                <span className='text-muted-foreground'>Status</span>
+                <Badge variant={form.isActive ? 'default' : 'secondary'}>{form.isActive ? 'Active' : 'Inactive'}</Badge>
+              </div>
+              <div className='flex items-center justify-between'>
+                <Label htmlFor='section-single-part'>Standalone Part</Label>
+                <Switch id='section-single-part' checked={form.isSinglePart} onCheckedChange={(checked) => updateForm('isSinglePart', checked)} />
+              </div>
+              <div className='flex items-center justify-between text-sm'>
+                <span className='text-muted-foreground'>Total Questions</span>
+                <Badge variant='outline'>{totalQuestions}</Badge>
+              </div>
+              <div className='flex items-center justify-between text-sm'>
+                <span className='text-muted-foreground'>Question Groups</span>
+                <Badge variant='outline'>{form.question_groups.length}</Badge>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
 
-        <div className="manage-sidebar-column">
-          <div className="manage-card">
-            <h3>Metadata</h3>
-            <div className="metadata-list">
-              <div className="meta-item">
-                <span className="meta-label">Created</span>
-                <span className="meta-value">
-                  {form.createdAt
-                    ? new Date(form.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                    : new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                </span>
-              </div>
-              <div className="meta-item">
-                <span className="meta-label">Status</span>
-                <span className={`meta-badge ${form.isActive ? 'badge-active' : 'badge-draft'}`}>{form.isActive ? 'Active' : 'Inactive'}</span>
-              </div>
+        {error ? (
+          <Card className='border-destructive/30 shadow-sm'>
+            <CardContent className='p-4 text-sm font-medium text-destructive'>{error}</CardContent>
+          </Card>
+        ) : null}
 
-              <div className="meta-item">
-                <span className="meta-label">Standalone Part</span>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={form.isSinglePart}
-                    onChange={(event) => updateForm('isSinglePart', event.target.checked)}
+        <div className='grid gap-6 xl:grid-cols-12'>
+          <div className='space-y-6 xl:col-span-12'>
+            <Card className='border-border/70 shadow-sm'>
+              <CardHeader>
+                <CardTitle>Basic Information</CardTitle>
+              </CardHeader>
+              <CardContent className='space-y-4'>
+                <div className='space-y-2'>
+                  <Label htmlFor='section-id'>Section ID</Label>
+                  <Input
+                    id='section-id'
+                    value={form._id}
+                    onChange={(event) => updateForm('_id', event.target.value)}
+                    readOnly={Boolean(editId)}
+                    placeholder='e.g., LIST_SEC_001'
                   />
-                  <span className="meta-value">Show in Parts view</span>
-                </label>
-              </div>
-              <div className="meta-item" style={{ background: '#F8FAFC', padding: '0.75rem', borderRadius: '0.6rem' }}>
-                <span className="meta-label">Total Questions</span>
-                <span className="meta-value" style={{ color: '#0EA5E9', fontSize: '1.2rem' }}>{totalQuestions}</span>
-              </div>
-              <div className="meta-item" style={{ background: '#F8FAFC', padding: '0.75rem', borderRadius: '0.6rem' }}>
-                <span className="meta-label">Question Groups</span>
-                <span className="meta-value" style={{ fontSize: '1.2rem' }}>{form.question_groups.length}</span>
-              </div>
-            </div>
+                </div>
+
+                <div className='space-y-2'>
+                  <Label htmlFor='section-title'>Title</Label>
+                  <Input
+                    id='section-title'
+                    value={form.title}
+                    onChange={(event) => updateForm('title', event.target.value)}
+                    placeholder='Enter section title'
+                  />
+                </div>
+
+                <div className='space-y-2'>
+                  <Label htmlFor='section-source'>Source</Label>
+                  <Input
+                    id='section-source'
+                    value={form.source}
+                    onChange={(event) => updateForm('source', event.target.value)}
+                    placeholder='e.g., Cambridge IELTS 18'
+                  />
+                </div>
+
+                <div className='space-y-2'>
+                  <Label>Listening Audio</Label>
+                  <Input
+                    ref={audioFileInputRef}
+                    type='file'
+                    accept='audio/*'
+                    onChange={handleAudioFileSelected}
+                    className='hidden'
+                  />
+                  <div className='flex flex-wrap items-center gap-2'>
+                    <Button type='button' variant='outline' onClick={openAudioUploadPicker} disabled={audioUploadLoading}>
+                      {audioUploadLoading ? 'Uploading...' : form.audio_url?.trim() ? 'Replace Audio' : 'Upload Audio'}
+                    </Button>
+                    <span className='text-xs text-muted-foreground'>Max file size: 50MB</span>
+                  </div>
+                  <Input
+                    value={form.audio_url}
+                    onChange={handleAudioUrlChange}
+                    placeholder='https://example.com/audio.mp3'
+                  />
+                  <p className='text-xs text-muted-foreground'>Manual URL edit clears storage key to avoid deleting external audio.</p>
+                  {form.audio_url?.trim() ? <audio controls src={form.audio_url} className='w-full' /> : null}
+                </div>
+
+                <div className='space-y-2'>
+                  <Label htmlFor='section-content'>Context / Description</Label>
+                  <Textarea
+                    id='section-content'
+                    value={form.content}
+                    onChange={(event) => updateForm('content', event.target.value)}
+                    onKeyDown={(event) => handleBoldShortcut(event, form.content, (next) => updateForm('content', next))}
+                    rows={7}
+                    placeholder='Brief context for this listening section...'
+                  />
+                </div>
+
+                <div className='space-y-2'>
+                  <Label htmlFor='section-transcript'>Transcript (Review Mode only)</Label>
+                  <Textarea
+                    id='section-transcript'
+                    value={form.transcript}
+                    onChange={(event) => updateForm('transcript', event.target.value)}
+                    rows={10}
+                    placeholder='Paste listening transcript for review mode...'
+                  />
+                </div>
+
+                <div className='flex justify-end'>
+                  <Button type='button' variant='outline' onClick={() => setIsAIModalOpen(true)}>Generate with AI</Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className='border-border/70 shadow-sm'>
+              <CardHeader className='flex flex-row items-center justify-between gap-3'>
+                <CardTitle>Question Groups</CardTitle>
+                <Button type='button' onClick={addQuestionGroup}>+ Add Group</Button>
+              </CardHeader>
+              <CardContent className='space-y-4'>
+                {form.question_groups.length === 0 ? (
+                  <div className='rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground'>No question groups yet.</div>
+                ) : (
+                  form.question_groups.map((group, gi) => (
+                    <QuestionGroup
+                      key={`group-${gi}`}
+                      group={group}
+                      gi={gi}
+                      totalGroups={form.question_groups.length}
+                      isGroupCollapsed={collapsedGroups.has(gi)}
+                      collapsedQuestions={collapsedQuestions}
+                      questionTypeOptions={SECTION_QUESTION_TYPE_OPTIONS}
+                      onToggleGroupCollapse={toggleGroupCollapse}
+                      onToggleQuestionCollapse={toggleQuestionCollapse}
+                      onMove={moveGroup}
+                      onRemove={removeQuestionGroup}
+                      onUpdateGroup={updateQuestionGroup}
+                      onUpdateQuestion={updateQuestion}
+                      onAddQuestion={addQuestion}
+                      onRemoveQuestion={removeQuestion}
+                      onSetQuestionOption={setQuestionOption}
+                      onSetCorrectAnswers={setCorrectAnswers}
+                      onAddHeading={addHeading}
+                      onRemoveHeading={removeHeading}
+                      onUpdateHeading={updateHeading}
+                      onAddOption={addOption}
+                      onRemoveOption={removeOption}
+                      onUpdateOption={updateOption}
+                      onAddQuestionOption={addQuestionOption}
+                      onRemoveQuestionOption={removeQuestionOption}
+                      onSyncQuestionsFromText={syncQuestionsFromGroupText}
+                      onSyncMultiChoiceCount={syncMultiChoiceCount}
+                      onSetMultiChoiceCorrectAnswers={setMultiChoiceCorrectAnswers}
+                      onSyncMultiChoiceSharedQuestion={syncMultiChoiceSharedQuestion}
+                      onUpdateGroupSteps={updateGroupSteps}
+                      handleBoldShortcut={(event, value, callback) => handleBoldShortcut(event, value, callback)}
+                    />
+                  ))
+                )}
+              </CardContent>
+            </Card>
           </div>
 
-          <div className="manage-card tips-card" style={{ background: 'linear-gradient(135deg, #ECFEFF 0%, #E0F2FE 100%)' }}>
-            <h3 style={{ color: '#0284C7' }}>Tips</h3>
-            <ul className="tips-list">
-              <li>Use clean audio with minimal background noise.</li>
-              <li>Match difficulty to IELTS listening bands.</li>
-              <li>Keep instructions short and explicit.</li>
-              <li>Provide clear answer variants for spelling-sensitive items.</li>
-              <li>Validate numbering flow before publishing.</li>
-            </ul>
-          </div>
         </div>
       </div>
     </div>

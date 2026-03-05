@@ -33,7 +33,7 @@ router.post("/speaking/sessions/:id/retry-error-logs", isAdmin, retrySpeakingErr
 router.post("/speaking/error-logs/retry-failed", isAdmin, retryFailedSpeakingErrorLogsBulk);
 router.put("/students/:userId/approve", approveStudent);
 router.get("/users", getUsers);
-router.delete("/users/:userId", deleteUser);
+router.delete("/users/:userId", isAdmin, deleteUser);
 
 // Admin-only: change user role (promote/demote)
 router.put("/users/:userId/role", isAdmin, changeUserRole);

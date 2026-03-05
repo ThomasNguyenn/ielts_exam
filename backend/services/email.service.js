@@ -90,6 +90,38 @@ export const sendPasswordResetEmail = async (email, token) => {
     }
 };
 
+export const sendEmailChangeVerificationEmail = async (email, token) => {
+    const verifyUrl = `${getFrontendBaseUrl()}/verify-email-change?token=${token}`;
+
+    const mailOptions = {
+        from: process.env.SMTP_FROM || '"Ecosystem App" <no-reply@ecosystem.com>',
+        to: email,
+        subject: 'Confirm your new email address',
+        html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2>Confirm Email Change</h2>
+        <p>We received a request to change your account email address.</p>
+        <p>Click the button below to confirm this new email address.</p>
+        <a href="${verifyUrl}" style="display: inline-block; padding: 10px 20px; background-color: #111827; color: white; text-decoration: none; border-radius: 5px; margin-top: 10px;">Confirm New Email</a>
+        <p style="margin-top: 20px; font-size: 12px; color: #666;">This link will expire in 24 hours.</p>
+        <p style="font-size: 12px; color: #666;">If you did not request this change, you can ignore this email.</p>
+      </div>
+    `,
+    };
+
+    try {
+        const info = await transporter.sendMail(mailOptions);
+        console.log('Email change verification sent: %s', info.messageId);
+        return info;
+    } catch (error) {
+        console.error('Error sending email change verification:', error);
+        if (process.env.NODE_ENV === 'development') {
+            console.log('DEV MODE: Email change verify URL:', verifyUrl);
+        }
+        return null;
+    }
+};
+
 export const sendInvitationEmail = async (email, token, role) => {
     const registerUrl = `${getFrontendBaseUrl()}/register?invite=${token}`;
     const roleLabel = role === 'admin' ? 'Quản trị viên' : 'Giáo viên';

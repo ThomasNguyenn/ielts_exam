@@ -130,6 +130,10 @@
     gap: 0.8rem;
 }
 
+.test-main--full {
+    min-height: 760px;
+}
+
 .tl-category-wrap {
     border: 1px solid #e2e8f0;
     border-radius: 14px;
@@ -320,6 +324,10 @@
     .test-cards {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+
+    .test-main--full {
+        min-height: 680px;
+    }
 }
 
 @media (max-width: 900px) {
@@ -347,6 +355,10 @@
 
     .tl-search-box {
         width: 100%;
+    }
+
+    .test-main--full {
+        min-height: 0;
     }
 }
 

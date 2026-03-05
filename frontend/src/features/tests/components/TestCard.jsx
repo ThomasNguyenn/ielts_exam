@@ -129,12 +129,12 @@ export function TestCard({ test, attemptData, isLoggedIn }) {
       ) : null}
 
       <div className="tc-actions">
-        <Link to={`/tests/${test._id}`} className="tc-btn-primary">
+        <Link to={`/student-ielts/tests/${test._id}`} className="tc-btn-primary">
           Start test
           <ArrowRight size={14} />
         </Link>
         {isLoggedIn ? (
-          <Link to={`/tests/${test._id}/history`} className="tc-btn-secondary">
+          <Link to={`/student-ielts/tests/${test._id}/history`} className="tc-btn-secondary">
             <Layers size={14} />
             History
           </Link>
@@ -152,7 +152,7 @@ export function PartCard({ part }) {
 
   let linkTo = part.linkTo;
   if (!linkTo && part.testId != null && typeof part.partIndex === "number") {
-    linkTo = `/tests/${part.testId}/exam?part=${part.partIndex}&mode=single`;
+    linkTo = `/student-ielts/tests/${part.testId}/exam?part=${part.partIndex}&mode=single`;
   }
 
   return (
@@ -192,3 +192,4 @@ export function PartCard({ part }) {
     </article>
   );
 }
+

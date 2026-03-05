@@ -217,7 +217,7 @@ export default function ReviewExamLayout({
           <button type="button" className="btn-finish-test" onClick={onBackToResult}>
             Quay lại kết quả
           </button>
-          <Link to="/tests" className="btn-exit-test">
+          <Link to="/student-ielts/tests" className="btn-exit-test">
             Thoát kết quả
           </Link>
         </div>
@@ -312,3 +312,4 @@ export default function ReviewExamLayout({
     </div>
   );
 }
+

@@ -1,8 +1,26 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { RotateCcw, Save } from "lucide-react";
 import { api } from "@/shared/api/client";
 import { useNotification } from "@/shared/context/NotificationContext";
-import "./Homework.css";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
 
 const createEmptyForm = () => ({
   _id: "",
@@ -20,6 +38,8 @@ export default function HomeworkGroupsPage() {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [archiveId, setArchiveId] = useState("");
+  const [groupToArchive, setGroupToArchive] = useState(null);
   const [error, setError] = useState("");
   const [studentSearch, setStudentSearch] = useState("");
   const [form, setForm] = useState(createEmptyForm);
@@ -48,14 +68,14 @@ export default function HomeworkGroupsPage() {
   const filteredStudents = useMemo(() => {
     const q = String(studentSearch || "").trim().toLowerCase();
     if (!q) return students;
-    return students.filter((student) =>
-      String(student?.name || "").toLowerCase().includes(q) ||
-      String(student?.email || "").toLowerCase().includes(q),
+    return students.filter(
+      (student) =>
+        String(student?.name || "").toLowerCase().includes(q) ||
+        String(student?.email || "").toLowerCase().includes(q),
     );
   }, [students, studentSearch]);
 
   const isEditing = Boolean(form._id);
-
   const updateForm = (patch) => setForm((prev) => ({ ...prev, ...patch }));
 
   const toggleStudent = (studentId) => {
@@ -105,17 +125,20 @@ export default function HomeworkGroupsPage() {
     }
   };
 
-  const handleDelete = async (groupId) => {
-    const confirmed = window.confirm("Archive this group?");
-    if (!confirmed) return;
+  const handleArchive = async (groupId) => {
+    if (!groupId) return;
 
+    setArchiveId(String(groupId));
     try {
       await api.homeworkDeleteGroup(groupId);
       showNotification("Group archived", "success");
       if (String(form._id) === String(groupId)) resetForm();
+      setGroupToArchive(null);
       void loadData();
     } catch (deleteError) {
       showNotification(deleteError?.message || "Failed to archive group", "error");
+    } finally {
+      setArchiveId("");
     }
   };
 
@@ -126,136 +149,186 @@ export default function HomeworkGroupsPage() {
       description: group?.description || "",
       level_label: group?.level_label || "",
       student_ids: Array.isArray(group?.student_ids)
-        ? group.student_ids.map((studentId) => String(studentId))
+        ? group.student_ids
+            .map((studentValue) => String(studentValue?._id || studentValue?.student_id || studentValue || ""))
+            .filter(Boolean)
         : [],
     });
   };
 
   return (
-    <div className="homework-page">
-      <div className="homework-shell">
-        <section className="homework-header">
-          <div className="homework-title-wrap">
-            <h1>Homework Groups</h1>
-            <p>Create and manage student groups used to target monthly assignments.</p>
-          </div>
-          <div className="homework-actions">
-            <button type="button" className="homework-btn ghost" onClick={() => navigate("/")}>
-              Trang chủ
-            </button>
-            <button type="button" className="homework-btn ghost" onClick={() => navigate("/homework")}>
-              Back to Assignments
-            </button>
-          </div>
-        </section>
-
-        <section className="homework-grid">
-          <article className="homework-card homework-span-4">
-            <div className="homework-item-top">
-              <h2 className="homework-item-title">{isEditing ? "Edit Group" : "New Group"}</h2>
+    <div className="min-h-[calc(100vh-70px)] bg-muted/30">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 md:p-6">
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-1">
+              <CardTitle className="text-2xl tracking-tight">Homework Groups</CardTitle>
+              <CardDescription>Create and manage student groups used for assignment targeting.</CardDescription>
             </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" variant="outline" onClick={() => navigate("/homework")}>
+                Back to assignments
+              </Button>
+            </div>
+          </CardHeader>
+        </Card>
 
-            <div className="homework-stacked">
-              <div className="homework-field">
-                <label>Name</label>
-                <input
+        <div className="grid gap-6 xl:grid-cols-12">
+          <Card className="border-border/70 shadow-sm xl:col-span-4">
+            <CardHeader>
+              <CardTitle>{isEditing ? "Edit Group" : "New Group"}</CardTitle>
+              <CardDescription>Configure basic info and student members.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="group-name">Name</Label>
+                <Input
+                  id="group-name"
                   value={form.name}
                   onChange={(event) => updateForm({ name: event.target.value })}
                   placeholder="e.g. Grade 11 - Team A"
                 />
               </div>
-              <div className="homework-field">
-                <label>Level Label</label>
-                <input
+
+              <div className="space-y-2">
+                <Label htmlFor="group-level">Level label</Label>
+                <Input
+                  id="group-level"
                   value={form.level_label}
                   onChange={(event) => updateForm({ level_label: event.target.value })}
-                  placeholder="B1 / B2 / C1..."
+                  placeholder="B1 / B2 / C1"
                 />
               </div>
-              <div className="homework-field">
-                <label>Description</label>
-                <textarea
+
+              <div className="space-y-2">
+                <Label htmlFor="group-description">Description</Label>
+                <Textarea
+                  id="group-description"
                   value={form.description}
                   onChange={(event) => updateForm({ description: event.target.value })}
                   placeholder="Describe this group scope..."
+                  rows={4}
                 />
               </div>
-              <div className="homework-field">
-                <label>Students ({form.student_ids.length})</label>
-                <input
+
+              <div className="space-y-2">
+                <Label htmlFor="student-search">Students ({form.student_ids.length})</Label>
+                <Input
+                  id="student-search"
                   value={studentSearch}
                   onChange={(event) => setStudentSearch(event.target.value)}
-                  placeholder="Search student..."
+                  placeholder="Search student by name or email"
                 />
-                <div style={{ maxHeight: "260px", overflow: "auto", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "0.45rem" }}>
-                  {filteredStudents.map((student) => {
-                    const studentId = String(student?._id || "");
-                    const checked = form.student_ids.includes(studentId);
-                    return (
-                      <label key={studentId} className="homework-inline" style={{ width: "100%", marginBottom: "0.35rem" }}>
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleStudent(studentId)}
-                        />
-                        <span>{student?.name || "Student"} ({student?.email || "no-email"})</span>
-                      </label>
-                    );
-                  })}
-                  {!filteredStudents.length ? <p className="homework-item-meta">No students found.</p> : null}
-                </div>
+                <ScrollArea className="h-72 rounded-md border p-3">
+                  <div className="space-y-2">
+                    {filteredStudents.map((student) => {
+                      const studentId = String(student?._id || "");
+                      const checked = form.student_ids.includes(studentId);
+                      return (
+                        <div key={studentId} className="flex items-start gap-2 rounded-md px-1 py-1">
+                          <Checkbox
+                            id={`student-${studentId}`}
+                            checked={checked}
+                            onCheckedChange={() => toggleStudent(studentId)}
+                          />
+                          <Label htmlFor={`student-${studentId}`} className="cursor-pointer text-sm font-normal leading-5">
+                            {student?.name || "Student"}
+                            <span className="ml-1 text-muted-foreground">({student?.email || "no-email"})</span>
+                          </Label>
+                        </div>
+                      );
+                    })}
+                    {!filteredStudents.length ? (
+                      <p className="text-sm text-muted-foreground">No students found.</p>
+                    ) : null}
+                  </div>
+                </ScrollArea>
               </div>
-              <div className="homework-task-actions">
-                <button type="button" className="homework-btn primary" onClick={handleSave} disabled={saving}>
+
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" onClick={handleSave} disabled={saving}>
+                  <Save className="h-4 w-4" />
                   {saving ? "Saving..." : isEditing ? "Update Group" : "Create Group"}
-                </button>
-                <button type="button" className="homework-btn" onClick={resetForm}>
+                </Button>
+                <Button type="button" variant="outline" onClick={resetForm} disabled={saving}>
+                  <RotateCcw className="h-4 w-4" />
                   Reset
-                </button>
+                </Button>
               </div>
-            </div>
-          </article>
+            </CardContent>
+          </Card>
 
-          <article className="homework-card homework-span-8">
-            <div className="homework-item-top">
-              <h2 className="homework-item-title">Existing Groups</h2>
-            </div>
-            {loading ? <p className="homework-item-meta">Loading groups...</p> : null}
-            {error ? <p className="homework-danger">{error}</p> : null}
+          <Card className="border-border/70 shadow-sm xl:col-span-8">
+            <CardHeader>
+              <CardTitle>Existing Groups</CardTitle>
+              <CardDescription>{groups.length} groups</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {loading ? <p className="text-sm text-muted-foreground">Loading groups...</p> : null}
+              {error ? <p className="text-sm font-medium text-destructive">{error}</p> : null}
 
-            {!loading && !error && !groups.length ? (
-              <div className="homework-empty">No groups yet.</div>
-            ) : (
-              <div className="homework-list">
+              {!loading && !error && !groups.length ? (
+                <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+                  No groups yet.
+                </div>
+              ) : null}
+
+              <div className="space-y-3">
                 {groups.map((group) => (
-                  <article className="homework-item" key={group._id}>
-                    <div className="homework-item-top">
-                      <div>
-                        <h3 className="homework-item-title">{group.name}</h3>
-                        <p className="homework-item-meta">
-                          {group.level_label || "No level"} • {(group.student_ids || []).length} students
-                        </p>
+                  <Card key={group._id} className="border-border/70 shadow-none">
+                    <CardContent className="space-y-3 p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <h3 className="text-base font-semibold">{group.name || "Untitled group"}</h3>
+                          <p className="text-sm text-muted-foreground">
+                            {group.level_label || "No level"} - {(group.student_ids || []).length} students
+                          </p>
+                        </div>
+                        <Badge variant={group.is_active ? "default" : "outline"}>
+                          {group.is_active ? "Active" : "Inactive"}
+                        </Badge>
                       </div>
-                      <span className={`homework-chip ${group.is_active ? "" : "neutral"}`}>
-                        {group.is_active ? "Active" : "Inactive"}
-                      </span>
-                    </div>
-                    <p className="homework-item-meta">{group.description || "No description"}</p>
-                    <div className="homework-task-actions">
-                      <button type="button" className="homework-btn" onClick={() => selectGroup(group)}>
-                        Edit
-                      </button>
-                      <button type="button" className="homework-btn" onClick={() => handleDelete(group._id)}>
-                        Archive
-                      </button>
-                    </div>
-                  </article>
+
+                      <p className="text-sm text-muted-foreground">{group.description || "No description"}</p>
+
+                      <div className="flex flex-wrap gap-2">
+                        <Button type="button" size="sm" onClick={() => selectGroup(group)}>
+                          Edit
+                        </Button>
+                        <Button type="button" size="sm" variant="outline" onClick={() => setGroupToArchive(group)}>
+                          Archive
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
                 ))}
               </div>
-            )}
-          </article>
-        </section>
+            </CardContent>
+          </Card>
+        </div>
       </div>
+
+      <AlertDialog
+        open={Boolean(groupToArchive)}
+        onOpenChange={(open) => {
+          if (!open) setGroupToArchive(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Archive group?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This group will become inactive for future assignment targeting.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={Boolean(archiveId)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void handleArchive(String(groupToArchive?._id || ""))} disabled={Boolean(archiveId)}>
+              {archiveId ? "Archiving..." : "Archive"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

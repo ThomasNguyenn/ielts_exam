@@ -70,7 +70,7 @@ export default function ProfileSidebar({
 
         <div className="mt-6 pt-4 border-t border-slate-100">
           <Link
-            to="/analytics"
+            to="/student-ielts/analytics"
             className="text-sm text-[#1152d4] font-medium hover:underline flex items-center gap-1 justify-center"
           >
             View Detailed Analytics
@@ -81,3 +81,4 @@ export default function ProfileSidebar({
     </aside>
   );
 }
+

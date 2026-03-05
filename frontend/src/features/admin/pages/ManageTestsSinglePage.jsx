@@ -1,13 +1,24 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Plus, Search, Filter, Pencil, Trash2 } from 'lucide-react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { Plus, Search, Pencil, Trash2 } from 'lucide-react';
 import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
 import ConfirmationModal from '@/shared/components/ConfirmationModal';
 import { useNavigate, useParams } from 'react-router-dom';
-import AddTest from './AddTest';
-import './Manage.css';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 const ITEMS_PER_PAGE = 6;
+const AddTest = lazy(() => import('./AddTest'));
 
 const formatDate = (value) => {
   if (!value) return '-';
@@ -24,8 +35,15 @@ const getSkillType = (test) => String(test?.type || 'reading').toLowerCase();
 
 const countItems = (test) => {
   const type = getSkillType(test);
-  if (type === 'listening') return (test?.listening_sections || []).length;
-  if (type === 'writing') return (test?.writing_tasks || []).length;
+  if (type === 'listening') {
+    if (Number.isFinite(Number(test?.listening_count))) return Number(test.listening_count);
+    return (test?.listening_sections || []).length;
+  }
+  if (type === 'writing') {
+    if (Number.isFinite(Number(test?.writing_count))) return Number(test.writing_count);
+    return (test?.writing_tasks || []).length;
+  }
+  if (Number.isFinite(Number(test?.reading_count))) return Number(test.reading_count);
   return (test?.reading_passages || []).length;
 };
 const getSortTimestamp = (item) => new Date(item?.updatedAt || item?.updated_at || item?.createdAt || item?.created_at || 0).getTime();
@@ -53,7 +71,7 @@ export default function ManageTestsSinglePage() {
   const loadTests = async () => {
     setLoading(true);
     try {
-      const res = await api.getTests();
+      const res = await api.getTests({ summary: 1 });
       setTests(res.data || []);
     } catch (err) {
       showNotification(err.message || 'Failed to load tests', 'error');
@@ -115,13 +133,13 @@ export default function ManageTestsSinglePage() {
   const openCreateTab = () => {
     setEditingId(null);
     setActiveTab('editor');
-    navigate('/manage/tests/new');
+    navigate('/admin/manage/tests/new');
   };
 
   const openEditTab = (id) => {
     setEditingId(id);
     setActiveTab('editor');
-    navigate(`/manage/tests/${id}`);
+    navigate(`/admin/manage/tests/${id}`);
   };
 
   const handleSaved = async () => {
@@ -129,151 +147,141 @@ export default function ManageTestsSinglePage() {
     setActiveTab('list');
     setEditingId(null);
     setCurrentPage(1);
-    navigate('/manage/tests');
+    navigate('/admin/manage/tests');
   };
 
   const listStart = filteredTests.length ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0;
   const listEnd = Math.min(currentPage * ITEMS_PER_PAGE, filteredTests.length);
 
   return (
-    <div className="manage-main-content">
-      {activeTab === 'list' && (
-        <div className="manage-main-tabs">
-          <button
-            type="button"
-            className={`manage-tab-btn ${activeTab === 'list' ? 'active' : ''}`}
-            onClick={() => {
-              setActiveTab('list');
-              setEditingId(null);
-              navigate('/manage/tests');
-            }}
-          >
-            Manage Full Tests
-          </button>
-          <button
-            type="button"
-            className={`manage-tab-btn ${activeTab === 'editor' ? 'active' : ''}`}
-            onClick={() => {
-              if (editingId) {
-                setActiveTab('editor');
-                navigate(`/manage/tests/${editingId}`);
-                return;
-              }
-              openCreateTab();
-            }}
-          >
-            {editingId ? 'Edit Test' : 'Add Test'}
-          </button>
-        </div>
-      )}
-
+    <div className='space-y-4'>
       {activeTab === 'list' ? (
         <>
-          <div className="manage-main-topbar">
-            <div>
-              <h1 className="manage-main-title">Manage Full Tests</h1>
-              <p className="manage-main-subtitle">{filteredTests.length} items total</p>
-            </div>
-
-            <div className="manage-main-controls">
-              <div className="manage-main-search">
-                <Search className="manage-main-search-icon" />
-                <input
-                  type="text"
-                  placeholder="Search tests..."
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                />
-              </div>
-
-              <button type="button" className="manage-main-filter-btn">
-                <Filter size={16} />
-                Filter
-              </button>
-
-              <button type="button" className="manage-main-add-btn" onClick={openCreateTab}>
-                <Plus size={16} />
-                Add New
-              </button>
-            </div>
+          <div className='flex flex-wrap items-center gap-2'>
+            <Button type='button' variant='default' onClick={() => { setActiveTab('list'); setEditingId(null); navigate('/admin/manage/tests'); }}>
+              Manage Full Tests
+            </Button>
+            <Button
+              type='button'
+              variant='outline'
+              onClick={() => {
+                if (editingId) {
+                  setActiveTab('editor');
+                  navigate(`/admin/manage/tests/${editingId}`);
+                  return;
+                }
+                openCreateTab();
+              }}
+            >
+              {editingId ? 'Edit Test' : 'Add Test'}
+            </Button>
           </div>
 
-          <div className="manage-main-table-card">
-            <table className="manage-main-table">
-              <thead>
-                <tr>
-                  <th>Title</th>
-                  <th>Skill</th>
-                  <th>Difficulty</th>
-                  <th>Items</th>
-                  <th>Status</th>
-                  <th>Date</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {!loading && paginatedTests.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className="manage-main-empty">No tests found.</td>
-                  </tr>
-                )}
-
-                {paginatedTests.map((row) => {
-                  const type = getSkillType(row);
-                  const skillClass = type === 'listening' ? 'skill-listening' : type === 'writing' ? 'skill-writing' : 'skill-reading';
-                  return (
-                    <tr key={row._id}>
-                      <td className="manage-cell-title">{row.title || row._id}</td>
-                      <td><span className={`manage-pill ${skillClass}`}>{type.charAt(0).toUpperCase() + type.slice(1)}</span></td>
-                      <td>{row.category || 'Mixed'}</td>
-                      <td>{countItems(row)}</td>
-                      <td><span className={`manage-pill ${row.is_active === false ? 'status-archived' : 'status-published'}`}>{row.is_active === false ? 'Archived' : 'Published'}</span></td>
-                      <td>{formatDate(row.updatedAt || row.updated_at || row.createdAt || row.created_at)}</td>
-                      <td>
-                        <div className="manage-row-actions">
-                          <button type="button" className="icon-btn" onClick={() => openEditTab(row._id)} title="Edit">
-                            <Pencil size={15} />
-                          </button>
-                          <button type="button" className="icon-btn danger" onClick={() => handleDelete(row._id)} title="Delete">
-                            <Trash2 size={15} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-
-            <div className="manage-main-pagination">
-              <span>
-                Showing {listStart}-{listEnd} of {filteredTests.length}
-              </span>
-
-              <div className="manage-main-pagination-buttons">
-                <button type="button" disabled={currentPage === 1} onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}>Prev</button>
-                <span>{currentPage}/{totalPages}</span>
-                <button type="button" disabled={currentPage === totalPages} onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}>Next</button>
+          <Card className='border-border/70 shadow-sm'>
+            <CardHeader className='flex flex-col gap-4 md:flex-row md:items-center md:justify-between'>
+              <div>
+                <CardTitle>Manage Full Tests</CardTitle>
+                <CardDescription>{filteredTests.length} items total</CardDescription>
               </div>
-            </div>
-          </div>
+              <div className='flex w-full flex-col gap-2 sm:w-auto sm:flex-row'>
+                <div className='relative min-w-[240px]'>
+                  <Search className='absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground' />
+                  <Input
+                    type='text'
+                    className='pl-9'
+                    placeholder='Search tests...'
+                    value={searchQuery}
+                    onChange={(event) => {
+                      setSearchQuery(event.target.value);
+                      setCurrentPage(1);
+                    }}
+                  />
+                </div>
+                <Button type='button' onClick={openCreateTab}>
+                  <Plus className='h-4 w-4' />
+                  Add New
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className='space-y-4'>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Title</TableHead>
+                    <TableHead>Skill</TableHead>
+                    <TableHead>Difficulty</TableHead>
+                    <TableHead>Items</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {!loading && paginatedTests.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className='text-center text-muted-foreground'>No tests found.</TableCell>
+                    </TableRow>
+                  ) : null}
+
+                  {paginatedTests.map((row) => {
+                    const type = getSkillType(row);
+                    return (
+                      <TableRow key={row._id}>
+                        <TableCell className='font-medium'>{row.title || row._id}</TableCell>
+                        <TableCell>
+                          <Badge variant='secondary'>{type.charAt(0).toUpperCase() + type.slice(1)}</Badge>
+                        </TableCell>
+                        <TableCell>{row.category || 'Mixed'}</TableCell>
+                        <TableCell>{countItems(row)}</TableCell>
+                        <TableCell>
+                          <Badge variant={row.is_active === false ? 'outline' : 'default'}>
+                            {row.is_active === false ? 'Archived' : 'Published'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{formatDate(row.updatedAt || row.updated_at || row.createdAt || row.created_at)}</TableCell>
+                        <TableCell>
+                          <div className='flex items-center gap-1'>
+                            <Button type='button' size='icon' variant='ghost' onClick={() => openEditTab(row._id)} title='Edit'>
+                              <Pencil className='h-4 w-4' />
+                            </Button>
+                            <Button type='button' size='icon' variant='ghost' className='text-destructive' onClick={() => handleDelete(row._id)} title='Delete'>
+                              <Trash2 className='h-4 w-4' />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+
+              <div className='flex flex-col gap-2 border-t pt-3 text-sm sm:flex-row sm:items-center sm:justify-between'>
+                <span className='text-muted-foreground'>Showing {listStart}-{listEnd} of {filteredTests.length}</span>
+                <div className='flex items-center gap-2'>
+                  <Button type='button' size='sm' variant='outline' disabled={currentPage === 1} onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}>Prev</Button>
+                  <span>{currentPage}/{totalPages}</span>
+                  <Button type='button' size='sm' variant='outline' disabled={currentPage === totalPages} onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}>Next</Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </>
       ) : (
-        <AddTest
-          editIdOverride={editingId}
-          embedded
-          hideExistingList
-          onSaved={handleSaved}
-          onCancel={() => {
-            setActiveTab('list');
-            setEditingId(null);
-            navigate('/manage/tests');
-          }}
-        />
+        <Suspense fallback={<Card className='border-border/70 shadow-sm'><CardContent className='p-6 text-sm text-muted-foreground'>Loading editor...</CardContent></Card>}>
+          <AddTest
+            editIdOverride={editingId}
+            embedded
+            hideExistingList
+            onSaved={handleSaved}
+            onCancel={() => {
+              setActiveTab('list');
+              setEditingId(null);
+              navigate('/admin/manage/tests');
+            }}
+          />
+        </Suspense>
       )}
+
       <ConfirmationModal
         isOpen={confirmModal.isOpen}
         onClose={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
@@ -285,3 +293,4 @@ export default function ManageTestsSinglePage() {
     </div>
   );
 }
+

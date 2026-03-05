@@ -18,7 +18,7 @@ export default function WritingLiveRoom() {
 
   const user = api.getUser() || {};
   const isTeacher = user?.role === 'teacher' || user?.role === 'admin';
-  const roomEndRedirectPath = isTeacher ? '/grading' : '/profile';
+  const roomEndRedirectPath = isTeacher ? '/grading' : '/student-ielts/profile';
 
   const handleRoomClosed = useCallback(() => {
     showNotification('Writing live room has been closed.', 'info');
@@ -102,4 +102,5 @@ export default function WritingLiveRoom() {
     />
   );
 }
+
 

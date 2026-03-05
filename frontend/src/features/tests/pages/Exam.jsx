@@ -15,6 +15,7 @@ const EXAM_DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
 const LISTENING_AUDIO_REWIND_SECONDS = 5;
 const LISTENING_TIMER_REWIND_SECONDS = 10;
 const LISTENING_RESUME_NOTICE_MS = 3800;
+const MOBILE_READING_DRAWER_MAX_WIDTH = 860;
 
 const resolveRequestedStepIndex = (search, steps) => {
   const params = new URLSearchParams(search);
@@ -75,6 +76,10 @@ export default function Exam() {
   const [theme, setTheme] = useState('light');
   const [textSize, setTextSize] = useState('regular');
   const [brightness, setBrightness] = useState(100);
+  const [isViewport860, setIsViewport860] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia(`(max-width: ${MOBILE_READING_DRAWER_MAX_WIDTH}px)`).matches;
+  });
   const timerRef = useRef(null);
   const isMountedRef = useRef(true);
   const autoSubmitTriggeredRef = useRef(false);
@@ -95,7 +100,7 @@ export default function Exam() {
     standaloneTypeFromQuery === 'reading' ||
     standaloneTypeFromQuery === 'listening' ||
     standaloneTypeFromQuery === 'writing';
-  const exitTestPath = isStandaloneExam ? '/tests' : `/tests/${id}`;
+  const exitTestPath = isStandaloneExam ? '/student-ielts/tests' : `/student-ielts/tests/${id}`;
   const draftKey = useMemo(() => {
     const part = searchParams.get('part') ?? 'full';
     const mode = searchParams.get('mode') ?? 'full';
@@ -113,6 +118,24 @@ export default function Exam() {
         timerRef.current = null;
       }
     };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const mediaQuery = window.matchMedia(`(max-width: ${MOBILE_READING_DRAWER_MAX_WIDTH}px)`);
+    const handleChange = (event) => {
+      setIsViewport860(Boolean(event.matches));
+    };
+
+    setIsViewport860(mediaQuery.matches);
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
+    }
+
+    mediaQuery.addListener(handleChange);
+    return () => mediaQuery.removeListener(handleChange);
   }, []);
 
   useEffect(() => {
@@ -500,7 +523,7 @@ export default function Exam() {
           } catch {
             // Ignore storage errors and continue navigation.
           }
-          navigate(`/tests/writing/result-ai/${data.writingSubmissionId}`);
+          navigate(`/student-ielts/tests/writing/result-ai/${data.writingSubmissionId}`);
         } else if (data) {
           // Fallback if ID is missing
           console.error("Missing writingSubmissionId");
@@ -599,6 +622,7 @@ export default function Exam() {
   const isFirst = currentStep === 0;
   const isLast = currentStep === steps.length - 1;
   const isWriting = step && step.type === 'writing';
+  const useMobileReadingDrawer = Boolean(step?.type === 'reading' && isViewport860);
 
   const setAnswer = (index, value) => {
     setAnswers((prev) => {
@@ -743,7 +767,7 @@ export default function Exam() {
 
 
   if (loading) return <div className="page"><p className="muted">Loading exam…</p></div>;
-  if (loadError) return <div className="page"><p className="error">{loadError}</p><Link to="/tests">Back to tests</Link></div>;
+  if (loadError) return <div className="page"><p className="error">{loadError}</p><Link to="/student-ielts/tests">Back to tests</Link></div>;
   if (!exam) return <div className="page"><p className="muted">Exam not found.</p></div>;
 
   if (submitted) {
@@ -878,7 +902,7 @@ export default function Exam() {
                   {'\u0110\u00E2y l\u00E0 b\u00E0i thi th\u1EADt - B\u1EA1n kh\u00F4ng th\u1EC3 xem chi ti\u1EBFt \u0111\u00E1p \u00E1n.'}
                 </div>
               )}
-              <Link to="/tests" className="btn-exit-result">
+              <Link to="/student-ielts/tests" className="btn-exit-result">
                 {'Tho\u00E1t k\u1EBFt qu\u1EA3'}
               </Link>
             </div>
@@ -928,7 +952,7 @@ export default function Exam() {
     return (
       <div className="page">
         <p className="muted">This test has no content.</p>
-        <Link to="/tests">Back to tests</Link>
+        <Link to="/student-ielts/tests">Back to tests</Link>
       </div>
     );
   }
@@ -1050,6 +1074,8 @@ export default function Exam() {
             onListeningAudioEnded={handleListeningAudioEnded}
             listeningAudioInitialTimeSec={listeningAudioInitialTimeSec}
             onListeningAudioTimeUpdate={handleListeningAudioTimeUpdate}
+            useMobileReadingDrawer={useMobileReadingDrawer}
+            isMobileViewport={isViewport860}
           />
         )}
       </form>
@@ -1111,40 +1137,42 @@ export default function Exam() {
       )}
 
       {/* Fixed Bottom Footer */}
-      <footer className="exam-footer">
-        <div className="exam-footer-center">
-          {footerNavigationItems.length > 0 ? (
-            <div className="footer-question-nav">
-              {footerNavigationItems.map((item) => (
-                <button
-                  key={item.key}
-                  type="button"
-                  className={`footer-q-btn ${item.answered ? 'answered' : ''} ${item.active ? 'active' : ''}`}
-                  onClick={() => {
-                    if (typeof item.stepIndex === 'number') {
-                      setCurrentStep(item.stepIndex);
-                      return;
-                    }
-
-                    if (typeof item.questionIndex === 'number') {
-                      const didJump = jumpToQuestion(item.questionIndex);
-                      if (!didJump) {
-                        window.requestAnimationFrame(() => {
-                          jumpToQuestion(item.questionIndex);
-                        });
+      <footer className={`exam-footer ${useMobileReadingDrawer ? 'exam-footer--mobile-reading' : ''}`}>
+        {!useMobileReadingDrawer ? (
+          <div className="exam-footer-center">
+            {footerNavigationItems.length > 0 ? (
+              <div className="footer-question-nav">
+                {footerNavigationItems.map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    className={`footer-q-btn ${item.answered ? 'answered' : ''} ${item.active ? 'active' : ''}`}
+                    onClick={() => {
+                      if (typeof item.stepIndex === 'number') {
+                        setCurrentStep(item.stepIndex);
+                        return;
                       }
-                    }
-                  }}
-                  aria-label={item.ariaLabel}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <span className="exam-footer-empty">No question palette for this part.</span>
-          )}
-        </div>
+
+                      if (typeof item.questionIndex === 'number') {
+                        const didJump = jumpToQuestion(item.questionIndex);
+                        if (!didJump) {
+                          window.requestAnimationFrame(() => {
+                            jumpToQuestion(item.questionIndex);
+                          });
+                        }
+                      }
+                    }}
+                    aria-label={item.ariaLabel}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <span className="exam-footer-empty">No question palette for this part.</span>
+            )}
+          </div>
+        ) : null}
 
         <div className="exam-footer-right">
           {!isSingleMode && hasSteps && (
@@ -1189,4 +1217,5 @@ export default function Exam() {
     </div >
   );
 }
+
 

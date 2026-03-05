@@ -1,25 +1,47 @@
-import React, { useState, useEffect } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
+import { RefreshCcw, Search, UserRound } from 'lucide-react';
 import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
 import ConfirmationModal from '@/shared/components/ConfirmationModal';
 import PaginationControls from '@/shared/components/PaginationControls';
-import './Manage.css';
+import { isStudentFamilyRole } from '@/app/roleRouting';
+import './AdminPeopleWorkspace.css';
+
+const ROLE_FILTERS = [
+  { value: '', label: 'All' },
+  { value: 'student', label: 'Students' },
+  { value: 'teacher', label: 'Teachers' },
+  { value: 'online', label: 'Online Students' },
+];
+
+const ROLE_CHIP_CLASS = {
+  admin: 'admin-people-chip admin-people-chip--admin',
+  teacher: 'admin-people-chip admin-people-chip--teacher',
+  student: 'admin-people-chip admin-people-chip--student',
+  studentIELTS: 'admin-people-chip admin-people-chip--student',
+  studentACA: 'admin-people-chip admin-people-chip--student',
+};
 
 export default function ManageUsers() {
   const PAGE_SIZE = 20;
+  const currentUser = api.getUser();
+  const isAdminUser = currentUser?.role === 'admin';
+
   const [users, setUsers] = useState([]);
   const [pagination, setPagination] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [roleFilter, setRoleFilter] = useState(''); // '' = all, 'student', 'teacher', 'online'
+  const [roleFilter, setRoleFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
   const [confirmModal, setConfirmModal] = useState({
     isOpen: false,
     title: '',
     message: '',
-    onConfirm: () => { },
+    onConfirm: () => {},
     isDanger: false,
   });
+  const requestSeqRef = useRef(0);
   const { showNotification } = useNotification();
 
   useEffect(() => {
@@ -27,160 +49,217 @@ export default function ManageUsers() {
   }, [roleFilter]);
 
   useEffect(() => {
-    fetchUsers(currentPage);
+    void fetchUsers(currentPage);
   }, [roleFilter, currentPage]);
 
   const fetchUsers = async (page = 1) => {
+    const requestId = requestSeqRef.current + 1;
+    requestSeqRef.current = requestId;
+
     try {
       setLoading(true);
+      setErrorMessage('');
       const res = roleFilter === 'online'
         ? await api.getOnlineStudents({ page, limit: PAGE_SIZE })
         : await api.getUsers({ role: roleFilter, page, limit: PAGE_SIZE });
+
+      if (requestId !== requestSeqRef.current) return;
+
       if (res.success) {
-        setUsers(res.data);
+        setUsers(Array.isArray(res.data) ? res.data : []);
         setPagination(res.pagination || null);
+      } else {
+        setUsers([]);
+        setPagination(null);
       }
     } catch (error) {
-      console.error("Failed to fetch users:", error);
-      showNotification("Failed to fetch users", "error");
+      if (requestId !== requestSeqRef.current) return;
+      setErrorMessage(error?.message || 'Failed to fetch users.');
+      setUsers([]);
+      setPagination(null);
+      showNotification(error?.message || 'Failed to fetch users.', 'error');
     } finally {
-      setLoading(false);
+      if (requestId === requestSeqRef.current) {
+        setLoading(false);
+      }
     }
   };
 
   const handleDelete = (userId, userName) => {
+    if (!isAdminUser) {
+      showNotification('Only admin can delete users.', 'error');
+      return;
+    }
+
     setConfirmModal({
       isOpen: true,
       title: 'Delete User',
-      message: `Are you sure you want to delete user "${userName}"? This action cannot be undone.`,
+      message: `Are you sure you want to delete "${userName}"? This action cannot be undone.`,
       isDanger: true,
       onConfirm: async () => {
         try {
           const res = await api.deleteUser(userId);
           if (res.success) {
-            showNotification("User deleted successfully", "success");
+            showNotification('User deleted successfully.', 'success');
             const nextPage = users.length === 1 && currentPage > 1 ? currentPage - 1 : currentPage;
             setCurrentPage(nextPage);
-            fetchUsers(nextPage);
+            void fetchUsers(nextPage);
           }
         } catch (error) {
-          console.error("Failed to delete user:", error);
-          showNotification("Failed to delete user", "error");
+          showNotification(error?.message || 'Failed to delete user.', 'error');
         }
-      }
+      },
     });
   };
 
-  const filteredUsers = users.filter(user =>
-    String(user?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    String(user?.email || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredUsers = useMemo(() => {
+    const keyword = String(searchTerm || '').trim().toLowerCase();
+    if (!keyword) return users;
+    return users.filter((user) => (
+      String(user?.name || '').toLowerCase().includes(keyword)
+      || String(user?.email || '').toLowerCase().includes(keyword)
+    ));
+  }, [users, searchTerm]);
+
+  const totalCount = Number(pagination?.totalItems || users.length || 0);
+  const hasSearch = String(searchTerm || '').trim().length > 0;
 
   return (
-    <div className="manage-container">
-      <div className="manage-header">
-        <h2>Manage Users</h2>
-      </div>
+    <div className="admin-people-shell">
+      <section className="admin-people-hero">
+        <div className="admin-people-title-row">
+          <div>
+            <h1>Manage Users</h1>
+            <p>Review account roles, monitor online students, and manage access.</p>
+          </div>
+          <span className="admin-people-count-chip">{totalCount}</span>
+        </div>
+        {errorMessage ? (
+          <div className="admin-people-alert" role="status">
+            {errorMessage}
+          </div>
+        ) : null}
+      </section>
 
-      <div className="manage-content">
-        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button
-              className={`btn btn-sm ${roleFilter === '' ? 'btn-primary' : 'btn-outline'}`}
-              onClick={() => setRoleFilter('')}
-              style={{ background: roleFilter === '' ? '#6366F1' : 'transparent', color: roleFilter === '' ? 'white' : '#64748b', border: '1px solid #e2e8f0', padding: '0.5rem 1rem', borderRadius: '0.5rem', fontWeight: 600, cursor: 'pointer' }}
-            >
-              All
-            </button>
-            <button
-              className={`btn btn-sm ${roleFilter === 'student' ? 'btn-primary' : 'btn-outline'}`}
-              onClick={() => setRoleFilter('student')}
-              style={{ background: roleFilter === 'student' ? '#6366F1' : 'transparent', color: roleFilter === 'student' ? 'white' : '#64748b', border: '1px solid #e2e8f0', padding: '0.5rem 1rem', borderRadius: '0.5rem', fontWeight: 600, cursor: 'pointer' }}
-            >
-              Students
-            </button>
-            <button
-              className={`btn btn-sm ${roleFilter === 'teacher' ? 'btn-primary' : 'btn-outline'}`}
-              onClick={() => setRoleFilter('teacher')}
-              style={{ background: roleFilter === 'teacher' ? '#6366F1' : 'transparent', color: roleFilter === 'teacher' ? 'white' : '#64748b', border: '1px solid #e2e8f0', padding: '0.5rem 1rem', borderRadius: '0.5rem', fontWeight: 600, cursor: 'pointer' }}
-            >
-              Teachers
-            </button>
-            <button
-              className={`btn btn-sm ${roleFilter === 'online' ? 'btn-primary' : 'btn-outline'}`}
-              onClick={() => setRoleFilter('online')}
-              style={{ background: roleFilter === 'online' ? '#16a34a' : 'transparent', color: roleFilter === 'online' ? 'white' : '#64748b', border: '1px solid #e2e8f0', padding: '0.5rem 1rem', borderRadius: '0.5rem', fontWeight: 600, cursor: 'pointer' }}
-            >
-              Online Students
-            </button>
+      <section className="admin-people-panel">
+        <div className="admin-people-toolbar">
+          <div className="admin-people-filter-group" role="tablist" aria-label="User role filters">
+            {ROLE_FILTERS.map((filter) => (
+              <button
+                key={filter.value || 'all'}
+                type="button"
+                className={`admin-people-pill ${roleFilter === filter.value ? 'active' : ''}`}
+                onClick={() => setRoleFilter(filter.value)}
+              >
+                {filter.label}
+              </button>
+            ))}
           </div>
 
-          <input
-            type="search"
-            placeholder="Search by name or email..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            style={{ flex: 1, padding: '0.5rem 1rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}
-          />
-          {roleFilter === 'online' && (
-            <button
-              className="btn btn-sm btn-outline"
-              onClick={() => fetchUsers(currentPage)}
-              disabled={loading}
-              style={{ border: '1px solid #16a34a', color: '#16a34a', padding: '0.5rem 1rem', borderRadius: '0.5rem', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', background: 'transparent' }}
-            >
-              Refresh
-            </button>
-          )}
+          <div className="admin-people-card-actions">
+            <div className="admin-people-search">
+              <Search className="admin-people-search-icon" />
+              <input
+                type="search"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Search by name or email"
+                aria-label="Search users"
+              />
+            </div>
+            {roleFilter === 'online' ? (
+              <button
+                type="button"
+                className="admin-people-btn admin-people-btn-outline"
+                onClick={() => void fetchUsers(currentPage)}
+                disabled={loading}
+              >
+                <RefreshCcw size={14} />
+                Refresh
+              </button>
+            ) : null}
+          </div>
         </div>
 
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>Loading users...</div>
+          <div className="admin-people-skeleton-list" aria-hidden="true">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div key={`users-skeleton-${index}`} className="admin-people-skeleton-card" />
+            ))}
+          </div>
+        ) : users.length === 0 ? (
+          <div className="admin-people-empty">
+            <UserRound className="admin-people-empty-icon" />
+            <h3>No Users Found</h3>
+            <p>
+              {roleFilter === 'online'
+                ? 'No students are currently online.'
+                : 'No users are available for this filter.'}
+            </p>
+          </div>
+        ) : filteredUsers.length === 0 ? (
+          <div className="admin-people-empty">
+            <Search className="admin-people-empty-icon" />
+            <h3>No Matching Results</h3>
+            <p>
+              {hasSearch
+                ? `No users match "${searchTerm.trim()}".`
+                : 'Try another keyword or clear the search input.'}
+            </p>
+          </div>
         ) : (
-          <div className="manage-list">
-            {filteredUsers.length === 0 ? (
-              <p className="muted" style={{ textAlign: 'center', padding: '2rem' }}>No users found.</p>
-            ) : (
-              filteredUsers.map(user => (
-                <div key={user._id} className="list-item">
-                  <div className="item-info">
-                    <span className="item-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      {user.name}
-                      <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: user.role === 'admin' ? '#fee2e2' : user.role === 'teacher' ? '#e0f2fe' : '#f1f5f9', color: user.role === 'admin' ? '#ef4444' : user.role === 'teacher' ? '#0ea5e9' : '#64748b' }}>
-                        {user.role}
-                      </span>
-                      {user.role === 'student' && user.is_online && (
-                        <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: '#dcfce7', color: '#15803d' }}>
-                          Online
-                        </span>
-                      )}
+          <div className="admin-people-list">
+            {filteredUsers.map((user) => {
+              const userId = String(user?._id || '');
+              const role = String(user?.role || 'student');
+              const roleClass = ROLE_CHIP_CLASS[role] || ROLE_CHIP_CLASS.student;
+
+              return (
+                <article key={userId} className="admin-people-card">
+                  <div className="admin-people-card-main">
+                    <span className="admin-people-avatar">
+                      {String(user?.name || '?').trim().charAt(0).toUpperCase() || '?'}
                     </span>
-                    <span className="item-meta">{user.email}</span>
+                    <div className="admin-people-identity">
+                      <p className="admin-people-name">
+                        {user?.name || 'Unknown User'}
+                        <span className={roleClass}>{role}</span>
+                        {isStudentFamilyRole(role) && user?.is_online ? (
+                          <span className="admin-people-chip admin-people-chip--online">Online</span>
+                        ) : null}
+                      </p>
+                      <p className="admin-people-email">{user?.email || 'No email'}</p>
+                    </div>
                   </div>
-                  <div className="item-actions" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                    {user.role !== 'admin' && (
+                  <div className="admin-people-card-actions">
+                    {isAdminUser && role !== 'admin' ? (
                       <button
-                        onClick={() => handleDelete(user._id, user.name)}
-                        style={{ background: 'transparent', border: '1px solid #ef4444', color: '#ef4444', padding: '0.4rem 0.8rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, transition: 'all 0.2s' }}
-                        onMouseOver={(e) => { e.currentTarget.style.background = '#ef4444'; e.currentTarget.style.color = 'white'; }}
-                        onMouseOut={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#ef4444'; }}
+                        type="button"
+                        className="admin-people-btn admin-people-btn-danger"
+                        onClick={() => handleDelete(userId, user?.name || user?.email || 'this user')}
                       >
                         Delete
                       </button>
-                    )}
+                    ) : null}
                   </div>
-                </div>
-              ))
-            )}
+                </article>
+              );
+            })}
           </div>
         )}
-        <PaginationControls
-          pagination={pagination}
-          onPageChange={setCurrentPage}
-          loading={loading}
-          itemLabel="users"
-        />
-      </div>
+
+        <div className="admin-people-pagination-wrap">
+          <PaginationControls
+            pagination={pagination}
+            onPageChange={setCurrentPage}
+            loading={loading}
+            itemLabel="users"
+            variant="compact-admin"
+            className="admin-people-pagination"
+          />
+        </div>
+      </section>
+
       <ConfirmationModal
         isOpen={confirmModal.isOpen}
         onClose={() => setConfirmModal((prev) => ({ ...prev, isOpen: false }))}
@@ -192,3 +271,4 @@ export default function ManageUsers() {
     </div>
   );
 }
+

@@ -16,6 +16,14 @@ import mongoose from "mongoose";
 import { parsePagination, buildPaginationMeta } from "../utils/pagination.js";
 import { handleControllerError, sendControllerError } from '../utils/controllerError.js';
 import { cacheInvitationToken, deleteInvitationToken } from "../services/invitationToken.redis.js";
+import {
+    INVITABLE_ROLE_VALUES,
+    PROMOTABLE_ROLE_VALUES,
+    ROLE_ADMIN,
+    ROLE_TEACHER,
+    STUDENT_ROLE_VALUES,
+    isStudentRole,
+} from "../utils/role.utils.js";
 
 const toTimeValue = (value) => {
     const parsed = new Date(value).getTime();
@@ -69,7 +77,7 @@ const buildOnlineThreshold = (now = new Date()) =>
     new Date(now.getTime() - ONLINE_WINDOW_MS);
 
 const withOnlineFlag = (user = {}, thresholdTimeMs = 0) => {
-    const isStudent = String(user?.role || "") === "student";
+    const isStudent = isStudentRole(user?.role);
     const isOnline = isStudent && toTimeValue(user?.lastSeenAt) >= thresholdTimeMs;
     return {
         ...user,
@@ -297,11 +305,43 @@ export const getUserAttempts = async (req, res) => {
         res.set("Cache-Control", "no-store");
         const { userId } = req.params;
         const { type } = req.query;
+        const rawAttemptDate = String(req.query?.attempt_date || req.query?.date || "").trim();
         if (!mongoose.Types.ObjectId.isValid(userId)) {
             return sendControllerError(req, res, { statusCode: 400, message: "Invalid user id"  });
         }
         const normalizedType = String(type || "all").toLowerCase();
         const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 20, maxLimit: 100 });
+
+        let attemptStartAt = null;
+        let attemptEndAt = null;
+        if (rawAttemptDate) {
+            const dateMatch = rawAttemptDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            if (!dateMatch) {
+                return sendControllerError(req, res, {
+                    statusCode: 400,
+                    message: "attempt_date must use YYYY-MM-DD format",
+                });
+            }
+
+            const year = Number(dateMatch[1]);
+            const month = Number(dateMatch[2]);
+            const day = Number(dateMatch[3]);
+            const start = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+            if (
+                Number.isNaN(start.getTime())
+                || start.getUTCFullYear() !== year
+                || start.getUTCMonth() !== month - 1
+                || start.getUTCDate() !== day
+            ) {
+                return sendControllerError(req, res, {
+                    statusCode: 400,
+                    message: "attempt_date is invalid",
+                });
+            }
+
+            attemptStartAt = start;
+            attemptEndAt = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+        }
 
         const includeObjectiveAttempts = ["all", "reading", "listening", "writing"].includes(normalizedType);
         const includeWritingSubmissions = normalizedType === "all" || normalizedType === "writing";
@@ -310,6 +350,35 @@ export const getUserAttempts = async (req, res) => {
         const objectiveFilter = { user_id: userId };
         if (normalizedType !== "all") {
             objectiveFilter.type = normalizedType;
+        }
+        if (attemptStartAt && attemptEndAt) {
+            objectiveFilter.submitted_at = { $gte: attemptStartAt, $lt: attemptEndAt };
+        }
+
+        const writingFilter = { user_id: userId };
+        if (attemptStartAt && attemptEndAt) {
+            writingFilter.$or = [
+                { submitted_at: { $gte: attemptStartAt, $lt: attemptEndAt } },
+                {
+                    $and: [
+                        { $or: [{ submitted_at: { $exists: false } }, { submitted_at: null }] },
+                        { createdAt: { $gte: attemptStartAt, $lt: attemptEndAt } },
+                    ],
+                },
+            ];
+        }
+
+        const speakingFilter = { userId };
+        if (attemptStartAt && attemptEndAt) {
+            speakingFilter.$or = [
+                { timestamp: { $gte: attemptStartAt, $lt: attemptEndAt } },
+                {
+                    $and: [
+                        { $or: [{ timestamp: { $exists: false } }, { timestamp: null }] },
+                        { createdAt: { $gte: attemptStartAt, $lt: attemptEndAt } },
+                    ],
+                },
+            ];
         }
 
         const [objectiveAttempts, writingSubmissions, speakingSessions] = await Promise.all([
@@ -321,13 +390,13 @@ export const getUserAttempts = async (req, res) => {
                     .lean()
                 : Promise.resolve([]),
             includeWritingSubmissions
-                ? WritingSubmission.find({ user_id: userId })
+                ? WritingSubmission.find(writingFilter)
                     .sort({ submitted_at: -1, createdAt: -1 })
                     .select("_id writing_answers score status submitted_at createdAt time_taken_ms")
                     .lean()
                 : Promise.resolve([]),
             includeSpeakingSessions
-                ? SpeakingSession.find({ userId })
+                ? SpeakingSession.find(speakingFilter)
                     .sort({ timestamp: -1, createdAt: -1 })
                     .select("_id questionId analysis.band_score status scoring_state timestamp createdAt error_logs_state error_logs_error")
                     .lean()
@@ -372,10 +441,10 @@ export const getUserAttempts = async (req, res) => {
 export const getPendingStudents = async (req, res) => {
     try {
         const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 20, maxLimit: 100 });
-        const filter = { role: 'student', isConfirmed: false };
+        const filter = { role: { $in: STUDENT_ROLE_VALUES }, isConfirmed: false };
         const totalItems = await User.countDocuments(filter);
 
-        const students = await User.find({ role: 'student', isConfirmed: false })
+        const students = await User.find(filter)
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit)
@@ -413,7 +482,7 @@ export const getUsers = async (req, res) => {
         const includeTotal = parseBooleanQuery(req.query?.include_total, true);
         const filter = {};
         if (role) {
-            filter.role = role;
+            filter.role = role === "student" ? { $in: STUDENT_ROLE_VALUES } : role;
         }
         const threshold = buildOnlineThreshold();
         const thresholdTimeMs = threshold.getTime();
@@ -466,7 +535,7 @@ export const getOnlineStudents = async (req, res) => {
         const queryText = String(req.query?.q || "").trim();
 
         const filter = {
-            role: "student",
+            role: { $in: STUDENT_ROLE_VALUES },
             lastSeenAt: { $gte: threshold },
         };
 
@@ -904,7 +973,7 @@ export const deleteUser = async (req, res) => {
 };
 
 
-const PROMOTABLE_ROLES = new Set(["student", "teacher", "admin"]);
+const PROMOTABLE_ROLES = new Set(PROMOTABLE_ROLE_VALUES);
 
 export const changeUserRole = async (req, res) => {
     try {
@@ -912,7 +981,10 @@ export const changeUserRole = async (req, res) => {
         const { role } = req.body;
 
         if (!role || !PROMOTABLE_ROLES.has(role)) {
-            return sendControllerError(req, res, { statusCode: 400, message: "Role must be one of: student, teacher, admin"  });
+            return sendControllerError(req, res, {
+                statusCode: 400,
+                message: `Role must be one of: ${PROMOTABLE_ROLE_VALUES.join(", ")}`,
+            });
         }
 
         if (req.user.userId === userId) {
@@ -930,7 +1002,7 @@ export const changeUserRole = async (req, res) => {
         }
 
         user.role = role;
-        if (role === "teacher" || role === "admin") {
+        if (role === ROLE_TEACHER || role === ROLE_ADMIN) {
             user.isConfirmed = true;
         }
         await user.save();
@@ -956,7 +1028,7 @@ export const setStudentHomeroomTeacher = async (req, res) => {
         if (!student) {
             return sendControllerError(req, res, { statusCode: 404, message: "User not found"  });
         }
-        if (student.role !== "student") {
+        if (!isStudentRole(student.role)) {
             return sendControllerError(req, res, { statusCode: 400, message: "Target user must be a student"  });
         }
 
@@ -974,7 +1046,7 @@ export const setStudentHomeroomTeacher = async (req, res) => {
             if (!teacher) {
                 return sendControllerError(req, res, { statusCode: 404, message: "Homeroom teacher not found"  });
             }
-            if (!["teacher", "admin"].includes(String(teacher.role || ""))) {
+            if (![ROLE_TEACHER, ROLE_ADMIN].includes(String(teacher.role || ""))) {
                 return sendControllerError(req, res, { statusCode: 400, message: "homeroom_teacher_id must reference teacher or admin role"  });
             }
 
@@ -1002,7 +1074,7 @@ export const setStudentHomeroomTeacher = async (req, res) => {
 };
 
 
-const INVITABLE_ROLES = new Set(["teacher", "admin"]);
+const INVITABLE_ROLES = new Set(INVITABLE_ROLE_VALUES);
 
 export const inviteUser = async (req, res) => {
     try {

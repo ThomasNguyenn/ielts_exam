@@ -135,7 +135,7 @@ export default function ErrorAnalyticsDetailsPage() {
   ), [studentId]);
 
   const navigateBackToTaxonomy = () => {
-    const basePath = studentId ? `/analytics/student/${studentId}` : '/analytics';
+    const basePath = studentId ? `/analytics/student/${studentId}` : '/student-ielts/analytics';
     navigate(`${basePath}?tab=taxonomy`);
   };
 
@@ -288,3 +288,5 @@ export default function ErrorAnalyticsDetailsPage() {
     </div>
   );
 }
+
+

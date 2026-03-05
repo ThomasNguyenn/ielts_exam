@@ -103,7 +103,7 @@ export default function MyHomeworkMonthPage() {
                           <button
                             type="button"
                             className="homework-btn"
-                            onClick={() => navigate(`/homework/my/${assignment._id}`)}
+                            onClick={() => navigate(`/student-ielts/homework/${assignment._id}`)}
                           >
                             Open Assignment
                           </button>
@@ -120,3 +120,4 @@ export default function MyHomeworkMonthPage() {
     </div>
   );
 }
+

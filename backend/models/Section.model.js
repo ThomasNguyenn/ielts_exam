@@ -38,7 +38,10 @@ const QuestionGroupSchema = new mongoose.Schema({
 
     instructions: { type: String, required: false }, // Huong dan cho nhom cau hoi
     text: { type: String, required: false }, // Noi dung summary (cho summary_completion)
+    image_url: { type: String, required: false }, // Optional compatibility field for diagram-like layouts
+    steps: [{ type: String, required: false }], // Flow/plan step lines with [n] placeholders
     group_layout: { type: String, enum: QUESTION_GROUP_LAYOUTS, default: 'default' }, // Controls rendering mode
+    use_once: { type: Boolean, default: false }, // Enforce one-time option usage for matching-style groups
     headings: [QuestionHeadingSchema], // For matching_headings / matching_features
     options: [QuestionHeadingSchema], // Danh sach lua chon sharing (cho summary_completion)
     questions: [QuestionSchema] // Mang cac cau hoi thuoc nhom cau hoi nay
@@ -48,6 +51,7 @@ const SectionSchema = new mongoose.Schema({
     _id: { type: String, required: true },
     title: { type: String, required: true }, // Tieu de doan van
     content: { type: String, required: true }, // Noi dung doan van
+    transcript: { type: String }, // Transcript shown in listening review mode
     audio_url: { type: String }, // URL to MP3 audio file for listening section
     audio_storage_key: { type: String }, // Object key in DigitalOcean Spaces for managed audio uploads
     question_groups: [QuestionGroupSchema],

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '@/shared/api/client';
 import { Link } from 'react-router-dom';
+import { toCanonicalAppPath } from '@/app/roleRouting';
 import StudyPlanSetup from '@/features/study-plan/pages/StudyPlanSetup';
 
 export default function StudyDashboardWidget() {
@@ -128,7 +129,7 @@ export default function StudyDashboardWidget() {
                         </button>
                     </div>
                     <div>
-                        <Link to="/study-plan/full" style={{ fontSize: '0.8rem', color: '#64748b', textDecoration: 'underline' }}>View Full Roadmap</Link>
+                        <Link to="/student-ielts/study-plan/full" style={{ fontSize: '0.8rem', color: '#64748b', textDecoration: 'underline' }}>View Full Roadmap</Link>
                     </div>
                 </div>
             </div>
@@ -182,7 +183,7 @@ export default function StudyDashboardWidget() {
                             </div>
 
                             <Link
-                                to={task.link || `/practice/${task.referenceId}`}
+                                to={toCanonicalAppPath(task.link) || `/student-ielts/practice/${task.referenceId}`}
                                 className="btn-start-task"
                                 style={{
                                     color: task.status === 'completed' ? '#94a3b8' : '#6366F1',
@@ -204,3 +205,4 @@ export default function StudyDashboardWidget() {
         </div>
     );
 }
+

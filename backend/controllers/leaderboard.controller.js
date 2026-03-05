@@ -2,13 +2,14 @@ import User from '../models/User.model.js';
 import { checkAchievements, getAllAchievements, getUserAchievements } from '../services/achievement.service.js';
 import { getLevelTitle } from '../services/gamification.service.js';
 import { handleControllerError, sendControllerError } from '../utils/controllerError.js';
+import { STUDENT_ROLE_VALUES } from '../utils/role.utils.js';
 
 // GET /api/leaderboard — Top 20 students by XP
 export const getLeaderboard = async (req, res) => {
     try {
         const limit = Math.min(parseInt(req.query.limit) || 20, 50);
 
-        const students = await User.find({ role: 'student' })
+        const students = await User.find({ role: { $in: STUDENT_ROLE_VALUES } })
             .sort({ xp: -1 })
             .limit(limit)
             .select('name xp level totalAchievements')
@@ -39,7 +40,7 @@ export const getMyRank = async (req, res) => {
 
         // Count how many students have more XP
         const higherCount = await User.countDocuments({
-            role: 'student',
+            role: { $in: STUDENT_ROLE_VALUES },
             xp: { $gt: user.xp || 0 }
         });
 

@@ -1,0 +1,131 @@
+.role-shell {
+  --role-shell-bg: #f8fafc;
+  --role-shell-border: #e2e8f0;
+  --role-shell-text: #0f172a;
+  --role-shell-muted: #64748b;
+  --role-shell-primary: #1152d4;
+  min-height: 100vh;
+  background: linear-gradient(180deg, #ffffff 0%, var(--role-shell-bg) 100%);
+  color: var(--role-shell-text);
+  font-family: Lexend, Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
+.role-shell__top {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  backdrop-filter: blur(10px);
+  background: rgba(248, 250, 252, 0.92);
+  border-bottom: 1px solid var(--role-shell-border);
+}
+
+.role-shell__top-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.role-shell__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--role-shell-text);
+}
+
+.role-shell__subtitle {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--role-shell-muted);
+}
+
+.role-shell__tabs {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 20px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.role-shell__tab,
+.role-shell__link {
+  border: 1px solid var(--role-shell-border);
+  background: #ffffff;
+  color: #334155;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.role-shell__tab:hover,
+.role-shell__link:hover {
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
+}
+
+.role-shell__tab.active,
+.role-shell__link.active {
+  background: #1152d4;
+  color: #ffffff;
+  border-color: #1152d4;
+}
+
+.role-shell__content {
+  margin: 0 auto;
+}
+
+.role-shell__switcher {
+  border: 1px solid var(--role-shell-border);
+  border-radius: 10px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 10px;
+  min-width: 170px;
+}
+
+.role-shell__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.role-shell__badge {
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+@media (max-width: 768px) {
+  .role-shell__top-inner,
+  .role-shell__tabs,
+  .role-shell__content {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .role-shell__top-inner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .role-shell__switcher {
+    width: 100%;
+    min-width: 0;
+  }
+}

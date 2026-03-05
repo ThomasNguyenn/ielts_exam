@@ -10,6 +10,9 @@ import {
   forgotPassword,
   resetPassword,
   validateInviteToken,
+  changePassword,
+  requestEmailChange,
+  confirmEmailChange,
 } from "../controllers/auth.controller.js";
 import { verifyToken } from "../middleware/auth.middleware.js";
 import { requireTrustedOrigin } from "../middleware/csrf.middleware.js";
@@ -23,6 +26,9 @@ router.post("/logout", requireTrustedOrigin, logout);
 router.post("/verify-email", verifyEmail);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);
+router.post("/change-password", verifyToken, changePassword);
+router.post("/change-email/request", verifyToken, requestEmailChange);
+router.post("/change-email/confirm", confirmEmailChange);
 router.get("/invite/:token", validateInviteToken);
 router.get("/profile", verifyToken, getProfile);
 router.put("/profile", verifyToken, updateProfile);

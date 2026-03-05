@@ -52,7 +52,47 @@ const validateObjectiveMappingsOrRespond = (req, res, questionGroups) => {
 
 export const getAllPassages = async(req, res) => {
     try{
-        const passages = await Passage.find({});
+        const summaryMode = ["1", "true", "yes"].includes(String(req.query?.summary || "").toLowerCase());
+        const limitValue = Number(req.query?.limit);
+        const limit =
+            Number.isFinite(limitValue) && limitValue > 0
+                ? Math.min(Math.floor(limitValue), 5000)
+                : null;
+
+        let passages;
+        if (summaryMode) {
+            const pipeline = [
+                { $sort: { updatedAt: -1, createdAt: -1 } },
+                {
+                    $project: {
+                        _id: 1,
+                        title: 1,
+                        source: 1,
+                        is_active: 1,
+                        isSinglePart: 1,
+                        createdAt: 1,
+                        updatedAt: 1,
+                        created_at: 1,
+                        updated_at: 1,
+                        question_count: {
+                            $sum: {
+                                $map: {
+                                    input: { $ifNull: ["$question_groups", []] },
+                                    as: "group",
+                                    in: { $size: { $ifNull: ["$$group.questions", []] } },
+                                },
+                            },
+                        },
+                    },
+                },
+            ];
+            if (limit) pipeline.push({ $limit: limit });
+            passages = await Passage.aggregate(pipeline);
+        } else {
+            let query = Passage.find({});
+            if (limit) query = query.limit(limit);
+            passages = await query.lean();
+        }
         res.status(200).json({ success: true, data : passages});
     } catch(error){
         return handleControllerError(req, res, error);
@@ -161,6 +201,32 @@ export const generatePassageInsights = async (req, res) => {
             ? "Failed to generate passage insights"
             : (error.message || "Failed to generate passage insights");
         return handleControllerError(req, res, error, { statusCode, message });
+    }
+};
+
+export const uploadPassageDiagramImage = async (req, res) => {
+    try {
+        if (!req.file) {
+            return sendControllerError(req, res, { statusCode: 400, message: "No file uploaded" });
+        }
+
+        const cloudinary = (await import("../utils/cloudinary.js")).default;
+        const base64 = Buffer.from(req.file.buffer).toString("base64");
+        const dataUri = `data:${req.file.mimetype};base64,${base64}`;
+
+        const result = await cloudinary.uploader.upload(dataUri, {
+            folder: "ielts-diagram-label",
+        });
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                url: result.secure_url,
+                public_id: result.public_id,
+            },
+        });
+    } catch (error) {
+        return handleControllerError(req, res, error);
     }
 };
 

@@ -13,7 +13,11 @@ import {
   REFRESH_COOKIE_SAMESITE,
   REFRESH_COOKIE_SECURE,
 } from "../config/security.config.js";
-import { sendVerificationEmail, sendPasswordResetEmail } from "../services/email.service.js";
+import {
+  sendVerificationEmail,
+  sendPasswordResetEmail,
+  sendEmailChangeVerificationEmail,
+} from "../services/email.service.js";
 import {
   buildProfileDashboard,
   normalizeProfileTargets,
@@ -26,11 +30,17 @@ import {
   getInvitationTokenRecord,
 } from "../services/invitationToken.redis.js";
 import { handleControllerError, sendControllerError, logControllerError } from "../utils/controllerError.js";
+import {
+  ROLE_STUDENT,
+  resolveStudentRoleFromStudyTrack,
+  isStudentRole,
+} from "../utils/role.utils.js";
 
 const PASSWORD_MIN = 8;
 const PASSWORD_MAX = 72; // bcrypt limit
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_CHANGE_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 const TRUTHY_VALUES = new Set(["1", "true", "yes", "on"]);
 const FALSY_VALUES = new Set(["0", "false", "no", "off"]);
 
@@ -194,6 +204,30 @@ const clearRefreshTokenCookie = (res) => {
   });
 };
 
+const buildSessionRevocationUpdate = (role, { clearLastSeen = false } = {}) => {
+  const updatePayload = {
+    refreshTokenHash: null,
+    refreshTokenIssuedAt: null,
+    refreshTokenExpiresAt: null,
+  };
+
+  if (isStudentRole(role)) {
+    updatePayload.activeSessionId = createStudentSessionId();
+    updatePayload.activeSessionIssuedAt = new Date();
+    if (clearLastSeen) {
+      updatePayload.lastSeenAt = null;
+    }
+  }
+
+  return updatePayload;
+};
+
+const applySessionRevocationToUserDoc = (user, options = {}) => {
+  if (!user) return;
+  const updates = buildSessionRevocationUpdate(user.role, options);
+  Object.assign(user, updates);
+};
+
 const issueAccessTokenForUser = (user, sessionId = null) => {
   const payload = {
     userId: user._id,
@@ -243,6 +277,8 @@ const pickAuthUserPayload = (user) => ({
 const pickProfileUserPayload = (user) => ({
   _id: user._id,
   email: user.email,
+  pendingEmail: user.pendingEmail || null,
+  emailChangeTokenExpires: user.emailChangeTokenExpires || null,
   name: user.name,
   role: user.role,
   isConfirmed: user.isConfirmed,
@@ -255,7 +291,7 @@ const pickProfileUserPayload = (user) => ({
 
 export const register = async (req, res) => {
   try {
-    const { email, password, name, inviteToken } = req.body;
+    const { email, password, name, inviteToken, studyTrack } = req.body;
     const normalizedEmail = normalizeEmail(email);
 
     if (!normalizedEmail || !password || !name) {
@@ -277,7 +313,7 @@ export const register = async (req, res) => {
     }
 
     // Resolve invitation if invite token is provided
-    let assignedRole = "student";
+    let assignedRole = ROLE_STUDENT;
     let autoConfirm = false;
     let invitation = null;
     let matchedInviteToken = "";
@@ -301,6 +337,15 @@ export const register = async (req, res) => {
 
       assignedRole = invitation.role;
       autoConfirm = true;
+    } else {
+      const resolvedStudentRole = resolveStudentRoleFromStudyTrack(studyTrack);
+      if (!resolvedStudentRole) {
+        return sendControllerError(req, res, {
+          statusCode: 400,
+          message: "studyTrack is required and must be one of: ielts, aca",
+        });
+      }
+      assignedRole = resolvedStudentRole;
     }
 
     // Hash password
@@ -322,7 +367,7 @@ export const register = async (req, res) => {
     });
 
     let studentSessionId = null;
-    if (user.role === "student") {
+    if (isStudentRole(user.role)) {
       studentSessionId = createStudentSessionId();
       user.activeSessionId = studentSessionId;
       user.activeSessionIssuedAt = new Date();
@@ -479,19 +524,188 @@ export const resetPassword = async (req, res) => {
     user.password = await bcrypt.hash(newPassword, salt);
     user.resetPasswordToken = undefined;
     user.resetPasswordExpires = undefined;
-    user.refreshTokenHash = null;
-    user.refreshTokenIssuedAt = null;
-    user.refreshTokenExpiresAt = null;
-    if (user.role === "student") {
-      user.activeSessionId = createStudentSessionId();
-      user.activeSessionIssuedAt = new Date();
-      user.lastSeenAt = null;
-    }
+    applySessionRevocationToUserDoc(user, { clearLastSeen: true });
     await user.save();
 
     res.json({ success: true, message: "Password reset successfully" });
   } catch (error) {
     return handleControllerError(req, res, error, { route: "auth.resetPassword" });
+  }
+};
+
+export const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body || {};
+
+    if (!currentPassword || !newPassword) {
+      return sendControllerError(req, res, {
+        statusCode: 400,
+        message: "Current password and new password are required",
+      });
+    }
+
+    const passwordError = validatePassword(newPassword);
+    if (passwordError) {
+      return sendControllerError(req, res, { statusCode: 400, message: passwordError });
+    }
+
+    const user = await User.findById(req.user.userId).select("password role");
+    if (!user) {
+      return sendControllerError(req, res, { statusCode: 404, message: "User not found" });
+    }
+
+    const isCurrentPasswordMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isCurrentPasswordMatch) {
+      return sendControllerError(req, res, { statusCode: 401, message: "Current password is incorrect" });
+    }
+
+    const isSameAsCurrent = await bcrypt.compare(newPassword, user.password);
+    if (isSameAsCurrent) {
+      return sendControllerError(req, res, {
+        statusCode: 400,
+        message: "New password must be different from current password",
+      });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+    applySessionRevocationToUserDoc(user, { clearLastSeen: true });
+    await user.save();
+
+    clearRefreshTokenCookie(res);
+    return res.json({
+      success: true,
+      message: "Password changed successfully. Please log in again.",
+    });
+  } catch (error) {
+    clearRefreshTokenCookie(res);
+    return handleControllerError(req, res, error, { route: "auth.changePassword" });
+  }
+};
+
+export const requestEmailChange = async (req, res) => {
+  try {
+    const { newEmail, currentPassword } = req.body || {};
+    const normalizedEmail = normalizeEmail(newEmail);
+
+    if (!normalizedEmail || !currentPassword) {
+      return sendControllerError(req, res, {
+        statusCode: 400,
+        message: "New email and current password are required",
+      });
+    }
+
+    if (!isValidEmail(normalizedEmail)) {
+      return sendControllerError(req, res, { statusCode: 400, message: "Invalid email format" });
+    }
+
+    const user = await User.findById(req.user.userId).select("email password pendingEmail");
+    if (!user) {
+      return sendControllerError(req, res, { statusCode: 404, message: "User not found" });
+    }
+
+    if (normalizedEmail === normalizeEmail(user.email)) {
+      return sendControllerError(req, res, {
+        statusCode: 400,
+        message: "New email must be different from current email",
+      });
+    }
+
+    const isCurrentPasswordMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isCurrentPasswordMatch) {
+      return sendControllerError(req, res, { statusCode: 401, message: "Current password is incorrect" });
+    }
+
+    const existingUser = await User.findOne({
+      email: normalizedEmail,
+      _id: { $ne: user._id },
+    }).select("_id");
+    if (existingUser) {
+      return sendControllerError(req, res, { statusCode: 400, message: "Email already registered" });
+    }
+
+    const emailChangeToken = randomBytes(32).toString("hex");
+    user.pendingEmail = normalizedEmail;
+    user.emailChangeTokenHash = hashToken(emailChangeToken);
+    user.emailChangeTokenExpires = new Date(Date.now() + EMAIL_CHANGE_TOKEN_TTL_MS);
+    await user.save();
+
+    const emailDelivery = await sendEmailChangeVerificationEmail(normalizedEmail, emailChangeToken);
+    if (!emailDelivery) {
+      user.pendingEmail = null;
+      user.emailChangeTokenHash = null;
+      user.emailChangeTokenExpires = null;
+      await user.save();
+      return sendControllerError(req, res, {
+        statusCode: 503,
+        message: "Could not send verification email. Please try again.",
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Verification link sent to your new email address.",
+    });
+  } catch (error) {
+    return handleControllerError(req, res, error, { route: "auth.requestEmailChange" });
+  }
+};
+
+export const confirmEmailChange = async (req, res) => {
+  try {
+    const { token } = req.body || {};
+    if (!token) {
+      return sendControllerError(req, res, { statusCode: 400, message: "Token is required" });
+    }
+
+    const tokenHash = hashToken(token);
+    const user = await User.findOne({
+      emailChangeTokenHash: tokenHash,
+      emailChangeTokenExpires: { $gt: new Date() },
+      pendingEmail: { $ne: null },
+    });
+
+    if (!user) {
+      return sendControllerError(req, res, {
+        statusCode: 400,
+        message: "Invalid or expired token",
+      });
+    }
+
+    const normalizedPendingEmail = normalizeEmail(user.pendingEmail);
+    if (!isValidEmail(normalizedPendingEmail)) {
+      return sendControllerError(req, res, {
+        statusCode: 400,
+        message: "Pending email is invalid",
+      });
+    }
+
+    const existingUser = await User.findOne({
+      email: normalizedPendingEmail,
+      _id: { $ne: user._id },
+    }).select("_id");
+    if (existingUser) {
+      return sendControllerError(req, res, {
+        statusCode: 400,
+        message: "Email already registered",
+      });
+    }
+
+    user.email = normalizedPendingEmail;
+    user.pendingEmail = null;
+    user.emailChangeTokenHash = null;
+    user.emailChangeTokenExpires = null;
+    applySessionRevocationToUserDoc(user, { clearLastSeen: true });
+    await user.save();
+
+    clearRefreshTokenCookie(res);
+    return res.json({
+      success: true,
+      message: "Email changed successfully. Please log in again.",
+    });
+  } catch (error) {
+    clearRefreshTokenCookie(res);
+    return handleControllerError(req, res, error, { route: "auth.confirmEmailChange" });
   }
 };
 
@@ -520,7 +734,7 @@ export const login = async (req, res) => {
     }
 
     let studentSessionId = null;
-    if (user.role === "student") {
+    if (isStudentRole(user.role)) {
       studentSessionId = createStudentSessionId();
       user.activeSessionId = studentSessionId;
       user.activeSessionIssuedAt = new Date();
@@ -588,7 +802,7 @@ export const refreshAccessToken = async (req, res) => {
       return sendControllerError(req, res, { statusCode: 401, message: "Refresh token expired"  });
     }
 
-    if (user.role === "student") {
+    if (isStudentRole(user.role)) {
       const tokenSessionId = String(decoded.sessionId || "").trim();
       const activeSessionId = String(user.activeSessionId || "").trim();
       if (!tokenSessionId || !activeSessionId || tokenSessionId !== activeSessionId) {
@@ -597,14 +811,14 @@ export const refreshAccessToken = async (req, res) => {
       }
     }
 
-    const sessionId = user.role === "student" ? String(user.activeSessionId || "").trim() : null;
+    const sessionId = isStudentRole(user.role) ? String(user.activeSessionId || "").trim() : null;
     const accessToken = issueAccessTokenForUser(user, sessionId || null);
     const nextRefresh = issueRefreshTokenForUser(user, sessionId || null);
 
     user.refreshTokenHash = hashToken(nextRefresh.token);
     user.refreshTokenIssuedAt = new Date();
     user.refreshTokenExpiresAt = nextRefresh.expiresAt;
-    if (user.role === "student") {
+    if (isStudentRole(user.role)) {
       user.lastSeenAt = new Date();
     }
     await user.save();
@@ -636,7 +850,7 @@ export const logout = async (req, res) => {
             refreshTokenIssuedAt: null,
             refreshTokenExpiresAt: null,
           };
-          if (decoded.role === "student") {
+          if (isStudentRole(decoded.role)) {
             updatePayload.activeSessionId = createStudentSessionId();
             updatePayload.activeSessionIssuedAt = new Date();
             updatePayload.lastSeenAt = null;
@@ -696,7 +910,7 @@ const parseBooleanQuery = (value, fallback) => {
 export const updateProfile = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const existingUser = await User.findById(userId).select("name email role isConfirmed createdAt targets avatarSeed xp level");
+    const existingUser = await User.findById(userId).select("name email pendingEmail emailChangeTokenExpires role isConfirmed createdAt targets avatarSeed xp level");
     if (!existingUser) {
       return sendControllerError(req, res, { statusCode: 404, message: "User not found"  });
     }
