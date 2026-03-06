@@ -33,6 +33,8 @@ export default function ManageUsers() {
   const [loading, setLoading] = useState(true);
   const [roleFilter, setRoleFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [bulkNames, setBulkNames] = useState('');
+  const [bulkCreating, setBulkCreating] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [confirmModal, setConfirmModal] = useState({
     isOpen: false,
@@ -82,6 +84,29 @@ export default function ManageUsers() {
       if (requestId === requestSeqRef.current) {
         setLoading(false);
       }
+    }
+  };
+
+  const handleBulkCreate = async () => {
+    const names = String(bulkNames || '').trim();
+    if (!names) {
+      showNotification('Please enter student names (one per line).', 'error');
+      return;
+    }
+
+    try {
+      setBulkCreating(true);
+      const res = await api.createBulkStudents({ rawNames: names });
+      const createdCount = Array.isArray(res?.data?.students) ? res.data.students.length : 0;
+      showNotification(`Created ${createdCount} student account(s). Default password: Scots2026`, 'success');
+      setBulkNames('');
+      setRoleFilter('student');
+      setCurrentPage(1);
+      void fetchUsers(1);
+    } catch (error) {
+      showNotification(error?.message || 'Failed to create bulk student accounts.', 'error');
+    } finally {
+      setBulkCreating(false);
     }
   };
 
@@ -142,6 +167,44 @@ export default function ManageUsers() {
       </section>
 
       <section className="admin-people-panel">
+        <div className="admin-people-form-card" style={{ marginBottom: '0.85rem' }}>
+          <h3 className="admin-people-form-title">Create Bulk Student</h3>
+          <p className="admin-people-form-help">
+            Enter one student name per line. Email will be auto-generated from name + order index.
+            Default password is <strong>Scots2026</strong>.
+          </p>
+          <div className="admin-people-field">
+            <label htmlFor="bulk-student-list">Student names</label>
+            <textarea
+              id="bulk-student-list"
+              value={bulkNames}
+              onChange={(event) => setBulkNames(event.target.value)}
+              placeholder={'Nguyen Van A\nTran Thi B\nLe Minh C'}
+              rows={6}
+              style={{
+                width: '100%',
+                border: '1px solid #e2e8f0',
+                borderRadius: '10px',
+                background: '#ffffff',
+                color: '#0f172a',
+                fontSize: '0.88rem',
+                fontWeight: 500,
+                padding: '0.55rem 0.75rem',
+              }}
+            />
+          </div>
+          <div style={{ marginTop: '0.65rem' }}>
+            <button
+              type="button"
+              className="admin-people-btn admin-people-btn-primary"
+              onClick={handleBulkCreate}
+              disabled={bulkCreating}
+            >
+              {bulkCreating ? 'Creating...' : 'Create Bulk Student'}
+            </button>
+          </div>
+        </div>
+
         <div className="admin-people-toolbar">
           <div className="admin-people-filter-group" role="tablist" aria-label="User role filters">
             {ROLE_FILTERS.map((filter) => (
@@ -271,4 +334,3 @@ export default function ManageUsers() {
     </div>
   );
 }
-
