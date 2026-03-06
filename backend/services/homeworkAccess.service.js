@@ -17,7 +17,12 @@ export const isAdminUser = (user = {}) => user?.role === "admin";
 export const isAssignmentOwner = (assignment = {}, userId) => {
   const assignmentOwnerId = toIdString(assignment?.created_by);
   const requestUserId = toIdString(userId);
-  return Boolean(assignmentOwnerId && requestUserId && assignmentOwnerId === requestUserId);
+  if (assignmentOwnerId && requestUserId && assignmentOwnerId === requestUserId) return true;
+  
+  if (Array.isArray(assignment?.co_teachers)) {
+    return assignment.co_teachers.some((ctId) => toIdString(ctId) === requestUserId);
+  }
+  return false;
 };
 
 export const canManageAssignment = ({ assignment, user }) => {

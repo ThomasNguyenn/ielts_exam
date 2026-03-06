@@ -1,10 +1,13 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import LiteYouTubeEmbed from "react-lite-youtube-embed";
 import "react-lite-youtube-embed/dist/LiteYouTubeEmbed.css";
 import { api } from "@/shared/api/client";
 import { useNotification } from "@/shared/context/NotificationContext";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import {
   Drawer,
   DrawerContent,
@@ -12,14 +15,6 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer";
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
 import { IconCloud } from "@tabler/icons-react";
 import { formatDate, resolveVideoPreview, statusLabel } from "./homework.utils";
 import {
@@ -194,6 +189,18 @@ const renderRichTextBlock = (value, { className = "homework-task-sub", emptyFall
       className={cx(className, "homework-task-rich")}
       dangerouslySetInnerHTML={toSanitizedInnerHtml(rawText)}
     />
+  );
+};
+
+const renderInstructionBlock = (value) => {
+  const content = renderRichTextBlock(value);
+  if (!content) return null;
+  return (
+    <div className="space-y-3">
+      <Separator />
+      {content}
+      <Separator />
+    </div>
   );
 };
 
@@ -684,7 +691,7 @@ const TASK_BLOCK_RENDERERS = {
     if (!text) return null;
     return <h4 className="homework-item-title">{text}</h4>;
   },
-  instruction: ({ block }) => renderRichTextBlock(block?.data?.text || ""),
+  instruction: ({ block }) => renderInstructionBlock(block?.data?.text || ""),
   video: ({ block, task, taskIndex, submissionStatus }) => {
     const url = String(block?.data?.url || task?.resource_url || "").trim();
     if (!url) return null;
@@ -765,11 +772,7 @@ const TASK_BLOCK_RENDERERS = {
               );
             })}
           </div>
-        ) : (
-          <div className="homework-quiz-card homework-quiz-card--passage">
-            <p className="homework-item-meta">No quiz questions linked to this passage yet.</p>
-          </div>
-        )}
+        ) : null}
       </div>
     );
   },
@@ -839,7 +842,6 @@ export default function MyHomeworkLessonPage() {
   const streamsRef = useRef(new Map());
   const chunksRef = useRef(new Map());
   const previewUrlsRef = useRef(new Set());
-  const uploadInputRef = useRef(null);
 
   const lessonListPath = `/student-ielts/homework/${assignmentId}${isPreviewMode ? "?preview=1" : ""}`;
   const monthPath = "/student-ielts/homework";
@@ -856,6 +858,11 @@ export default function MyHomeworkLessonPage() {
   );
   const submission = submissionsByTaskId.get(selectedTaskId);
   const draft = drafts[selectedTaskId] || createDraft(submission);
+  const uploadInputId = `homework-upload-input-${String(selectedTaskId || "task").replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+  const selectedImageFiles = Array.isArray(draft?.image_files) ? draft.image_files : [];
+  const selectedImageFileNames = selectedImageFiles
+    .map((file) => String(file?.name || "").trim())
+    .filter(Boolean);
 
   const isDeadlinePassed = useMemo(() => {
     const due = assignment?.due_date ? new Date(assignment.due_date) : null;
@@ -1381,9 +1388,9 @@ export default function MyHomeworkLessonPage() {
                     ) : null}
 
                     {hasImageInput ? (
-                      <div className="homework-field homework-span-12">
+                      <Card className="homework-span-12 rounded-3xl border shadow-sm">
                         <input
-                          ref={uploadInputRef}
+                          id={uploadInputId}
                           type="file"
                           accept="image/*,video/*"
                           multiple
@@ -1393,35 +1400,78 @@ export default function MyHomeworkLessonPage() {
                           }
                           disabled={!canInteract}
                         />
-                        <Empty className="border border-dashed">
-                          <EmptyHeader>
-                            <EmptyMedia variant="icon">
-                              <IconCloud />
-                            </EmptyMedia>
-                            <EmptyTitle>Upload BÃ i LÃ m</EmptyTitle>
-                            <EmptyDescription>
-                              Upload áº£nh hoáº·c video bÃ i Ä‘Ã£ lÃ m
-                            </EmptyDescription>
-                          </EmptyHeader>
-                          <EmptyContent>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => uploadInputRef.current?.click()}
-                              disabled={!canInteract}
-                            >
-                              Upload Files
-                            </Button>
-                          </EmptyContent>
-                        </Empty>
-                        {draft?.image_files?.length ? (
-                          <p className="homework-item-meta">Selected: {draft.image_files.length} file(s)</p>
-                        ) : null}
-                        {submission?.image_items?.length ? (
-                          <p className="homework-item-meta">Current: {submission.image_items.length} file(s)</p>
-                        ) : null}
-                      </div>
+                        <CardHeader className="space-y-3 pb-3">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="space-y-2">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Badge
+                                  variant={selectedImageFiles.length ? "default" : "outline"}
+                                  className="rounded-full px-3 py-1"
+                                >
+                                  {selectedImageFiles.length
+                                    ? `${selectedImageFiles.length} file đã chọn`
+                                    : "Chưa chọn file"}
+                                </Badge>
+                              </div>
+                              <CardTitle className="text-xl">Nộp ảnh / Video bài làm</CardTitle>
+                        
+                            </div>
+                            {submission?.image_items?.length ? (
+                              <Badge variant="outline" className="rounded-full px-3 py-1">
+                                Hiện tại: {submission.image_items.length} file
+                              </Badge>
+                            ) : null}
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <Card
+                            className={`rounded-2xl border-dashed shadow-none transition-colors ${
+                              selectedImageFiles.length ? "border-primary/40 bg-primary/[0.04]" : "bg-muted/40"
+                            }`}
+                          >
+                            <CardContent className="space-y-3 p-4">
+                              <Button
+                                asChild
+                                variant="outline"
+                                className="h-11 w-full rounded-2xl"
+                                disabled={!canInteract}
+                              >
+                                <label
+                                  htmlFor={canInteract ? uploadInputId : undefined}
+                                  className={canInteract ? "cursor-pointer" : "pointer-events-none cursor-not-allowed"}
+                                >
+                                  <IconCloud className="mr-2 h-4 w-4" />
+                                  {selectedImageFiles.length ? "Chọn lại file" : "Upload"}
+                                </label>
+                              </Button>
+                            </CardContent>
+                          </Card>
+                          {selectedImageFileNames.length ? (
+                            <div className="space-y-2">
+                              <p className="text-sm font-medium text-foreground">File da chon</p>
+                              <div className="flex flex-wrap gap-2">
+                                {selectedImageFileNames.slice(0, 6).map((fileName, index) => (
+                                  <Badge
+                                    key={`${fileName}-${index}`}
+                                    variant="outline"
+                                    className="max-w-full truncate rounded-full px-3 py-1"
+                                    title={fileName}
+                                  >
+                                    {fileName}
+                                  </Badge>
+                                ))}
+                                {selectedImageFileNames.length > 6 ? (
+                                  <Badge variant="outline" className="rounded-full px-3 py-1">
+                                    +{selectedImageFileNames.length - 6} file
+                                  </Badge>
+                                ) : null}
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">Chưa có file nào được chọn.</p>
+                          )}
+                        </CardContent>
+                      </Card>
                     ) : null}
 
                     {hasAudioInput ? (

@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
-import { Bold, Heading2, Italic, List } from "lucide-react";
+import Link from "@tiptap/extension-link";
+import { Bold, Heading2, Italic, Link2, List, Unlink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const normalizeText = (value) => String(value ?? "");
@@ -36,6 +37,14 @@ const getEditorOutputValue = (editor, outputFormat) => {
   if (outputFormat === "text") return editorText(editor);
   return editorText(editor).trim() ? editor.getHTML() : "";
 };
+const normalizeLinkHref = (value) => {
+  const href = String(value || "").trim();
+  if (!href) return "";
+  if (/^(https?:\/\/|mailto:)/i.test(href)) return href;
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(href)) return `mailto:${href}`;
+  if (/^(\/|#)/.test(href)) return href;
+  return `https://${href}`;
+};
 const cx = (...values) => values.filter(Boolean).join(" ");
 
 export default function HomeworkRichTextEditor({
@@ -58,6 +67,11 @@ export default function HomeworkRichTextEditor({
     () => [
       StarterKit.configure({
         heading: { levels: [2] },
+      }),
+      Link.configure({
+        openOnClick: false,
+        autolink: true,
+        protocols: ["http", "https", "mailto"],
       }),
       Placeholder.configure({
         placeholder,
@@ -108,6 +122,24 @@ export default function HomeworkRichTextEditor({
       .focus()
       .insertContentAt({ from, to }, `[${selectedText}]`)
       .run();
+  };
+
+  const setOrEditLink = () => {
+    const previousHref = editor.getAttributes("link")?.href || "";
+    const rawHref = window.prompt("Nhập URL liên kết", previousHref);
+    if (rawHref == null) return;
+
+    const href = normalizeLinkHref(rawHref);
+    if (!href) {
+      editor.chain().focus().extendMarkRange("link").unsetLink().run();
+      return;
+    }
+
+    editor.chain().focus().extendMarkRange("link").setLink({ href }).run();
+  };
+
+  const unsetLink = () => {
+    editor.chain().focus().extendMarkRange("link").unsetLink().run();
   };
 
   return (
@@ -162,6 +194,31 @@ export default function HomeworkRichTextEditor({
           aria-label="Toggle bullet list"
         >
           <List className="h-4 w-4" />
+        </Button>
+
+        <Button
+          type="button"
+          size="icon"
+          variant={editor.isActive("link") ? "default" : "outline"}
+          className="h-8 w-8"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={setOrEditLink}
+          aria-label="Insert or edit link"
+        >
+          <Link2 className="h-4 w-4" />
+        </Button>
+
+        <Button
+          type="button"
+          size="icon"
+          variant="outline"
+          className="h-8 w-8"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={unsetLink}
+          aria-label="Remove link"
+          disabled={!editor.isActive("link")}
+        >
+          <Unlink className="h-4 w-4" />
         </Button>
 
         <Button

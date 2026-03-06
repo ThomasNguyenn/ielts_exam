@@ -218,12 +218,22 @@ export default function WritingLiveRoomTeacherView({
                 onMouseUp={() => session.captureSelection(essayRef.current)}
                 className="prose prose-lg max-w-none text-slate-700 leading-relaxed whitespace-pre-wrap font-display writing-live-ui__essay-content"
               >
-                {session.textSegments.map((segment, index) => {
-                  const key = segment?.key ? `${segment.key}:${index}` : `segment:${index}`;
-                  if (!segment.active || segment.active.length === 0) {
-                    return <span key={key}>{segment.text}</span>;
+                {session.textTokens.map((token, index) => {
+                  const key = token?.key ? `${token.key}:${index}` : `token:${index}`;
+                  if (!token.active || token.active.length === 0) {
+                    return (
+                      <span
+                        key={key}
+                        data-wl-token="1"
+                        data-start={token.start}
+                        data-end={token.end}
+                        data-space={token.isSpace ? '1' : '0'}
+                      >
+                        {token.text}
+                      </span>
+                    );
                   }
-                  const primary = segment.active[segment.active.length - 1];
+                  const primary = token.active[token.active.length - 1];
                   const meta = getCriterionMeta(primary?.criterion);
                   const isActive = activeHighlightId === String(primary?.id || '');
                   const tooltipText = String(primary?.note || '').trim();
@@ -231,12 +241,16 @@ export default function WritingLiveRoomTeacherView({
                     <mark
                       key={key}
                       ref={registerTextRef(primary?.id)}
+                      data-wl-token="1"
+                      data-start={token.start}
+                      data-end={token.end}
+                      data-space={token.isSpace ? '1' : '0'}
                       className={`writing-live-ui__mark ${meta.markClass} ${isActive ? 'is-active' : ''}`}
                       onMouseEnter={() => setActiveHighlightId(String(primary?.id || ''))}
                       onClick={() => focusFromText(primary?.id)}
                       title={tooltipText || `${meta.label} highlight`}
                     >
-                      {segment.text}
+                      {token.text}
                       {tooltipText ? <span className="writing-live-ui__mark-tooltip">{tooltipText}</span> : null}
                     </mark>
                   );

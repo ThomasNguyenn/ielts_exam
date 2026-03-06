@@ -67,6 +67,20 @@ export default defineConfig(({ mode }) => {
               return 'vendor-recharts';
             }
 
+            // Keep Recharts' redux/store internals in vendor-react.
+            // This avoids circular chunks:
+            // vendor-recharts -> vendor-react -> vendor-recharts
+            if (
+              id.includes('react-redux') ||
+              id.includes('@reduxjs/toolkit') ||
+              id.includes('/redux/') ||
+              id.includes('/reselect/') ||
+              id.includes('/immer/') ||
+              id.includes('use-sync-external-store')
+            ) {
+              return 'vendor-react';
+            }
+
             if (id.includes('jspdf') || id.includes('html2canvas')) {
               return 'vendor-pdf';
             }

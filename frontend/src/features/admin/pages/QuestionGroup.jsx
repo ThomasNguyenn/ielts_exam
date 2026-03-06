@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp, GripVertical, Plus, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -171,6 +171,8 @@ export default function QuestionGroup({
   const isMultipleChoiceType = group.type === 'mult_choice';
   const isTableCompletionType = group.type === 'table_completion';
   const isDiagramLabelType = group.type === 'diagram_label_completion';
+  const isListeningMapType = group.type === 'listening_map';
+  const supportsGroupImage = isDiagramLabelType || isListeningMapType;
   const isFlowOrPlanType = group.type === 'flow_chart_completion' || group.type === 'plan_map_diagram';
   const isAnswerListOnlyType = ANSWER_LIST_ONLY_TYPES.has(group.type);
   const isMultiChoiceMode = group.group_layout === 'checkbox';
@@ -182,6 +184,7 @@ export default function QuestionGroup({
   const canSyncPlaceholderQuestions = (PLACEHOLDER_SYNC_TYPES.has(group.type) || isFlowOrPlanType) && !isDiagramLabelType;
   const showReferenceText = (REFERENCE_TEXT_TYPES.has(group.type) || group.group_layout === 'with_reference')
     && !isDiagramLabelType
+    && !isListeningMapType
     && !isFlowOrPlanType;
   const showGroupOptions = GROUP_OPTION_TYPES.has(group.type);
   const showDiagramQuestionTextInput = isDiagramLabelType;
@@ -412,10 +415,10 @@ export default function QuestionGroup({
             </div>
           ) : null}
 
-          {isDiagramLabelType ? (
+          {supportsGroupImage ? (
             <Card className='border-dashed'>
               <CardHeader className='pb-3'>
-                <CardTitle className='text-base'>Diagram Image</CardTitle>
+                <CardTitle className='text-base'>{isListeningMapType ? 'Map Image' : 'Diagram Image'}</CardTitle>
               </CardHeader>
               <CardContent className='space-y-3'>
                 <div className='space-y-2'>
@@ -435,12 +438,16 @@ export default function QuestionGroup({
                     disabled={isUploadingDiagramImage}
                   />
                   <p className='text-xs text-muted-foreground'>
-                    {isUploadingDiagramImage ? 'Uploading diagram image...' : 'Allowed formats: JPG, PNG, WEBP (max 5MB).'}
+                    {isUploadingDiagramImage ? 'Uploading image...' : 'Allowed formats: JPG, PNG, WEBP (max 5MB).'}
                   </p>
                 </div>
                 {group.image_url ? (
                   <div className='overflow-hidden rounded-lg border border-border/70 bg-muted/20'>
-                    <img src={group.image_url} alt='Diagram preview' className='max-h-[320px] w-full object-contain' />
+                    <img
+                      src={group.image_url}
+                      alt={isListeningMapType ? 'Map preview' : 'Diagram preview'}
+                      className='max-h-[320px] w-full object-contain'
+                    />
                   </div>
                 ) : null}
               </CardContent>

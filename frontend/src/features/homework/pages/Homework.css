@@ -271,6 +271,24 @@
   margin-top: 0.2rem;
 }
 
+.homework-rich-editor__prosemirror a {
+  color: #1d4ed8;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+  font-weight: 600;
+}
+
+.homework-rich-editor__prosemirror a:hover {
+  color: #1e40af;
+}
+
+.homework-rich-editor__prosemirror a:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 .homework-rich-editor__prosemirror p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   color: #94a3b8;
@@ -456,6 +474,16 @@
 
 .homework-task-rich ul li + li {
   margin-top: 0.3rem;
+}
+
+.homework-task-rich a {
+  color: #1d4ed8;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.homework-task-rich a:hover {
+  color: #1e40af;
 }
 
 .homework-task-blocks {
@@ -654,11 +682,12 @@
 }
 
 .homework-passage-card {
-  border: 1px solid #dbeafe;
+  border: 1px solid #8A6A19;
   border-radius: 18px;
   background:
     radial-gradient(circle at top right, rgba(191, 219, 254, 0.26), transparent 42%),
     #ffffff;
+  box-shadow: 0 4px 12px rgba(138, 106, 25, 0.12);
   padding: 0.9rem;
   display: grid;
   gap: 0.7rem;

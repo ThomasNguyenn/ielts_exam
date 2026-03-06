@@ -3,7 +3,15 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const DEFAULT_FRONTEND_ORIGIN = 'http://localhost:5173';
+const DEFAULT_FRONTEND_ORIGIN_DEV = 'http://localhost:5173';
+const DEFAULT_FRONTEND_ORIGIN_PROD = 'https://ieltshub.online';
+const DEFAULT_EMAIL_FROM = '"IELTS Hub" <no-reply@ieltshub.online>';
+
+const isProductionEnv = () =>
+    String(process.env.NODE_ENV || '').trim().toLowerCase() === 'production';
+
+const getDefaultFrontendOrigin = () =>
+    isProductionEnv() ? DEFAULT_FRONTEND_ORIGIN_PROD : DEFAULT_FRONTEND_ORIGIN_DEV;
 
 const getFrontendBaseUrl = () => {
     const origins = String(process.env.FRONTEND_ORIGINS || '')
@@ -11,7 +19,7 @@ const getFrontendBaseUrl = () => {
         .map((origin) => origin.trim())
         .filter(Boolean);
 
-    const primaryOrigin = origins[0] || DEFAULT_FRONTEND_ORIGIN;
+    const primaryOrigin = origins[0] || getDefaultFrontendOrigin();
     return primaryOrigin.replace(/\/+$/, '');
 };
 
@@ -29,12 +37,12 @@ export const sendVerificationEmail = async (email, token) => {
     const verifyUrl = `${getFrontendBaseUrl()}/verify-email?token=${token}`;
 
     const mailOptions = {
-        from: process.env.SMTP_FROM || '"Ecosystem App" <no-reply@ecosystem.com>',
+        from: process.env.SMTP_FROM || DEFAULT_EMAIL_FROM,
         to: email,
         subject: 'Verify your email address',
         html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2>Welcome to Ecosystem!</h2>
+        <h2>Welcome to IELTS Hub!</h2>
         <p>Please click the button below to verify your email address and activate your account.</p>
         <a href="${verifyUrl}" style="display: inline-block; padding: 10px 20px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 5px; margin-top: 10px;">Verify Email</a>
         <p style="margin-top: 20px; font-size: 12px; color: #666;">If you didn't create an account, you can safely ignore this email.</p>
@@ -63,7 +71,7 @@ export const sendPasswordResetEmail = async (email, token) => {
     const resetUrl = `${getFrontendBaseUrl()}/reset-password?token=${token}`;
 
     const mailOptions = {
-        from: process.env.SMTP_FROM || '"Ecosystem App" <no-reply@ecosystem.com>',
+        from: process.env.SMTP_FROM || DEFAULT_EMAIL_FROM,
         to: email,
         subject: 'Password Reset Request',
         html: `
@@ -94,7 +102,7 @@ export const sendEmailChangeVerificationEmail = async (email, token) => {
     const verifyUrl = `${getFrontendBaseUrl()}/verify-email-change?token=${token}`;
 
     const mailOptions = {
-        from: process.env.SMTP_FROM || '"Ecosystem App" <no-reply@ecosystem.com>',
+        from: process.env.SMTP_FROM || DEFAULT_EMAIL_FROM,
         to: email,
         subject: 'Confirm your new email address',
         html: `
@@ -127,12 +135,12 @@ export const sendInvitationEmail = async (email, token, role) => {
     const roleLabel = role === 'admin' ? 'Quản trị viên' : 'Giáo viên';
 
     const mailOptions = {
-        from: process.env.SMTP_FROM || '"Ecosystem App" <no-reply@ecosystem.com>',
+        from: process.env.SMTP_FROM || DEFAULT_EMAIL_FROM,
         to: email,
-        subject: `Lời mời tham gia IELTS Master với vai trò ${roleLabel}`,
+        subject: `Lời mời tham gia IELTS Hub với vai trò ${roleLabel}`,
         html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2>Bạn được mời tham gia IELTS Master!</h2>
+        <h2>Bạn được mời tham gia IELTS Hub!</h2>
         <p>Bạn đã được mời với vai trò <strong>${roleLabel}</strong>.</p>
         <p>Nhấn nút bên dưới để tạo tài khoản của bạn:</p>
         <a href="${registerUrl}" style="display: inline-block; padding: 10px 20px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 5px; margin-top: 10px;">Tạo tài khoản</a>
