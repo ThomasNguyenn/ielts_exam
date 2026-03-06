@@ -16,6 +16,7 @@ import {
   getInvitations,
   deleteInvitation,
 } from "../controllers/admin.controller.js";
+import { createBulkStudents } from "../controllers/adminBulkStudents.controller.js";
 import { verifyToken, isTeacherOrAdmin, isAdmin } from "../middleware/auth.middleware.js";
 
 const router = express.Router();
@@ -27,6 +28,7 @@ router.get("/scores", getAllUsersWithLatestScores);
 router.get("/users/:userId/attempts", getUserAttempts);
 router.get("/students/pending", getPendingStudents);
 router.get("/students/online", isAdmin, getOnlineStudents);
+router.post("/students/bulk-create", isTeacherOrAdmin, createBulkStudents);
 router.put("/students/:userId/homeroom-teacher", isAdmin, setStudentHomeroomTeacher);
 router.post("/speaking/sessions/repair-stuck", isAdmin, repairStuckSpeakingSessions);
 router.post("/speaking/sessions/:id/retry-error-logs", isAdmin, retrySpeakingErrorLogs);
