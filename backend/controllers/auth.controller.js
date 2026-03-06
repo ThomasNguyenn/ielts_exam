@@ -272,6 +272,8 @@ const pickAuthUserPayload = (user) => ({
   name: user.name,
   role: user.role,
   isConfirmed: user.isConfirmed,
+  createdByTeacherBulk: Boolean(user?.createdByTeacherBulk),
+  mustCompleteFirstLogin: Boolean(user?.mustCompleteFirstLogin),
 });
 
 const pickProfileUserPayload = (user) => ({
