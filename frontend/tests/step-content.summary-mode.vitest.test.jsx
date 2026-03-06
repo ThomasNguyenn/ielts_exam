@@ -1,10 +1,9 @@
-import React from "react";
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import StepContent from "../src/features/tests/components/exam/StepContent.jsx";
 
-vi.mock("@/shared/components/HighlightableContent", () => {
-  const ReactRef = React;
+vi.mock("@/shared/components/HighlightableContent", async () => {
+  const ReactRef = await vi.importActual("react");
   return {
     default: ReactRef.forwardRef(function MockHighlightableContent(
       { htmlContent = "", tagName = "div", onUpdateHtml, ...props },
