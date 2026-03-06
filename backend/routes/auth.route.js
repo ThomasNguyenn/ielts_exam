@@ -14,6 +14,7 @@ import {
   requestEmailChange,
   confirmEmailChange,
 } from "../controllers/auth.controller.js";
+import { getFirstLoginStatus, completeFirstLogin } from "../controllers/firstLogin.controller.js";
 import { verifyToken } from "../middleware/auth.middleware.js";
 import { requireTrustedOrigin } from "../middleware/csrf.middleware.js";
 
@@ -32,5 +33,7 @@ router.post("/change-email/confirm", confirmEmailChange);
 router.get("/invite/:token", validateInviteToken);
 router.get("/profile", verifyToken, getProfile);
 router.put("/profile", verifyToken, updateProfile);
+router.get("/first-login/status", verifyToken, getFirstLoginStatus);
+router.post("/first-login/complete", verifyToken, completeFirstLogin);
 
 export default router;
