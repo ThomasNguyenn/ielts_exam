@@ -5,6 +5,7 @@ import {
   Copy,
   ListPlus,
   Loader2,
+  Save,
   Sparkles,
   Trash2,
 } from 'lucide-react';
@@ -142,6 +143,7 @@ export default function EvaluationPage() {
       return {
         name,
         lessonInfo: existing?.lessonInfo || '',
+        rawReview: existing?.rawReview || '',
         status: existing?.status || 'pending',
         result: existing?.result || null,
       };
@@ -157,6 +159,12 @@ export default function EvaluationPage() {
     )));
   };
 
+  const handleUpdateRawReview = (index, value) => {
+    setStudents((prev) => prev.map((student, i) => (
+      i === index ? { ...student, rawReview: value } : student
+    )));
+  };
+
   const handleAutoEvaluate = async () => {
     if (!teacherName || !date || students.length === 0) {
       showNotification('Vui lòng điền giáo viên, ngày học và ít nhất một học viên.', 'warning');
@@ -166,7 +174,11 @@ export default function EvaluationPage() {
     setIsProcessing(true);
     try {
       const response = await api.submitEvaluation({
-        students: students.map((student) => ({ name: student.name, lessonInfo: student.lessonInfo })),
+        students: students.map((student) => ({
+          name: student.name,
+          lessonInfo: student.lessonInfo,
+          rawReview: student.rawReview || '',
+        })),
         teacherName,
         date,
       });
@@ -184,6 +196,11 @@ export default function EvaluationPage() {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleSaveTemporary = () => {
+    saveToLocal({ studentNamesInput, teacherName, date, students, requestId, pollingActive });
+    showNotification('Temporary data saved to local storage.', 'success');
   };
 
   const pollStatus = useCallback(async () => {
@@ -331,6 +348,16 @@ export default function EvaluationPage() {
           <CardContent className="space-y-3">
             <Button
               type="button"
+              variant="outline"
+              className="w-full"
+              onClick={handleSaveTemporary}
+            >
+              <Save className="h-4 w-4" />
+              Save temporary
+            </Button>
+
+            <Button
+              type="button"
               className="w-full"
               disabled={isProcessing || pollingActive || students.length === 0}
               onClick={handleAutoEvaluate}
@@ -386,7 +413,8 @@ export default function EvaluationPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[170px]">Học viên</TableHead>
-                    <TableHead className="w-[260px]">Nội dung bài học</TableHead>
+                    <TableHead className="w-[220px]">Nội dung bài học</TableHead>
+                    <TableHead className="w-[260px]">Raw Data</TableHead>
                     <TableHead className="w-[140px]">Trạng thái</TableHead>
                     <TableHead>Nhận xét cuối cùng</TableHead>
                   </TableRow>
@@ -405,6 +433,14 @@ export default function EvaluationPage() {
                             value={student.lessonInfo}
                             onChange={(event) => handleUpdateLessonInfo(index, event.target.value)}
                             placeholder="Nội dung đã dạy..."
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Textarea
+                            className="min-h-[84px]"
+                            value={student.rawReview || ''}
+                            onChange={(event) => handleUpdateRawReview(index, event.target.value)}
+                            placeholder="Raw review từ giáo viên..."
                           />
                         </TableCell>
                         <TableCell>

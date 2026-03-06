@@ -6,6 +6,7 @@ import { Bold, Heading2, Italic, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const normalizeText = (value) => String(value ?? "");
+const HTML_TAG_PATTERN = /<\/?[a-z][\s\S]*>/i;
 
 const escapeHtml = (value) =>
   String(value || "")
@@ -25,6 +26,16 @@ const plainTextToHtml = (value) => {
 };
 
 const editorText = (editor) => editor.getText({ blockSeparator: "\n\n" });
+const isHtmlValue = (value) => HTML_TAG_PATTERN.test(normalizeText(value));
+const toEditorHtml = (value) => {
+  const normalized = normalizeText(value);
+  if (!normalized.trim()) return "<p></p>";
+  return isHtmlValue(normalized) ? normalized : plainTextToHtml(normalized);
+};
+const getEditorOutputValue = (editor, outputFormat) => {
+  if (outputFormat === "text") return editorText(editor);
+  return editorText(editor).trim() ? editor.getHTML() : "";
+};
 const cx = (...values) => values.filter(Boolean).join(" ");
 
 export default function HomeworkRichTextEditor({
@@ -34,8 +45,14 @@ export default function HomeworkRichTextEditor({
   minHeight = 160,
   className,
   contentClassName,
+  outputFormat = "html",
 }) {
   const lastSyncedTextRef = useRef(normalizeText(value));
+  const outputFormatRef = useRef(outputFormat);
+
+  useEffect(() => {
+    outputFormatRef.current = outputFormat;
+  }, [outputFormat]);
 
   const extensions = useMemo(
     () => [
@@ -51,9 +68,9 @@ export default function HomeworkRichTextEditor({
 
   const editor = useEditor({
     extensions,
-    content: plainTextToHtml(value),
+    content: toEditorHtml(value),
     onUpdate: ({ editor: currentEditor }) => {
-      const nextText = editorText(currentEditor);
+      const nextText = getEditorOutputValue(currentEditor, outputFormatRef.current);
       lastSyncedTextRef.current = nextText;
       onChange?.(nextText);
     },
@@ -68,11 +85,30 @@ export default function HomeworkRichTextEditor({
     if (!editor) return;
     const incomingText = normalizeText(value);
     if (incomingText === lastSyncedTextRef.current) return;
-    editor.commands.setContent(plainTextToHtml(incomingText), false);
+    editor.commands.setContent(toEditorHtml(incomingText), false);
     lastSyncedTextRef.current = incomingText;
   }, [editor, value]);
 
   if (!editor) return null;
+
+  const wrapSelectionWithBrackets = () => {
+    const { from, to, empty } = editor.state.selection;
+    if (empty) {
+      editor
+        .chain()
+        .focus()
+        .insertContentAt({ from, to }, "[]")
+        .setTextSelection(from + 1)
+        .run();
+      return;
+    }
+    const selectedText = editor.state.doc.textBetween(from, to, "\n");
+    editor
+      .chain()
+      .focus()
+      .insertContentAt({ from, to }, `[${selectedText}]`)
+      .run();
+  };
 
   return (
     <div
@@ -126,6 +162,17 @@ export default function HomeworkRichTextEditor({
           aria-label="Toggle bullet list"
         >
           <List className="h-4 w-4" />
+        </Button>
+
+        <Button
+          type="button"
+          variant="outline"
+          className="h-8 px-2 text-xs font-semibold"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={wrapSelectionWithBrackets}
+          aria-label="Wrap selection with brackets"
+        >
+          []
         </Button>
       </div>
 

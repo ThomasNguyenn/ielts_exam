@@ -52,6 +52,11 @@ const WritingLiveRoom = lazy(() => import('@/features/tests/pages/WritingLiveRoo
 
 const GradingDashboard = lazy(() => import('@/features/admin/pages/GradingDashboard'));
 const GradingInterface = lazy(() => import('@/features/admin/pages/GradingInterface'));
+const StaffDashboardPage = lazy(() => import('@/features/admin/pages/StaffDashboardPage'));
+const HomeworkProgressPage = lazy(() => import('@/features/admin/pages/HomeworkProgressPage'));
+const HomeworkProgressDetailPage = lazy(() => import('@/features/admin/pages/HomeworkProgressDetailPage'));
+const HomeworkProgressSubmissionDetailPage = lazy(() => import('@/features/admin/pages/HomeworkProgressSubmissionDetailPage'));
+const HomeroomStudentsPage = lazy(() => import('@/features/admin/pages/HomeroomStudentsPage'));
 const ScoreDashboard = lazy(() => import('@/features/admin/pages/ScoreDashboard'));
 const UserScoreDetail = lazy(() => import('@/features/admin/pages/UserScoreDetail'));
 const EvaluationPage = lazy(() => import('@/features/evaluation/pages/EvaluationPage'));
@@ -258,6 +263,16 @@ export default function App() {
           <Route index element={withSuspense(<GradingDashboard />)} />
           <Route path=":id" element={withSuspense(<GradingInterface />)} />
         </Route>
+        <Route path="/dashboard" element={<TeacherRoutes />}>
+          <Route index element={withSuspense(<StaffDashboardPage />)} />
+          <Route path="homework-progress" element={withSuspense(<HomeworkProgressPage />)} />
+          <Route path="homework-progress/:studentId" element={withSuspense(<HomeworkProgressDetailPage />)} />
+          <Route
+            path="homework-progress/:studentId/submissions/:submissionId"
+            element={withSuspense(<HomeworkProgressSubmissionDetailPage />)}
+          />
+          <Route path="homeroom-students" element={withSuspense(<HomeroomStudentsPage />)} />
+        </Route>
         <Route path="/scores" element={<TeacherRoutes />}>
           <Route index element={withSuspense(<ScoreDashboard />)} />
           <Route path=":userId" element={withSuspense(<UserScoreDetail />)} />
@@ -284,7 +299,7 @@ export default function App() {
         </Route>
 
         <Route path="/admin" element={<AdminRoutes />}>
-          <Route index element={<Navigate to="/admin/manage" replace />} />
+          <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="manage" element={withSuspense(<ManageLayout />)}>
             <Route index element={<Navigate to="/admin/manage/passages" replace />} />
             <Route path="passages" element={withSuspense(<ManagePassagesSinglePage />)} />

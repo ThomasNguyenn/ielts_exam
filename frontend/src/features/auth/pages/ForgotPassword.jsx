@@ -1,104 +1,137 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { api } from '@/shared/api/client';
-import { Mail, ArrowLeft, Send, KeyRound, CheckCircle } from 'lucide-react';
-import './Auth.css';
+import { useState } from "react"
+import { Link } from "react-router-dom"
+import { ArrowLeft, GalleryVerticalEnd, Mail, Send } from "lucide-react"
+
+import { api } from "@/shared/api/client"
+import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
 
 export default function ForgotPassword() {
-    const [email, setEmail] = useState('');
-    const [status, setStatus] = useState('idle'); // idle, loading, success, error
-    const [message, setMessage] = useState('');
+  const [email, setEmail] = useState("")
+  const [status, setStatus] = useState("idle")
+  const [message, setMessage] = useState("")
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setStatus('loading');
-        setMessage('');
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    setStatus("loading")
+    setMessage("")
 
-        try {
-            const res = await api.forgotPassword(email);
-            setStatus('success');
-            setMessage(res.message);
-        } catch (err) {
-            setStatus('error');
-            setMessage(err.message || 'Failed to send reset email.');
-        }
-    };
+    try {
+      const res = await api.forgotPassword(email)
+      setStatus("success")
+      setMessage(res?.message || "Reset email sent successfully.")
+    } catch (err) {
+      setStatus("error")
+      setMessage(err.message || "Failed to send reset email.")
+    }
+  }
 
-    return (
-        <div className="auth-page">
-            <div className="auth-container auth-container--compact">
-                <div className="auth-form-panel">
-                    <div className="auth-form-header">
-                        <div className="auth-greeting">
-                            <KeyRound size={18} /> Password Recovery
-                        </div>
-                        <h1>Forgot Password?</h1>
-                        <p>No worries! Enter your email and we will send you a reset link.</p>
-                    </div>
+  return (
+    <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-muted p-6 md:p-10">
+      <div className="flex w-full max-w-sm flex-col gap-6">
+        <Link to="/" className="flex items-center gap-2 self-center font-medium">
+          <div className="flex size-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
+            <GalleryVerticalEnd className="size-4" />
+          </div>
+          IELTS Pro
+        </Link>
 
-                    {status === 'success' ? (
-                        <div className="auth-success-card">
-                            <div className="auth-success-icon" style={{ background: '#E0E7FF', color: '#4F46E5' }}>
-                                <Mail />
-                            </div>
-                            <h3>Check your email</h3>
-                            <p>We've sent a password reset link to <br /><strong>{email}</strong></p>
-
-                            <div className="auth-divider">
-                                <span>Did not receive the email?</span>
-                            </div>
-
-                            <button
-                                onClick={() => setStatus('idle')}
-                                className="btn btn-ghost"
-                                style={{ width: '100%', marginTop: '1rem', color: '#6366F1' }}
-                            >
-                                Try another email address
-                            </button>
-
-                            <Link to="/login" className="btn btn-ghost" style={{ marginTop: '0.5rem', width: '100%' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                                    <ArrowLeft size={16} /> Back to Login
-                                </div>
-                            </Link>
-                        </div>
-                    ) : (
-                        <form onSubmit={handleSubmit} className="auth-form">
-                            <div className="auth-field">
-                                <label>Email Address</label>
-                                <div className="auth-input-wrapper">
-                                    <Mail className="auth-input-icon" />
-                                    <input
-                                        type="email"
-                                        placeholder="name@example.com"
-                                        value={email}
-                                        onChange={(e) => setEmail(e.target.value)}
-                                        required
-                                        autoFocus
-                                    />
-                                </div>
-                            </div>
-
-                            {status === 'error' && (
-                                <div className="auth-error">
-                                    {message}
-                                </div>
-                            )}
-
-                            <button type="submit" className="auth-submit-btn" disabled={status === 'loading'}>
-                                {status === 'loading' ? 'Sending Link...' : 'Send Reset Link'}
-                            </button>
-
-                            <div className="auth-footer">
-                                <Link to="/login">
-                                    <ArrowLeft size={14} style={{ display: 'inline', marginRight: '4px' }} />
-                                    Back to Login
-                                </Link>
-                            </div>
-                        </form>
-                    )}
+        <Card>
+          <CardHeader className="text-center">
+            <CardTitle className="text-xl">Forgot password</CardTitle>
+            <CardDescription>
+              Enter your email and we will send a reset link.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {status === "success" ? (
+              <div className="space-y-4 text-center">
+                <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                  <Mail className="size-5" />
                 </div>
-            </div>
-        </div>
-    );
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">Check your email</p>
+                  <p className="text-sm text-muted-foreground">
+                    {message}
+                  </p>
+                  <p className="text-sm font-medium">{email}</p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => {
+                    setStatus("idle")
+                    setMessage("")
+                  }}
+                >
+                  Try another email
+                </Button>
+                <Button asChild className="w-full">
+                  <Link to="/login">
+                    <ArrowLeft className="mr-1 size-4" />
+                    Back to login
+                  </Link>
+                </Button>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit}>
+                <FieldGroup>
+                  <Field>
+                    <FieldLabel htmlFor="forgot-email">Email</FieldLabel>
+                    <Input
+                      id="forgot-email"
+                      type="email"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      placeholder="m@example.com"
+                      autoFocus
+                      required
+                    />
+                  </Field>
+
+                  {status === "error" ? (
+                    <FieldDescription className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-center text-destructive">
+                      {message}
+                    </FieldDescription>
+                  ) : null}
+
+                  <Field>
+                    <Button type="submit" className="w-full" disabled={status === "loading"}>
+                      {status === "loading" ? "Sending link..." : "Send reset link"}
+                      {status === "loading" ? null : <Send className="ml-1 size-4" />}
+                    </Button>
+                  </Field>
+
+                  <FieldDescription className="text-center">
+                    <Link to="/login" className="inline-flex items-center gap-1 underline-offset-4 hover:underline">
+                      <ArrowLeft className="size-3.5" />
+                      Back to login
+                    </Link>
+                  </FieldDescription>
+                </FieldGroup>
+              </form>
+            )}
+          </CardContent>
+        </Card>
+
+        <FieldDescription className="px-6 text-center">
+          Need help? Contact your administrator if you do not receive the reset email.
+        </FieldDescription>
+      </div>
+    </div>
+  )
 }

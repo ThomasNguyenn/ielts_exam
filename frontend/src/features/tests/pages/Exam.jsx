@@ -16,6 +16,8 @@ const LISTENING_AUDIO_REWIND_SECONDS = 5;
 const LISTENING_TIMER_REWIND_SECONDS = 10;
 const LISTENING_RESUME_NOTICE_MS = 3800;
 const MOBILE_READING_DRAWER_MAX_WIDTH = 860;
+const TRACKING_HEARTBEAT_MS = 30 * 1000;
+const TRACKING_ANSWER_DEBOUNCE_MS = 700;
 
 const resolveRequestedStepIndex = (search, steps) => {
   const params = new URLSearchParams(search);
@@ -87,10 +89,18 @@ export default function Exam() {
   const answersRef = useRef([]);
   const writingAnswersRef = useRef([]);
   const listeningAudioProgressRef = useRef({ index: 0, timeSec: 0 });
+  const trackingOpenSentRef = useRef(false);
+  const trackingStartedSentRef = useRef(false);
+  const trackingSaveSeqRef = useRef(0);
+  const trackingTabSessionIdRef = useRef('');
+  const trackingAnswerQueueRef = useRef(new Map());
+  const trackingAnswerTimerRef = useRef(null);
+  const trackingHeartbeatTimerRef = useRef(null);
 
   const location = useLocation();
   const navigate = useNavigate();
   const searchParams = new URLSearchParams(location.search);
+  const hwctx = searchParams.get('hwctx') || '';
   const standaloneTypeFromQuery = searchParams.get('standalone');
   // Determine single mode based on params. 
   // We strictly require 'part' param to be present for Single Mode to avoid "Full Test bug" where mode=single is always present.
@@ -107,6 +117,47 @@ export default function Exam() {
     return `exam-draft:${id}:${mode}:${part}`;
   }, [id, location.search]);
   const shouldPersistExamDraft = Boolean(exam?.is_real_test) && !isSingleMode;
+  const trackedResourceRefType = useMemo(() => {
+    if (!exam) return 'test';
+    if (!exam.is_standalone) return 'test';
+    if (exam.type === 'reading') return 'passage';
+    if (exam.type === 'listening') return 'section';
+    if (exam.type === 'writing') return 'writing';
+    return 'test';
+  }, [exam]);
+  const trackedResourceRefId = String(exam?.testId || id || '');
+
+  const createTrackingEventId = useCallback(() => {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  }, []);
+
+  const getTrackingTabSessionId = useCallback(() => {
+    if (trackingTabSessionIdRef.current) return trackingTabSessionIdRef.current;
+    if (typeof window === 'undefined') return '';
+    const storageKey = `exam-tab-session:${id}`;
+    const existing = window.sessionStorage.getItem(storageKey);
+    if (existing) {
+      trackingTabSessionIdRef.current = existing;
+      return existing;
+    }
+    const nextId = createTrackingEventId();
+    window.sessionStorage.setItem(storageKey, nextId);
+    trackingTabSessionIdRef.current = nextId;
+    return nextId;
+  }, [createTrackingEventId, id]);
+
+  const buildTrackingPayload = useCallback((extra = {}) => ({
+    hwctx: hwctx || undefined,
+    resource_ref_type: trackedResourceRefType,
+    resource_ref_id: trackedResourceRefId,
+    event_id: createTrackingEventId(),
+    tab_session_id: getTrackingTabSessionId(),
+    client_ts: new Date().toISOString(),
+    ...extra,
+  }), [createTrackingEventId, getTrackingTabSessionId, hwctx, trackedResourceRefId, trackedResourceRefType]);
 
   useEffect(() => {
     // Reset on mount so StrictMode's dev double-invocation does not leave it false.
@@ -150,6 +201,18 @@ export default function Exam() {
 
   useEffect(() => {
     if (!id) return;
+    trackingOpenSentRef.current = false;
+    trackingStartedSentRef.current = false;
+    trackingSaveSeqRef.current = 0;
+    trackingAnswerQueueRef.current.clear();
+    if (trackingAnswerTimerRef.current) {
+      window.clearTimeout(trackingAnswerTimerRef.current);
+      trackingAnswerTimerRef.current = null;
+    }
+    if (trackingHeartbeatTimerRef.current) {
+      window.clearInterval(trackingHeartbeatTimerRef.current);
+      trackingHeartbeatTimerRef.current = null;
+    }
     api
       .getExam(id)
       .then((res) => {
@@ -290,6 +353,131 @@ export default function Exam() {
       .finally(() => setLoading(false));
   }, [id, location.search, draftKey, isSingleMode]);
 
+  const ensureTrackingStarted = useCallback(() => {
+    if (!id || !exam || submitted) return;
+    if (trackingStartedSentRef.current) return;
+    trackingStartedSentRef.current = true;
+    api.trackTestActivityStart(
+      id,
+      buildTrackingPayload({
+        source: 'tests_exam_start',
+      }),
+    ).catch(() => {
+      // Ignore tracking failures to keep exam flow uninterrupted.
+    });
+  }, [id, exam, submitted, buildTrackingPayload]);
+
+  const flushTrackingAnswerQueue = useCallback(() => {
+    if (!id || !exam || submitted) return;
+    if (trackingAnswerTimerRef.current) {
+      window.clearTimeout(trackingAnswerTimerRef.current);
+      trackingAnswerTimerRef.current = null;
+    }
+
+    const queue = trackingAnswerQueueRef.current;
+    if (!(queue instanceof Map) || queue.size === 0) return;
+    const updates = Array.from(queue.entries()).map(([questionKey, answerValue]) => ({
+      question_key: questionKey,
+      answer_value: answerValue,
+    }));
+    queue.clear();
+    trackingSaveSeqRef.current += 1;
+
+    api.trackTestActivityAnswer(
+      id,
+      buildTrackingPayload({
+        source: 'tests_exam_answer',
+        save_seq: trackingSaveSeqRef.current,
+        updates,
+      }),
+    ).catch(() => {
+      // Ignore tracking failures to keep exam flow uninterrupted.
+    });
+  }, [id, exam, submitted, buildTrackingPayload]);
+
+  const queueTrackingAnswer = useCallback((questionKey, answerValue) => {
+    if (!id || !exam || submitted) return;
+    const normalizedKey = String(questionKey || '').trim();
+    if (!normalizedKey) return;
+    ensureTrackingStarted();
+    trackingAnswerQueueRef.current.set(normalizedKey, answerValue ?? '');
+
+    if (trackingAnswerTimerRef.current) {
+      window.clearTimeout(trackingAnswerTimerRef.current);
+    }
+    trackingAnswerTimerRef.current = window.setTimeout(() => {
+      flushTrackingAnswerQueue();
+    }, TRACKING_ANSWER_DEBOUNCE_MS);
+  }, [id, exam, submitted, ensureTrackingStarted, flushTrackingAnswerQueue]);
+
+  useEffect(() => {
+    if (!id || !exam || loading || submitted) return undefined;
+
+    if (!trackingOpenSentRef.current) {
+      trackingOpenSentRef.current = true;
+      api.trackTestActivityOpen(
+        id,
+        buildTrackingPayload({
+          source: 'tests_exam_open',
+          visibility: typeof document !== 'undefined' ? document.visibilityState : '',
+          focused: typeof document !== 'undefined' && typeof document.hasFocus === 'function'
+            ? document.hasFocus()
+            : null,
+        }),
+      ).catch(() => {
+        // Ignore tracking failures to keep exam flow uninterrupted.
+      });
+    }
+
+    const sendHeartbeat = (visibilityEvent = '') => {
+      api.trackTestActivityHeartbeat(
+        id,
+        buildTrackingPayload({
+          source: 'tests_exam_heartbeat',
+          interacted: trackingStartedSentRef.current,
+          visibility: typeof document !== 'undefined' ? document.visibilityState : '',
+          visibility_event: visibilityEvent || undefined,
+          focused: typeof document !== 'undefined' && typeof document.hasFocus === 'function'
+            ? document.hasFocus()
+            : null,
+        }),
+      ).catch(() => {
+        // Ignore tracking failures to keep exam flow uninterrupted.
+      });
+    };
+
+    sendHeartbeat();
+
+    trackingHeartbeatTimerRef.current = window.setInterval(() => {
+      sendHeartbeat();
+    }, TRACKING_HEARTBEAT_MS);
+
+    const handleVisibilityChange = () => {
+      const nextVisibility = typeof document !== 'undefined' ? document.visibilityState : '';
+      sendHeartbeat(nextVisibility === 'hidden' ? 'hidden' : 'visible');
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (trackingHeartbeatTimerRef.current) {
+        window.clearInterval(trackingHeartbeatTimerRef.current);
+        trackingHeartbeatTimerRef.current = null;
+      }
+    };
+  }, [id, exam, loading, submitted, buildTrackingPayload]);
+
+  useEffect(() => () => {
+    if (trackingAnswerTimerRef.current) {
+      window.clearTimeout(trackingAnswerTimerRef.current);
+      trackingAnswerTimerRef.current = null;
+    }
+    if (trackingHeartbeatTimerRef.current) {
+      window.clearInterval(trackingHeartbeatTimerRef.current);
+      trackingHeartbeatTimerRef.current = null;
+    }
+  }, []);
+
   // Timer countdown effect - Optimized to avoid re-creating interval every second
   useEffect(() => {
     const shouldRun = timeRemaining !== null && timeRemaining > 0 && !submitted;
@@ -389,6 +577,33 @@ export default function Exam() {
     };
   }, [exam, loading, submitted, shouldPersistExamDraft]);
 
+  useEffect(() => {
+    if (!exam || loading || submitted) return undefined;
+
+    const handleTrackingBeforeUnload = () => {
+      flushTrackingAnswerQueue();
+      api.trackTestActivityHeartbeat(
+        id,
+        buildTrackingPayload({
+          source: 'tests_exam_unload',
+          refresh: true,
+          interacted: trackingStartedSentRef.current,
+          visibility: typeof document !== 'undefined' ? document.visibilityState : '',
+          focused: typeof document !== 'undefined' && typeof document.hasFocus === 'function'
+            ? document.hasFocus()
+            : null,
+        }),
+      ).catch(() => {
+        // Ignore tracking failures to keep exam flow uninterrupted.
+      });
+    };
+
+    window.addEventListener('beforeunload', handleTrackingBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleTrackingBeforeUnload);
+    };
+  }, [exam, loading, submitted, id, buildTrackingPayload, flushTrackingAnswerQueue]);
+
   const performSubmit = (returnOnly = false) => {
     if (submitLoading || submitted || submitInFlightRef.current) return Promise.resolve(null);
     submitInFlightRef.current = true;
@@ -429,6 +644,7 @@ export default function Exam() {
     } catch (e) {
       console.error("Failed to extract highlights", e);
     }
+    flushTrackingAnswerQueue();
 
     return api
       .submitExam(id, {
@@ -444,6 +660,12 @@ export default function Exam() {
             endSlotIndex: Number(steps[currentStep].endSlotIndex),
           }
           : null,
+        hwctx: hwctx || undefined,
+        resource_ref_type: trackedResourceRefType,
+        resource_ref_id: trackedResourceRefId,
+        event_id: createTrackingEventId(),
+        tab_session_id: getTrackingTabSessionId(),
+        client_ts: new Date().toISOString(),
       })
       .then((res) => {
         const payload = res?.data ?? res;
@@ -625,6 +847,7 @@ export default function Exam() {
   const useMobileReadingDrawer = Boolean(step?.type === 'reading' && isViewport860);
 
   const setAnswer = (index, value) => {
+    queueTrackingAnswer(`q-${Number(index) + 1}`, value);
     setAnswers((prev) => {
       const next = [...prev];
       next[index] = value;
@@ -634,6 +857,7 @@ export default function Exam() {
   };
 
   const setWritingAnswer = (taskIndex, value) => {
+    queueTrackingAnswer(`writing-${Number(taskIndex) + 1}`, value);
     setWritingAnswers((prev) => {
       const next = [...prev];
       next[taskIndex] = value;

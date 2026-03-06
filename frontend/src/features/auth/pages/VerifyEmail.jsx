@@ -1,75 +1,102 @@
-import { useEffect, useState } from 'react';
-import { useSearchParams, useNavigate, Link } from 'react-router-dom';
-import { api } from '@/shared/api/client';
-import { Check, X, ArrowLeft, Loader } from 'lucide-react';
-import './Auth.css';
+import { useEffect, useState } from "react"
+import { Link, useSearchParams } from "react-router-dom"
+import {
+  ArrowLeft,
+  CheckCircle2,
+  GalleryVerticalEnd,
+  Loader2,
+  XCircle,
+} from "lucide-react"
+
+import { api } from "@/shared/api/client"
+import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 
 export default function VerifyEmail() {
-    const [searchParams] = useSearchParams();
-    const token = searchParams.get('token');
-    const navigate = useNavigate();
-    const [status, setStatus] = useState('loading'); // loading, success, error
-    const [message, setMessage] = useState('');
+  const [searchParams] = useSearchParams()
+  const token = String(searchParams.get("token") || "").trim()
+  const [status, setStatus] = useState("loading")
+  const [message, setMessage] = useState("Verifying your email...")
 
-    useEffect(() => {
-        if (!token) {
-            setStatus('error');
-            setMessage('No verification token provided.');
-            return;
-        }
+  useEffect(() => {
+    let active = true
 
-        api.verifyEmail(token)
-            .then(() => {
-                setStatus('success');
-            })
-            .catch(err => {
-                setStatus('error');
-                setMessage(err.message || 'Verification failed. The token may be invalid or expired.');
-            });
-    }, [token]);
+    const run = async () => {
+      if (!token) {
+        if (!active) return
+        setStatus("error")
+        setMessage("No verification token provided.")
+        return
+      }
 
-    return (
-        <div className="auth-page">
-            <div className="auth-container" style={{ textAlign: 'center' }}>
-                <div className="auth-header">
-                    <h1>Email Verification</h1>
-                </div>
+      try {
+        await api.verifyEmail(token)
+        if (!active) return
+        setStatus("success")
+        setMessage("Your email has been verified successfully.")
+      } catch (err) {
+        if (!active) return
+        setStatus("error")
+        setMessage(err.message || "Verification failed. Token may be invalid or expired.")
+      }
+    }
 
-                <div className="auth-content" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem', padding: '2rem 0' }}>
-                    {status === 'loading' && (
-                        <>
-                            <Loader className="spin" size={48} color="#6366F1" />
-                            <p>Verifying your email...</p>
-                        </>
-                    )}
+    void run()
+    return () => {
+      active = false
+    }
+  }, [token])
 
-                    {status === 'success' && (
-                        <>
-                            <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#DEF7EC', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#03543F' }}>
-                                <Check size={32} />
-                            </div>
-                            <h3>Email Verified!</h3>
-                            <p>Your email has been successfully verified. You can now access all features.</p>
-                            <Link to="/login" className="btn btn-primary" style={{ marginTop: '1rem' }}>
-                                Go to Login
-                            </Link>
-                        </>
-                    )}
+  const icon = status === "loading"
+    ? <Loader2 className="size-8 animate-spin text-zinc-500" />
+    : status === "success"
+      ? <CheckCircle2 className="size-8 text-emerald-600" />
+      : <XCircle className="size-8 text-rose-600" />
 
-                    {status === 'error' && (
-                        <>
-                            <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#FDE8E8', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9B1C1C' }}>
-                                <X size={32} />
-                            </div>
-                            <h3>Verification Failed</h3>
-                            <p>{message}</p>
-                            <Link to="/login" className="btn btn-ghost" style={{ marginTop: '1rem' }}>
-                                <ArrowLeft size={16} /> Back to Login
-                            </Link>
-                        </>
-                    )}
-                </div>
+  return (
+    <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-muted p-6 md:p-10">
+      <div className="flex w-full max-w-sm flex-col gap-6">
+        <Link to="/" className="flex items-center gap-2 self-center font-medium">
+          <div className="flex size-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
+            <GalleryVerticalEnd className="size-4" />
+          </div>
+          IELTS Pro
+        </Link>
+
+        <Card>
+          <CardHeader className="text-center">
+            <CardTitle className="text-xl">Email verification</CardTitle>
+            <CardDescription>Confirming your account email address.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="flex flex-col items-center gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-6 text-center">
+              {icon}
+              <p className="text-sm text-zinc-700">{message}</p>
             </div>
-        </div>
-    );
+
+            <div className="flex justify-center">
+              {status === "success" ? (
+                <Button asChild className="w-full">
+                  <Link to="/login">Go to login</Link>
+                </Button>
+              ) : (
+                <Button asChild variant="outline" className="w-full">
+                  <Link to="/login">
+                    <ArrowLeft className="mr-1 size-4" />
+                    Back to login
+                  </Link>
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
 }

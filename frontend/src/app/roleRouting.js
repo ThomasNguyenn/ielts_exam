@@ -12,8 +12,8 @@ export const UI_ROLE_ADMIN = USER_ROLE_ADMIN;
 const ROLE_DEFAULT_PATH = {
   [UI_ROLE_STUDENT_IELTS]: '/student-ielts/learn',
   [UI_ROLE_STUDENT_ACA]: '/student-aca/homework',
-  [UI_ROLE_TEACHER]: '/grading',
-  [UI_ROLE_ADMIN]: '/admin/manage',
+  [UI_ROLE_TEACHER]: '/dashboard',
+  [UI_ROLE_ADMIN]: '/dashboard',
 };
 
 export const ADMIN_SWITCHABLE_UI_ROLES = [

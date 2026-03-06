@@ -504,6 +504,7 @@ export function triggerTaxonomy({
 export function buildSubmitExamResponse({
     examType,
     test,
+    attemptId,
     score,
     total,
     wrong,
@@ -532,6 +533,7 @@ export function buildSubmitExamResponse({
         question_review: questionReview,
         timeTaken: typeof timeTaken === "number" ? timeTaken : 0,
         writing_answers: examType === "writing" ? safeWriting : [],
+        testAttemptId: attemptId || null,
         xpResult,
         achievements: newlyUnlocked,
         writingSubmissionId: writingSubmissionId || null,
@@ -606,6 +608,7 @@ export async function submitExamFlow({ testId, userId, body = {} }) {
     return buildSubmitExamResponse({
         examType,
         test,
+        attemptId: shouldPersistAttempt ? attemptId : null,
         score: gradeResult.score,
         total: gradeResult.total,
         wrong: gradeResult.wrong,

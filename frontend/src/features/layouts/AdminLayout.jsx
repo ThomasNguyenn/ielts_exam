@@ -8,6 +8,8 @@ import {
   FileText,
   GraduationCap,
   Headphones,
+  LayoutDashboard,
+  ListChecks,
   Layers,
   Mic,
   Pen,
@@ -84,6 +86,12 @@ const ADMIN_PEOPLE_SUB_ITEMS = [
   { key: 'people-invitation', label: 'Send Invitations', to: '/admin/people/invitation' },
 ];
 
+const OVERVIEW_NAV_ITEMS = [
+  { key: 'dashboard', label: 'Dashboard', to: '/dashboard', icon: LayoutDashboard, exact: true },
+  { key: 'homework-progress', label: 'Homework Progress', to: '/dashboard/homework-progress', icon: ListChecks },
+  { key: 'homeroom-students', label: 'Homeroom Students', to: '/dashboard/homeroom-students', icon: Users },
+];
+
 const TEACHER_NAV_ITEMS = [
   { key: 'grading', label: 'Grading', to: '/grading', icon: BookCheck },
   { key: 'scores', label: 'Scores', to: '/scores', icon: ClipboardList },
@@ -125,6 +133,7 @@ const resolveSidebarAvatar = (user) => {
 };
 
 const BREADCRUMB_LABELS = {
+  dashboard: 'Dashboard',
   grading: 'Grading',
   scores: 'Scores',
   evaluate: 'Evaluate',
@@ -134,6 +143,8 @@ const BREADCRUMB_LABELS = {
   submissions: 'Submissions',
   analytics: 'Analytics',
   settings: 'Settings',
+  'homework-progress': 'Homework Progress',
+  'homeroom-students': 'Homeroom Students',
   student: 'Student',
   manage: 'Manage',
   passages: 'Passages',
@@ -255,7 +266,7 @@ export default function AdminLayout() {
   const isAdminUser = normalizeUserRole(user?.role) === USER_ROLE_ADMIN;
   const uiRoleOptions = isAdminUser ? ADMIN_UI_ROLE_OPTIONS : TEACHER_UI_ROLE_OPTIONS;
   const workspaceLabel = isAdminUser ? 'Admin Workspace' : 'Teacher Workspace';
-  const workspaceHome = isAdminUser ? '/admin/manage' : '/grading';
+  const workspaceHome = '/dashboard';
   const navUser = useMemo(() => {
     const email = String(user?.email || '').trim() || 'no-email@local';
     const displayName = String(user?.name || user?.fullName || user?.username || '').trim() || 'Workspace User';
@@ -372,6 +383,28 @@ export default function AdminLayout() {
         <SidebarSeparator />
 
         <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupLabel>Overview</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {OVERVIEW_NAV_ITEMS.map((item) => {
+                  const Icon = item.icon;
+                  const active = item.exact ? pathname === item.to : isTabMatch(pathname, item.to);
+                  return (
+                    <SidebarMenuItem key={item.key}>
+                      <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
+                        <NavLink to={item.to}>
+                          <Icon />
+                          <span>{item.label}</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+
           {isAdminUser ? (
             <SidebarGroup>
               <SidebarGroupLabel>Admin</SidebarGroupLabel>

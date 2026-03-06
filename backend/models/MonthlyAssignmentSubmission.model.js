@@ -29,6 +29,17 @@ const MonthlyAssignmentSubmissionSchema = new mongoose.Schema(
     text_answer: { type: String, default: "", trim: true },
     image_items: [SubmissionFileSchema],
     audio_item: { type: SubmissionFileSchema, default: null },
+    submission_source: {
+      type: String,
+      enum: ["manual_homework", "linked_test_attempt"],
+      default: "manual_homework",
+    },
+    linked_test_attempt_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "TestAttempt",
+      default: null,
+    },
+    meta: { type: mongoose.Schema.Types.Mixed, default: {} },
     status: {
       type: String,
       enum: ["submitted", "graded"],

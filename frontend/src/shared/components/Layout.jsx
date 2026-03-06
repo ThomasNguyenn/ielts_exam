@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, LogIn, LogOut, Menu, UserPlus, X } from 'lucide-react';
+import { ChevronDown, Loader2, LogIn, LogOut, Menu, UserPlus, X } from 'lucide-react';
 import HomeOutlined from '@mui/icons-material/HomeOutlined';
 import SpaceDashboardOutlined from '@mui/icons-material/SpaceDashboardOutlined';
 import LibraryBooksOutlined from '@mui/icons-material/LibraryBooksOutlined';
@@ -19,6 +19,16 @@ import WorkspacesOutlined from '@mui/icons-material/WorkspacesOutlined';
 import AssignmentTurnedInOutlined from '@mui/icons-material/AssignmentTurnedInOutlined';
 import { api } from '@/shared/api/client';
 import { isStudentFamilyRole } from '@/app/roleRouting';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import LevelProgress from './LevelProgress';
 import './Navigation.css';
 import './Navigation-mobile.css';
@@ -197,6 +207,7 @@ export default function Layout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
   const navContainerRef = useRef(null);
   const pathname = location.pathname;
 
@@ -293,6 +304,11 @@ export default function Layout() {
     setOpenDropdown(null);
   };
 
+  const requestLogout = () => {
+    if (isLoggingOut) return;
+    setIsLogoutDialogOpen(true);
+  };
+
   const handleLogout = async () => {
     if (isLoggingOut) return;
     setIsLoggingOut(true);
@@ -300,6 +316,7 @@ export default function Layout() {
       await api.logout();
     } finally {
       closeAllMenus();
+      setIsLogoutDialogOpen(false);
       navigate('/login', { replace: true });
       setIsLoggingOut(false);
     }
@@ -477,9 +494,9 @@ export default function Layout() {
                   <button
                     type="button"
                     className="logout-btn"
-                    onClick={handleLogout}
+                    onClick={requestLogout}
                     disabled={isLoggingOut}
-                    title="Logout"
+                    title="Log out"
                   >
                     <LogOut className="nav-icon" />
                   </button>
@@ -499,6 +516,33 @@ export default function Layout() {
           </div>
         </header>
       )}
+      <AlertDialog open={isLogoutDialogOpen} onOpenChange={setIsLogoutDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Log out of this account?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You can sign in again at any time. Unsaved actions may be lost.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isLoggingOut}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              className="bg-rose-600 hover:bg-rose-700 focus-visible:ring-rose-500"
+            >
+              {isLoggingOut ? (
+                <>
+                  <Loader2 className="mr-1 size-4 animate-spin" />
+                  Logging out...
+                </>
+              ) : (
+                'Log out'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <main className={`layout-main ${isExamPage ? 'layout-main--fullscreen' : ''} ${isPracticePage || isTestDetailPage || isTestHistoryPage ? 'layout-main--wide' : ''} ${isResultAiPage ? 'layout-main--result-ai' : ''} ${isManagePage ? 'layout-main--manage' : ''} ${isGradingPage ? 'layout-main--grading' : ''} ${pathname === '/' ? 'layout-main--home' : ''} ${isProfilePage ? 'layout-main--profile' : ''} ${isAnalyticsPage ? 'layout-main--analytics' : ''} ${isAchievementsPage ? 'layout-main--achievements' : ''} ${isWritingLivePage ? 'layout-main--writing-live' : ''}`}>
         <Outlet />
       </main>

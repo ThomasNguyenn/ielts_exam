@@ -3,6 +3,13 @@ import Test from "../models/Test.model.js";
 import TestAttempt from "../models/TestAttempt.model.js";
 import { parsePagination, buildPaginationMeta } from "../utils/pagination.js";
 import { SubmissionError, submitExamFlow } from "../services/testSubmission.service.js";
+import {
+    markHomeworkSubmittedFromTestAttempt,
+    trackHomeworkActivityAnswer,
+    trackHomeworkActivityHeartbeat,
+    trackHomeworkActivityOpen,
+    trackHomeworkActivityStart,
+} from "../services/homeworkTrackingBridge.service.js";
 import { handleControllerError, sendControllerError } from "../utils/controllerError.js";
 
 const escapeRegex = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -15,6 +22,26 @@ const parseTruthyQueryFlag = (value) => {
     if (typeof value === 'boolean') return value;
     if (value === null || value === undefined) return false;
     return TRUTHY_QUERY_VALUES.has(String(value).trim().toLowerCase());
+};
+const TRACKING_RESOURCE_TYPES = new Set(["test", "passage", "section", "speaking", "writing"]);
+const normalizeTrackingResourceType = (value) => {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (TRACKING_RESOURCE_TYPES.has(normalized)) return normalized;
+    return "test";
+};
+const normalizeTrackingString = (value) => String(value ?? "").trim();
+const resolveTrackingContext = (req) => {
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const query = req.query && typeof req.query === "object" ? req.query : {};
+    const hwctxHeader = req.headers?.["x-homework-context"] || req.headers?.["x-hwctx"];
+    const hwctx = normalizeTrackingString(body.hwctx || query.hwctx || hwctxHeader || "");
+    const resourceRefType = normalizeTrackingResourceType(body.resource_ref_type || query.resource_ref_type || "test");
+    const resourceRefId = normalizeTrackingString(body.resource_ref_id || query.resource_ref_id || req.params?.id || "");
+    return {
+        hwctx: hwctx || null,
+        resourceRefType,
+        resourceRefId,
+    };
 };
 const pickTestPayload = (body = {}, { allowId = false } = {}) => {
     const allowed = [
@@ -810,6 +837,114 @@ export const getExamData = async (req, res) => {
     }
 };
 
+export const submitExamActivityOpen = async (req, res) => {
+    try {
+        if (!req.user?.userId) {
+            return sendControllerError(req, res, { statusCode: 401, message: "Unauthorized" });
+        }
+
+        const { hwctx, resourceRefType, resourceRefId } = resolveTrackingContext(req);
+        const data = await trackHomeworkActivityOpen({
+            studentId: req.user.userId,
+            resourceRefType,
+            resourceRefId,
+            hwctx,
+            eventId: req.body?.event_id,
+            tabSessionId: req.body?.tab_session_id,
+            clientTs: req.body?.client_ts,
+            payload: {
+                source: normalizeTrackingString(req.body?.source) || "tests_exam_open",
+            },
+        });
+        return res.status(200).json({ success: true, data });
+    } catch (error) {
+        return handleControllerError(req, res, error);
+    }
+};
+
+export const submitExamActivityStart = async (req, res) => {
+    try {
+        if (!req.user?.userId) {
+            return sendControllerError(req, res, { statusCode: 401, message: "Unauthorized" });
+        }
+
+        const { hwctx, resourceRefType, resourceRefId } = resolveTrackingContext(req);
+        const data = await trackHomeworkActivityStart({
+            studentId: req.user.userId,
+            resourceRefType,
+            resourceRefId,
+            hwctx,
+            eventId: req.body?.event_id,
+            tabSessionId: req.body?.tab_session_id,
+            clientTs: req.body?.client_ts,
+            payload: {
+                source: normalizeTrackingString(req.body?.source) || "tests_exam_start",
+            },
+        });
+        return res.status(200).json({ success: true, data });
+    } catch (error) {
+        return handleControllerError(req, res, error);
+    }
+};
+
+export const submitExamActivityHeartbeat = async (req, res) => {
+    try {
+        if (!req.user?.userId) {
+            return sendControllerError(req, res, { statusCode: 401, message: "Unauthorized" });
+        }
+
+        const { hwctx, resourceRefType, resourceRefId } = resolveTrackingContext(req);
+        const data = await trackHomeworkActivityHeartbeat({
+            studentId: req.user.userId,
+            resourceRefType,
+            resourceRefId,
+            hwctx,
+            interacted: Boolean(req.body?.interacted),
+            visibility: normalizeTrackingString(req.body?.visibility),
+            visibilityEvent: normalizeTrackingString(req.body?.visibility_event),
+            focused: typeof req.body?.focused === "boolean" ? req.body.focused : null,
+            refresh: Boolean(req.body?.refresh),
+            eventId: req.body?.event_id,
+            tabSessionId: req.body?.tab_session_id,
+            clientTs: req.body?.client_ts,
+            payload: {
+                source: normalizeTrackingString(req.body?.source) || "tests_exam_heartbeat",
+            },
+        });
+        return res.status(200).json({ success: true, data });
+    } catch (error) {
+        return handleControllerError(req, res, error);
+    }
+};
+
+export const submitExamActivityAnswer = async (req, res) => {
+    try {
+        if (!req.user?.userId) {
+            return sendControllerError(req, res, { statusCode: 401, message: "Unauthorized" });
+        }
+
+        const { hwctx, resourceRefType, resourceRefId } = resolveTrackingContext(req);
+        const updates = Array.isArray(req.body?.updates) ? req.body.updates : [];
+        const data = await trackHomeworkActivityAnswer({
+            studentId: req.user.userId,
+            resourceRefType,
+            resourceRefId,
+            hwctx,
+            updates,
+            saveSeq: req.body?.save_seq,
+            eventId: req.body?.event_id,
+            tabSessionId: req.body?.tab_session_id,
+            clientTs: req.body?.client_ts,
+            payload: {
+                source: normalizeTrackingString(req.body?.source) || "tests_exam_answer",
+            },
+        });
+        return res.status(200).json({ success: true, data });
+    } catch (error) {
+        return handleControllerError(req, res, error);
+    }
+};
+
 export const submitExam = async (req, res) => {
     const { id: testId } = req.params;
 
@@ -819,6 +954,31 @@ export const submitExam = async (req, res) => {
             userId: req.user?.userId,
             body: req.body || {},
         });
+
+        const shouldBridgeHomework = req.body?.isPractice !== true && req.body?.skip_homework_bridge !== true;
+        if (shouldBridgeHomework && req.user?.userId && data?.testAttemptId) {
+            const { hwctx, resourceRefType, resourceRefId } = resolveTrackingContext(req);
+            const bridged = await markHomeworkSubmittedFromTestAttempt({
+                studentId: req.user.userId,
+                resourceRefType,
+                resourceRefId,
+                hwctx,
+                testAttemptId: data.testAttemptId,
+                scoreSnapshot: data?.score ?? null,
+                eventId: req.body?.event_id,
+                tabSessionId: req.body?.tab_session_id,
+                clientTs: req.body?.client_ts,
+            });
+
+            if (bridged?.tracked) {
+                data.homework_tracking = {
+                    tracked: true,
+                    status: bridged.status || "submitted",
+                    assignment_id: bridged?.mapping?.assignment_id || null,
+                    task_id: bridged?.mapping?.task_id || null,
+                };
+            }
+        }
 
         res.status(200).json({ success: true, data });
     } catch (error) {

@@ -7,7 +7,7 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.OPEN_API_KEY;
 const openai = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
 
 const OPENAI_MODELS = [
-    process.env.OPENAI_PRIMARY_MODEL || "gpt-4o",
+    process.env.OPENAI_PRIMARY_MODEL || "gpt-5-mini",
     process.env.OPENAI_FALLBACK_MODEL || "gpt-4o-mini",
 ];
 
@@ -29,6 +29,7 @@ export const submitEvaluations = async (req, res) => {
             id: index,
             studentName: student.name,
             lessonInfo: student.lessonInfo,
+            rawReview: String(student?.rawReview || "").trim(),
             status: 'pending',
             result: null,
             error: null
@@ -85,6 +86,7 @@ async function processEvaluationQueue(requestId) {
         task.status = 'processing';
         
         try {
+            const rawReviewText = String(task.rawReview || "").trim();
             const prompt = `Bạn là trợ lý học thuật chính thức của trung tâm SCOTS Cẩm Phả.
 
 Nhiệm vụ của bạn là viết nhận xét buổi học cho học viên theo đúng format chuẩn của trung tâm.
@@ -113,15 +115,23 @@ Giáo viên: ${teacherName}
 Nội dung bài học:
 ${task.lessonInfo || 'N/A'}
 
+Raw Data từ giáo viên (bản nháp):
+${rawReviewText || 'N/A'}
+
+Yêu cầu xử lý Raw Data:
+- Đọc kỹ bản nháp của giáo viên, sửa lỗi diễn đạt nếu có.
+- Giữ đúng ý chính của giáo viên, không bịa thêm thông tin.
+- Có thể dựa vào bản nháp để suy luận thêm nếu cần, nhưng không được thay đổi ý chính.
+- Phán đoán các điểm mạnh, điểm cần cải thiện của học viên dựa trên bản nháp.
+- Dùng nội dung đã chuẩn hóa từ bản nháp làm đầu vào chính để viết bản nhận xét cuối cùng và đưa vào Nhận xét buổi học.
+- Nếu raw data trống, chỉ dùng "Nội dung bài học" để viết nhận xét.
+
 Nhận xét buổi học:
 ...
-
 Thái độ học tập:
 ...
-
 Hiệu quả tiếp thu:
 ...
-
 Cần cải thiện:
 ...
 

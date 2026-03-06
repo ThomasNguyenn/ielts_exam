@@ -425,6 +425,14 @@ export const api = {
   getMyTestHistory: (id) => request(`/api/tests/${id}/attempts`),
   getTestById: (id) => request(`/api/tests/${id}`),
   getExam: (id) => request(`/api/tests/${id}/exam`),
+  trackTestActivityOpen: (id, body) =>
+    request(`/api/tests/${id}/activity/open`, { method: 'POST', body: JSON.stringify(body || {}) }),
+  trackTestActivityStart: (id, body) =>
+    request(`/api/tests/${id}/activity/start`, { method: 'POST', body: JSON.stringify(body || {}) }),
+  trackTestActivityHeartbeat: (id, body) =>
+    request(`/api/tests/${id}/activity/heartbeat`, { method: 'POST', body: JSON.stringify(body || {}) }),
+  trackTestActivityAnswer: (id, body) =>
+    request(`/api/tests/${id}/activity/answer`, { method: 'PATCH', body: JSON.stringify(body || {}) }),
   submitExam: (id, body) => request(`/api/tests/${id}/submit`, { method: 'POST', body: JSON.stringify(body) }),
   createTest: (body) => request('/api/tests', { method: 'POST', body: JSON.stringify(body) }),
   updateTest: (id, body) => request(`/api/tests/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
@@ -704,6 +712,11 @@ export const api = {
     return request(`/api/homework/me${query ? `?${query}` : ''}`);
   },
   homeworkGetMyAssignmentById: (assignmentId) => request(`/api/homework/me/${assignmentId}`),
+  homeworkLaunchTaskTracking: (assignmentId, taskId, body = {}) =>
+    request(`/api/homework/me/${assignmentId}/tasks/${taskId}/tracking/launch`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   homeworkSubmitTask: (assignmentId, taskId, formData) =>
     request(`/api/homework/me/${assignmentId}/tasks/${taskId}/submission`, {
       method: 'PUT',

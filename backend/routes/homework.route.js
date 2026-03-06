@@ -13,6 +13,7 @@ import {
   getMyHomeworkAssignmentById,
   getMyHomeworkAssignments,
   gradeHomeworkSubmission,
+  launchMyHomeworkTaskTracking,
   createHomeworkAssignment,
   createHomeworkGroup,
   deleteHomeworkAssignment,
@@ -167,6 +168,11 @@ router.delete("/assignments/:id", isTeacherOrAdmin, deleteHomeworkAssignment);
 
 router.get("/me", isStudent, getMyHomeworkAssignments);
 router.get("/me/:assignmentId", isStudent, getMyHomeworkAssignmentById);
+router.post(
+  "/me/:assignmentId/tasks/:taskId/tracking/launch",
+  isStudent,
+  launchMyHomeworkTaskTracking,
+);
 router.put(
   "/me/:assignmentId/tasks/:taskId/submission",
   isStudent,

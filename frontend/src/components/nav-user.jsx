@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import {
   ChevronsUpDown,
   Check,
+  Loader2,
   LogOut,
   Settings,
 } from "lucide-react"
@@ -29,6 +30,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -42,6 +53,12 @@ const ADMIN_THEME_OPTIONS = [
   { value: "#6A7E3F", label: "Olive" },
   { value: "#FFB2B2", label: "Pink" },
 ]
+const DASHBOARD_CHART_PALETTES = {
+  "#2057E0": { submitted: "#2B7FFF", notSubmitted: "#8EC5FF" },
+  "#111111": { submitted: "#2F2F2F", notSubmitted: "#8A94A6" },
+  "#6A7E3F": { submitted: "#6F8F3D", notSubmitted: "#BFD79A" },
+  "#FFB2B2": { submitted: "#E77F95", notSubmitted: "#FFD9E1" },
+}
 
 function normalizeHexColor(value) {
   const raw = String(value || "").trim().toUpperCase()
@@ -81,6 +98,16 @@ function darkenHex(value, ratio = 0.18) {
   })
 }
 
+function lightenHex(value, ratio = 0.5) {
+  const rgb = hexToRgb(value)
+  if (!rgb) return value
+  return toHex({
+    r: rgb.r + (255 - rgb.r) * ratio,
+    g: rgb.g + (255 - rgb.g) * ratio,
+    b: rgb.b + (255 - rgb.b) * ratio,
+  })
+}
+
 function getReadableForeground(value) {
   const rgb = hexToRgb(value)
   if (!rgb) return "#FFFFFF"
@@ -88,17 +115,36 @@ function getReadableForeground(value) {
   return luminance > 0.72 ? "#0F172A" : "#FFFFFF"
 }
 
+function resolveDashboardChartPalette(value) {
+  const normalized = normalizeHexColor(value)
+  if (!normalized) {
+    return DASHBOARD_CHART_PALETTES["#2057E0"]
+  }
+
+  if (DASHBOARD_CHART_PALETTES[normalized]) {
+    return DASHBOARD_CHART_PALETTES[normalized]
+  }
+
+  return {
+    submitted: darkenHex(normalized, 0.06),
+    notSubmitted: lightenHex(normalized, 0.56),
+  }
+}
+
 function applyAdminThemeColor(value) {
   if (typeof document === "undefined") return
   const normalized = normalizeHexColor(value) || ADMIN_THEME_OPTIONS[0].value
   const rgb = hexToRgb(normalized)
   if (!rgb) return
+  const chartPalette = resolveDashboardChartPalette(normalized)
 
   document.documentElement.style.setProperty("--admin-shell-theme-accent", normalized)
   document.documentElement.style.setProperty("--admin-shell-theme-accent-strong", darkenHex(normalized, 0.18))
   document.documentElement.style.setProperty("--admin-shell-theme-accent-soft", `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.14)`)
   document.documentElement.style.setProperty("--admin-shell-theme-accent-shadow", `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.34)`)
   document.documentElement.style.setProperty("--admin-shell-theme-accent-foreground", getReadableForeground(normalized))
+  document.documentElement.style.setProperty("--staff-dashboard-chart-submitted", chartPalette.submitted)
+  document.documentElement.style.setProperty("--staff-dashboard-chart-not-submitted", chartPalette.notSubmitted)
 }
 
 export function NavUser({
@@ -108,6 +154,7 @@ export function NavUser({
 }) {
   const { isMobile } = useSidebar()
   const [selectedThemeColor, setSelectedThemeColor] = useState(ADMIN_THEME_OPTIONS[0].value)
+  const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false)
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -150,32 +197,27 @@ export function NavUser({
     return parts.map((part) => part.charAt(0).toUpperCase()).join("")
   }, [user?.name])
 
+  const handleOpenLogoutDialog = (event) => {
+    event.preventDefault()
+    if (isLoggingOut) return
+    setIsLogoutDialogOpen(true)
+  }
+
+  const handleConfirmLogout = () => {
+    if (isLoggingOut) return
+    setIsLogoutDialogOpen(false)
+    if (typeof onLogout === "function") onLogout()
+  }
+
   return (
-    <SidebarMenu>
-      <SidebarMenuItem>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <SidebarMenuButton
-              size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
-              <Avatar className="h-8 w-8 rounded-lg">
-                <AvatarImage src={avatarSrc} alt={user?.name || "User"} />
-                <AvatarFallback className="rounded-lg">{fallbackInitials}</AvatarFallback>
-              </Avatar>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">{user?.name || "User"}</span>
-                <span className="truncate text-xs">{user?.email || "-"}</span>
-              </div>
-              <ChevronsUpDown className="ml-auto size-4" />
-            </SidebarMenuButton>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
-            side={isMobile ? "bottom" : "right"}
-            align="end"
-            sideOffset={4}>
-            <DropdownMenuLabel className="p-0 font-normal">
-              <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+    <>
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <SidebarMenuButton
+                size="lg"
+                className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
                 <Avatar className="h-8 w-8 rounded-lg">
                   <AvatarImage src={avatarSrc} alt={user?.name || "User"} />
                   <AvatarFallback className="rounded-lg">{fallbackInitials}</AvatarFallback>
@@ -184,53 +226,101 @@ export function NavUser({
                   <span className="truncate font-semibold">{user?.name || "User"}</span>
                   <span className="truncate text-xs">{user?.email || "-"}</span>
                 </div>
+                <ChevronsUpDown className="ml-auto size-4" />
+              </SidebarMenuButton>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
+              side={isMobile ? "bottom" : "right"}
+              align="end"
+              sideOffset={4}>
+              <DropdownMenuLabel className="p-0 font-normal">
+                <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+                  <Avatar className="h-8 w-8 rounded-lg">
+                    <AvatarImage src={avatarSrc} alt={user?.name || "User"} />
+                    <AvatarFallback className="rounded-lg">{fallbackInitials}</AvatarFallback>
+                  </Avatar>
+                  <div className="grid flex-1 text-left text-sm leading-tight">
+                    <span className="truncate font-semibold">{user?.name || "User"}</span>
+                    <span className="truncate text-xs">{user?.email || "-"}</span>
+                  </div>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <div className="px-2 py-1.5">
+                <p className="mb-2 text-xs font-medium text-muted-foreground">Theme Color</p>
+                <div className="flex items-center gap-2">
+                  {ADMIN_THEME_OPTIONS.map((option) => {
+                    const isSelected = selectedThemeColor === option.value
+                    return (
+                      <Button
+                        key={option.value}
+                        type="button"
+                        size="icon"
+                        variant="outline"
+                        aria-label={`Use ${option.label} theme`}
+                        onClick={() => handleThemeColorChange(option.value)}
+                        className="h-7 w-7 rounded-full border-2 p-0"
+                        style={{
+                          backgroundColor: option.value,
+                          borderColor: isSelected ? getReadableForeground(option.value) : "transparent",
+                          color: getReadableForeground(option.value),
+                        }}
+                      >
+                        {isSelected ? <Check className="size-3.5 text-current" /> : <span className="sr-only">{option.label}</span>}
+                      </Button>
+                    )
+                  })}
+                </div>
               </div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <div className="px-2 py-1.5">
-              <p className="mb-2 text-xs font-medium text-muted-foreground">Theme Color</p>
-              <div className="flex items-center gap-2">
-                {ADMIN_THEME_OPTIONS.map((option) => {
-                  const isSelected = selectedThemeColor === option.value
-                  return (
-                    <Button
-                      key={option.value}
-                      type="button"
-                      size="icon"
-                      variant="outline"
-                      aria-label={`Use ${option.label} theme`}
-                      onClick={() => handleThemeColorChange(option.value)}
-                      className="h-7 w-7 rounded-full border-2 p-0"
-                      style={{
-                        backgroundColor: option.value,
-                        borderColor: isSelected ? getReadableForeground(option.value) : "transparent",
-                        color: getReadableForeground(option.value),
-                      }}
-                    >
-                      {isSelected ? <Check className="size-3.5 text-current" /> : <span className="sr-only">{option.label}</span>}
-                    </Button>
-                  )
-                })}
-              </div>
-            </div>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link to="/settings">
-                <Settings />
-                Settings
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={onLogout}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link to="/settings">
+                  <Settings />
+                  Settings
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={handleOpenLogoutDialog}
+                disabled={isLoggingOut}
+                className="text-rose-600 focus:text-rose-600"
+              >
+                <LogOut />
+                {isLoggingOut ? "Logging out..." : "Log out"}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </SidebarMenuItem>
+      </SidebarMenu>
+
+      <AlertDialog open={isLogoutDialogOpen} onOpenChange={setIsLogoutDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Log out of this account?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You can sign in again at any time. Unsaved actions may be lost.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isLoggingOut}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmLogout}
               disabled={isLoggingOut}
+              className="bg-rose-600 hover:bg-rose-700 focus-visible:ring-rose-500"
             >
-              <LogOut />
-              {isLoggingOut ? "Logging out..." : "Log out"}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </SidebarMenuItem>
-    </SidebarMenu>
+              {isLoggingOut ? (
+                <>
+                  <Loader2 className="mr-1 size-4 animate-spin" />
+                  Logging out...
+                </>
+              ) : (
+                "Log out"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

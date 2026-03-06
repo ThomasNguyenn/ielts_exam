@@ -28,6 +28,10 @@ import {
   isAdminUser,
   toObjectIdOrNull,
 } from "../services/homeworkAccess.service.js";
+import {
+  issueHomeworkContextToken,
+  trackHomeworkActivityOpen,
+} from "../services/homeworkTrackingBridge.service.js";
 import { parsePagination, buildPaginationMeta } from "../utils/pagination.js";
 import { handleControllerError, sendControllerError } from "../utils/controllerError.js";
 import { STUDENT_ROLE_VALUES } from "../utils/role.utils.js";
@@ -946,11 +950,21 @@ const getStudentGroupIds = async (studentId) => {
   return groups.map((group) => group._id);
 };
 
+const normalizeIdString = (value) => {
+  if (value === undefined || value === null) return "";
+  if (typeof value === "string" || typeof value === "number") return String(value).trim();
+  if (typeof value === "object") {
+    if (value._id !== undefined && value._id !== null) return String(value._id).trim();
+    if (value.id !== undefined && value.id !== null) return String(value.id).trim();
+  }
+  return String(value).trim();
+};
+
 const isAssignmentVisibleToStudent = (assignment = {}, studentGroupIds = []) => {
   if (!assignment || String(assignment.status || "").toLowerCase() !== "published") return false;
   const targetGroupIds = Array.isArray(assignment.target_group_ids) ? assignment.target_group_ids : [];
-  const studentGroupSet = new Set((studentGroupIds || []).map((id) => String(id)));
-  return targetGroupIds.some((groupId) => studentGroupSet.has(String(groupId)));
+  const studentGroupSet = new Set((studentGroupIds || []).map((id) => normalizeIdString(id)).filter(Boolean));
+  return targetGroupIds.some((groupId) => studentGroupSet.has(normalizeIdString(groupId)));
 };
 
 const getEffectivePublishedSections = (assignment = {}) => {
@@ -977,6 +991,35 @@ const findLessonByTaskId = (assignment = {}, taskId) => {
     }
   }
   return null;
+};
+
+const resolveHomeworkLaunchUrl = ({ resourceRefType, resourceRefId, hwctx }) => {
+  const normalizedType = String(resourceRefType || "").trim().toLowerCase();
+  const normalizedRefId = String(resourceRefId || "").trim();
+  const params = new URLSearchParams();
+  if (hwctx) params.set("hwctx", hwctx);
+
+  const appendQuery = (path) => {
+    const query = params.toString();
+    return query ? `${path}?${query}` : path;
+  };
+
+  if (normalizedType === "speaking") {
+    return appendQuery(`/student-ielts/speaking/${normalizedRefId}`);
+  }
+  if (normalizedType === "passage") {
+    params.set("standalone", "reading");
+    return appendQuery(`/student-ielts/tests/${normalizedRefId}/exam`);
+  }
+  if (normalizedType === "section") {
+    params.set("standalone", "listening");
+    return appendQuery(`/student-ielts/tests/${normalizedRefId}/exam`);
+  }
+  if (normalizedType === "writing") {
+    params.set("standalone", "writing");
+    return appendQuery(`/student-ielts/tests/${normalizedRefId}/exam`);
+  }
+  return appendQuery(`/student-ielts/tests/${normalizedRefId}/exam`);
 };
 
 const getRemovedLessonIds = (beforeSections = [], afterSections = []) => {
@@ -1933,6 +1976,93 @@ export const getMyHomeworkAssignmentById = async (req, res) => {
       data: {
         ...mappedAssignment,
         submissions: visibleSubmissions.map(mapSubmissionToResponse),
+      },
+    });
+  } catch (error) {
+    return handleControllerError(req, res, error);
+  }
+};
+
+export const launchMyHomeworkTaskTracking = async (req, res) => {
+  try {
+    const assignmentId = req.params.assignmentId;
+    const taskId = req.params.taskId;
+    if (!mongoose.Types.ObjectId.isValid(assignmentId) || !mongoose.Types.ObjectId.isValid(taskId)) {
+      return sendControllerError(req, res, { statusCode: 400, message: "Invalid assignment/task id" });
+    }
+
+    const assignment = await MonthlyAssignment.findById(assignmentId)
+      .select("status due_date target_group_ids sections tasks")
+      .lean();
+    if (!assignment) {
+      return sendControllerError(req, res, { statusCode: 404, message: "Assignment not found" });
+    }
+
+    const studentGroupIds = await getStudentGroupIds(req.user.userId);
+    if (!isAssignmentVisibleToStudent(assignment, studentGroupIds)) {
+      return sendControllerError(req, res, { statusCode: 403, message: "Forbidden" });
+    }
+
+    const lessonMatch = findLessonByTaskId(assignment, taskId);
+    if (!lessonMatch) {
+      return sendControllerError(req, res, { statusCode: 404, message: "Task not found" });
+    }
+    const { section, lesson } = lessonMatch;
+    if (!toBoolean(section?.is_published, false) || !toBoolean(lesson?.is_published, false)) {
+      return sendControllerError(req, res, {
+        statusCode: 403,
+        message: "Lesson is not published for student access",
+      });
+    }
+
+    const task = lessonToTaskPayload(lesson, 0);
+    if (task.resource_mode !== "internal") {
+      return sendControllerError(req, res, {
+        statusCode: 400,
+        message: "Launch tracking is only available for internal resources",
+      });
+    }
+    if (!task.resource_ref_type || !task.resource_ref_id) {
+      return sendControllerError(req, res, {
+        statusCode: 400,
+        message: "Task internal resource is not configured",
+      });
+    }
+
+    const hwctx = issueHomeworkContextToken({
+      studentId: req.user.userId,
+      assignmentId,
+      taskId,
+      resourceRefType: task.resource_ref_type,
+      resourceRefId: task.resource_ref_id,
+      nonce: req.body?.event_id,
+    });
+
+    const trackingResult = await trackHomeworkActivityOpen({
+      studentId: req.user.userId,
+      resourceRefType: task.resource_ref_type,
+      resourceRefId: task.resource_ref_id,
+      hwctx,
+      eventId: req.body?.event_id,
+      tabSessionId: req.body?.tab_session_id,
+      clientTs: req.body?.client_ts,
+      payload: {
+        source: "homework_launch",
+      },
+    });
+
+    const launchUrl = resolveHomeworkLaunchUrl({
+      resourceRefType: task.resource_ref_type,
+      resourceRefId: task.resource_ref_id,
+      hwctx,
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        launch_url: launchUrl,
+        student_assignment_status: trackingResult?.status || "opened",
+        tracked: Boolean(trackingResult?.tracked),
       },
     });
   } catch (error) {

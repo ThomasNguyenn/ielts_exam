@@ -187,7 +187,7 @@ export default function MyHomeworkDetailPage() {
                           }
                           disabled={!taskId}
                         >
-                          Open Lesson
+                          Open Homework
                         </button>
                       </div>
                     </article>

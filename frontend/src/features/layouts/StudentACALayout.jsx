@@ -1,8 +1,18 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
-import { LogOut, Menu, X } from 'lucide-react';
+import { Loader2, LogOut, Menu, X } from 'lucide-react';
 import AssignmentTurnedInOutlined from '@mui/icons-material/AssignmentTurnedInOutlined';
 import { api } from '@/shared/api/client';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import LevelProgress from '@/shared/components/LevelProgress';
 import '@/shared/components/Navigation.css';
 import '@/shared/components/Navigation-mobile.css';
@@ -14,6 +24,7 @@ export default function StudentACALayout() {
   const [user, setUser] = useState(() => api.getUser());
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
   const navContainerRef = useRef(null);
 
   useEffect(() => {
@@ -55,6 +66,11 @@ export default function StudentACALayout() {
     setIsMobileMenuOpen(false);
   };
 
+  const requestLogout = () => {
+    if (isLoggingOut) return;
+    setIsLogoutDialogOpen(true);
+  };
+
   const handleLogout = async () => {
     if (isLoggingOut) return;
     setIsLoggingOut(true);
@@ -62,6 +78,7 @@ export default function StudentACALayout() {
       await api.logout();
     } finally {
       closeAllMenus();
+      setIsLogoutDialogOpen(false);
       navigate('/login', { replace: true });
       setIsLoggingOut(false);
     }
@@ -105,9 +122,9 @@ export default function StudentACALayout() {
                 <button
                   type="button"
                   className="logout-btn"
-                  onClick={handleLogout}
+                  onClick={requestLogout}
                   disabled={isLoggingOut}
-                  title="Logout"
+                  title="Log out"
                 >
                   <LogOut className="nav-icon" />
                 </button>
@@ -116,6 +133,34 @@ export default function StudentACALayout() {
           </nav>
         </div>
       </header>
+
+      <AlertDialog open={isLogoutDialogOpen} onOpenChange={setIsLogoutDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Log out of this account?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You can sign in again at any time. Unsaved actions may be lost.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isLoggingOut}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              className="bg-rose-600 hover:bg-rose-700 focus-visible:ring-rose-500"
+            >
+              {isLoggingOut ? (
+                <>
+                  <Loader2 className="mr-1 size-4 animate-spin" />
+                  Logging out...
+                </>
+              ) : (
+                'Log out'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <main className="layout-main">
         <Outlet />

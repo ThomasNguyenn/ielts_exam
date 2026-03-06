@@ -1,10 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import LiteYouTubeEmbed from "react-lite-youtube-embed";
 import "react-lite-youtube-embed/dist/LiteYouTubeEmbed.css";
 import { api } from "@/shared/api/client";
 import { useNotification } from "@/shared/context/NotificationContext";
 import { Button } from "@/components/ui/button";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
 import {
   Empty,
   EmptyContent,
@@ -30,13 +37,20 @@ import {
 } from "./gapfill.utils";
 import DictationAudioPlayer from "./DictationAudioPlayer";
 import { useHomeworkAssignmentDetail } from "./useHomeworkAssignmentDetail";
+import { toSanitizedInnerHtml } from "@/shared/utils/safeHtml";
 import "./Homework.css";
 
-const renderVideoBlock = ({ taskTitle, taskIndex, url }) => {
-  const preview = resolveVideoPreview(url || "");
+const resolveVideoSourceLabel = (preview = {}) => {
+  if (preview.kind === "youtube") return "YouTube";
+  if (preview.kind === "vimeo") return "Vimeo";
+  if (preview.kind === "direct") return "Direct";
+  return "External";
+};
+
+const renderVideoPlayer = ({ preview, taskTitle, taskIndex, url }) => {
   if (preview.kind === "youtube" && preview.youtubeId) {
     return (
-      <div className="overflow-hidden rounded-md border homework-video-lite">
+      <div className="homework-video-lite">
         <LiteYouTubeEmbed
           id={preview.youtubeId}
           title={taskTitle || `Task ${taskIndex + 1} video`}
@@ -51,31 +65,37 @@ const renderVideoBlock = ({ taskTitle, taskIndex, url }) => {
   }
   if (preview.kind === "vimeo") {
     return (
-      <div className="overflow-hidden rounded-md border">
-        <iframe
-          src={preview.src}
-          title={taskTitle || `Task ${taskIndex + 1} video`}
-          className="aspect-video w-full"
-          allow="autoplay; fullscreen; picture-in-picture"
-          allowFullScreen
-        />
-      </div>
+      <iframe
+        src={preview.src}
+        title={taskTitle || `Task ${taskIndex + 1} video`}
+        className="aspect-video w-full"
+        allow="autoplay; fullscreen; picture-in-picture"
+        allowFullScreen
+      />
     );
   }
   if (preview.kind === "direct") {
-    return (
-      <div className="overflow-hidden rounded-md border">
-        <video controls className="aspect-video w-full" src={preview.src} />
-      </div>
-    );
+    return <video controls className="aspect-video w-full" src={preview.src} />;
   }
   return (
-    <p className="homework-item-meta">
+    <p className="homework-video-fallback">
       Resource:{" "}
       <a href={url} target="_blank" rel="noreferrer">
         Open link
       </a>
     </p>
+  );
+};
+
+const renderVideoBlock = ({ taskTitle, taskIndex, url, submissionStatus = "" }) => {
+  const preview = resolveVideoPreview(url || "");
+
+  return (
+    <div className="homework-video-card">
+      <div className="homework-video-frame">
+        {renderVideoPlayer({ preview, taskTitle, taskIndex, url })}
+      </div>
+    </div>
   );
 };
 
@@ -125,6 +145,12 @@ const normalizeQuizQuestion = (question = {}, fallbackIndex = 0) => {
   };
 };
 
+const buildQuizQuestionKey = ({ blockId, questionId, questionIndex = 0 }) => {
+  const normalizedBlockId = String(blockId || "quiz").trim() || "quiz";
+  const normalizedQuestionId = String(questionId || "").trim() || `question-${questionIndex + 1}`;
+  return `${normalizedBlockId}:${normalizedQuestionId}`;
+};
+
 const resolveQuizQuestions = (block = {}) => {
   const quizData =
     block?.data && typeof block.data === "object" && !Array.isArray(block.data) ? block.data : {};
@@ -149,6 +175,26 @@ const resolveQuizQuestions = (block = {}) => {
       0,
     ),
   ].filter((question) => question.question || question.options.length > 0);
+};
+
+const HTML_TAG_PATTERN = /<\/?[a-z][\s\S]*>/i;
+const cx = (...values) => values.filter(Boolean).join(" ");
+const isHtmlLike = (value) => HTML_TAG_PATTERN.test(String(value || ""));
+const countWords = (value = "") => {
+  const matches = String(value || "").trim().match(/\S+/g);
+  return matches ? matches.length : 0;
+};
+
+const renderRichTextBlock = (value, { className = "homework-task-sub", emptyFallback = null } = {}) => {
+  const rawText = String(value || "");
+  if (!rawText.trim()) return emptyFallback;
+  if (!isHtmlLike(rawText)) return <p className={className}>{rawText}</p>;
+  return (
+    <div
+      className={cx(className, "homework-task-rich")}
+      dangerouslySetInnerHTML={toSanitizedInnerHtml(rawText)}
+    />
+  );
 };
 
 const normalizeMatchingItem = (item = {}, fallbackIndex = 0, side = "left") => ({
@@ -201,34 +247,132 @@ const normalizeDictationBlockData = (data = {}) => {
   };
 };
 
-const renderQuizContent = ({ block, titlePrefix = "Quiz" }) => {
+const renderQuizContent = ({
+  block,
+  titlePrefix = "Quiz",
+  selectedOptionsByQuestionKey = {},
+  onSelectOption,
+  disabled = false,
+  showQuestionPalette = false,
+  variant = "default",
+}) => {
   const questions = resolveQuizQuestions(block);
   if (!questions.length) return null;
+  const blockId = resolveTaskBlockId(block);
+  const answeredCount = questions.reduce((count, questionItem, questionIndex) => {
+    const questionKey = buildQuizQuestionKey({
+      blockId,
+      questionId: questionItem.id,
+      questionIndex,
+    });
+    return selectedOptionsByQuestionKey[questionKey] ? count + 1 : count;
+  }, 0);
 
-  return (
-    <div className="rounded-md border bg-muted/20 p-3">
-      <p className="homework-item-title">{titlePrefix}</p>
-      <div className="space-y-3">
+  const quizPanel = (
+    <div className={cx("homework-quiz-card", variant === "passage" && "homework-quiz-card--passage")}>
+      <div className="homework-quiz-head">
+        <div>
+          <p className="homework-item-title">{titlePrefix}</p>
+          <p className="homework-item-meta">
+            {answeredCount}/{questions.length} question{questions.length > 1 ? "s" : ""} answered
+          </p>
+        </div>
+        <span className="homework-chip neutral">{questions.length} questions</span>
+      </div>
+
+      {showQuestionPalette ? (
+        <div className="homework-quiz-palette">
+          {questions.map((questionItem, questionIndex) => {
+            const questionKey = buildQuizQuestionKey({
+              blockId,
+              questionId: questionItem.id,
+              questionIndex,
+            });
+            const isAnswered = Boolean(selectedOptionsByQuestionKey[questionKey]);
+            return (
+              <span
+                key={`${questionKey}-chip`}
+                className={cx("homework-quiz-palette-item", isAnswered && "homework-quiz-palette-item--answered")}
+              >
+                {questionIndex + 1}
+              </span>
+            );
+          })}
+        </div>
+      ) : null}
+
+      <div className="homework-quiz-body">
         {questions.map((questionItem, questionIndex) => (
-          <div key={questionItem.id || `${resolveTaskBlockId(block)}-question-${questionIndex}`} className="space-y-2">
+          <div
+            key={questionItem.id || `${resolveTaskBlockId(block)}-question-${questionIndex}`}
+            className="homework-quiz-question"
+          >
             {questions.length > 1 ? (
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <p className="homework-quiz-question-label">
                 Question {questionIndex + 1}
               </p>
             ) : null}
-            {questionItem.question ? <p className="homework-task-sub">{questionItem.question}</p> : null}
+            {renderRichTextBlock(questionItem.question, { className: "homework-quiz-question-text" })}
             {questionItem.options.length ? (
-              <ul className="list-inside list-disc space-y-1 text-sm text-muted-foreground">
+              <div className="homework-quiz-options">
                 {questionItem.options.map((option, optionIndex) => (
-                  <li key={String(option?.id || `${questionItem.id}-option-${optionIndex}`)}>
-                    <span className="font-medium">{String.fromCharCode(65 + optionIndex)}.</span>{" "}
-                    {String(option?.text || "").trim() || `Option ${optionIndex + 1}`}
-                  </li>
+                  <button
+                    key={String(option?.id || `${questionItem.id}-option-${optionIndex}`)}
+                    type="button"
+                    className={cx(
+                      "homework-quiz-option",
+                      selectedOptionsByQuestionKey[buildQuizQuestionKey({
+                        blockId,
+                        questionId: questionItem.id,
+                        questionIndex,
+                      })] === String(option?.id || "")
+                        && "homework-quiz-option--selected",
+                    )}
+                    onClick={() => onSelectOption?.({
+                      questionKey: buildQuizQuestionKey({
+                        blockId,
+                        questionId: questionItem.id,
+                        questionIndex,
+                      }),
+                      optionId: String(option?.id || ""),
+                    })}
+                    disabled={disabled}
+                  >
+                    <span className="homework-quiz-option-key">{String.fromCharCode(65 + optionIndex)}</span>
+                    <span className="homework-quiz-option-text">
+                      {String(option?.text || "").trim() || `Option ${optionIndex + 1}`}
+                    </span>
+                  </button>
                 ))}
-              </ul>
+              </div>
             ) : null}
           </div>
         ))}
+      </div>
+
+      <p className="homework-item-meta">Selections are kept locally on this page while you work.</p>
+    </div>
+  );
+
+  return (
+    <div className="homework-quiz-responsive">
+      <div className="homework-quiz-desktop">{quizPanel}</div>
+      <div className="homework-quiz-mobile">
+        <Drawer>
+          <DrawerTrigger asChild>
+            <button type="button" className="homework-quiz-mobile-trigger" disabled={disabled}>
+              Pull up quiz ({answeredCount}/{questions.length})
+            </button>
+          </DrawerTrigger>
+          <DrawerContent className="homework-quiz-drawer-content">
+            <DrawerHeader className="homework-quiz-drawer-header">
+              <DrawerTitle>{titlePrefix}</DrawerTitle>
+            </DrawerHeader>
+            <div className="homework-quiz-drawer-scroll">
+              {quizPanel}
+            </div>
+          </DrawerContent>
+        </Drawer>
       </div>
     </div>
   );
@@ -355,7 +499,13 @@ const renderGapfillContent = ({ block }) => {
   );
 };
 
-const renderFindMistakeTemplateParts = ({ parsedTemplate, lineKey }) => {
+const renderFindMistakeTemplateParts = ({
+  parsedTemplate,
+  lineKey,
+  selectedTokenKey,
+  onSelectToken,
+  disabled = false,
+}) => {
   return parsedTemplate.parts.map((part, partIndex) => {
     if (part.kind === "text") {
       return (
@@ -369,41 +519,53 @@ const renderFindMistakeTemplateParts = ({ parsedTemplate, lineKey }) => {
       return (
         <span key={`${lineKey}-blank-${partIndex}`} className="mx-1 inline-flex flex-wrap items-center gap-1">
           {part.options.map((option, optionIndex) => {
-            const isCorrect = part.correctIndex === optionIndex;
+            const tokenKey = `${partIndex}:${optionIndex}`;
+            const isSelected = selectedTokenKey === tokenKey;
             return (
-              <span
+              <button
                 key={`${lineKey}-option-${partIndex}-${optionIndex}`}
-                className={`rounded border px-1.5 py-0.5 text-xs font-medium ${
-                  isCorrect
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                    : "border-rose-200 bg-rose-50 text-rose-700"
-                }`}
+                type="button"
+                disabled={disabled}
+                className={cx(
+                  "homework-find-mistake-token",
+                  isSelected && "homework-find-mistake-token--selected",
+                )}
+                onClick={() => onSelectToken?.(lineKey, tokenKey)}
               >
                 {option}
-              </span>
+              </button>
             );
           })}
         </span>
       );
     }
 
-    const isMarkedCorrect = String(part.raw || "").trim().startsWith("*");
+    const tokenKey = `${partIndex}`;
+    const isSelected = selectedTokenKey === tokenKey;
     return (
-      <span
+      <button
         key={`${lineKey}-plain-${partIndex}`}
-        className={`mx-1 inline-flex rounded border px-1.5 py-0.5 text-xs font-medium ${
-          isMarkedCorrect
-            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-            : "border-rose-200 bg-rose-50 text-rose-700"
-        }`}
+        type="button"
+        disabled={disabled}
+        className={cx(
+          "mx-1 inline-flex",
+          "homework-find-mistake-token",
+          isSelected && "homework-find-mistake-token--selected",
+        )}
+        onClick={() => onSelectToken?.(lineKey, tokenKey)}
       >
         {part.correctAnswer}
-      </span>
+      </button>
     );
   });
 };
 
-const renderFindMistakeContent = ({ block }) => {
+const renderFindMistakeContent = ({
+  block,
+  selectedByLineKey = {},
+  onSelectToken,
+  disabled = false,
+}) => {
   const findMistakeData = normalizeFindMistakeBlockData(block?.data || {});
   const prompt = String(findMistakeData?.prompt || "").trim();
   const templates = Array.isArray(findMistakeData?.numbered_items) ? findMistakeData.numbered_items : [];
@@ -420,8 +582,16 @@ const renderFindMistakeContent = ({ block }) => {
           const lineKey = `${resolveTaskBlockId(block)}-find-${templateIndex}`;
           return (
             <div key={lineKey} className="flex items-start gap-2">
-              <span className="pt-1 text-xs font-medium text-muted-foreground">{templateIndex + 1}.</span>
-              <p className="text-sm leading-7">{renderFindMistakeTemplateParts({ parsedTemplate, lineKey })}</p>
+              <span className="pt-2 text-xs font-medium text-muted-foreground">{templateIndex + 1}.</span>
+              <p className="text-sm leading-7">
+                {renderFindMistakeTemplateParts({
+                  parsedTemplate,
+                  lineKey,
+                  selectedTokenKey: selectedByLineKey[lineKey] || "",
+                  onSelectToken,
+                  disabled,
+                })}
+              </p>
             </div>
           );
         })}
@@ -430,17 +600,80 @@ const renderFindMistakeContent = ({ block }) => {
   );
 };
 
-const renderDictationContent = ({ block }) => {
+const renderDictationContent = ({
+  block,
+  draft,
+  onChangeTextAnswer,
+  onClearTextAnswer,
+  disabled = false,
+  showTranscriptInput = false,
+  textPlaceholder = "Type what you hear...",
+  minWords = null,
+  maxWords = null,
+  submissionStatus = "",
+}) => {
   const dictationData = normalizeDictationBlockData(block?.data || {});
   if (!dictationData.audio_url) return null;
+  const transcript = String(draft?.text_answer || "");
+  const transcriptWordCount = countWords(transcript);
+  const targetLabel = minWords || maxWords
+    ? `${minWords || 0}-${maxWords || "inf"} words`
+    : "Free-length response";
 
   return (
-    <div className="rounded-md border bg-muted/20 p-3">
-      <p className="homework-item-title">Dictation</p>
-      {dictationData.prompt ? <p className="homework-task-sub">{dictationData.prompt}</p> : null}
-      <div className="mt-3">
-        <DictationAudioPlayer src={dictationData.audio_url} title={dictationData.prompt || "Dictation Audio"} />
+    <div className="homework-dictation-card">
+      <div className="homework-dictation-intro">
+        <p className="homework-item-title">Nghe audio, sau Ä‘Ã³ nháº­p láº¡i Ä‘Ãºng cÃ¢u báº¡n nghe Ä‘Æ°á»£c.</p>
+        {dictationData.prompt
+          ? renderRichTextBlock(dictationData.prompt, { className: "homework-dictation-description" })
+          : (
+            <p className="homework-dictation-description">
+              Play the audio, then write down as much of the passage as you can remember.
+            </p>
+          )}
       </div>
+
+      <div className="homework-dictation-player-shell">
+        <DictationAudioPlayer
+          src={dictationData.audio_url}
+          title={dictationData.prompt || "Dictation Audio"}
+          className="homework-dictation-player"
+        />
+      </div>
+
+      {showTranscriptInput ? (
+        <div className="homework-dictation-transcript">
+          <div className="homework-dictation-transcript-head">
+            <div>
+              <p className="homework-item-title">Your transcript</p>
+              <p className="homework-item-meta">This answer uses the existing homework text submission flow.</p>
+            </div>
+            <span className="homework-chip neutral">{transcriptWordCount} words</span>
+          </div>
+          <textarea
+            className="homework-dictation-textarea"
+            value={transcript}
+            onChange={(event) => onChangeTextAnswer?.(event.target.value)}
+            disabled={disabled}
+            placeholder={textPlaceholder}
+          />
+          <div className="homework-dictation-transcript-actions">
+            <p className="homework-item-meta">
+              Use replay and skip controls in the player above if you need to check a phrase again.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onClearTextAnswer?.()}
+              disabled={disabled || !transcript}
+            >
+              Clear transcript
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
     </div>
   );
 };
@@ -451,58 +684,135 @@ const TASK_BLOCK_RENDERERS = {
     if (!text) return null;
     return <h4 className="homework-item-title">{text}</h4>;
   },
-  instruction: ({ block }) => {
-    const text = String(block?.data?.text || "").trim();
-    if (!text) return null;
-    return <p className="homework-task-sub">{text}</p>;
-  },
-  video: ({ block, task, taskIndex }) => {
+  instruction: ({ block }) => renderRichTextBlock(block?.data?.text || ""),
+  video: ({ block, task, taskIndex, submissionStatus }) => {
     const url = String(block?.data?.url || task?.resource_url || "").trim();
     if (!url) return null;
-    return renderVideoBlock({ taskTitle: task?.title, taskIndex, url });
+    return renderVideoBlock({ taskTitle: task?.title, taskIndex, url, submissionStatus });
   },
   internal: ({ block, task }) => {
     const resourceRefType = String(block?.data?.resource_ref_type || task?.resource_ref_type || "").trim();
     const resourceRefId = String(block?.data?.resource_ref_id || task?.resource_ref_id || "").trim();
+    const onLaunchInternal = typeof block?.onLaunchInternal === "function" ? block.onLaunchInternal : null;
+    const canLaunchInternal = Boolean(block?.canLaunchInternal);
+    const isLaunchingInternal = Boolean(block?.isLaunchingInternal);
+
     return (
-      <p className="homework-item-meta">
-        Internal {resourceRefType || "content"}: {resourceRefId || "--"}
-      </p>
-    );
-  },
-  passage: ({ block, nestedQuizBlocks = [] }) => {
-    const passageText = String(block?.data?.text || "").trim();
-    return (
-      <div className="space-y-3">
-        {passageText ? (
-          <p className="homework-task-sub whitespace-pre-wrap">{passageText}</p>
-        ) : (
-          <p className="homework-item-meta">Passage is empty.</p>
-        )}
-        {nestedQuizBlocks.map((quizBlock, quizIndex) => {
-          const quizContent = renderQuizContent({
-            block: quizBlock,
-            titlePrefix: `Reading Question ${quizIndex + 1}`,
-          });
-          if (!quizContent) return null;
-          return (
-            <div
-              key={resolveTaskBlockId(quizBlock) || `passage-quiz-${quizIndex}`}
-              data-testid="task-content-block"
-              data-block-type="quiz"
-            >
-              {quizContent}
-            </div>
-          );
-        })}
+      <div className="homework-internal-launch">
+        <p className="homework-item-meta">
+          Internal {resourceRefType || "content"}: {resourceRefId || "--"}
+        </p>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="homework-internal-launch-btn"
+          onClick={() => onLaunchInternal?.({ block, task })}
+          disabled={!onLaunchInternal || !canLaunchInternal || !resourceRefId || isLaunchingInternal}
+        >
+          {isLaunchingInternal ? "Launching..." : "Launch Resource"}
+        </Button>
       </div>
     );
   },
-  quiz: ({ block }) => renderQuizContent({ block }),
+  passage: ({
+    block,
+    nestedQuizBlocks = [],
+    quizSelections,
+    onSelectQuizOption,
+    isQuizDisabled,
+  }) => {
+    const passageText = String(block?.data?.text || "");
+    const hasPassageText = passageText.trim() !== "";
+    return (
+      <div className="homework-passage-layout">
+        <div className="homework-passage-card">
+          <div className="homework-passage-head">
+            <div>
+              <p className="homework-item-title">Passage</p>
+              <p className="homework-item-meta">Read the text first, then answer the quiz below.</p>
+            </div>
+            <span className="homework-chip neutral">Autosave on</span>
+          </div>
+          {hasPassageText ? (
+            renderRichTextBlock(passageText, { className: "homework-passage-text" })
+          ) : (
+            <p className="homework-item-meta">Passage is empty.</p>
+          )}
+        </div>
+
+        {nestedQuizBlocks.length > 0 ? (
+          <div className="homework-passage-quiz-stack">
+            {nestedQuizBlocks.map((quizBlock, quizIndex) => {
+              const quizContent = renderQuizContent({
+                block: quizBlock,
+                titlePrefix: `Question Set ${quizIndex + 1}`,
+                selectedOptionsByQuestionKey: quizSelections,
+                onSelectOption: onSelectQuizOption,
+                disabled: isQuizDisabled,
+                showQuestionPalette: true,
+                variant: "passage",
+              });
+              if (!quizContent) return null;
+              return (
+                <div
+                  key={resolveTaskBlockId(quizBlock) || `passage-quiz-${quizIndex}`}
+                  data-testid="task-content-block"
+                  data-block-type="quiz"
+                >
+                  {quizContent}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="homework-quiz-card homework-quiz-card--passage">
+            <p className="homework-item-meta">No quiz questions linked to this passage yet.</p>
+          </div>
+        )}
+      </div>
+    );
+  },
+  quiz: ({ block, quizSelections, onSelectQuizOption, isQuizDisabled }) =>
+    renderQuizContent({
+      block,
+      selectedOptionsByQuestionKey: quizSelections,
+      onSelectOption: onSelectQuizOption,
+      disabled: isQuizDisabled,
+      showQuestionPalette: true,
+    }),
   matching: ({ block }) => renderMatchingContent({ block }),
   gapfill: ({ block }) => renderGapfillContent({ block }),
-  find_mistake: ({ block }) => renderFindMistakeContent({ block }),
-  dictation: ({ block }) => renderDictationContent({ block }),
+  find_mistake: ({ block, findMistakeSelections, onSelectFindMistakeToken, isFindMistakeDisabled }) =>
+    renderFindMistakeContent({
+      block,
+      selectedByLineKey: findMistakeSelections,
+      onSelectToken: onSelectFindMistakeToken,
+      disabled: isFindMistakeDisabled,
+    }),
+  dictation: ({
+    block,
+    draft,
+    onChangeTextAnswer,
+    onClearTextAnswer,
+    isDictationDisabled,
+    showDictationTranscriptInput,
+    dictationTextPlaceholder,
+    minWords,
+    maxWords,
+    submissionStatus,
+  }) => renderDictationContent({
+    block,
+    draft,
+    onChangeTextAnswer,
+    onClearTextAnswer,
+    disabled: isDictationDisabled,
+    showTranscriptInput: showDictationTranscriptInput,
+    textPlaceholder: dictationTextPlaceholder,
+    minWords,
+    maxWords,
+    submissionStatus,
+  }),
 };
 
 export default function MyHomeworkLessonPage() {
@@ -522,6 +832,9 @@ export default function MyHomeworkLessonPage() {
   } = useHomeworkAssignmentDetail(assignmentId);
 
   const [drafts, setDrafts] = useState({});
+  const [findMistakeSelections, setFindMistakeSelections] = useState({});
+  const [quizSelections, setQuizSelections] = useState({});
+  const [launchingTaskId, setLaunchingTaskId] = useState("");
   const recordersRef = useRef(new Map());
   const streamsRef = useRef(new Map());
   const chunksRef = useRef(new Map());
@@ -563,6 +876,41 @@ export default function MyHomeworkLessonPage() {
     });
     setDrafts(nextDrafts);
   }, [assignment]);
+
+  useEffect(() => {
+    setFindMistakeSelections({});
+    setQuizSelections({});
+  }, [selectedTaskId]);
+
+  const handleSelectFindMistakeToken = (lineKey, tokenKey) => {
+    if (!lineKey) return;
+    setFindMistakeSelections((prev) => {
+      const current = String(prev[lineKey] || "");
+      const next = { ...prev };
+      if (current && current === tokenKey) {
+        delete next[lineKey];
+        return next;
+      }
+      next[lineKey] = tokenKey;
+      return next;
+    });
+  };
+
+  const handleSelectQuizOption = ({ questionKey, optionId }) => {
+    if (!questionKey || !optionId) return;
+    setQuizSelections((prev) => {
+      const current = String(prev[questionKey] || "");
+      if (current === optionId) {
+        const next = { ...prev };
+        delete next[questionKey];
+        return next;
+      }
+      return {
+        ...prev,
+        [questionKey]: optionId,
+      };
+    });
+  };
 
   const revokePreviewUrl = (url) => {
     const normalized = String(url || "");
@@ -769,6 +1117,53 @@ export default function MyHomeworkLessonPage() {
     }
   };
 
+  const getHomeworkTabSessionId = () => {
+    if (typeof window === "undefined") return "";
+    const storageKey = `homework-tab-session:${assignmentId}`;
+    const existing = window.sessionStorage.getItem(storageKey);
+    if (existing) return existing;
+    const nextId =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    window.sessionStorage.setItem(storageKey, nextId);
+    return nextId;
+  };
+
+  const createClientEventId = () =>
+    (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function")
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+  const handleLaunchInternalResource = async ({ block, task }) => {
+    if (!assignmentId || !selectedTaskId) return;
+
+    const resourceRefType = String(block?.data?.resource_ref_type || task?.resource_ref_type || "").trim();
+    const resourceRefId = String(block?.data?.resource_ref_id || task?.resource_ref_id || "").trim();
+    if (!resourceRefType || !resourceRefId) {
+      showNotification("Internal resource is not configured.", "error");
+      return;
+    }
+
+    setLaunchingTaskId(selectedTaskId);
+    try {
+      const result = await api.homeworkLaunchTaskTracking(assignmentId, selectedTaskId, {
+        event_id: createClientEventId(),
+        tab_session_id: getHomeworkTabSessionId(),
+        client_ts: new Date().toISOString(),
+      });
+      const launchUrl = String(result?.data?.launch_url || "").trim();
+      if (!launchUrl) {
+        throw new Error("Launch URL is unavailable");
+      }
+      window.open(launchUrl, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      showNotification(error?.message || "Cannot launch internal resource.", "error");
+    } finally {
+      setLaunchingTaskId("");
+    }
+  };
+
   if (!canAccessPage) {
     return (
       <div className="homework-page">
@@ -819,6 +1214,19 @@ export default function MyHomeworkLessonPage() {
   const canSubmit = !isDeadlinePassed && !isPreviewMode;
   const canInteract = !draft.submitting && (!isDeadlinePassed || isPreviewMode);
   const taskBlocks = selectedTask ? getRenderableTaskBlocks(selectedTask) : [];
+  const dictationBlocks = taskBlocks.filter((block) => String(block?.type || "").trim().toLowerCase() === "dictation");
+  const hasDictationBlock = dictationBlocks.length > 0;
+  const primaryDictationBlockId = hasDictationBlock ? resolveTaskBlockId(dictationBlocks[0]) : "";
+  const shouldUseDictationTranscript = hasTextInput && hasDictationBlock;
+  const textAnswerPlaceholder =
+    selectedTask?.min_words || selectedTask?.max_words
+      ? `Type your answer here (${selectedTask.min_words || 0}-${selectedTask.max_words || "inf"} words)...`
+      : "Type your answer here...";
+  const textAnswerValue = String(draft.text_answer || "");
+  const textAnswerWordCount = countWords(textAnswerValue);
+  const textAnswerTargetLabel = selectedTask?.min_words || selectedTask?.max_words
+    ? `${selectedTask.min_words || 0}-${selectedTask.max_words || "inf"} words`
+    : "No strict word limit";
   const passageBlockIdSet = new Set(
     taskBlocks
       .filter((block) => String(block?.type || "").trim().toLowerCase() === "passage")
@@ -840,31 +1248,28 @@ export default function MyHomeworkLessonPage() {
     <div className="homework-page">
       <div className="homework-shell">
         <section className="homework-header">
-          <div className="homework-title-wrap">
-            <h1>{assignment.title || "Assignment"}</h1>
-            <p>
-              Week {assignment.week || "--"} - Due {formatDate(assignment.due_date)} - {assignment.month || "--"}
-            </p>
+          <button
+            type="button"
+            className="homework-header-back"
+            onClick={() => navigate(lessonListPath)}
+            aria-label="Back to assignment lessons"
+          >
+            {"<"}
+          </button>
+          <div className="homework-header-main">
+            <p className="homework-header-subtitle">{assignment.title || "Assignment"}</p>
+            <h1 className="homework-header-title">{selectedTask?.title || "Lesson"}</h1>
           </div>
-          <div className="homework-actions">
-            <button type="button" className="homework-btn ghost" onClick={() => navigate("/")}>
-              Home
-            </button>
-            <button type="button" className="homework-btn" onClick={() => navigate(lessonListPath)}>
-              Month
-            </button>
-          </div>
+          <span className="homework-header-badge">
+            {isPreviewMode
+              ? "Preview"
+              : isDeadlinePassed
+                ? "Closed"
+                : `Due ${formatDate(assignment?.due_date)}`}
+          </span>
         </section>
 
         <section className="homework-stacked">
-            <div className="homework-card">
-              <nav className="homework-breadcrumb" aria-label="Breadcrumb">
-                <Link to={lessonListPath}>Month</Link>
-                <span>/</span>
-                <span>{selectedTask?.title || "Lesson"}</span>
-              </nav>
-            </div>
-
             {!selectedTask ? (
               <article className="homework-card">
                 <p className="homework-danger">Lesson not found.</p>
@@ -913,11 +1318,32 @@ export default function MyHomeworkLessonPage() {
                       if (!renderBlock) return null;
                       const currentBlockId = resolveTaskBlockId(block);
                       const content = renderBlock({
-                        block,
+                        block: {
+                          ...block,
+                          onLaunchInternal: handleLaunchInternalResource,
+                          canLaunchInternal: !isPreviewMode && canAccessPage,
+                          isLaunchingInternal: launchingTaskId === selectedTaskId,
+                        },
                         task: selectedTask,
                         taskIndex: selectedTaskIndex >= 0 ? selectedTaskIndex : 0,
                         nestedQuizBlocks:
                           blockType === "passage" ? nestedQuizBlocksByPassageId.get(currentBlockId) || [] : [],
+                        findMistakeSelections,
+                        onSelectFindMistakeToken: handleSelectFindMistakeToken,
+                        isFindMistakeDisabled: !canInteract,
+                        quizSelections,
+                        onSelectQuizOption: handleSelectQuizOption,
+                        isQuizDisabled: !canInteract,
+                        draft,
+                        onChangeTextAnswer: (value) => updateDraft(selectedTaskId, { text_answer: value }),
+                        onClearTextAnswer: () => updateDraft(selectedTaskId, { text_answer: "" }),
+                        isDictationDisabled: !canInteract,
+                        showDictationTranscriptInput:
+                          shouldUseDictationTranscript && currentBlockId === primaryDictationBlockId,
+                        dictationTextPlaceholder: textAnswerPlaceholder,
+                        minWords: selectedTask?.min_words,
+                        maxWords: selectedTask?.max_words,
+                        submissionStatus: submission ? statusLabel(submission.status) : "Not submitted",
                       });
                       if (!content) return null;
                       return (
@@ -934,19 +1360,23 @@ export default function MyHomeworkLessonPage() {
                   </div>
 
                   <div className="homework-grid">
-                    {hasTextInput ? (
-                      <div className="homework-field homework-span-12">
-                        <label>Text Answer</label>
+                    {hasTextInput && !shouldUseDictationTranscript ? (
+                      <div className="homework-text-answer-card homework-span-12">
+                        <div className="homework-text-answer-head">
+                          <div>
+                            <p className="homework-text-answer-label">Text Answer</p>
+                            <p className="homework-item-meta">Write your final response before submitting.</p>
+                          </div>
+                          <span className="homework-chip neutral">{textAnswerWordCount} words</span>
+                        </div>
                         <textarea
+                          className="homework-text-answer-textarea"
                           value={draft.text_answer || ""}
                           onChange={(event) => updateDraft(selectedTaskId, { text_answer: event.target.value })}
                           disabled={!canInteract}
-                          placeholder={
-                            selectedTask?.min_words || selectedTask?.max_words
-                              ? `Type your answer here (${selectedTask.min_words || 0}-${selectedTask.max_words || "inf"} words)...`
-                              : "Type your answer here..."
-                          }
+                          placeholder={textAnswerPlaceholder}
                         />
+                        
                       </div>
                     ) : null}
 
@@ -968,9 +1398,9 @@ export default function MyHomeworkLessonPage() {
                             <EmptyMedia variant="icon">
                               <IconCloud />
                             </EmptyMedia>
-                            <EmptyTitle>Upload Bài Làm</EmptyTitle>
+                            <EmptyTitle>Upload BÃ i LÃ m</EmptyTitle>
                             <EmptyDescription>
-                              Upload ảnh hoặc video bài đã làm
+                              Upload áº£nh hoáº·c video bÃ i Ä‘Ã£ lÃ m
                             </EmptyDescription>
                           </EmptyHeader>
                           <EmptyContent>
@@ -1034,20 +1464,29 @@ export default function MyHomeworkLessonPage() {
                     ) : null}
                   </div>
 
-                  <div className="homework-task-actions">
+                  <div className="homework-task-actions homework-task-actions--lesson">
+                    <div className="homework-submit-meta">
+                      <p className="homework-item-meta">
+                        {isPreviewMode
+                          ? "Preview mode disables submit."
+                          : isDeadlinePassed
+                            ? "Deadline has passed. You can review only."
+                            : "Submitting will update your latest answer for this lesson."}
+                      </p>
+                      {submission?.status === "graded" ? (
+                        <span className="homework-chip">
+                          Score: {submission?.score ?? "--"} / 10
+                        </span>
+                      ) : null}
+                    </div>
                     <button
                       type="button"
-                      className="homework-btn primary"
+                      className="homework-submit-btn"
                       onClick={() => void handleSubmitTask()}
                       disabled={!canSubmit || draft.submitting}
                     >
                       {isPreviewMode ? "Preview only" : draft.submitting ? "Submitting..." : "Submit Task"}
                     </button>
-                    {submission?.status === "graded" ? (
-                      <span className="homework-chip">
-                        Score: {submission?.score ?? "--"} / 10
-                      </span>
-                    ) : null}
                   </div>
 
                   {submission?.teacher_feedback ? (
@@ -1064,4 +1503,5 @@ export default function MyHomeworkLessonPage() {
     </div>
   );
 }
+
 

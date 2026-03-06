@@ -1,136 +1,57 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { api } from '@/shared/api/client';
-import { getDefaultRouteForUser } from '@/app/roleRouting';
-import { Sparkles, Mail, Lock, BookOpen, Check, AlertCircle } from 'lucide-react';
-import './Auth.css';
+import { useState } from "react"
+import { Link, useNavigate } from "react-router-dom"
+import { GalleryVerticalEnd } from "lucide-react"
 
-export default function Login() {
-  const navigate = useNavigate();
-  const [form, setForm] = useState({ email: '', password: '' });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+import { api } from "@/shared/api/client"
+import { getDefaultRouteForUser } from "@/app/roleRouting"
+import { LoginForm } from "@/components/login-form"
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
+export default function LoginPage() {
+  const navigate = useNavigate()
+  const [form, setForm] = useState({ email: "", password: "" })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    setLoading(true)
+    setError("")
 
     try {
-      const res = await api.login(form);
-      api.setToken(res.data.token);
-      api.setUser(res.data.user);
-      navigate(getDefaultRouteForUser(res.data.user), { replace: true });
+      const res = await api.login(form)
+      api.setToken(res.data.token)
+      api.setUser(res.data.user)
+      navigate(getDefaultRouteForUser(res.data.user), { replace: true })
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Login failed. Please check your account.")
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   return (
-    <div className="page auth-page">
-      <div className="auth-container">
-        {/* Left — Brand Panel */}
-        <div className="auth-brand-panel">
-          <div className="auth-brand-content">
-            <div className="auth-brand-logo">
-              <div className="auth-brand-logo-icon">
-                <BookOpen />
-              </div>
-              <span className="auth-brand-logo-text">IELTS Pro</span>
-            </div>
-
-            <h2 className="auth-brand-tagline">
-              Luyện thi IELTS hiệu quả cùng AI
-            </h2>
-            <p className="auth-brand-desc">
-              Nền tảng luyện thi thông minh giúp bạn đạt band điểm mong muốn với phương pháp học cá nhân hóa.
-            </p>
-
-            <ul className="auth-brand-features">
-              <li>
-                <span className="auth-feature-check"><Check /></span>
-                Đề thi Reading & Listening thực tế
-              </li>
-              <li>
-                <span className="auth-feature-check"><Check /></span>
-                AI chấm Writing chi tiết
-              </li>
-              <li>
-                <span className="auth-feature-check"><Check /></span>
-                Luyện Speaking với AI
-              </li>
-              <li>
-                <span className="auth-feature-check"><Check /></span>
-                Theo dõi tiến trình học tập
-              </li>
-            </ul>
+    <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-muted p-6 md:p-10">
+      <div className="flex w-full max-w-sm flex-col gap-6">
+        <Link to="/" className="flex items-center gap-2 self-center font-medium">
+          <div className="flex size-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
+            <GalleryVerticalEnd className="size-4" />
           </div>
-        </div>
+          IELTS Pro
+        </Link>
 
-        {/* Right — Form Panel */}
-        <div className="auth-form-panel">
-          <div className="auth-form-header">
-            <div className="auth-greeting">
-              <Sparkles /> Chào mừng trở lại
-            </div>
-            <h1>Đăng nhập</h1>
-            <p>Nhập thông tin để tiếp tục hành trình IELTS của bạn</p>
-          </div>
-
-          {error && (
-            <div className="auth-error">
-              <AlertCircle />
-              {error}
-            </div>
-          )}
-
-          <form className="auth-form" onSubmit={handleSubmit}>
-            <div className="auth-field">
-              <label>Email</label>
-              <div className="auth-input-wrapper">
-                <Mail className="auth-input-icon" />
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  placeholder="your@email.com"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="auth-field">
-              <label>Mật khẩu</label>
-              <div className="auth-input-wrapper">
-                <Lock className="auth-input-icon" />
-                <input
-                  type="password"
-                  value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  placeholder="Nhập mật khẩu"
-                  required
-                />
-              </div>
-              <div style={{ textAlign: 'right', marginTop: '0.5rem' }}>
-                <Link to="/forgot-password" style={{ fontSize: '0.875rem', color: '#6366F1' }}>
-                  Quên mật khẩu?
-                </Link>
-              </div>
-            </div>
-
-            <button type="submit" className="auth-submit-btn" disabled={loading}>
-              {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
-            </button>
-          </form>
-
-          <p className="auth-footer">
-            Chưa có tài khoản? <Link to="/register">Đăng ký ngay</Link>
-          </p>
-        </div>
+        <LoginForm
+          email={form.email}
+          password={form.password}
+          loading={loading}
+          error={error}
+          showPassword={showPassword}
+          onSubmit={handleSubmit}
+          onTogglePassword={() => setShowPassword((prev) => !prev)}
+          onEmailChange={(email) => setForm((prev) => ({ ...prev, email }))}
+          onPasswordChange={(password) => setForm((prev) => ({ ...prev, password }))}
+        />
       </div>
     </div>
-  );
+  )
 }
-

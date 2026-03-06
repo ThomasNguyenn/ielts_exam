@@ -1,6 +1,24 @@
 import express from 'express';
 
-import { getAllTests, getTestCategories, createTest, updateTest, deleteTest, getTheTestById, getExamData, submitExam, getMyLatestAttempts, getMyAttemptSummary, getMyTestAttempts, getMyAttemptResult, renumberTestQuestions } from '../controllers/test.controller.js';
+import {
+  getAllTests,
+  getTestCategories,
+  createTest,
+  updateTest,
+  deleteTest,
+  getTheTestById,
+  getExamData,
+  submitExam,
+  getMyLatestAttempts,
+  getMyAttemptSummary,
+  getMyTestAttempts,
+  getMyAttemptResult,
+  renumberTestQuestions,
+  submitExamActivityOpen,
+  submitExamActivityStart,
+  submitExamActivityHeartbeat,
+  submitExamActivityAnswer,
+} from '../controllers/test.controller.js';
 import { verifyToken, optionalVerifyToken, isTeacherOrAdmin } from '../middleware/auth.middleware.js';
 import { createCacheInvalidator, createResponseCache, getCacheTtlSec } from '../middleware/responseCache.middleware.js';
 const router = express.Router();
@@ -37,6 +55,10 @@ router.get("/my-attempts-summary", verifyToken, getMyAttemptSummary);
 router.get("/my-latest-attempts", verifyToken, getMyLatestAttempts);
 router.get("/attempts/:attemptId/result", verifyToken, getMyAttemptResult);
 router.get("/:id/exam", optionalVerifyToken, testsDetailCache, getExamData);
+router.post("/:id/activity/open", verifyToken, submitExamActivityOpen);
+router.post("/:id/activity/start", verifyToken, submitExamActivityStart);
+router.post("/:id/activity/heartbeat", verifyToken, submitExamActivityHeartbeat);
+router.patch("/:id/activity/answer", verifyToken, submitExamActivityAnswer);
 router.post("/:id/submit", verifyToken, submitExam);
 router.get("/:id/attempts", verifyToken, getMyTestAttempts);
 router.get("/:id", optionalVerifyToken, testsDetailCache, getTheTestById);

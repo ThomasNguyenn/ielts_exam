@@ -13,7 +13,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import HomeworkRichTextEditor from "@/features/homework/components/HomeworkRichTextEditor";
 import {
@@ -547,6 +546,7 @@ export default function HomeworkLessonEditorPage() {
     test: [],
   });
   const [searchKeyword, setSearchKeyword] = useState("");
+  const [internalPickerOpenByBlockId, setInternalPickerOpenByBlockId] = useState({});
   const [matchingSelections, setMatchingSelections] = useState({});
   const [dictationUploadLoadingByBlockId, setDictationUploadLoadingByBlockId] = useState({});
   const dictationFileInputRefs = useRef(new Map());
@@ -588,6 +588,7 @@ export default function HomeworkLessonEditorPage() {
         max_words: nextLesson?.max_words ?? "",
       });
       setContentBlocks(buildBlocksFromLesson(nextLesson));
+      setInternalPickerOpenByBlockId({});
       setCatalog({
         passage: Array.isArray(passageRes?.data) ? passageRes.data : [],
         section: Array.isArray(sectionRes?.data) ? sectionRes.data : [],
@@ -614,10 +615,9 @@ export default function HomeworkLessonEditorPage() {
     ["passage", "section", "speaking", "writing", "test"].forEach((type) => {
       const list = catalog[type] || [];
       next[type] = !keyword
-        ? list.slice(0, 40)
+        ? list
         : list
-            .filter((item) => `${item?.title || ""} ${item?._id || ""}`.toLowerCase().includes(keyword))
-            .slice(0, 40);
+            .filter((item) => `${item?.title || ""} ${item?._id || ""}`.toLowerCase().includes(keyword));
     });
     return next;
   }, [catalog, searchKeyword]);
@@ -1184,6 +1184,13 @@ export default function HomeworkLessonEditorPage() {
       if (!Object.prototype.hasOwnProperty.call(prev, key)) return prev;
       const next = { ...prev };
       delete next[key];
+      return next;
+    });
+
+    setInternalPickerOpenByBlockId((prev) => {
+      if (!Object.prototype.hasOwnProperty.call(prev, normalizedBlockId)) return prev;
+      const next = { ...prev };
+      delete next[normalizedBlockId];
       return next;
     });
 
@@ -2024,6 +2031,7 @@ export default function HomeworkLessonEditorPage() {
                                   })}
                                 placeholder="Example: The ocean is full of [*fish / cats / dogs] and the water is [blue]."
                                 minHeight={180}
+                                outputFormat="text"
                               />
                             </div>
                           ) : (
@@ -2045,12 +2053,16 @@ export default function HomeworkLessonEditorPage() {
                                   <div key={`gapfill-item-${block.id}-${itemIndex}`} className="rounded-md border p-2">
                                     <div className="flex items-start gap-2">
                                       <span className="pt-2 text-xs font-medium text-muted-foreground">{itemIndex + 1}.</span>
-                                      <Textarea
-                                        value={item || ""}
-                                        onChange={(event) =>
-                                          updateGapfillNumberedItemText(block.id, itemIndex, event.target.value)}
-                                        placeholder="Example: The capital of France is [Paris]."
-                                      />
+                                      <div className="flex-1">
+                                        <HomeworkRichTextEditor
+                                          value={item || ""}
+                                          onChange={(nextText) =>
+                                            updateGapfillNumberedItemText(block.id, itemIndex, nextText)}
+                                          placeholder="Example: The capital of France is [Paris]."
+                                          minHeight={120}
+                                          outputFormat="text"
+                                        />
+                                      </div>
                                       <Button
                                         type="button"
                                         variant="ghost"
@@ -2144,12 +2156,16 @@ export default function HomeworkLessonEditorPage() {
                                 <div key={`find-mistake-item-${block.id}-${itemIndex}`} className="rounded-md border p-2">
                                   <div className="flex items-start gap-2">
                                     <span className="pt-2 text-xs font-medium text-muted-foreground">{itemIndex + 1}.</span>
-                                    <Textarea
-                                      value={item || ""}
-                                      onChange={(event) =>
-                                        updateFindMistakeSentenceText(block.id, itemIndex, event.target.value)}
-                                      placeholder="Example: She [*go] to the [school] [yesterday]."
-                                    />
+                                    <div className="flex-1">
+                                      <HomeworkRichTextEditor
+                                        value={item || ""}
+                                        onChange={(nextText) =>
+                                          updateFindMistakeSentenceText(block.id, itemIndex, nextText)}
+                                        placeholder="Example: She [*go] to the [school] [yesterday]."
+                                        minHeight={120}
+                                        outputFormat="text"
+                                      />
+                                    </div>
                                     <Button
                                       type="button"
                                       variant="ghost"
@@ -2241,51 +2257,103 @@ export default function HomeworkLessonEditorPage() {
 
                       {blockType === "internal" ? (
                         <div className="space-y-3">
-                          <div className="space-y-2">
-                            <Label>Internal Type</Label>
-                            <Select
-                              value={block.data.resource_ref_type || "passage"}
-                              onValueChange={(value) =>
-                                updateBlockData(block.id, { resource_ref_type: value, resource_ref_id: "" })}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="passage">Passage</SelectItem>
-                                <SelectItem value="section">Section</SelectItem>
-                                <SelectItem value="speaking">Speaking</SelectItem>
-                                <SelectItem value="writing">Writing</SelectItem>
-                                <SelectItem value="test">Test</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Search</Label>
-                            <Input
-                              value={searchKeyword}
-                              onChange={(event) => setSearchKeyword(event.target.value)}
-                              placeholder="Search by title or id"
-                            />
-                          </div>
-                          <ScrollArea className="h-56 rounded-md border p-2">
-                            <div className="space-y-2">
-                              {(filteredResourcesByType[String(block.data.resource_ref_type || "passage")] || []).map((item) => {
-                                const selected = String(block.data.resource_ref_id || "") === String(item?._id || "");
-                                return (
-                                  <Button
-                                    key={String(item?._id || "")}
-                                    type="button"
-                                    variant={selected ? "default" : "outline"}
-                                    className="h-auto w-full justify-start py-2 text-left"
-                                    onClick={() => updateBlockData(block.id, { resource_ref_id: item?._id || "" })}
+                          {(() => {
+                            const currentResourceType = String(block.data.resource_ref_type || "passage");
+                            const currentResourceId = String(block.data.resource_ref_id || "");
+                            const selectedResource = (catalog[currentResourceType] || []).find(
+                              (item) => String(item?._id || "") === currentResourceId,
+                            );
+                            const isPickerOpen = Boolean(internalPickerOpenByBlockId[String(block.id)]);
+                            const shouldShowPicker = !currentResourceId || isPickerOpen;
+
+                            return (
+                              <>
+                                <div className="space-y-2">
+                                  <Label>Internal Type</Label>
+                                  <Select
+                                    value={currentResourceType}
+                                    onValueChange={(value) => {
+                                      updateBlockData(block.id, { resource_ref_type: value, resource_ref_id: "" });
+                                      setInternalPickerOpenByBlockId((prev) => ({
+                                        ...prev,
+                                        [String(block.id)]: true,
+                                      }));
+                                    }}
                                   >
-                                    <span className="line-clamp-1">{item?.title || item?._id}</span>
-                                  </Button>
-                                );
-                              })}
-                            </div>
-                          </ScrollArea>
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="passage">Passage</SelectItem>
+                                      <SelectItem value="section">Section</SelectItem>
+                                      <SelectItem value="speaking">Speaking</SelectItem>
+                                      <SelectItem value="writing">Writing</SelectItem>
+                                      <SelectItem value="test">Test</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                {!shouldShowPicker ? (
+                                  <div className="space-y-2 rounded-md border bg-muted/20 p-3">
+                                    <Label>Selected Resource</Label>
+                                    <p className="text-sm font-medium text-foreground">
+                                      {selectedResource?.title || selectedResource?._id || currentResourceId}
+                                    </p>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() =>
+                                        setInternalPickerOpenByBlockId((prev) => ({
+                                          ...prev,
+                                          [String(block.id)]: true,
+                                        }))
+                                      }
+                                    >
+                                      Choose Again
+                                    </Button>
+                                  </div>
+                                ) : null}
+
+                                {shouldShowPicker ? (
+                                  <>
+                                    <div className="space-y-2">
+                                      <Label>Search</Label>
+                                      <Input
+                                        value={searchKeyword}
+                                        onChange={(event) => setSearchKeyword(event.target.value)}
+                                        placeholder="Search by title or id"
+                                      />
+                                    </div>
+                                    <ScrollArea className="h-56 rounded-md border p-2">
+                                      <div className="space-y-2">
+                                        {(filteredResourcesByType[currentResourceType] || []).map((item) => {
+                                          const selected = currentResourceId === String(item?._id || "");
+                                          return (
+                                            <Button
+                                              key={String(item?._id || "")}
+                                              type="button"
+                                              variant={selected ? "default" : "outline"}
+                                              className="h-auto w-full justify-start py-2 text-left"
+                                              onClick={() => {
+                                                updateBlockData(block.id, { resource_ref_id: item?._id || "" });
+                                                setInternalPickerOpenByBlockId((prev) => ({
+                                                  ...prev,
+                                                  [String(block.id)]: false,
+                                                }));
+                                              }}
+                                            >
+                                              <span className="line-clamp-1">{item?.title || item?._id}</span>
+                                            </Button>
+                                          );
+                                        })}
+                                      </div>
+                                    </ScrollArea>
+                                  </>
+                                ) : null}
+                              </>
+                            );
+                          })()}
                         </div>
                       ) : null}
                     </div>

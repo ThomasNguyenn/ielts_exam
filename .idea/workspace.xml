@@ -6,137 +6,32 @@
   <component name="ChangeListManager">
     <list default="true" id="b588cd8d-9883-4ae9-b90e-a4650d93adc1" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/controllers/admin.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/controllers/admin.controller.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/controllers/auth.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/controllers/auth.controller.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/controllers/evaluation.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/controllers/evaluation.controller.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/controllers/homework.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/controllers/homework.controller.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/controllers/leaderboard.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/controllers/leaderboard.controller.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/controllers/passage.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/controllers/passage.controller.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/controllers/section.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/controllers/section.controller.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/controllers/speaking.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/controllers/speaking.controller.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/controllers/test.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/controllers/test.controller.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/controllers/writing.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/controllers/writing.controller.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/middleware/auth.middleware.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/middleware/auth.middleware.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/models/MonthlyAssignment.model.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/models/MonthlyAssignment.model.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/models/Passage.model.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/models/Passage.model.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/models/Section.model.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/models/Section.model.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/models/User.model.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/models/User.model.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/models/MonthlyAssignmentSubmission.model.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/models/MonthlyAssignmentSubmission.model.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/backend/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/routes/admin.route.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/routes/admin.route.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/routes/auth.route.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/routes/auth.route.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/routes/homework.route.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/routes/homework.route.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/routes/passage.route.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/routes/passage.route.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/routes/section.route.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/routes/section.route.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/routes/speaking.routes.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/routes/speaking.routes.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/routes/test.route.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/routes/test.route.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/services/email.service.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/services/email.service.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/tests/controllers/admin.controller.online.test.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/tests/controllers/admin.controller.online.test.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/tests/controllers/auth.controller.password.test.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/tests/controllers/auth.controller.password.test.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/tests/controllers/auth.controller.register.test.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/tests/controllers/auth.controller.register.test.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/tests/controllers/auth.controller.session.test.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/tests/controllers/auth.controller.session.test.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/tests/middleware/auth.middleware.heartbeat.test.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/tests/middleware/auth.middleware.heartbeat.test.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/components.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/components.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/services/testSubmission.service.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/services/testSubmission.service.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/app/App.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/app/App.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/app/routeGuards.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/app/styles/App-mobile.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/app/styles/App-mobile.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/app/styles/App.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/app/styles/App.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/app/styles/index.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/app/styles/index.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/ui/alert-dialog.tsx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/ui/badge.tsx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/ui/button.tsx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/ui/card.tsx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/ui/collapsible.tsx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/ui/dialog.tsx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/ui/drawer.tsx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/ui/dropdown-menu.tsx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/ui/empty.tsx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/ui/input.tsx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/ui/label.tsx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/ui/scroll-area.tsx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/ui/select.tsx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/ui/separator.tsx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/ui/sheet.tsx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/ui/skeleton.tsx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/ui/switch.tsx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/ui/tabs.tsx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/ui/textarea.tsx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/achievements/components/AchievementToast.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/achievements/components/AchievementToast.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/components/ManageLayout.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/components/ManageLayout.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/AddEditPassage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/AddEditPassage.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/AddSection.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/AddSection.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/AddSkillModules.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/AddSkillModules.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/AddSpeaking.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/AddSpeaking.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/AddTest.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/AddTest.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/AddWriting.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/AddWriting.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/GradingDashboard.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/GradingDashboard.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/GradingInterface.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/GradingInterface.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/Manage.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/Manage.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/ManageInvitations.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/ManageInvitations.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/ManagePassagesSinglePage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/ManagePassagesSinglePage.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/ManageSectionsSinglePage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/ManageSectionsSinglePage.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/ManageSpeakingSinglePage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/ManageSpeakingSinglePage.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/ManageTestsSinglePage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/ManageTestsSinglePage.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/ManageUsers.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/ManageUsers.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/ManageWritingsSinglePage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/ManageWritingsSinglePage.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/QuestionGroup.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/QuestionGroup.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/ScoreDashboard.css" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/ScoreDashboard.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/ScoreDashboard.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/StudentRequests.css" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/StudentRequests.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/StudentRequests.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/UserScoreDetail.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/UserScoreDetail.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/questionGroupConfig.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/questionGroupConfig.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/analytics/pages/EnhancedAnalyticsDashboard.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/analytics/pages/EnhancedAnalyticsDashboard.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/analytics/pages/ErrorAnalyticsDetailsPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/analytics/pages/ErrorAnalyticsDetailsPage.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/analytics/pages/ErrorTaxonomyUnifiedPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/analytics/pages/ErrorTaxonomyUnifiedPage.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/app/roleRouting.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/app/roleRouting.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/nav-user.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/nav-user.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/auth/pages/ForgotPassword.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/auth/pages/ForgotPassword.jsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/features/auth/pages/Login.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/auth/pages/Login.jsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/features/auth/pages/Register.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/auth/pages/Register.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/evaluation/pages/EvaluationPage.css" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/auth/pages/ResetPassword.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/auth/pages/ResetPassword.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/auth/pages/VerifyEmail.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/auth/pages/VerifyEmail.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/auth/pages/VerifyEmailChange.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/auth/pages/VerifyEmailChange.jsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/features/evaluation/pages/EvaluationPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/evaluation/pages/EvaluationPage.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/home/pages/Home.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/home/pages/Home.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/homework/components/HomeworkRichTextEditor.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/homework/components/HomeworkRichTextEditor.jsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/features/homework/pages/Homework.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/homework/pages/Homework.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/homework/pages/HomeworkAssignmentEditorPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/homework/pages/HomeworkAssignmentEditorPage.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/homework/pages/HomeworkAssignmentsPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/homework/pages/HomeworkAssignmentsPage.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/homework/pages/HomeworkDashboardPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/homework/pages/HomeworkDashboardPage.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/homework/pages/HomeworkGroupsPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/homework/pages/HomeworkGroupsPage.jsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/features/homework/pages/HomeworkLessonEditorPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/homework/pages/HomeworkLessonEditorPage.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/homework/pages/HomeworkSubmissionGradePage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/homework/pages/HomeworkSubmissionGradePage.jsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/features/homework/pages/MyHomeworkDetailPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/homework/pages/MyHomeworkDetailPage.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/homework/pages/MyHomeworkLessonPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/homework/pages/MyHomeworkLessonPage.jsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/features/homework/pages/MyHomeworkMonthPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/homework/pages/MyHomeworkMonthPage.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/learn/pages/LearnModuleDetail.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/learn/pages/LearnModuleDetail.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/learn/pages/LearnPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/learn/pages/LearnPage.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/practice/pages/EnhancedPracticeFlow/Phase7Review/EnhancedReviewPhase.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/practice/pages/EnhancedPracticeFlow/Phase7Review/EnhancedReviewPhase.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/practice/pages/EnhancedPracticeFlow/PracticeFlowContainer.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/practice/pages/EnhancedPracticeFlow/PracticeFlowContainer.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/practice/pages/PracticeList.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/practice/pages/PracticeList.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/practice/pages/SpeakingFlow.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/practice/pages/SpeakingFlow.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/practice/pages/SpeakingList.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/practice/pages/SpeakingList.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/practice/pages/WritingAIResult.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/practice/pages/WritingAIResult.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/practice/pages/WritingScoreDashboard.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/practice/pages/WritingScoreDashboard.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/profile/components/ProfileMainContent.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/profile/components/ProfileMainContent.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/profile/components/ProfileSidebar.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/profile/components/ProfileSidebar.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/study-plan/pages/StudyPlanFullView.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/study-plan/pages/StudyPlanFullView.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/study-plan/pages/StudyPlanSetup.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/study-plan/pages/StudyPlanSetup.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/tests/components/TestCard.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/tests/components/TestCard.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/tests/components/exam/StepContent.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/tests/components/exam/StepContent.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/tests/components/review-mode/ReviewExamLayout.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/tests/components/review-mode/ReviewExamLayout.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/tests/pages/Exam.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/tests/pages/Exam.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/tests/pages/Exam.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/tests/pages/Exam.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/tests/pages/TestAttemptResult.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/tests/pages/TestAttemptResult.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/tests/pages/TestDetail.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/tests/pages/TestDetail.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/tests/pages/TestHistory.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/tests/pages/TestHistory.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/tests/pages/TestList.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/tests/pages/TestList.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/tests/pages/TestList.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/tests/pages/TestList.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/tests/pages/WritingLiveJoin.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/tests/pages/WritingLiveJoin.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/tests/pages/WritingLiveRoom.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/tests/pages/WritingLiveRoom.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/tests/pages/WritingSubmissionView.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/tests/pages/WritingSubmissionView.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/shared/api/client.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/shared/api/client.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/shared/components/ConfirmationModal.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/shared/components/ConfirmationModal.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/layouts/AdminLayout.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/layouts/AdminLayout.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/layouts/StudentACALayout.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/layouts/StudentACALayout.jsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/shared/components/Layout.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/shared/components/Layout.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/shared/components/PaginationControls.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/shared/components/PaginationControls.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/shared/components/StudyDashboardWidget.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/shared/components/StudyDashboardWidget.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/tailwind.config.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/tailwind.config.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/start_log.txt" beforeDir="false" afterPath="$PROJECT_DIR$/start_log.txt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -206,7 +101,7 @@
       <option name="presentableId" value="Default" />
       <updated>1771243931295</updated>
       <workItem from="1771243941489" duration="1347000" />
-      <workItem from="1772640603973" duration="24177000" />
+      <workItem from="1772640603973" duration="32155000" />
     </task>
     <servers />
   </component>
