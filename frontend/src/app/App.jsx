@@ -11,11 +11,13 @@ import {
   UI_ROLE_TEACHER,
   getDefaultRouteForUser,
   isUnconfirmedStudentFamilyUser,
+  requiresFirstLoginSetup,
 } from './roleRouting';
 
 const Layout = lazy(() => import('@/shared/components/Layout'));
 const Home = lazy(() => import('@/features/home/pages/Home'));
 const Login = lazy(() => import('@/features/auth/pages/Login'));
+const FirstLoginSetup = lazy(() => import('@/features/auth/pages/FirstLoginSetup'));
 const Register = lazy(() => import('@/features/auth/pages/Register'));
 const VerifyEmail = lazy(() => import('@/features/auth/pages/VerifyEmail'));
 const VerifyEmailChange = lazy(() => import('@/features/auth/pages/VerifyEmailChange'));
@@ -114,6 +116,10 @@ function HomeIndexRoute() {
       return <Navigate to="/wait-for-confirmation" replace />;
     }
 
+    if (requiresFirstLoginSetup(user)) {
+      return <Navigate to="/first-login" replace />;
+    }
+
     return <Navigate to={getDefaultRouteForUser(user)} replace />;
   }
 
@@ -196,6 +202,10 @@ export default function App() {
           <Route
             path="login"
             element={<PublicRoute>{withSuspense(<Login />)}</PublicRoute>}
+          />
+          <Route
+            path="first-login"
+            element={<RequireAuth>{withSuspense(<FirstLoginSetup />)}</RequireAuth>}
           />
           <Route
             path="register"

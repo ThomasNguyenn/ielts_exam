@@ -1,11 +1,23 @@
 import bcrypt from "bcryptjs";
 import User from "../models/User.model.js";
 import { handleControllerError, sendControllerError } from "../utils/controllerError.js";
-import { resolveStudentRoleFromStudyTrack } from "../utils/role.utils.js";
+import { ROLE_STUDENT, resolveStudentRoleFromStudyTrack } from "../utils/role.utils.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const BULK_EMAIL_DOMAIN = "@scots.local";
 
 const normalizeEmail = (value) => String(value || "").trim().toLowerCase();
+const hasBulkGeneratedEmail = (value) => normalizeEmail(value).endsWith(BULK_EMAIL_DOMAIN);
+const isLegacyBulkCandidate = (user) =>
+  hasBulkGeneratedEmail(user?.email) && String(user?.role || "").trim() === ROLE_STUDENT;
+
+const inferCreatedByTeacherBulk = (user) =>
+  Boolean(user?.createdByTeacherBulk || isLegacyBulkCandidate(user));
+
+const shouldRequireFirstLogin = (user) => {
+  if (Boolean(user?.mustCompleteFirstLogin)) return true;
+  return Boolean(inferCreatedByTeacherBulk(user) && !user?.firstLoginCompletedAt);
+};
 
 const pickAuthUserPayload = (user) => ({
   _id: user._id,
@@ -13,14 +25,14 @@ const pickAuthUserPayload = (user) => ({
   name: user.name,
   role: user.role,
   isConfirmed: user.isConfirmed,
-  createdByTeacherBulk: Boolean(user?.createdByTeacherBulk),
-  mustCompleteFirstLogin: Boolean(user?.mustCompleteFirstLogin),
+  createdByTeacherBulk: inferCreatedByTeacherBulk(user),
+  mustCompleteFirstLogin: shouldRequireFirstLogin(user),
 });
 
 export const getFirstLoginStatus = async (req, res) => {
   try {
     const user = await User.findById(req.user.userId)
-      .select("_id createdByTeacherBulk mustCompleteFirstLogin")
+      .select("_id email createdByTeacherBulk mustCompleteFirstLogin firstLoginCompletedAt")
       .lean();
 
     if (!user) {
@@ -30,8 +42,8 @@ export const getFirstLoginStatus = async (req, res) => {
     return res.json({
       success: true,
       data: {
-        createdByTeacherBulk: Boolean(user.createdByTeacherBulk),
-        mustCompleteFirstLogin: Boolean(user.mustCompleteFirstLogin),
+        createdByTeacherBulk: inferCreatedByTeacherBulk(user),
+        mustCompleteFirstLogin: shouldRequireFirstLogin(user),
       },
     });
   } catch (error) {
@@ -69,7 +81,7 @@ export const completeFirstLogin = async (req, res) => {
       return sendControllerError(req, res, { statusCode: 404, message: "User not found" });
     }
 
-    if (!user.mustCompleteFirstLogin) {
+    if (!shouldRequireFirstLogin(user)) {
       return res.json({
         success: true,
         message: "First login setup already completed",
@@ -89,6 +101,7 @@ export const completeFirstLogin = async (req, res) => {
     user.email = normalizedEmail;
     user.password = await bcrypt.hash(newPassword, 10);
     user.role = nextRole;
+    user.createdByTeacherBulk = inferCreatedByTeacherBulk(user);
     user.mustCompleteFirstLogin = false;
     user.firstLoginCompletedAt = new Date();
 

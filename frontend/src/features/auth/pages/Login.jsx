@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom"
 import { GalleryVerticalEnd } from "lucide-react"
 
 import { api } from "@/shared/api/client"
-import { getDefaultRouteForUser } from "@/app/roleRouting"
+import { getDefaultRouteForUser, requiresFirstLoginSetup } from "@/app/roleRouting"
 import { LoginForm } from "@/components/login-form"
 
 export default function LoginPage() {
@@ -22,7 +22,11 @@ export default function LoginPage() {
       const res = await api.login(form)
       api.setToken(res.data.token)
       api.setUser(res.data.user)
-      navigate(getDefaultRouteForUser(res.data.user), { replace: true })
+      if (requiresFirstLoginSetup(res.data.user)) {
+        navigate('/first-login', { replace: true })
+      } else {
+        navigate(getDefaultRouteForUser(res.data.user), { replace: true })
+      }
     } catch (err) {
       setError(err.message || "Login failed. Please check your account.")
     } finally {

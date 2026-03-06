@@ -74,6 +74,9 @@ export const userHasAnyAllowedRole = (user, allowed = []) => {
 export const isUnconfirmedStudentFamilyUser = (user) =>
   Boolean(user && isStudentFamilyRole(user.role) && !user.isConfirmed);
 
+export const requiresFirstLoginSetup = (user) =>
+  Boolean(user?.mustCompleteFirstLogin);
+
 export const getDefaultRouteForRole = (role) => {
   const normalized = normalizeUserRole(role);
   return ROLE_DEFAULT_PATH[normalized] || '/login';
