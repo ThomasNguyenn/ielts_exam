@@ -230,7 +230,108 @@ const buildSegments = (text = '', highlights = []) => {
   return output;
 };
 
-const getSelectionOffsets = (container) => {
+const buildWordTokens = (text = '') => {
+  const sourceText = String(text || '');
+  if (!sourceText) return [];
+
+  const output = [];
+  const parts = sourceText.split(/(\s+)/);
+  let cursor = 0;
+
+  parts.forEach((part, index) => {
+    if (!part) return;
+    const start = cursor;
+    const end = start + part.length;
+    cursor = end;
+    output.push({
+      key: `${start}:${end}:${index}`,
+      text: part,
+      start,
+      end,
+      isSpace: /^\s+$/.test(part),
+    });
+  });
+
+  return output;
+};
+
+const buildHighlightTokens = (text = '', highlights = []) => {
+  const tokens = buildWordTokens(text);
+  if (tokens.length === 0) return [];
+  const validHighlights = normalizeHighlights(highlights, String(text || '').length);
+  return tokens.map((token) => ({
+    ...token,
+    active: validHighlights.filter((item) => item.start < token.end && item.end > token.start),
+  }));
+};
+
+const TOKEN_NODE_SELECTOR = '[data-wl-token="1"]';
+
+const toSelectionRect = (range) => {
+  const rect = range.getBoundingClientRect();
+  if (!rect || !Number.isFinite(rect.top) || !Number.isFinite(rect.left)) return null;
+  return {
+    top: rect.top,
+    left: rect.left,
+    right: rect.right,
+    bottom: rect.bottom,
+    width: rect.width,
+    height: rect.height,
+  };
+};
+
+const findTokenInsideNode = (node, preferLast = false) => {
+  if (!node) return null;
+  if (node.nodeType === Node.ELEMENT_NODE) {
+    if (node.matches?.(TOKEN_NODE_SELECTOR)) return node;
+    const list = node.querySelectorAll?.(TOKEN_NODE_SELECTOR);
+    if (!list || list.length === 0) return null;
+    return preferLast ? list[list.length - 1] : list[0];
+  }
+  if (node.nodeType === Node.TEXT_NODE) {
+    return node.parentElement?.closest?.(TOKEN_NODE_SELECTOR) || null;
+  }
+  return null;
+};
+
+const resolveBoundaryToken = (container, boundaryNode, boundaryOffset, isEnd = false) => {
+  if (!container || !boundaryNode) return null;
+
+  if (boundaryNode.nodeType === Node.TEXT_NODE) {
+    const tokenNode = boundaryNode.parentElement?.closest?.(TOKEN_NODE_SELECTOR) || null;
+    if (tokenNode && container.contains(tokenNode)) return tokenNode;
+  }
+
+  if (boundaryNode.nodeType === Node.ELEMENT_NODE) {
+    if (boundaryNode.matches?.(TOKEN_NODE_SELECTOR)) return boundaryNode;
+
+    const children = Array.from(boundaryNode.childNodes || []);
+    if (children.length > 0) {
+      const startIndex = isEnd ? boundaryOffset - 1 : boundaryOffset;
+      if (isEnd) {
+        for (let index = startIndex; index >= 0; index -= 1) {
+          const tokenNode = findTokenInsideNode(children[index], true);
+          if (tokenNode && container.contains(tokenNode)) return tokenNode;
+        }
+      } else {
+        for (let index = startIndex; index < children.length; index += 1) {
+          const tokenNode = findTokenInsideNode(children[index], false);
+          if (tokenNode && container.contains(tokenNode)) return tokenNode;
+        }
+      }
+    }
+  }
+
+  let current = boundaryNode.parentElement;
+  while (current && current !== container) {
+    if (current.matches?.(TOKEN_NODE_SELECTOR)) return current;
+    current = current.parentElement;
+  }
+
+  return null;
+};
+
+const getSelectionOffsetsFromTokens = (container, sourceText = '') => {
   if (!container || typeof window === 'undefined') return null;
   const selection = window.getSelection();
   if (!selection || selection.rangeCount === 0) return null;
@@ -239,33 +340,44 @@ const getSelectionOffsets = (container) => {
   if (range.collapsed) return null;
   if (!container.contains(range.commonAncestorContainer)) return null;
 
-  const preRange = document.createRange();
-  preRange.selectNodeContents(container);
-  preRange.setEnd(range.startContainer, range.startOffset);
-  const start = preRange.toString().length;
+  const startToken = resolveBoundaryToken(container, range.startContainer, range.startOffset, false);
+  const endToken = resolveBoundaryToken(container, range.endContainer, range.endOffset, true);
+  if (!startToken || !endToken) return null;
 
-  const fullRange = document.createRange();
-  fullRange.selectNodeContents(container);
-  fullRange.setEnd(range.endContainer, range.endOffset);
-  const end = fullRange.toString().length;
-
+  const start = Number(startToken.getAttribute('data-start'));
+  const end = Number(endToken.getAttribute('data-end'));
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
-  const text = String(container.textContent || '').slice(start, end);
+
+  const tokenNodes = Array.from(container.querySelectorAll(TOKEN_NODE_SELECTOR))
+    .map((node) => ({
+      start: Number(node.getAttribute('data-start')),
+      end: Number(node.getAttribute('data-end')),
+      isSpace: node.getAttribute('data-space') === '1',
+    }))
+    .filter((item) =>
+      Number.isFinite(item.start)
+      && Number.isFinite(item.end)
+      && item.end > item.start
+      && item.end > start
+      && item.start < end,
+    )
+    .sort((a, b) => a.start - b.start);
+
+  const firstToken = tokenNodes.find((item) => !item.isSpace) || tokenNodes[0];
+  const lastToken = [...tokenNodes].reverse().find((item) => !item.isSpace) || tokenNodes[tokenNodes.length - 1];
+  if (!firstToken || !lastToken || lastToken.end <= firstToken.start) return null;
+
+  const trimmedStart = firstToken.start;
+  const trimmedEnd = lastToken.end;
+  const text = String(sourceText || '').slice(trimmedStart, trimmedEnd);
   if (!text.trim()) return null;
 
-  const rect = range.getBoundingClientRect();
-  const anchorRect = rect && Number.isFinite(rect.top) && Number.isFinite(rect.left)
-    ? {
-      top: rect.top,
-      left: rect.left,
-      right: rect.right,
-      bottom: rect.bottom,
-      width: rect.width,
-      height: rect.height,
-    }
-    : null;
-
-  return { start, end, text, rect: anchorRect };
+  return {
+    start: trimmedStart,
+    end: trimmedEnd,
+    text,
+    rect: toSelectionRect(range),
+  };
 };
 
 const formatFeedTime = (value) => {
@@ -379,6 +491,11 @@ export function useWritingLiveRoomSession({
 
   const textSegments = useMemo(
     () => buildSegments(currentText, taskHighlights),
+    [currentText, taskHighlights],
+  );
+
+  const textTokens = useMemo(
+    () => buildHighlightTokens(currentText, taskHighlights),
     [currentText, taskHighlights],
   );
 
@@ -666,10 +783,10 @@ export function useWritingLiveRoomSession({
 
   const captureSelection = useCallback((container) => {
     if (!isTeacher || !currentTaskId) return null;
-    const offsets = getSelectionOffsets(container);
+    const offsets = getSelectionOffsetsFromTokens(container, currentText);
     setSelectionDraft(offsets);
     return offsets;
-  }, [isTeacher, currentTaskId]);
+  }, [isTeacher, currentTaskId, currentText]);
 
   const clearSelectionDraft = useCallback(() => {
     setSelectionDraft(null);
@@ -784,6 +901,7 @@ export function useWritingLiveRoomSession({
     highlights,
     taskHighlights,
     textSegments,
+    textTokens,
     activityItems,
     teacherOnline,
     aiFastResult,

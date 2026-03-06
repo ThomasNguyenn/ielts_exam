@@ -4,15 +4,15 @@ import { Palette, Settings2, SunMedium, Type } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Drawer,
-  DrawerClose,
-  DrawerContent,
-  DrawerDescription,
-  DrawerFooter,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerTrigger,
-} from "@/components/ui/drawer";
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
@@ -55,8 +55,8 @@ export default function IELTSSettings({
   }, [theme]);
 
   return (
-    <Drawer open={isOpen} onOpenChange={setIsOpen} direction="right">
-      <DrawerTrigger asChild>
+    <Sheet open={isOpen} onOpenChange={setIsOpen}>
+      <SheetTrigger asChild>
         <Button
           type="button"
           variant="outline"
@@ -66,20 +66,21 @@ export default function IELTSSettings({
           <Settings2 size={15} />
           Settings
         </Button>
-      </DrawerTrigger>
+      </SheetTrigger>
 
-      <DrawerContent className="flex h-full flex-col p-0 sm:max-w-sm" aria-describedby="exam-settings-description">
-        <DrawerHeader className="border-b px-4 py-4">
+      <SheetContent
+        side="right"
+        className="flex h-full w-full flex-col p-0 sm:max-w-sm"
+        aria-describedby="exam-settings-description"
+      >
+        <SheetHeader className="border-b px-4 py-4">
           <div className="flex items-center justify-between gap-2">
-            <DrawerTitle className="text-base">Exam Settings</DrawerTitle>
-            <Badge variant="outline" className="rounded-full text-[11px]">
-              {activeThemeLabel}
-            </Badge>
+            <SheetTitle className="text-base">Exam Settings</SheetTitle>
           </div>
-          <DrawerDescription id="exam-settings-description" className="text-xs">
+          <SheetDescription id="exam-settings-description" className="text-xs">
             Adjust display and reading comfort in real time.
-          </DrawerDescription>
-        </DrawerHeader>
+          </SheetDescription>
+        </SheetHeader>
 
         <ScrollArea className="flex-1">
           <div className="space-y-6 p-4">
@@ -151,14 +152,14 @@ export default function IELTSSettings({
           </div>
         </ScrollArea>
 
-        <DrawerFooter className="border-t p-4">
-          <DrawerClose asChild>
+        <SheetFooter className="border-t p-4">
+          <SheetClose asChild>
             <Button type="button" variant="outline" className="w-full">
               Đóng
             </Button>
-          </DrawerClose>
-        </DrawerFooter>
-      </DrawerContent>
-    </Drawer>
+          </SheetClose>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import MaintenanceOverlay from '@/shared/components/MaintenanceOverlay';
 import SearchOutlined from '@mui/icons-material/SearchOutlined';
 import LibraryBooksOutlined from '@mui/icons-material/LibraryBooksOutlined';
 import TrendingUpOutlined from '@mui/icons-material/TrendingUpOutlined';
@@ -89,6 +90,7 @@ const getVariantOptions = (tasks, selectedTaskType) => {
 };
 
 export default function PracticeList() {
+  const isMaintenanceMode = true;
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
@@ -206,19 +208,20 @@ export default function PracticeList() {
   if (loading) {
     return (
       <div className="sp2-page" data-testid="practice-list-loading">
-        <div className="sp2-skeleton-hero" />
-        <div className="sp2-skeleton-wrap">
+        <div className="sp2-skeleton-hero" style={isMaintenanceMode ? { filter: 'blur(8px)' } : {}} />
+        <div className="sp2-skeleton-wrap" style={isMaintenanceMode ? { filter: 'blur(8px)' } : {}}>
           {Array.from({ length: 6 }).map((_, idx) => (
             <div key={`sk-${idx}`} className="sp2-skeleton-card" />
           ))}
         </div>
+        {isMaintenanceMode && <MaintenanceOverlay />}
       </div>
     );
   }
 
   return (
     <div className="sp2-page">
-      <main className="sp2-main">
+      <main className="sp2-main" style={isMaintenanceMode ? { filter: 'blur(8px)', pointerEvents: 'none', userSelect: 'none' } : {}}>
         <section className="sp2-hero animate-fade-in">
           <div className="sp2-hero-copy">
             <div className="sp2-kicker">
@@ -426,6 +429,7 @@ export default function PracticeList() {
           </section>
         </div>
       </main>
+      {isMaintenanceMode && <MaintenanceOverlay />}
     </div>
   );
 }

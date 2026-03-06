@@ -457,6 +457,7 @@ export default function HomeworkAssignmentEditorPage() {
   const [canManage, setCanManage] = useState(true);
   const [form, setForm] = useState(createForm);
   const [groups, setGroups] = useState([]);
+  const [teachers, setTeachers] = useState([]);
   const [newSectionName, setNewSectionName] = useState("");
   const [showAddSection, setShowAddSection] = useState(false);
   const [addingLessonSectionId, setAddingLessonSectionId] = useState("");
@@ -486,12 +487,14 @@ export default function HomeworkAssignmentEditorPage() {
     setLoading(true);
     setError("");
     try {
-      const [groupsRes, assignmentRes] = await Promise.all([
+      const [groupsRes, teachersRes, assignmentRes] = await Promise.all([
         api.homeworkGetGroups({ limit: 200 }),
+        api.getUsers('teacher'),
         editId ? api.homeworkGetAssignmentById(editId) : Promise.resolve(null),
       ]);
 
       setGroups(Array.isArray(groupsRes?.data) ? groupsRes.data.filter((group) => group?.is_active !== false) : []);
+      setTeachers(Array.isArray(teachersRes?.data) ? teachersRes.data : []);
 
       if (assignmentRes?.data) {
         const assignment = assignmentRes.data;
@@ -504,6 +507,9 @@ export default function HomeworkAssignmentEditorPage() {
           status: assignment.status || "draft",
           target_group_ids: Array.isArray(assignment.target_group_ids)
             ? assignment.target_group_ids.map((group) => String(group?._id || group))
+            : [],
+          co_teachers: Array.isArray(assignment.co_teachers)
+            ? assignment.co_teachers.map((teacher) => String(teacher?._id || teacher))
             : [],
           sections: normalizeSectionsFromAssignment(assignment),
         });
@@ -537,6 +543,16 @@ export default function HomeworkAssignmentEditorPage() {
       if (set.has(normalized)) set.delete(normalized);
       else set.add(normalized);
       return { ...prev, target_group_ids: Array.from(set) };
+    });
+  };
+
+  const toggleCoTeacher = (teacherId) => {
+    setForm((prev) => {
+      const set = new Set((prev.co_teachers || []).map(String));
+      const normalized = String(teacherId || "");
+      if (set.has(normalized)) set.delete(normalized);
+      else set.add(normalized);
+      return { ...prev, co_teachers: Array.from(set) };
     });
   };
 
@@ -804,7 +820,7 @@ export default function HomeworkAssignmentEditorPage() {
     const validationError = validateBeforeSubmit();
     if (validationError) {
       showNotification(validationError, "error");
-      return;
+      return false;
     }
 
     setSaving(true);
@@ -821,6 +837,7 @@ export default function HomeworkAssignmentEditorPage() {
         due_date: form.due_date,
         status: form.status || "draft",
         target_group_ids: form.target_group_ids,
+        co_teachers: form.co_teachers,
         sections: outlinePayload(form.sections),
       };
 
@@ -836,10 +853,23 @@ export default function HomeworkAssignmentEditorPage() {
           navigate(`/homework/assignments/${newId}`);
         }
       }
+      return true;
     } catch (saveError) {
       showNotification(saveError?.message || "Failed to save assignment", "error");
+      return false;
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSettingsDone = async () => {
+    if (!canManage) {
+      setIsSettingsDialogOpen(false);
+      return;
+    }
+    const saved = await handleSaveAssignment();
+    if (saved) {
+      setIsSettingsDialogOpen(false);
     }
   };
 
@@ -859,6 +889,17 @@ export default function HomeworkAssignmentEditorPage() {
     if (selectedNames.length <= 2) return selectedNames.join(", ");
     return `${selectedNames.length} groups selected`;
   }, [form.target_group_ids, groups]);
+
+  const selectedCoTeachersLabel = useMemo(() => {
+    const selectedIds = new Set((form.co_teachers || []).map(String));
+    const selectedNames = teachers
+      .filter((teacher) => selectedIds.has(String(teacher._id)))
+      .map((teacher) => String(teacher.name || "").trim())
+      .filter(Boolean);
+    if (!selectedNames.length) return "Select co-teachers (optional)";
+    if (selectedNames.length <= 2) return selectedNames.join(", ");
+    return `${selectedNames.length} co-teachers selected`;
+  }, [form.co_teachers, teachers]);
 
   if (loading) {
     return (
@@ -932,9 +973,6 @@ export default function HomeworkAssignmentEditorPage() {
             </DialogHeader>
             <div className="max-h-[70vh] overflow-y-auto pr-1 max-[1440px]:pr-0 max-[1440px]:text-sm">
               <Card>
-                <CardHeader className="max-[1440px]:space-y-1 max-[1440px]:px-4 max-[1440px]:py-3">
-                  <CardTitle className="max-[1440px]:text-base">Assignment Settings</CardTitle>
-                </CardHeader>
                 <CardContent className="space-y-4 max-[1440px]:space-y-3 max-[1440px]:px-4 max-[1440px]:pb-4">
                   <div className="space-y-2 max-[1440px]:space-y-1.5">
                     <Label className="max-[1440px]:text-xs">Title</Label>
@@ -1008,6 +1046,45 @@ export default function HomeworkAssignmentEditorPage() {
                     </div>
                   </div>
                   <div className="space-y-2 max-[1440px]:space-y-1.5">
+                    <Label className="max-[1440px]:text-xs">Co-Teachers (Optional)</Label>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full justify-between max-[1440px]:h-9 max-[1440px]:text-xs"
+                          disabled={!canManage}
+                        >
+                          <span className="truncate">{selectedCoTeachersLabel}</span>
+                          <ChevronDown className="ml-2 h-4 w-4 shrink-0" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align="start"
+                        className="w-[var(--radix-dropdown-menu-trigger-width)] max-h-72 overflow-y-auto"
+                      >
+                        {teachers.length ? (
+                          teachers.map((teacher) => {
+                            const checked = (form.co_teachers || []).includes(String(teacher._id));
+                            return (
+                              <DropdownMenuCheckboxItem
+                                key={teacher._id}
+                                checked={checked}
+                                onCheckedChange={() => toggleCoTeacher(teacher._id)}
+                                onSelect={(event) => event.preventDefault()}
+                                disabled={!canManage}
+                              >
+                                <span className="truncate">{teacher.name} ({teacher.email})</span>
+                              </DropdownMenuCheckboxItem>
+                            );
+                          })
+                        ) : (
+                          <p className="px-2 py-1.5 text-sm text-muted-foreground">No teachers found.</p>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                  <div className="space-y-2 max-[1440px]:space-y-1.5">
                     <Label className="max-[1440px]:text-xs">Status</Label>
                     <div className="flex flex-wrap gap-2 max-[1440px]:gap-1.5">
                       {["draft", "published", "archived"].map((status) => (
@@ -1027,14 +1104,15 @@ export default function HomeworkAssignmentEditorPage() {
                 </CardContent>
               </Card>
             </div>
-            <DialogFooter className="max-[1440px]:pt-2">
+            <DialogFooter className="max-[1440px]:pt-2 max-[1440px]:pb-4">
               <Button
                 type="button"
                 variant="outline"
                 className="max-[1440px]:h-8 max-[1440px]:px-3 max-[1440px]:text-xs"
-                onClick={() => setIsSettingsDialogOpen(false)}
+                onClick={handleSettingsDone}
+                disabled={saving}
               >
-                Done
+                {saving ? "Saving..." : "Done"}
               </Button>
             </DialogFooter>
           </DialogContent>

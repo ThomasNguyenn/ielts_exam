@@ -19,10 +19,20 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D'];
 const SECTION_AUDIO_MAX_BYTES = 50 * 1024 * 1024;
+const MAX_DIAGRAM_IMAGE_BYTES = 5 * 1024 * 1024;
 
 function isFlowOrPlanType(type = '') {
   const normalized = canonicalizeQuestionType(type);
   return normalized === 'flow_chart_completion' || normalized === 'plan_map_diagram';
+}
+
+function isImageQuestionType(type = '') {
+  const normalized = canonicalizeQuestionType(type);
+  return normalized === 'diagram_label_completion' || normalized === 'listening_map';
+}
+
+function isLikelyAbsoluteUrl(value = '') {
+  return /^https?:\/\//i.test(String(value || '').trim());
 }
 
 function normalizeOptionToken(raw = '') {
@@ -143,7 +153,13 @@ function sectionToForm(section) {
         use_once: Boolean(group.use_once),
         instructions: group.instructions || '',
         text: group.text || '',
-        image_url: group.image_url || '',
+        image_url: (() => {
+          const explicitImageUrl = String(group.image_url || '').trim();
+          if (explicitImageUrl) return explicitImageUrl;
+          const textValue = String(group.text || '').trim();
+          if (isImageQuestionType(normalizedType) && isLikelyAbsoluteUrl(textValue)) return textValue;
+          return '';
+        })(),
         steps: (() => {
           if (Array.isArray(group.steps) && group.steps.length) {
             return group.steps.map((step) => String(step || '')).filter((step) => step.trim().length > 0);
@@ -375,6 +391,35 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
     } finally {
       setAudioUploadLoading(false);
       resetInput();
+    }
+  };
+
+  const uploadGroupImage = async (groupIndex, file) => {
+    if (!String(file?.type || '').toLowerCase().startsWith('image/')) {
+      showNotification('Only image files are allowed for map/diagram upload.', 'error');
+      return;
+    }
+
+    if (file.size > MAX_DIAGRAM_IMAGE_BYTES) {
+      showNotification('Image must be 5MB or smaller.', 'error');
+      return;
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      if (form._id?.trim()) {
+        formData.append('section_id', form._id.trim());
+      }
+      const response = await api.uploadPassageDiagramImage(formData);
+      const uploadedUrl = response?.data?.url || '';
+      if (!uploadedUrl) {
+        throw new Error('Upload succeeded but url is missing.');
+      }
+      updateQuestionGroup(groupIndex, 'image_url', uploadedUrl);
+      showNotification('Image uploaded successfully.', 'success');
+    } catch (uploadError) {
+      showNotification(uploadError.message || 'Failed to upload image.', 'error');
     }
   };
 
@@ -1163,6 +1208,7 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
                       onSetMultiChoiceCorrectAnswers={setMultiChoiceCorrectAnswers}
                       onSyncMultiChoiceSharedQuestion={syncMultiChoiceSharedQuestion}
                       onUpdateGroupSteps={updateGroupSteps}
+                      onUploadDiagramImage={uploadGroupImage}
                       handleBoldShortcut={(event, value, callback) => handleBoldShortcut(event, value, callback)}
                     />
                   ))

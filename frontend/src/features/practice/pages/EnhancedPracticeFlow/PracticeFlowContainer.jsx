@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import MaintenanceOverlay from '@/shared/components/MaintenanceOverlay';
 import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
 import EnhancedPlanningPhase from './Phase4Plan/EnhancedPlanningPhase';
@@ -10,6 +11,7 @@ import '../Practice.css';
 import './PracticeFlowContainer.css';
 
 const PracticeFlowContainer = () => {
+  const isMaintenanceMode = true;
   const [currentPhase, setCurrentPhase] = useState(1); // 1-4
   const [question, setQuestion] = useState(null);
   const [sessionData, setSessionData] = useState({
@@ -84,19 +86,21 @@ const PracticeFlowContainer = () => {
   if (loading) {
     return (
       <div className="practice-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
-        <div className="loading-spinner"></div>
-        <p>Loading practice question...</p>
+        <div className="loading-spinner" style={isMaintenanceMode ? { filter: 'blur(8px)' } : {}}></div>
+        <p style={isMaintenanceMode ? { filter: 'blur(8px)' } : {}}>Loading practice question...</p>
+        {isMaintenanceMode && <MaintenanceOverlay />}
       </div>
     );
   }
 
   if (!question) {
     return (
-      <div className="practice-container" style={{ textAlign: 'center', padding: '4rem' }}>
-        <h2>Question not found</h2>
-        <button onClick={() => navigate('/student-ielts/practice')} className="btn">
+      <div className="practice-container" style={{ textAlign: 'center', padding: '4rem', position: 'relative' }}>
+        <h2 style={isMaintenanceMode ? { filter: 'blur(8px)' } : {}}>Question not found</h2>
+        <button onClick={() => navigate('/student-ielts/practice')} className="btn" style={isMaintenanceMode ? { filter: 'blur(8px)', pointerEvents: 'none' } : {}}>
           Back to Practice List
         </button>
+        {isMaintenanceMode && <MaintenanceOverlay />}
       </div>
     );
   }
@@ -109,8 +113,9 @@ const PracticeFlowContainer = () => {
   ];
 
   return (
-    <div className="new-practice-flow">
-      <div className="practice-flow-header">
+    <div className="new-practice-flow" style={{ position: 'relative' }}>
+      <div style={isMaintenanceMode ? { filter: 'blur(8px)', pointerEvents: 'none', userSelect: 'none' } : {}}>
+        <div className="practice-flow-header">
         <div className="practice-flow-progress">
           <div className="phase-steps">
             {phases.map((phase, index) => (
@@ -166,6 +171,8 @@ const PracticeFlowContainer = () => {
           />
         )}
       </div>
+      </div>
+      {isMaintenanceMode && <MaintenanceOverlay />}
     </div>
   );
 };

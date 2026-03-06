@@ -463,14 +463,15 @@ function SummaryDropZone({
 function ListeningMapGrid({ group, slots, answers, setAnswer, startSlotIndex, reviewMode = false }) {
   const options = group.options || []; // e.g. [{id: 'A', text: ''}, ...]
   const questions = group.questions || []; // e.g. [{q_number: 5, text: 'hotel'}, ...]
+  const mapImageUrl = String(group.image_url || '').trim() || (isLikelyHttpUrl(group.text) ? String(group.text || '').trim() : '');
 
   return (
     <div className="listening-map-container">
-      {group.text && (
+      {mapImageUrl ? (
         <div className="listening-map-image-wrapper">
-          <img src={group.text} alt="IELTS Map" className="listening-map-image" />
+          <img src={mapImageUrl} alt="IELTS Map" className="listening-map-image" />
         </div>
-      )}
+      ) : null}
 
       <div className="listening-map-grid-wrapper">
         <table className="listening-map-table">

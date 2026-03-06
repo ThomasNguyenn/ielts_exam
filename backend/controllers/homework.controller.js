@@ -595,6 +595,10 @@ const sanitizeAssignmentPayload = (body = {}, { partial = false } = {}) => {
   if (Array.isArray(payload.sections) && payload.sections.length > 0) {
     payload.tasks = flattenSectionsToTasks(payload.sections);
   }
+  
+  if (!partial || Object.prototype.hasOwnProperty.call(body, "co_teachers")) {
+    payload.co_teachers = toUniqueObjectIds(body.co_teachers);
+  }
 
   return payload;
 };
@@ -1401,9 +1405,15 @@ export const getHomeworkAssignments = async (req, res) => {
 
     const owner = normalizeOptionalString(req.query.owner);
     if (owner === "me") {
-      filter.created_by = req.user.userId;
+      filter.$or = [
+        { created_by: req.user.userId },
+        { co_teachers: req.user.userId },
+      ];
     } else if (owner && mongoose.Types.ObjectId.isValid(owner)) {
-      filter.created_by = owner;
+      filter.$or = [
+        { created_by: owner },
+        { co_teachers: owner },
+      ];
     }
 
     const [totalItems, assignments] = await Promise.all([
@@ -1436,6 +1446,7 @@ export const getHomeworkAssignmentById = async (req, res) => {
       .populate("created_by", "name email role")
       .populate("updated_by", "name email role")
       .populate("target_group_ids", "name level_label is_active")
+      .populate("co_teachers", "name email role")
       .lean();
 
     if (!assignment) {

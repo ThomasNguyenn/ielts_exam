@@ -26,6 +26,11 @@ function isFlowOrPlanType(type = '') {
   return normalized === 'flow_chart_completion' || normalized === 'plan_map_diagram';
 }
 
+function isImageQuestionType(type = '') {
+  const normalized = canonicalizeQuestionType(type);
+  return normalized === 'diagram_label_completion' || normalized === 'listening_map';
+}
+
 function isLikelyAbsoluteUrl(value = '') {
   return /^https?:\/\//i.test(String(value || '').trim());
 }
@@ -174,7 +179,7 @@ function passageToForm(p) {
         text: g.text || '',
         image_url: (g.image_url && String(g.image_url).trim())
           ? String(g.image_url).trim()
-          : (canonicalizeQuestionType(g.type) === 'diagram_label_completion' && isLikelyAbsoluteUrl(g.text)
+          : (isImageQuestionType(g.type) && isLikelyAbsoluteUrl(g.text)
             ? String(g.text).trim()
             : ''),
         steps: (() => {

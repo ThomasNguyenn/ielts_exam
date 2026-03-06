@@ -215,6 +215,12 @@ const MonthlyAssignmentSchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
+    co_teachers: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
     sections: [AssignmentSectionSchema],
     tasks: [AssignmentTaskSchema],
   },
