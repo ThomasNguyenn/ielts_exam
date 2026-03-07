@@ -384,6 +384,8 @@ export const api = {
   getProfile: () => request('/api/auth/profile'),
   updateProfile: (body) => request('/api/auth/profile', { method: 'PUT', body: JSON.stringify(body) }),
   validateInvitation: (token) => request(`/api/auth/invite/${encodeURIComponent(String(token || ''))}`),
+  getFirstLoginStatus: () => request('/api/auth/first-login/status'),
+  completeFirstLogin: (body) => request('/api/auth/first-login/complete', { method: 'POST', body: JSON.stringify(body) }),
 
   // Auth helpers
   getToken,
