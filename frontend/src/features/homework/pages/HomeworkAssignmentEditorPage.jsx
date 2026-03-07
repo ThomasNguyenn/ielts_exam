@@ -513,6 +513,11 @@ export default function HomeworkAssignmentEditorPage() {
             : [],
           sections: normalizeSectionsFromAssignment(assignment),
         });
+        if (editId && assignment.title) {
+          window.dispatchEvent(new CustomEvent('breadcrumb-label-override', {
+            detail: { segment: editId, label: assignment.title },
+          }));
+        }
       } else {
         setCanManage(true);
         setForm(createForm());

@@ -391,24 +391,109 @@
 }
 
 .homework-task-card {
-  border: 1px solid #dbeafe;
+  border: 1px solid #e2e8f0;
   background: #ffffff;
   border-radius: 12px;
-  padding: 0.82rem;
+  padding: 1.1rem;
   display: grid;
-  gap: 0.55rem;
+  gap: 1.25rem;
+  box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.04);
+  position: relative;
+}
+
+.homework-task-card.is-link {
+  cursor: pointer;
+  transition: all 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.homework-task-card.is-link:hover {
+  box-shadow: 4px 4px 14px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+  border-color: #cbd5e1;
 }
 
 .homework-task-head {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  gap: 0.55rem;
+  align-items: flex-start;
 }
 
-.homework-task-head h3 {
+.homework-task-left {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.homework-task-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #eff6ff;
+  border: 1px solid #dbeafe;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.homework-task-title-wrap h3 {
   margin: 0;
-  font-size: 0.98rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.homework-task-subtitle {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.homework-task-status-icon {
+  width: 32px;
+  height: 32px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  flex-shrink: 0;
+  background: #f8fafc;
+}
+
+.homework-task-status-icon.submitted {
+  color: #059669;
+  border-color: #059669;
+  background: #ecfdf5;
+}
+
+.homework-task-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.homework-task-badges {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+}
+
+.homework-task-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.homework-task-value {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #0f172a;
 }
 
 .homework-task-sub {

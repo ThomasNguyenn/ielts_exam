@@ -4,6 +4,7 @@ import {
   Calendar,
   ChevronDown,
   ChevronRight,
+  Download,
   ExternalLink,
   FileText,
   Mail,
@@ -13,9 +14,11 @@ import {
   Search,
   User,
   Users,
+  X,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -33,11 +36,8 @@ import {
 } from '@/components/ui/sheet';
 import {
   Dialog,
+  DialogClose,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
 } from '@/components/ui/dialog';
 import {
   Table,
@@ -47,12 +47,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Textarea } from '@/components/ui/textarea';
 import PaginationControls from '@/shared/components/PaginationControls';
 import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
 
 const PAGE_SIZE = 20;
 const MAX_FETCH_PAGES = 50;
+const DEFAULT_EXPORT_PASSWORD = 'Scots2026';
 
 const formatDate = (dateStr) => {
   const date = new Date(String(dateStr || ''));
@@ -142,6 +144,15 @@ const normalizeTeacherRoleLabel = (role) => {
   return 'Teacher';
 };
 
+const normalizeLookupValue = (value) => String(value || '').trim().toLowerCase();
+const escapeCsvCell = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+
+const buildExportTimestamp = () => {
+  const now = new Date();
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+};
+
 const fetchAllUsersByRole = async (role, limit = 100) => {
   const allUsers = [];
   let page = 1;
@@ -190,8 +201,16 @@ export default function HomeroomStudentsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [assigning, setAssigning] = useState(false);
-  const [assignStudentId, setAssignStudentId] = useState('');
   const [assignTeacherId, setAssignTeacherId] = useState('');
+  const [assignSearchTerm, setAssignSearchTerm] = useState('');
+  const [assignScope, setAssignScope] = useState('unassigned');
+  const [selectedStudentIds, setSelectedStudentIds] = useState([]);
+  const [bulkStudentText, setBulkStudentText] = useState('');
+  const [bulkMatchSummary, setBulkMatchSummary] = useState({
+    matched: [],
+    ambiguous: [],
+    notFound: [],
+  });
 
   const fetchData = async () => {
     try {
@@ -298,6 +317,25 @@ export default function HomeroomStudentsPage() {
 
   const totalIelts = students.filter((student) => student.level === 'IELTS').length;
   const totalAca = students.filter((student) => student.level === 'ACA').length;
+  const assignableStudents = useMemo(
+    () => (assignScope === 'all' ? students : unassignedStudents),
+    [assignScope, students, unassignedStudents],
+  );
+
+  const visibleAssignableStudents = useMemo(() => {
+    const query = normalizeLookupValue(assignSearchTerm);
+    if (!query) return assignableStudents;
+    return assignableStudents.filter((student) => (
+      normalizeLookupValue(student.name).includes(query)
+      || normalizeLookupValue(student.email).includes(query)
+      || String(student.phone || '').includes(query)
+    ));
+  }, [assignSearchTerm, assignableStudents]);
+
+  useEffect(() => {
+    const allowedStudentIds = new Set(assignableStudents.map((student) => student.id));
+    setSelectedStudentIds((previous) => previous.filter((id) => allowedStudentIds.has(id)));
+  }, [assignableStudents]);
 
   const openProfile = (student) => {
     setSelectedStudent(student);
@@ -305,35 +343,181 @@ export default function HomeroomStudentsPage() {
   };
 
   const openAssignDialog = (student = null) => {
-    const firstUnassignedStudentId = unassignedStudents[0]?.id || '';
-    const canPrefillStudent = student && !student.homeroom_teacher_id;
-    setAssignStudentId(canPrefillStudent ? student.id : firstUnassignedStudentId);
+    const shouldOpenAllScope = Boolean(student?.homeroom_teacher_id);
+    setAssignScope(shouldOpenAllScope ? 'all' : 'unassigned');
     setAssignTeacherId('');
+    setAssignSearchTerm('');
+    setSelectedStudentIds(student?.id ? [student.id] : []);
+    setBulkStudentText('');
+    setBulkMatchSummary({
+      matched: [],
+      ambiguous: [],
+      notFound: [],
+    });
     setAssignDialogOpen(true);
   };
 
-  const handleAssign = async () => {
-    if (!assignStudentId) {
-      showNotification('Không còn học sinh chưa gán giáo viên.', 'error');
+  const toggleSelectedStudent = (studentId) => {
+    setSelectedStudentIds((previous) => (
+      previous.includes(studentId)
+        ? previous.filter((id) => id !== studentId)
+        : [...previous, studentId]
+    ));
+  };
+
+  const handleFindAndCheck = () => {
+    const lines = String(bulkStudentText || '')
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    if (lines.length === 0) {
+      showNotification('Please enter at least one student name or email.', 'error');
       return;
     }
 
+    const emailMap = new Map();
+    const nameMap = new Map();
+
+    assignableStudents.forEach((student) => {
+      const emailKey = normalizeLookupValue(student.email);
+      const nameKey = normalizeLookupValue(student.name);
+
+      if (emailKey) {
+        const existingEmailMatches = emailMap.get(emailKey) || [];
+        existingEmailMatches.push(student);
+        emailMap.set(emailKey, existingEmailMatches);
+      }
+
+      if (nameKey) {
+        const existingNameMatches = nameMap.get(nameKey) || [];
+        existingNameMatches.push(student);
+        nameMap.set(nameKey, existingNameMatches);
+      }
+    });
+
+    const matched = [];
+    const ambiguous = [];
+    const notFound = [];
+    const matchedIds = new Set();
+
+    lines.forEach((line) => {
+      const key = normalizeLookupValue(line);
+      if (!key) return;
+
+      const emailMatches = emailMap.get(key) || [];
+      if (emailMatches.length === 1) {
+        const [student] = emailMatches;
+        matched.push(`${line} -> ${student.name} (${student.email})`);
+        matchedIds.add(student.id);
+        return;
+      }
+      if (emailMatches.length > 1) {
+        ambiguous.push(`${line} (${emailMatches.length} matches)`);
+        return;
+      }
+
+      const nameMatches = nameMap.get(key) || [];
+      if (nameMatches.length === 1) {
+        const [student] = nameMatches;
+        matched.push(`${line} -> ${student.name} (${student.email})`);
+        matchedIds.add(student.id);
+        return;
+      }
+      if (nameMatches.length > 1) {
+        ambiguous.push(`${line} (${nameMatches.length} matches)`);
+        return;
+      }
+
+      notFound.push(line);
+    });
+
+    if (matchedIds.size > 0) {
+      setSelectedStudentIds((previous) => Array.from(new Set([...previous, ...Array.from(matchedIds)])));
+    }
+
+    setBulkMatchSummary({ matched, ambiguous, notFound });
+  };
+
+  const handleAssign = async () => {
     if (!assignTeacherId) {
       showNotification('Vui lòng chọn giáo viên hoặc admin.', 'error');
       return;
     }
 
+    if (selectedStudentIds.length === 0) {
+      showNotification('Vui lòng chọn ít nhất một học sinh.', 'error');
+      return;
+    }
+
     try {
       setAssigning(true);
-      await api.setStudentHomeroomTeacher(assignStudentId, assignTeacherId);
-      showNotification('Gán giáo viên/chủ nhiệm cho học sinh thành công.', 'success');
-      setAssignDialogOpen(false);
+      const selectedIds = [...selectedStudentIds];
+      const failedStudentIds = [];
+      let successCount = 0;
+
+      for (const studentId of selectedIds) {
+        try {
+          await api.setStudentHomeroomTeacher(studentId, assignTeacherId);
+          successCount += 1;
+        } catch (_error) {
+          failedStudentIds.push(studentId);
+        }
+      }
+
       await fetchData();
+
+      if (failedStudentIds.length === 0) {
+        showNotification(`Assigned ${successCount} student(s) successfully.`, 'success');
+        setAssignDialogOpen(false);
+        return;
+      }
+
+      setSelectedStudentIds(failedStudentIds);
+      if (successCount > 0) {
+        showNotification(
+          `Assigned ${successCount}/${selectedIds.length} student(s). ${failedStudentIds.length} failed, please retry.`,
+          'error',
+        );
+      } else {
+        showNotification('Không thể gán học sinh đã chọn. Vui lòng thử lại.', 'error');
+      }
     } catch (error) {
       showNotification(error?.message || 'Không thể gán học sinh.', 'error');
     } finally {
       setAssigning(false);
     }
+  };
+
+  const handleExportStudentsCsv = () => {
+    if (students.length === 0) {
+      showNotification('No students available to export.', 'error');
+      return;
+    }
+
+    const csvRows = [
+      ['name', 'email', 'password'],
+      ...students.map((student) => [
+        student.name || '',
+        student.email === '--' ? '' : student.email,
+        DEFAULT_EXPORT_PASSWORD,
+      ]),
+    ];
+    const csvContent = csvRows
+      .map((row) => row.map((cell) => escapeCsvCell(cell)).join(','))
+      .join('\r\n');
+
+    const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `homeroom-students-${buildExportTimestamp()}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    showNotification(`Exported ${students.length} student account(s).`, 'success');
   };
 
   return (
@@ -345,9 +529,15 @@ export default function HomeroomStudentsPage() {
             Manage and view all students in your homeroom class.
           </p>
         </div>
-        <Button onClick={() => openAssignDialog()} disabled={!isAdminUser || unassignedStudents.length === 0}>
-          Assign học sinh
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button onClick={handleExportStudentsCsv} variant="outline" disabled={loading || students.length === 0}>
+            <Download className="mr-2 size-4" />
+            Export CSV
+          </Button>
+          <Button onClick={() => openAssignDialog()} disabled={!isAdminUser}>
+            Assign học sinh
+          </Button>
+        </div>
       </div>
 
       <div className="mb-4">
@@ -584,62 +774,215 @@ export default function HomeroomStudentsPage() {
       </Sheet>
 
       <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Assign học sinh</DialogTitle>
-            <DialogDescription>
-              Chỉ hiển thị học sinh chưa gán giáo viên để gán nhanh.
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className="max-h-[90vh] overflow-hidden p-0 sm:max-w-5xl [&>button]:hidden">
+          <div className="border-b px-4 py-4 sm:px-6">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base font-semibold text-foreground">Assign Homeroom Teacher</h3>
+                <p className="text-sm text-muted-foreground">
+                  Choose an assignee, find students, then assign in bulk.
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <Select value={assignTeacherId} onValueChange={setAssignTeacherId}>
+                    <SelectTrigger className="w-full sm:w-[250px]">
+                      <SelectValue placeholder="Select teacher or admin" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {teachers.length > 0 ? (
+                        teachers.map((teacher) => (
+                          <SelectItem key={teacher.id} value={teacher.id}>
+                            {teacher.name} ({normalizeTeacherRoleLabel(teacher.role)})
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="__no_assignee__" disabled>
+                          No teacher/admin available
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
 
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <p className='text-sm font-medium'>Học sinh</p>
-              <Select value={assignStudentId} onValueChange={setAssignStudentId}>
-                <SelectTrigger>
-                  <SelectValue placeholder='Chọn học sinh' />
-                </SelectTrigger>
-                <SelectContent>
-                  {unassignedStudents.length > 0 ? (
-                    unassignedStudents.map((student) => (
-                      <SelectItem key={student.id} value={student.id}>
-                        {student.name} ({student.email})
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <SelectItem value="__no_unassigned_student__" disabled>
-                      Tất cả học sinh đã được gán giáo viên.
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
+                  <div className="relative w-full min-w-0 sm:w-[280px]">
+                    <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={assignSearchTerm}
+                      onChange={(event) => setAssignSearchTerm(event.target.value)}
+                      className="pl-9"
+                      placeholder="Search students..."
+                    />
+                  </div>
 
-            <div className="space-y-2">
-              <p className='text-sm font-medium'>Giáo viên / Admin</p>
-              <Select value={assignTeacherId} onValueChange={setAssignTeacherId}>
-                <SelectTrigger>
-                  <SelectValue placeholder='Chọn người phụ trách' />
-                </SelectTrigger>
-                <SelectContent>
-                  {teachers.map((teacher) => (
-                    <SelectItem key={teacher.id} value={teacher.id}>
-                      {teacher.name} ({String(teacher.role || '').toLowerCase() === 'admin' ? 'Admin' : 'Teacher'})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                  <div className="inline-flex rounded-md border bg-muted/30 p-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={assignScope === 'unassigned' ? 'default' : 'ghost'}
+                      className="h-8 px-3 text-xs"
+                      onClick={() => setAssignScope('unassigned')}
+                    >
+                      Unassigned only
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={assignScope === 'all' ? 'default' : 'ghost'}
+                      className="h-8 px-3 text-xs"
+                      onClick={() => setAssignScope('all')}
+                    >
+                      All students
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <DialogClose asChild>
+                <Button type="button" size="icon" variant="ghost" className="shrink-0" aria-label="Close assign dialog">
+                  <X className="size-4" />
+                </Button>
+              </DialogClose>
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAssignDialogOpen(false)}>
-              Hủy
-            </Button>
-            <Button onClick={handleAssign} disabled={assigning || !isAdminUser || !assignStudentId || !assignTeacherId}>
-              {assigning ? 'Đang lưu...' : 'Lưu gán'}
-            </Button>
-          </DialogFooter>
+          <div className="grid grid-cols-1 lg:grid-cols-2">
+            <div className="border-b p-4 lg:border-b-0 lg:border-r sm:p-6">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-semibold text-foreground">Students</h4>
+                <Badge variant="outline">{selectedStudentIds.length} selected</Badge>
+              </div>
+              <div className="mt-3 max-h-[420px] overflow-y-auto rounded-lg border">
+                {visibleAssignableStudents.length === 0 ? (
+                  <div className="p-4 text-sm text-muted-foreground">
+                    No students found for current filter.
+                  </div>
+                ) : (
+                  visibleAssignableStudents.map((student) => {
+                    const checked = selectedStudentIds.includes(student.id);
+                    return (
+                      <button
+                        type="button"
+                        key={student.id}
+                        className={`flex w-full items-start gap-3 border-b p-3 text-left last:border-b-0 hover:bg-muted/20 ${
+                          checked ? 'bg-muted/40' : ''
+                        }`}
+                        onClick={() => toggleSelectedStudent(student.id)}
+                      >
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={() => toggleSelectedStudent(student.id)}
+                          onClick={(event) => event.stopPropagation()}
+                          aria-label={`Select ${student.name}`}
+                          className="mt-0.5"
+                        />
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-foreground">{student.name}</p>
+                          <p className="truncate text-xs text-muted-foreground">{student.email}</p>
+                          {assignScope === 'all' ? (
+                            <p className="truncate text-xs text-muted-foreground">
+                              Homeroom: {student.homeroom_teacher_id
+                                ? teacherNameById.get(student.homeroom_teacher_id) || 'Assigned'
+                                : 'Not assigned'}
+                            </p>
+                          ) : null}
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            <div className="p-4 sm:p-6">
+              <h4 className="text-sm font-semibold text-foreground">Bulk Assign</h4>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Enter one student email or full name per line.
+              </p>
+              <div className="mt-3">
+                <Textarea
+                  value={bulkStudentText}
+                  onChange={(event) => setBulkStudentText(event.target.value)}
+                  placeholder={'student1@example.com\nNguyen Van A\nstudent2@example.com'}
+                  rows={10}
+                />
+              </div>
+
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Button type="button" variant="outline" onClick={handleFindAndCheck} disabled={assigning}>
+                  Find & Check
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleAssign}
+                  disabled={assigning || !isAdminUser || !assignTeacherId || selectedStudentIds.length === 0}
+                >
+                  {assigning ? 'Assigning...' : 'Assign & Save'}
+                </Button>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {bulkMatchSummary.matched.length > 0 ? (
+                  <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3">
+                    <p className="text-xs font-medium text-emerald-700">
+                      Matched ({bulkMatchSummary.matched.length})
+                    </p>
+                    <ul className="mt-1 space-y-1 text-xs text-emerald-700">
+                      {bulkMatchSummary.matched.slice(0, 5).map((entry, index) => (
+                        <li key={`matched-${index}-${entry}`}>{entry}</li>
+                      ))}
+                    </ul>
+                    {bulkMatchSummary.matched.length > 5 ? (
+                      <p className="mt-1 text-xs text-emerald-700">
+                        +{bulkMatchSummary.matched.length - 5} more
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {bulkMatchSummary.ambiguous.length > 0 ? (
+                  <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
+                    <p className="text-xs font-medium text-amber-700">
+                      Ambiguous ({bulkMatchSummary.ambiguous.length})
+                    </p>
+                    <ul className="mt-1 space-y-1 text-xs text-amber-700">
+                      {bulkMatchSummary.ambiguous.slice(0, 5).map((entry, index) => (
+                        <li key={`ambiguous-${index}-${entry}`}>{entry}</li>
+                      ))}
+                    </ul>
+                    {bulkMatchSummary.ambiguous.length > 5 ? (
+                      <p className="mt-1 text-xs text-amber-700">
+                        +{bulkMatchSummary.ambiguous.length - 5} more
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {bulkMatchSummary.notFound.length > 0 ? (
+                  <div className="rounded-md border border-rose-200 bg-rose-50 p-3">
+                    <p className="text-xs font-medium text-rose-700">
+                      Not found ({bulkMatchSummary.notFound.length})
+                    </p>
+                    <ul className="mt-1 space-y-1 text-xs text-rose-700">
+                      {bulkMatchSummary.notFound.slice(0, 5).map((entry, index) => (
+                        <li key={`missing-${index}-${entry}`}>{entry}</li>
+                      ))}
+                    </ul>
+                    {bulkMatchSummary.notFound.length > 5 ? (
+                      <p className="mt-1 text-xs text-rose-700">
+                        +{bulkMatchSummary.notFound.length - 5} more
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {bulkMatchSummary.matched.length === 0
+                && bulkMatchSummary.ambiguous.length === 0
+                && bulkMatchSummary.notFound.length === 0 ? (
+                  <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
+                    Paste student lines and click Find & Check to auto-select students.
+                  </div>
+                  ) : null}
+              </div>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

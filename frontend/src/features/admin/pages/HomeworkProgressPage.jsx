@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CalendarDays, Search, Users } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -21,36 +21,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { TODAY, students } from './staffDashboard.mock';
+import { TODAY, loadHomeroomHomeworkProgress } from './homeworkProgress.data';
 import { DailyProgressBadge, StatusBadge } from './status-badge';
-
-const toIsoDateOffset = (isoDate, daysOffset) => {
-  const date = new Date(`${isoDate}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return isoDate;
-  date.setDate(date.getDate() + daysOffset);
-  return date.toISOString().slice(0, 10);
-};
 
 const toDateLabel = (isoDate) => {
   if (isoDate === TODAY) return 'Today';
   const date = new Date(`${isoDate}T00:00:00`);
   if (Number.isNaN(date.getTime())) return isoDate;
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-};
-
-const resolveOverallStatus = (student, missingToday) => {
-  const assignments = Array.isArray(student?.assignments) ? student.assignments : [];
-  const missingAssignments = assignments.filter(
-    (item) => String(item?.status || '').toLowerCase() === 'missing',
-  ).length;
-  if (missingToday > 0 || missingAssignments > 0) return 'needs_attention';
-  const hasPendingReview = assignments.some(
-    (item) =>
-      String(item?.status || '').toLowerCase() === 'submitted'
-      && String(item?.gradingStatus || '').toLowerCase() === 'pending',
-  );
-  if (hasPendingReview) return 'in_review';
-  return 'on_track';
 };
 
 const resolveLevelTone = (level) =>
@@ -64,18 +42,41 @@ export default function HomeworkProgressPage() {
   const [levelFilter, setLevelFilter] = useState('all');
   const [progressFilter, setProgressFilter] = useState('all');
   const [selectedDate, setSelectedDate] = useState(TODAY);
-  const [loading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [students, setStudents] = useState([]);
+  const [dateOptions, setDateOptions] = useState([TODAY]);
 
-  const dateOptions = useMemo(() => {
-    const values = new Set([TODAY, toIsoDateOffset(TODAY, -1), toIsoDateOffset(TODAY, -2)]);
-    students.forEach((student) => {
-      (Array.isArray(student?.dailyProgress) ? student.dailyProgress : []).forEach((entry) => {
-        const date = String(entry?.date || '').trim();
-        if (date) values.add(date);
-      });
-    });
-    return Array.from(values).sort((a, b) => (a < b ? 1 : -1));
-  }, []);
+  useEffect(() => {
+    let isActive = true;
+
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        const response = await loadHomeroomHomeworkProgress({ selectedDate });
+        if (!isActive) return;
+        const nextStudents = Array.isArray(response?.students) ? response.students : [];
+        const nextDateOptions = Array.isArray(response?.dateOptions) && response.dateOptions.length > 0
+          ? response.dateOptions
+          : [selectedDate];
+        setStudents(nextStudents);
+        setDateOptions(nextDateOptions);
+      } catch (loadError) {
+        if (!isActive) return;
+        setStudents([]);
+        setDateOptions([selectedDate]);
+        setError(loadError?.message || 'Failed to load homework progress.');
+      } finally {
+        if (isActive) setLoading(false);
+      }
+    };
+
+    void loadData();
+    return () => {
+      isActive = false;
+    };
+  }, [selectedDate]);
 
   const preparedStudents = useMemo(
     () =>
@@ -86,10 +87,10 @@ export default function HomeworkProgressPage() {
         return {
           ...student,
           missing,
-          overallStatus: resolveOverallStatus(student, missing),
+          overallStatus: student?.overallStatus || 'on_track',
         };
       }),
-    [selectedDate],
+    [selectedDate, students],
   );
 
   const filteredStudents = useMemo(
@@ -174,6 +175,12 @@ export default function HomeworkProgressPage() {
             <span>{toDateLabel(selectedDate)}</span>
           </div>
 
+          {error ? (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+              {error}
+            </div>
+          ) : null}
+
           {loading ? (
             <div className="rounded-lg border">
               <div className="space-y-4 p-4">
@@ -190,7 +197,17 @@ export default function HomeworkProgressPage() {
             </div>
           ) : null}
 
-          {!loading && filteredStudents.length === 0 ? (
+          {!loading && !error && students.length === 0 ? (
+            <div className="rounded-lg border p-12 text-center">
+              <Users className="mx-auto mb-3 size-10 text-muted-foreground" />
+              <p className="text-muted-foreground">No homeroom students yet</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                This teacher/admin does not have homeroom students assigned.
+              </p>
+            </div>
+          ) : null}
+
+          {!loading && students.length > 0 && filteredStudents.length === 0 ? (
             <div className="rounded-lg border p-12 text-center">
               <Users className="mx-auto mb-3 size-10 text-muted-foreground" />
               <p className="text-muted-foreground">No students found</p>
@@ -230,7 +247,10 @@ export default function HomeworkProgressPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => navigate(`/dashboard/homework-progress/${student.id}`)}
+                            onClick={() =>
+                              navigate(`/dashboard/homework-progress/${student.id}`, {
+                                state: { studentSnapshot: student, selectedDate },
+                              })}
                           >
                             View
                           </Button>
@@ -255,7 +275,10 @@ export default function HomeworkProgressPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => navigate(`/dashboard/homework-progress/${student.id}`)}
+                          onClick={() =>
+                            navigate(`/dashboard/homework-progress/${student.id}`, {
+                              state: { studentSnapshot: student, selectedDate },
+                            })}
                         >
                           View
                         </Button>

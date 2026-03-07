@@ -55,6 +55,7 @@ export default function ScoreDashboard() {
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [retryingAllFailedLogs, setRetryingAllFailedLogs] = useState(false);
 
   const currentUser = api.getUser() || {};
@@ -64,7 +65,7 @@ export default function ScoreDashboard() {
     const fetchUsers = async () => {
       try {
         setLoading(true);
-        const response = await api.getAdminUsersScores({ page: currentPage, limit: PAGE_SIZE });
+        const response = await api.getAdminUsersScores({ page: currentPage, limit: PAGE_SIZE, search: searchQuery });
         if (response.success) {
           setUsers(response.data || []);
           setPagination(response.pagination || null);
@@ -80,7 +81,7 @@ export default function ScoreDashboard() {
     };
 
     fetchUsers();
-  }, [currentPage, showNotification]);
+  }, [currentPage, showNotification, searchQuery]);
 
   const filteredUsers = useMemo(() => {
     const query = String(searchTerm || '').trim().toLowerCase();
@@ -147,8 +148,14 @@ export default function ScoreDashboard() {
               <Input
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    setCurrentPage(1);
+                    setSearchQuery(searchTerm);
+                  }
+                }}
                 className="pl-9"
-                placeholder="Search by name, email, or role..."
+                placeholder="Search by name, email, or role (Press Enter to search all)..."
               />
             </div>
             {isAdmin ? (

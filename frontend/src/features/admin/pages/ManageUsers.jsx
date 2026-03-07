@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshCcw, Search, UserRound } from 'lucide-react';
 import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
@@ -33,6 +33,7 @@ export default function ManageUsers() {
   const [loading, setLoading] = useState(true);
   const [roleFilter, setRoleFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [bulkNames, setBulkNames] = useState('');
   const [bulkCreating, setBulkCreating] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -48,11 +49,11 @@ export default function ManageUsers() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [roleFilter]);
+  }, [roleFilter, searchQuery]);
 
   useEffect(() => {
     void fetchUsers(currentPage);
-  }, [roleFilter, currentPage]);
+  }, [roleFilter, currentPage, searchQuery]);
 
   const fetchUsers = async (page = 1) => {
     const requestId = requestSeqRef.current + 1;
@@ -62,8 +63,8 @@ export default function ManageUsers() {
       setLoading(true);
       setErrorMessage('');
       const res = roleFilter === 'online'
-        ? await api.getOnlineStudents({ page, limit: PAGE_SIZE })
-        : await api.getUsers({ role: roleFilter, page, limit: PAGE_SIZE });
+        ? await api.getOnlineStudents({ page, limit: PAGE_SIZE, search: searchQuery })
+        : await api.getUsers({ role: roleFilter, page, limit: PAGE_SIZE, search: searchQuery });
 
       if (requestId !== requestSeqRef.current) return;
 
@@ -226,7 +227,12 @@ export default function ManageUsers() {
                 type="search"
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="Search by name or email"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    setSearchQuery(searchTerm);
+                  }
+                }}
+                placeholder="Search by name or email (Press Enter to search all)"
                 aria-label="Search users"
               />
             </div>

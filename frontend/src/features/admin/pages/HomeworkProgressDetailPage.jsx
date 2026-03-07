@@ -1,10 +1,10 @@
-import { useMemo } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, CalendarDays, ClipboardList, UserRound } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { TODAY, students } from './staffDashboard.mock';
+import { TODAY, loadHomeroomHomeworkProgress } from './homeworkProgress.data';
 import { DailyProgressBadge } from './status-badge';
 
 const toDateLabel = (isoDate) => {
@@ -36,11 +36,59 @@ const toSubmissionLabel = (assignment, index) =>
 export default function HomeworkProgressDetailPage() {
   const navigate = useNavigate();
   const { studentId } = useParams();
+  const location = useLocation();
 
-  const student = useMemo(
-    () => students.find((item) => String(item?.id || '') === String(studentId || '')) || null,
-    [studentId],
-  );
+  const selectedDate = String(location?.state?.selectedDate || TODAY).slice(0, 10);
+  const stateStudent = location?.state?.studentSnapshot || null;
+  const hasMatchedStateStudent = String(stateStudent?.id || '') === String(studentId || '');
+
+  const [student, setStudent] = useState(hasMatchedStateStudent ? stateStudent : null);
+  const [loading, setLoading] = useState(!hasMatchedStateStudent);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (hasMatchedStateStudent) {
+      setStudent(stateStudent);
+      setLoading(false);
+      setError('');
+      return;
+    }
+
+    let isActive = true;
+    const loadStudent = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        const data = await loadHomeroomHomeworkProgress({ selectedDate });
+        if (!isActive) return;
+        const found = (Array.isArray(data?.students) ? data.students : []).find(
+          (item) => String(item?.id || '') === String(studentId || ''),
+        ) || null;
+        setStudent(found);
+      } catch (loadError) {
+        if (!isActive) return;
+        setStudent(null);
+        setError(loadError?.message || 'Failed to load student progress.');
+      } finally {
+        if (isActive) setLoading(false);
+      }
+    };
+
+    void loadStudent();
+    return () => {
+      isActive = false;
+    };
+  }, [hasMatchedStateStudent, selectedDate, stateStudent, studentId]);
+
+  if (loading) {
+    return (
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 md:p-6">
+        <Card className="border-border/70 shadow-sm">
+          <CardContent className="p-6 text-sm text-muted-foreground">Loading student progress...</CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (!student) {
     return (
@@ -48,7 +96,9 @@ export default function HomeworkProgressDetailPage() {
         <Card className="border-border/70 shadow-sm">
           <CardHeader>
             <CardTitle>Student not found</CardTitle>
-            <CardDescription>We could not find this student in Homework Progress data.</CardDescription>
+            <CardDescription>
+              {error || 'This student is not in your homeroom scope for Homework Progress.'}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <Button type="button" variant="outline" onClick={() => navigate('/dashboard/homework-progress')}>
@@ -135,13 +185,13 @@ export default function HomeworkProgressDetailPage() {
 
       <Card className="border-border/70 shadow-sm">
         <CardHeader>
-          <CardTitle className="text-base">Submission Cards</CardTitle>
-          <CardDescription>Open each submission to view full details.</CardDescription>
+          <CardTitle className="text-base">Assignment Snapshots</CardTitle>
+          <CardDescription>Progress summary by assignment for this student.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {assignments.length ? (
             assignments.map((assignment, index) => {
-              const canView = String(assignment?.status || '').toLowerCase() === 'submitted';
+              const assignmentId = String(assignment?.assignmentId || assignment?.id || '').trim();
               return (
                 <div
                   key={`${student.id}-${assignment?.id || index}`}
@@ -162,13 +212,10 @@ export default function HomeworkProgressDetailPage() {
                     <Button
                       type="button"
                       variant="outline"
-                      disabled={!canView}
-                      onClick={() =>
-                        navigate(
-                          `/dashboard/homework-progress/${student.id}/submissions/${assignment?.id || index}`,
-                        )}
+                      disabled={!assignmentId}
+                      onClick={() => navigate(`/homework/assignments/${assignmentId}/dashboard`)}
                     >
-                      View Submission
+                      Open Dashboard
                     </Button>
                   </div>
                 </div>
@@ -176,7 +223,7 @@ export default function HomeworkProgressDetailPage() {
             })
           ) : (
             <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-              No submission data.
+              No assignment data for this student in the selected month.
             </div>
           )}
         </CardContent>
@@ -184,4 +231,3 @@ export default function HomeworkProgressDetailPage() {
     </div>
   );
 }
-

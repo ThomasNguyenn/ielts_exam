@@ -9,6 +9,76 @@ import './styles/App.css';
 import './styles/App-mobile.css';
 
 const SW_CACHE_PREFIX = 'ielts-learning-';
+const SW_DEFERRED_RELOAD_KEY = 'ielts-sw-reload-pending';
+const SW_CRITICAL_PATH_PATTERNS = [
+  /^\/student-ielts\/tests\/[^/]+\/exam(?:\/|$)/,
+  /^\/student-ielts\/tests\/writing(?:\/|$)/,
+  /^\/student-ielts\/practice\/[^/]+(?:\/|$)/,
+  /^\/student-ielts\/speaking\/[^/]+(?:\/|$)/,
+  /^\/student-(?:ielts|aca)\/homework(?:\/|$)/,
+];
+
+function isCriticalPath(pathname = '') {
+  return SW_CRITICAL_PATH_PATTERNS.some((pattern) => pattern.test(pathname));
+}
+
+function hasActiveTextInput() {
+  if (typeof document === 'undefined') return false;
+  const active = document.activeElement;
+  if (!active) return false;
+
+  if (active instanceof HTMLTextAreaElement) return true;
+
+  if (active instanceof HTMLInputElement) {
+    const nonTypingInputTypes = new Set([
+      'button',
+      'checkbox',
+      'color',
+      'date',
+      'datetime-local',
+      'file',
+      'hidden',
+      'image',
+      'month',
+      'radio',
+      'range',
+      'reset',
+      'submit',
+      'time',
+      'week',
+    ]);
+    return !nonTypingInputTypes.has(String(active.type || '').toLowerCase());
+  }
+
+  return Boolean(active.isContentEditable);
+}
+
+function shouldDeferControllerReload() {
+  if (typeof window === 'undefined') return false;
+  return isCriticalPath(window.location.pathname) || hasActiveTextInput();
+}
+
+function getPendingReloadFlag() {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.sessionStorage.getItem(SW_DEFERRED_RELOAD_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function setPendingReloadFlag(value) {
+  if (typeof window === 'undefined') return;
+  try {
+    if (value) {
+      window.sessionStorage.setItem(SW_DEFERRED_RELOAD_KEY, '1');
+      return;
+    }
+    window.sessionStorage.removeItem(SW_DEFERRED_RELOAD_KEY);
+  } catch {
+    // Ignore storage write errors.
+  }
+}
 
 async function cleanupAppCaches({ keep = [] } = {}) {
   if (typeof window === 'undefined' || !('caches' in window)) return;
@@ -38,10 +108,35 @@ if ('serviceWorker' in navigator) {
         .then((registration) => {
           console.log('[PWA] Service Worker registered:', registration);
           let hasReloadedForControllerChange = false;
-          navigator.serviceWorker.addEventListener('controllerchange', () => {
+          const reloadForControllerChange = () => {
             if (hasReloadedForControllerChange) return;
             hasReloadedForControllerChange = true;
+            setPendingReloadFlag(false);
             window.location.reload();
+          };
+
+          const maybeApplyDeferredReload = () => {
+            if (!getPendingReloadFlag()) return;
+            if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+            if (shouldDeferControllerReload()) return;
+            reloadForControllerChange();
+          };
+
+          window.addEventListener('focus', maybeApplyDeferredReload);
+          if (typeof document !== 'undefined') {
+            document.addEventListener('visibilitychange', maybeApplyDeferredReload);
+          }
+
+          const deferredReloadInterval = window.setInterval(maybeApplyDeferredReload, 15000);
+
+          maybeApplyDeferredReload();
+          navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (hasReloadedForControllerChange) return;
+            if (shouldDeferControllerReload()) {
+              setPendingReloadFlag(true);
+              return;
+            }
+            reloadForControllerChange();
           });
 
           if (registration.waiting) {
@@ -65,6 +160,10 @@ if ('serviceWorker' in navigator) {
           setInterval(() => {
             registration.update().catch(() => undefined);
           }, updateIntervalMs);
+
+          window.addEventListener('beforeunload', () => {
+            window.clearInterval(deferredReloadInterval);
+          });
         })
         .catch((error) => {
           console.log('[PWA] Service Worker registration failed:', error);

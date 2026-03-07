@@ -147,10 +147,21 @@ export const getAllUsersWithLatestScores = async (req, res) => {
     try {
         res.set("Cache-Control", "no-store");
         const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 20, maxLimit: 100 });
-        const totalItems = await User.countDocuments({});
+        const queryText = String(req.query?.search || req.query?.q || "").trim();
+
+        const filter = {};
+        if (queryText) {
+            const safeRegex = new RegExp(escapeRegex(queryText), "i");
+            filter.$or = [
+                { name: safeRegex },
+                { email: safeRegex },
+            ];
+        }
+
+        const totalItems = await User.countDocuments(filter);
 
         // 1. Fetch only users for current page
-        const users = await User.find({})
+        const users = await User.find(filter)
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit)
@@ -480,9 +491,19 @@ export const getUsers = async (req, res) => {
         const { role } = req.query;
         const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 20, maxLimit: 100 });
         const includeTotal = parseBooleanQuery(req.query?.include_total, true);
+        const queryText = String(req.query?.search || req.query?.q || "").trim();
+
         const filter = {};
         if (role) {
             filter.role = role === "student" ? { $in: STUDENT_ROLE_VALUES } : role;
+        }
+
+        if (queryText) {
+            const safeRegex = new RegExp(escapeRegex(queryText), "i");
+            filter.$or = [
+                { name: safeRegex },
+                { email: safeRegex },
+            ];
         }
         const threshold = buildOnlineThreshold();
         const thresholdTimeMs = threshold.getTime();

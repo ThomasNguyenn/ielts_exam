@@ -1416,9 +1416,12 @@ export const getHomeworkAssignments = async (req, res) => {
       ];
     }
 
+    const listSelect = "title description month week due_date status target_group_ids created_by updated_by co_teachers createdAt updatedAt";
+
     const [totalItems, assignments] = await Promise.all([
       MonthlyAssignment.countDocuments(filter),
       MonthlyAssignment.find(filter)
+        .select(listSelect)
         .sort({ month: -1, week: 1, due_date: 1, updatedAt: -1 })
         .skip(skip)
         .limit(limit)
@@ -1430,7 +1433,7 @@ export const getHomeworkAssignments = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: assignments.map((item) => ({
-        ...mapAssignmentForResponse(item),
+        ...item,
         can_manage: canManageAssignment({ assignment: item, user: req.user }),
       })),
       pagination: buildPaginationMeta({ page, limit, totalItems }),
@@ -1897,6 +1900,7 @@ export const uploadHomeworkAssignmentResource = async (req, res) => {
 
 export const getMyHomeworkAssignments = async (req, res) => {
   try {
+    const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 20, maxLimit: 50 });
     const month = ensureMonthValue(req.query.month, { optional: true });
     if (req.query.month && !month) {
       return sendControllerError(req, res, {
@@ -1907,7 +1911,7 @@ export const getMyHomeworkAssignments = async (req, res) => {
 
     const groupIds = await getStudentGroupIds(req.user.userId);
     if (!groupIds.length) {
-      return res.status(200).json({ success: true, data: [] });
+      return res.status(200).json({ success: true, data: [], pagination: buildPaginationMeta({ page, limit, totalItems: 0 }) });
     }
 
     const filter = {
@@ -1916,13 +1920,18 @@ export const getMyHomeworkAssignments = async (req, res) => {
     };
     if (month) filter.month = month;
 
-    const assignments = await MonthlyAssignment.find(filter)
-      .sort({ month: -1, week: 1, due_date: 1, updatedAt: -1 })
-      .populate("target_group_ids", "name level_label")
-      .lean();
+    const [totalItems, assignments] = await Promise.all([
+      MonthlyAssignment.countDocuments(filter),
+      MonthlyAssignment.find(filter)
+        .sort({ month: -1, week: 1, due_date: 1, updatedAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate("target_group_ids", "name level_label")
+        .lean(),
+    ]);
 
     if (!assignments.length) {
-      return res.status(200).json({ success: true, data: [] });
+      return res.status(200).json({ success: true, data: [], pagination: buildPaginationMeta({ page, limit, totalItems }) });
     }
 
     const assignmentIds = assignments.map((assignment) => assignment._id);
@@ -1942,7 +1951,7 @@ export const getMyHomeworkAssignments = async (req, res) => {
       mapAssignmentForStudent(assignment, submissionsByAssignment.get(String(assignment._id)) || []),
     );
 
-    return res.status(200).json({ success: true, data: enriched });
+    return res.status(200).json({ success: true, data: enriched, pagination: buildPaginationMeta({ page, limit, totalItems }) });
   } catch (error) {
     return handleControllerError(req, res, error);
   }

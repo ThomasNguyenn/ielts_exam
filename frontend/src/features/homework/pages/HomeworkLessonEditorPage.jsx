@@ -568,6 +568,18 @@ export default function HomeworkLessonEditorPage() {
       const nextLesson = payload.lesson || {};
       setAssignment(payload.assignment || null);
       setSection(payload.section || null);
+      
+      if (id && payload.assignment?.title) {
+        window.dispatchEvent(new CustomEvent('breadcrumb-label-override', {
+          detail: { segment: id, label: payload.assignment.title },
+        }));
+      }
+      if (lessonId && nextLesson?.name) {
+        window.dispatchEvent(new CustomEvent('breadcrumb-label-override', {
+          detail: { segment: lessonId, label: nextLesson.name },
+        }));
+      }
+
       setLesson({
         ...createLessonForm(),
         ...nextLesson,

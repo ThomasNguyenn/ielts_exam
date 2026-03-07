@@ -168,15 +168,17 @@ const toTitle = (raw) => raw
   .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
   .join(' ');
 
-const toBreadcrumbLabel = (segment) => {
+const toBreadcrumbLabel = (segment, overrides = {}) => {
   if (!segment) return '';
+  if (overrides[segment]) return overrides[segment];
   if (BREADCRUMB_LABELS[segment]) return BREADCRUMB_LABELS[segment];
   if (/^[a-f0-9]{8,}$/i.test(segment) || /^\d+$/.test(segment)) return 'Detail';
   return toTitle(segment);
 };
 
-const buildBreadcrumbItems = (pathname) => {
-  const segments = pathname.split('/').filter(Boolean);
+const buildBreadcrumbItems = (pathname, overrides = {}) => {
+  const rawSegments = pathname.split('/').filter(Boolean);
+  const segments = rawSegments.filter(segment => segment !== 'lessons');
   if (!segments.length) return [];
 
   if (segments[0] === 'admin' && segments[1] === 'manage') {
@@ -230,24 +232,34 @@ const buildBreadcrumbItems = (pathname) => {
   const first = segments[0];
   const crumbs = [
     {
-      label: toBreadcrumbLabel(first),
+      label: toBreadcrumbLabel(first, overrides),
       to: segments.length > 1 ? `/${first}` : undefined,
     },
   ];
 
   if (segments[1]) {
     crumbs.push({
-      label: toBreadcrumbLabel(segments[1]),
+      label: toBreadcrumbLabel(segments[1], overrides),
       to: segments.length > 2 ? `/${first}/${segments[1]}` : undefined,
     });
   }
 
   if (segments[2]) {
-    crumbs.push({ label: toBreadcrumbLabel(segments[2]) });
+    crumbs.push({
+      label: toBreadcrumbLabel(segments[2], overrides),
+      to: segments.length > 3 ? `/${first}/${segments[1]}/${segments[2]}` : undefined,
+    });
   }
 
   if (segments[3]) {
-    crumbs.push({ label: toBreadcrumbLabel(segments[3]) });
+    crumbs.push({
+      label: toBreadcrumbLabel(segments[3], overrides),
+      to: segments.length > 4 ? `/${first}/${segments[1]}/${segments[2]}/${segments[3]}` : undefined,
+    });
+  }
+
+  if (segments[4]) {
+    crumbs.push({ label: toBreadcrumbLabel(segments[4], overrides) });
   }
 
   return crumbs;
@@ -281,9 +293,28 @@ export default function AdminLayout() {
     () => sanitizeActiveUIRoleForUser(user, ''),
     [user],
   );
+  const [breadcrumbOverrides, setBreadcrumbOverrides] = useState({});
+
+  useEffect(() => {
+    const handleOverride = (event) => {
+      const { segment, label } = event?.detail || {};
+      if (!segment) return;
+      setBreadcrumbOverrides((prev) => {
+        if (prev[segment] === label) return prev;
+        return { ...prev, [segment]: label || null };
+      });
+    };
+    window.addEventListener('breadcrumb-label-override', handleOverride);
+    return () => window.removeEventListener('breadcrumb-label-override', handleOverride);
+  }, []);
+
+  useEffect(() => {
+    setBreadcrumbOverrides({});
+  }, [pathname]);
+
   const breadcrumbItems = useMemo(
-    () => buildBreadcrumbItems(pathname),
-    [pathname],
+    () => buildBreadcrumbItems(pathname, breadcrumbOverrides),
+    [pathname, breadcrumbOverrides],
   );
   const switcherRole = useMemo(() => {
     if (isAdminUser) return ADMIN_SWITCHER_DEFAULT_VALUE;

@@ -9,6 +9,7 @@ import {
 } from "@/app/roleRouting";
 import { api } from "@/shared/api/client";
 import { groupAssignmentsByMonth, monthLabel, toMonthValue } from "./homework.utils";
+import { CheckCircle2, BookOpen, MapPin } from "lucide-react";
 import "./Homework.css";
 
 export default function MyHomeworkMonthPage() {
@@ -64,17 +65,6 @@ export default function MyHomeworkMonthPage() {
             <h1>Bài Tập Tháng Của Tôi</h1>
             <p>Track monthly assignments and task completion progress.</p>
           </div>
-          <div className="homework-actions">
-            <input
-              type="month"
-              value={month}
-              onChange={(event) => {
-                const nextMonth = event.target.value;
-                setMonth(nextMonth);
-                void loadAssignments(nextMonth);
-              }}
-            />
-          </div>
         </section>
 
         <section className="homework-card">
@@ -97,23 +87,36 @@ export default function MyHomeworkMonthPage() {
                     const total = Number(assignment?.progress?.total_tasks || 0);
                     const percent = total > 0 ? Math.round((submitted / total) * 100) : 0;
                     return (
-                      <div className="homework-task-card" key={assignment?._id}>
+                      <div
+                        className="homework-task-card is-link"
+                        key={assignment?._id}
+                        onClick={() => navigate(`${studentHomeworkBasePath}/${assignment._id}`)}
+                      >
                         <div className="homework-task-head">
-                          <h3>{assignment?.title || "Assignment"}</h3>
-                          <span className="homework-chip">Week {assignment?.week || "--"}</span>
+                          <div className="homework-task-left">
+                            <div className="homework-task-logo">
+                              <BookOpen className="homework-task-icon" size={22} color="#4285F4" />
+                            </div>
+                            <div className="homework-task-title-wrap">
+                              <h3>{assignment?.title || "Assignment"}</h3>
+                              <p className="homework-task-subtitle">Week {assignment?.week || "--"}</p>
+                            </div>
+                          </div>
+                          <div className={`homework-task-status-icon ${percent === 100 ? "submitted" : ""}`}>
+                            <CheckCircle2 size={24} />
+                          </div>
                         </div>
-                        <p className="homework-item-meta">{submitted}/{total} tasks submitted</p>
-                        <div className="homework-progress-track">
-                          <div className="homework-progress-fill" style={{ width: `${percent}%` }} />
-                        </div>
-                        <div className="homework-task-actions">
-                          <button
-                            type="button"
-                            className="homework-btn"
-                            onClick={() => navigate(`${studentHomeworkBasePath}/${assignment._id}`)}
-                          >
-                            Open Assignment
-                          </button>
+                        
+                        <div className="homework-task-footer">
+                          <div className="homework-task-badges">
+                            <span className="homework-task-badge">
+                              <MapPin size={12} /> {total} Tasks
+                            </span>
+                            <span className="homework-task-badge">Homework</span>
+                          </div>
+                          <div className="homework-task-value" style={{ color: "#0f172a" }}>
+                            {percent}%
+                          </div>
                         </div>
                       </div>
                     );

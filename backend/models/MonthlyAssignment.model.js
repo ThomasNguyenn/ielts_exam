@@ -230,6 +230,7 @@ const MonthlyAssignmentSchema = new mongoose.Schema(
 MonthlyAssignmentSchema.index({ month: 1, week: 1, status: 1, due_date: 1 });
 MonthlyAssignmentSchema.index({ created_by: 1, status: 1, createdAt: -1 });
 MonthlyAssignmentSchema.index({ target_group_ids: 1, status: 1, due_date: 1 });
+MonthlyAssignmentSchema.index({ co_teachers: 1 });
 
 const MonthlyAssignment =
   mongoose.models.MonthlyAssignment ||

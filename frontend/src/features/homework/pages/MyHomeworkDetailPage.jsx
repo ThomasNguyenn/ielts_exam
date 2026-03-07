@@ -7,8 +7,9 @@ import {
   studentIeltsPath,
 } from "@/app/roleRouting";
 import { api } from "@/shared/api/client";
-import { formatDate, statusLabel } from "./homework.utils";
+import { formatDate } from "./homework.utils";
 import { useHomeworkAssignmentDetail } from "./useHomeworkAssignmentDetail";
+import { CheckCircle2, BookOpen, MapPin } from "lucide-react";
 import "./Homework.css";
 
 export default function MyHomeworkDetailPage() {
@@ -181,25 +182,40 @@ export default function MyHomeworkDetailPage() {
                   const instructionPreview = String(lesson?.instruction || "").trim();
 
                   return (
-                    <article key={taskId || `task-${sectionIndex}-${lessonIndex}`} className="homework-task-card">
+                    <article
+                      key={taskId || `task-${sectionIndex}-${lessonIndex}`}
+                      className="homework-task-card is-link"
+                      onClick={() => {
+                        if (taskId) {
+                          navigate(`${studentHomeworkBasePath}/${assignmentId}/lessons/${taskId}${previewQuery}`);
+                        }
+                      }}
+                    >
                       <div className="homework-task-head">
-                        <h3>{lessonTitle}</h3>
-                        <span className="homework-chip">
-                          {submission ? statusLabel(submission.status) : "Not submitted"}
-                        </span>
+                        <div className="homework-task-left">
+                          <div className="homework-task-logo">
+                            <BookOpen className="homework-task-icon" size={22} color="#4285F4" />
+                          </div>
+                          <div className="homework-task-title-wrap">
+                            <h3>{lessonTitle}</h3>
+                            <p className="homework-task-subtitle">{section.title}</p>
+                          </div>
+                        </div>
+                        <div className={`homework-task-status-icon ${submission ? "submitted" : ""}`}>
+                          <CheckCircle2 size={24} />
+                        </div>
                       </div>
 
-                      <div className="homework-task-actions">
-                        <button
-                          type="button"
-                          className="homework-btn primary"
-                          onClick={() =>
-                            navigate(`${studentHomeworkBasePath}/${assignmentId}/lessons/${taskId}${previewQuery}`)
-                          }
-                          disabled={!taskId}
-                        >
-                          Open Homework
-                        </button>
+                      <div className="homework-task-footer">
+                        <div className="homework-task-badges">
+                          <span className="homework-task-badge">
+                            <MapPin size={12} /> Task
+                          </span>
+                          <span className="homework-task-badge">Required</span>
+                        </div>
+                        <div className="homework-task-value text-primary font-bold">
+                          Open ➔
+                        </div>
                       </div>
                     </article>
                   );

@@ -117,6 +117,7 @@ export default function Exam() {
     return `exam-draft:${id}:${mode}:${part}`;
   }, [id, location.search]);
   const shouldPersistExamDraft = Boolean(exam?.is_real_test) && !isSingleMode;
+  const shouldTrackHomeworkActivity = Boolean(String(hwctx || '').trim());
   const trackedResourceRefType = useMemo(() => {
     if (!exam) return 'test';
     if (!exam.is_standalone) return 'test';
@@ -354,7 +355,7 @@ export default function Exam() {
   }, [id, location.search, draftKey, isSingleMode]);
 
   const ensureTrackingStarted = useCallback(() => {
-    if (!id || !exam || submitted) return;
+    if (!shouldTrackHomeworkActivity || !id || !exam || submitted) return;
     if (trackingStartedSentRef.current) return;
     trackingStartedSentRef.current = true;
     api.trackTestActivityStart(
@@ -365,10 +366,10 @@ export default function Exam() {
     ).catch(() => {
       // Ignore tracking failures to keep exam flow uninterrupted.
     });
-  }, [id, exam, submitted, buildTrackingPayload]);
+  }, [shouldTrackHomeworkActivity, id, exam, submitted, buildTrackingPayload]);
 
   const flushTrackingAnswerQueue = useCallback(() => {
-    if (!id || !exam || submitted) return;
+    if (!shouldTrackHomeworkActivity || !id || !exam || submitted) return;
     if (trackingAnswerTimerRef.current) {
       window.clearTimeout(trackingAnswerTimerRef.current);
       trackingAnswerTimerRef.current = null;
@@ -393,10 +394,10 @@ export default function Exam() {
     ).catch(() => {
       // Ignore tracking failures to keep exam flow uninterrupted.
     });
-  }, [id, exam, submitted, buildTrackingPayload]);
+  }, [shouldTrackHomeworkActivity, id, exam, submitted, buildTrackingPayload]);
 
   const queueTrackingAnswer = useCallback((questionKey, answerValue) => {
-    if (!id || !exam || submitted) return;
+    if (!shouldTrackHomeworkActivity || !id || !exam || submitted) return;
     const normalizedKey = String(questionKey || '').trim();
     if (!normalizedKey) return;
     ensureTrackingStarted();
@@ -408,10 +409,10 @@ export default function Exam() {
     trackingAnswerTimerRef.current = window.setTimeout(() => {
       flushTrackingAnswerQueue();
     }, TRACKING_ANSWER_DEBOUNCE_MS);
-  }, [id, exam, submitted, ensureTrackingStarted, flushTrackingAnswerQueue]);
+  }, [shouldTrackHomeworkActivity, id, exam, submitted, ensureTrackingStarted, flushTrackingAnswerQueue]);
 
   useEffect(() => {
-    if (!id || !exam || loading || submitted) return undefined;
+    if (!shouldTrackHomeworkActivity || !id || !exam || loading || submitted) return undefined;
 
     if (!trackingOpenSentRef.current) {
       trackingOpenSentRef.current = true;
@@ -465,7 +466,7 @@ export default function Exam() {
         trackingHeartbeatTimerRef.current = null;
       }
     };
-  }, [id, exam, loading, submitted, buildTrackingPayload]);
+  }, [shouldTrackHomeworkActivity, id, exam, loading, submitted, buildTrackingPayload]);
 
   useEffect(() => () => {
     if (trackingAnswerTimerRef.current) {
@@ -578,7 +579,7 @@ export default function Exam() {
   }, [exam, loading, submitted, shouldPersistExamDraft]);
 
   useEffect(() => {
-    if (!exam || loading || submitted) return undefined;
+    if (!shouldTrackHomeworkActivity || !exam || loading || submitted) return undefined;
 
     const handleTrackingBeforeUnload = () => {
       flushTrackingAnswerQueue();
@@ -602,7 +603,7 @@ export default function Exam() {
     return () => {
       window.removeEventListener('beforeunload', handleTrackingBeforeUnload);
     };
-  }, [exam, loading, submitted, id, buildTrackingPayload, flushTrackingAnswerQueue]);
+  }, [shouldTrackHomeworkActivity, exam, loading, submitted, id, buildTrackingPayload, flushTrackingAnswerQueue]);
 
   const performSubmit = (returnOnly = false) => {
     if (submitLoading || submitted || submitInFlightRef.current) return Promise.resolve(null);
@@ -1441,5 +1442,4 @@ export default function Exam() {
     </div >
   );
 }
-
 

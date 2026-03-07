@@ -21,6 +21,7 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer";
+import { BookOpen, CheckCircle2 } from "lucide-react";
 import { IconCloud } from "@tabler/icons-react";
 import { formatDate, resolveVideoPreview, statusLabel } from "./homework.utils";
 import {
@@ -1314,10 +1315,17 @@ export default function MyHomeworkLessonPage() {
 
                 <article className="homework-task-card">
                   <div className="homework-task-head">
-                    <h3>{selectedTask.title || "Lesson"}</h3>
-                    <span className="homework-chip">
-                      {submission ? statusLabel(submission.status) : "Not submitted"}
-                    </span>
+                    <div className="homework-task-left">
+                      <div className="homework-task-logo">
+                        <BookOpen className="homework-task-icon" size={22} color="#4285F4" />
+                      </div>
+                      <div className="homework-task-title-wrap">
+                        <h3>{selectedTask.title || "Lesson"}</h3>
+                      </div>
+                    </div>
+                    <div className={`homework-task-status-icon ${submission ? "submitted" : ""}`}>
+                      <CheckCircle2 size={24} />
+                    </div>
                   </div>
 
                   <div className="homework-task-blocks">

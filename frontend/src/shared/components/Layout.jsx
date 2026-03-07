@@ -95,6 +95,17 @@ const NAV_SCHEMA = {
       isActive: (pathname) => pathname.startsWith('/student-ielts/learn'),
     },
     {
+      key: 'student_homework',
+      to: '/student-ielts/homework',
+      label: 'Bài tập tháng',
+      icon: 'assignment',
+      visibility: 'student',
+      isActive: (pathname) => pathname.startsWith('/student-ielts/homework'),
+    },
+  ],
+  direct: [],
+  more: [
+    {
       key: 'analytics',
       to: '/student-ielts/analytics',
       label: 'Phân tích sâu',
@@ -102,9 +113,6 @@ const NAV_SCHEMA = {
       visibility: 'auth',
       isActive: (pathname) => pathname.startsWith('/student-ielts/analytics'),
     },
-  ],
-  direct: [],
-  more: [
     {
       key: 'vocabulary',
       to: '/student-ielts/vocabulary',
@@ -120,14 +128,6 @@ const NAV_SCHEMA = {
       icon: 'military_tech',
       visibility: 'auth',
       isActive: (pathname) => pathname.startsWith('/student-ielts/achievements'),
-    },
-    {
-      key: 'student_homework',
-      to: '/student-ielts/homework',
-      label: 'Bài tập tháng',
-      icon: 'assignment',
-      visibility: 'student',
-      isActive: (pathname) => pathname.startsWith('/student-ielts/homework'),
     },
   ],
   workspace: [
