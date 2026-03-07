@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { GalleryVerticalEnd } from "lucide-react"
 
 import { api } from "@/shared/api/client"
-import { isStudentFamilyRole } from "@/app/roleRouting"
+import { isStudentFamilyRole, requiresFirstLoginSetup } from "@/app/roleRouting"
 import { SignupForm } from "@/components/signup-form"
 
 export default function SignupPage() {
@@ -106,6 +106,8 @@ export default function SignupPage() {
 
       if (!res.data.user.isConfirmed && isStudentFamilyRole(res.data.user.role)) {
         navigate("/wait-for-confirmation")
+      } else if (requiresFirstLoginSetup(res.data.user)) {
+        navigate("/first-login")
       } else {
         navigate("/")
       }

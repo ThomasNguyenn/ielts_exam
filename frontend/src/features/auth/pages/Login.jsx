@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom"
 import { GalleryVerticalEnd } from "lucide-react"
 
 import { api } from "@/shared/api/client"
-import { getDefaultRouteForUser } from "@/app/roleRouting"
+import { getDefaultRouteForUser, requiresFirstLoginSetup } from "@/app/roleRouting"
 import { LoginForm } from "@/components/login-form"
 
 function FirstLoginModal({ open, form, loading, error, onChange, onSubmit }) {
@@ -94,6 +94,7 @@ export default function LoginPage() {
       const res = await api.login(form)
       api.setToken(res.data.token)
       api.setUser(res.data.user)
+<<<<<<< HEAD
 
       if (res?.data?.user?.mustCompleteFirstLogin) {
         setFirstLoginForm({
@@ -107,6 +108,13 @@ export default function LoginPage() {
       }
 
       navigate(getDefaultRouteForUser(res.data.user), { replace: true })
+=======
+      if (requiresFirstLoginSetup(res.data.user)) {
+        navigate('/first-login', { replace: true })
+      } else {
+        navigate(getDefaultRouteForUser(res.data.user), { replace: true })
+      }
+>>>>>>> 120fcde341f169111e75940489490c211560aff2
     } catch (err) {
       setError(err.message || "Login failed. Please check your account.")
     } finally {

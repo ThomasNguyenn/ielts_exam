@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { isStudentFamilyRole } from "@/app/roleRouting";
 import { api } from "@/shared/api/client";
 import { buildPreviewAssignmentFromManageData, sortTasksByOrder } from "./myHomeworkStudentUtils";
 
@@ -9,7 +10,7 @@ export const useHomeworkAssignmentDetail = (assignmentId) => {
 
   const isPreviewMode = searchParams.get("preview") === "1";
   const isManageUser = user?.role === "teacher" || user?.role === "admin";
-  const canAccessPage = isPreviewMode ? isManageUser : user?.role === "student";
+  const canAccessPage = isPreviewMode ? isManageUser : isStudentFamilyRole(user?.role);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");

@@ -1,5 +1,12 @@
 import { useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import {
+  USER_ROLE_STUDENT_ACA,
+  normalizeUserRole,
+  studentAcaPath,
+  studentIeltsPath,
+} from "@/app/roleRouting";
+import { api } from "@/shared/api/client";
 import { formatDate, statusLabel } from "./homework.utils";
 import { useHomeworkAssignmentDetail } from "./useHomeworkAssignmentDetail";
 import "./Homework.css";
@@ -7,6 +14,7 @@ import "./Homework.css";
 export default function MyHomeworkDetailPage() {
   const { assignmentId } = useParams();
   const navigate = useNavigate();
+  const user = api.getUser();
   const {
     isPreviewMode,
     canAccessPage,
@@ -71,7 +79,10 @@ export default function MyHomeworkDetailPage() {
       : [];
   }, [assignment?.sections, tasks]);
 
-  const backToMonthPath = "/student-ielts/homework";
+  const normalizedRole = normalizeUserRole(user?.role);
+  const studentHomeworkBasePath =
+    normalizedRole === USER_ROLE_STUDENT_ACA ? studentAcaPath("/homework") : studentIeltsPath("/homework");
+  const backToMonthPath = studentHomeworkBasePath;
   const previewQuery = isPreviewMode ? "?preview=1" : "";
 
   if (!canAccessPage) {
@@ -183,7 +194,7 @@ export default function MyHomeworkDetailPage() {
                           type="button"
                           className="homework-btn primary"
                           onClick={() =>
-                            navigate(`/student-ielts/homework/${assignmentId}/lessons/${taskId}${previewQuery}`)
+                            navigate(`${studentHomeworkBasePath}/${assignmentId}/lessons/${taskId}${previewQuery}`)
                           }
                           disabled={!taskId}
                         >
@@ -201,4 +212,3 @@ export default function MyHomeworkDetailPage() {
     </div>
   );
 }
-

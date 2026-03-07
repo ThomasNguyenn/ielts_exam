@@ -57,6 +57,18 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  createdByTeacherBulk: {
+    type: Boolean,
+    default: false,
+  },
+  mustCompleteFirstLogin: {
+    type: Boolean,
+    default: false,
+  },
+  firstLoginCompletedAt: {
+    type: Date,
+    default: null,
+  },
   activeSessionId: {
     type: String,
     default: null,

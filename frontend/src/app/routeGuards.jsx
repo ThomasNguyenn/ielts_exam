@@ -3,6 +3,7 @@ import { api } from '@/shared/api/client';
 import {
   getDefaultRouteForUser,
   isUnconfirmedStudentFamilyUser,
+  requiresFirstLoginSetup,
   userHasAnyAllowedRole,
 } from './roleRouting';
 
@@ -17,6 +18,14 @@ export function RequireAuth({ children }) {
 
   if (isUnconfirmedStudentFamilyUser(user)) {
     return <Navigate to="/wait-for-confirmation" replace />;
+  }
+
+  if (requiresFirstLoginSetup(user) && location.pathname !== '/first-login') {
+    return <Navigate to="/first-login" replace />;
+  }
+
+  if (!requiresFirstLoginSetup(user) && location.pathname === '/first-login') {
+    return <Navigate to={getDefaultRouteForUser(user)} replace />;
   }
 
   return children || <Outlet />;
@@ -50,6 +59,10 @@ export function PublicRoute({ children }) {
 
   if (isUnconfirmedStudentFamilyUser(user)) {
     return <Navigate to="/wait-for-confirmation" replace />;
+  }
+
+  if (requiresFirstLoginSetup(user)) {
+    return <Navigate to="/first-login" replace />;
   }
 
   return <Navigate to={getDefaultRouteForUser(user)} replace />;

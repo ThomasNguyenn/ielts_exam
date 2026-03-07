@@ -40,6 +40,7 @@ const PASSWORD_MIN = 8;
 const PASSWORD_MAX = 72; // bcrypt limit
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const BULK_EMAIL_DOMAIN = "@scots.local";
 const EMAIL_CHANGE_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 const TRUTHY_VALUES = new Set(["1", "true", "yes", "on"]);
 const FALSY_VALUES = new Set(["0", "false", "no", "off"]);
@@ -60,6 +61,15 @@ const validatePassword = (password) => {
 const createStudentSessionId = () => randomUUID();
 const normalizeEmail = (value) => String(value || "").trim().toLowerCase();
 const isValidEmail = (value) => EMAIL_REGEX.test(String(value || "").trim());
+const hasBulkGeneratedEmail = (value) => normalizeEmail(value).endsWith(BULK_EMAIL_DOMAIN);
+const isLegacyBulkCandidate = (user) =>
+  hasBulkGeneratedEmail(user?.email) && String(user?.role || "").trim() === ROLE_STUDENT;
+const inferCreatedByTeacherBulk = (user) =>
+  Boolean(user?.createdByTeacherBulk || isLegacyBulkCandidate(user));
+const inferMustCompleteFirstLogin = (user) => {
+  if (Boolean(user?.mustCompleteFirstLogin)) return true;
+  return Boolean(inferCreatedByTeacherBulk(user) && !user?.firstLoginCompletedAt);
+};
 const normalizeInviteToken = (value) => String(value || "").trim();
 
 const decodeInviteToken = (value) => {
@@ -272,8 +282,8 @@ const pickAuthUserPayload = (user) => ({
   name: user.name,
   role: user.role,
   isConfirmed: user.isConfirmed,
-  createdByTeacherBulk: Boolean(user?.createdByTeacherBulk),
-  mustCompleteFirstLogin: Boolean(user?.mustCompleteFirstLogin),
+  createdByTeacherBulk: inferCreatedByTeacherBulk(user),
+  mustCompleteFirstLogin: inferMustCompleteFirstLogin(user),
 });
 
 const pickProfileUserPayload = (user) => ({

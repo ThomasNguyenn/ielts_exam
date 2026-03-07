@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  USER_ROLE_STUDENT_ACA,
+  isStudentFamilyRole,
+  normalizeUserRole,
+  studentAcaPath,
+  studentIeltsPath,
+} from "@/app/roleRouting";
 import { api } from "@/shared/api/client";
 import { groupAssignmentsByMonth, monthLabel, toMonthValue } from "./homework.utils";
 import "./Homework.css";
@@ -11,6 +18,9 @@ export default function MyHomeworkMonthPage() {
   const [error, setError] = useState("");
   const [month, setMonth] = useState(toMonthValue());
   const [assignments, setAssignments] = useState([]);
+  const normalizedRole = normalizeUserRole(user?.role);
+  const studentHomeworkBasePath =
+    normalizedRole === USER_ROLE_STUDENT_ACA ? studentAcaPath("/homework") : studentIeltsPath("/homework");
 
   const loadAssignments = async (monthValue = month) => {
     setLoading(true);
@@ -34,7 +44,7 @@ export default function MyHomeworkMonthPage() {
     [assignments],
   );
 
-  if (user?.role !== "student") {
+  if (!isStudentFamilyRole(user?.role)) {
     return (
       <div className="homework-page">
         <div className="homework-shell">
@@ -100,7 +110,7 @@ export default function MyHomeworkMonthPage() {
                           <button
                             type="button"
                             className="homework-btn"
-                            onClick={() => navigate(`/student-ielts/homework/${assignment._id}`)}
+                            onClick={() => navigate(`${studentHomeworkBasePath}/${assignment._id}`)}
                           >
                             Open Assignment
                           </button>
