@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -117,14 +116,6 @@ const resolveCompletionBarColor = (percentage) => {
 
 const resolveLevelBadgeClass = (level) =>
   level === 'IELTS' ? 'bg-indigo-100 text-indigo-700' : 'bg-teal-100 text-teal-700';
-
-const resolveStudentStatus = (student) =>
-  student?.homeroom_teacher_id ? 'active' : 'inactive';
-
-const resolveStudentStatusBadgeClass = (status) => {
-  if (status === 'active') return 'bg-emerald-100 text-emerald-700 hover:bg-emerald-100';
-  return 'bg-slate-100 text-slate-700 hover:bg-slate-100';
-};
 
 const toUiStudent = (user) => ({
   id: String(user?._id || ''),
@@ -347,12 +338,6 @@ export default function HomeroomStudentsPage() {
 
   return (
     <div className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
-        <span>Home</span>
-        <ChevronRight className="size-3" />
-        <span className="text-foreground">Homeroom Students</span>
-      </div>
-
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-foreground">Homeroom Students</h1>
@@ -435,12 +420,6 @@ export default function HomeroomStudentsPage() {
               </Select>
             </div>
           </div>
-          <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
-            <Users className="size-4" />
-            <span>
-              {filteredStudents.length} student{filteredStudents.length !== 1 ? 's' : ''}
-            </span>
-          </div>
         </div>
 
         {loading ? (
@@ -457,72 +436,57 @@ export default function HomeroomStudentsPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="border-b bg-muted/20 hover:bg-muted/20">
-                    <TableHead className="w-12 pl-6">
-                      <Checkbox aria-label="Select current page students" />
-                    </TableHead>
                     <TableHead className="font-semibold text-foreground">User</TableHead>
                     <TableHead className="font-semibold text-foreground">Role</TableHead>
                     <TableHead className="font-semibold text-foreground">Account created</TableHead>
-                    <TableHead className="font-semibold text-foreground">Status</TableHead>
                     <TableHead className="w-14 pr-6 text-right font-semibold text-foreground" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedStudents.map((student) => {
-                    const status = resolveStudentStatus(student);
-                    return (
-                      <TableRow
-                        key={student.id}
-                        className="cursor-pointer border-b last:border-b-0 hover:bg-muted/20"
-                        onClick={() => openProfile(student)}
-                      >
-                        <TableCell className="pl-6" onClick={(event) => event.stopPropagation()}>
-                          <Checkbox aria-label={`Select ${student.name}`} />
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700">
-                              {getInitials(student.name)}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="truncate font-medium text-foreground">{student.name}</p>
-                              <p className="truncate text-xs text-muted-foreground">{student.email}</p>
-                            </div>
+                  {paginatedStudents.map((student) => (
+                    <TableRow
+                      key={student.id}
+                      className="cursor-pointer border-b last:border-b-0 hover:bg-muted/20"
+                      onClick={() => openProfile(student)}
+                    >
+                      <TableCell className="pl-6">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-700">
+                            {getInitials(student.name)}
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          <p className="text-sm text-foreground">{student.level} Student</p>
-                          <p className="text-xs text-muted-foreground">
-                            {student.homeroom_teacher_id
-                              ? teacherNameById.get(student.homeroom_teacher_id) || 'Homeroom assigned'
-                              : 'No homeroom teacher'}
-                          </p>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {formatDate(student.enrolledDate)}
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={resolveStudentStatusBadgeClass(status)} variant="secondary">
-                            {status === 'active' ? 'Active' : 'Inactive'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="pr-6 text-right">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-8 w-8 p-0 text-muted-foreground"
-                            title="Open student details"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              openProfile(student);
-                            }}
-                          >
-                            <ChevronDown className="size-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                          <div className="min-w-0">
+                            <p className="truncate font-medium text-foreground">{student.name}</p>
+                            <p className="truncate text-xs text-muted-foreground">{student.email}</p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <p className="text-sm text-foreground">{student.level} Student</p>
+                        <p className="text-xs text-muted-foreground">
+                          {student.homeroom_teacher_id
+                            ? teacherNameById.get(student.homeroom_teacher_id) || 'Homeroom assigned'
+                            : 'No homeroom teacher'}
+                        </p>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {formatDate(student.enrolledDate)}
+                      </TableCell>
+                      <TableCell className="pr-6 text-right">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 text-muted-foreground"
+                          title="Open student details"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openProfile(student);
+                          }}
+                        >
+                          <ChevronDown className="size-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </div>
