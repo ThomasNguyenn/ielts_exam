@@ -9,14 +9,13 @@ import './styles/App.css';
 import './styles/App-mobile.css';
 
 const SW_CACHE_PREFIX = 'ielts-learning-';
-const SW_CURRENT_CACHE = 'ielts-learning-v4';
 
-async function cleanupAppCaches() {
+async function cleanupAppCaches({ keep = [] } = {}) {
   if (typeof window === 'undefined' || !('caches' in window)) return;
   const cacheNames = await window.caches.keys();
   await Promise.all(
     cacheNames
-      .filter((name) => name.startsWith(SW_CACHE_PREFIX) && name !== SW_CURRENT_CACHE)
+      .filter((name) => name.startsWith(SW_CACHE_PREFIX) && !keep.includes(name))
       .map((name) => window.caches.delete(name))
   );
 }
@@ -38,14 +37,24 @@ if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
         .then((registration) => {
           console.log('[PWA] Service Worker registered:', registration);
-          cleanupAppCaches().catch(() => undefined);
+          let hasReloadedForControllerChange = false;
+          navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (hasReloadedForControllerChange) return;
+            hasReloadedForControllerChange = true;
+            window.location.reload();
+          });
+
+          if (registration.waiting) {
+            registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+          }
 
           registration.addEventListener('updatefound', () => {
             const newWorker = registration.installing;
             if (!newWorker) return;
             newWorker.addEventListener('statechange', () => {
               if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                console.log('[PWA] New version downloaded. It will be applied on the next reload.');
+                console.log('[PWA] New version downloaded. Applying now...');
+                newWorker.postMessage({ type: 'SKIP_WAITING' });
               }
             });
           });

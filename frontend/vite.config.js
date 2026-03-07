@@ -77,8 +77,10 @@ export default defineConfig(({ mode }) => {
               return 'vendor-react';
             }
 
+            // Keep Recharts in the same chunk as React to avoid any
+            // cross-chunk initialization hazards at runtime.
             if (id.includes('recharts')) {
-              return 'vendor-recharts';
+              return 'vendor-react';
             }
 
             if (id.includes('jspdf') || id.includes('html2canvas')) {
