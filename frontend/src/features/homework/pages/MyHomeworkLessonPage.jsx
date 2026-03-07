@@ -2,6 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import LiteYouTubeEmbed from "react-lite-youtube-embed";
 import "react-lite-youtube-embed/dist/LiteYouTubeEmbed.css";
+import {
+  USER_ROLE_STUDENT_ACA,
+  normalizeUserRole,
+  studentAcaPath,
+  studentIeltsPath,
+} from "@/app/roleRouting";
 import { api } from "@/shared/api/client";
 import { useNotification } from "@/shared/context/NotificationContext";
 import { Badge } from "@/components/ui/badge";
@@ -822,6 +828,7 @@ export default function MyHomeworkLessonPage() {
   const { assignmentId, lessonId } = useParams();
   const navigate = useNavigate();
   const { showNotification } = useNotification();
+  const user = api.getUser();
 
   const {
     isPreviewMode,
@@ -843,8 +850,11 @@ export default function MyHomeworkLessonPage() {
   const chunksRef = useRef(new Map());
   const previewUrlsRef = useRef(new Set());
 
-  const lessonListPath = `/student-ielts/homework/${assignmentId}${isPreviewMode ? "?preview=1" : ""}`;
-  const monthPath = "/student-ielts/homework";
+  const normalizedRole = normalizeUserRole(user?.role);
+  const studentHomeworkBasePath =
+    normalizedRole === USER_ROLE_STUDENT_ACA ? studentAcaPath("/homework") : studentIeltsPath("/homework");
+  const lessonListPath = `${studentHomeworkBasePath}/${assignmentId}${isPreviewMode ? "?preview=1" : ""}`;
+  const monthPath = studentHomeworkBasePath;
 
   const selectedTask = useMemo(
     () => tasks.find((task) => String(task?._id || "") === String(lessonId || "")),
