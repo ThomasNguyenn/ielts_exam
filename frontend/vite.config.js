@@ -63,13 +63,9 @@ export default defineConfig(({ mode }) => {
 
             if (!id.includes('node_modules')) return;
 
-            if (id.includes('recharts')) {
-              return 'vendor-recharts';
-            }
-
             // Keep Recharts' redux/store internals in vendor-react.
-            // This avoids circular chunks:
-            // vendor-recharts -> vendor-react -> vendor-recharts
+            // This matcher must run before the broad `recharts` matcher,
+            // because nested dependency paths can still include "recharts".
             if (
               id.includes('react-redux') ||
               id.includes('@reduxjs/toolkit') ||
@@ -79,6 +75,10 @@ export default defineConfig(({ mode }) => {
               id.includes('use-sync-external-store')
             ) {
               return 'vendor-react';
+            }
+
+            if (id.includes('recharts')) {
+              return 'vendor-recharts';
             }
 
             if (id.includes('jspdf') || id.includes('html2canvas')) {
