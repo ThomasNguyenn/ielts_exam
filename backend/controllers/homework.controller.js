@@ -1281,6 +1281,7 @@ export const getHomeworkGroups = async (req, res) => {
         .skip(skip)
         .limit(limit)
         .populate("created_by", "name email role")
+        .populate("student_ids", "name email role homeroom_teacher_id")
         .lean(),
     ]);
 

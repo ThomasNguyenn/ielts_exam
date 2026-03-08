@@ -174,15 +174,15 @@ function QuestionInput({
     const normalizedValue = normalizeReviewText(value);
     const selectedOption = normalizedValue
       ? options.find((option) => {
-          const normalizedId = normalizeReviewText(option?.id);
-          const normalizedLabel = normalizeReviewText(option?.label);
-          const normalizedText = normalizeReviewText(option?.text);
-          return (
-            (normalizedId && normalizedId === normalizedValue) ||
-            (normalizedLabel && normalizedLabel === normalizedValue) ||
-            (normalizedText && normalizedText === normalizedValue)
-          );
-        })
+        const normalizedId = normalizeReviewText(option?.id);
+        const normalizedLabel = normalizeReviewText(option?.label);
+        const normalizedText = normalizeReviewText(option?.text);
+        return (
+          (normalizedId && normalizedId === normalizedValue) ||
+          (normalizedLabel && normalizedLabel === normalizedValue) ||
+          (normalizedText && normalizedText === normalizedValue)
+        );
+      })
       : null;
 
     if (reviewMode) {
@@ -274,19 +274,19 @@ function QuestionInput({
               collisionPadding={12}
               sideOffset={8}
             >
-            {options.map((option) => {
-              const optionToken = getMatchingOptionToken(option);
-              if (!optionToken) return null;
-              const optionId = String(option?.id ?? '').trim();
-              const optionText = String(option?.text ?? '').trim();
-              const optionLabel = optionId && optionText ? `${optionId}. ${optionText}` : optionText || optionId || optionToken;
+              {options.map((option) => {
+                const optionToken = getMatchingOptionToken(option);
+                if (!optionToken) return null;
+                const optionId = String(option?.id ?? '').trim();
+                const optionText = String(option?.text ?? '').trim();
+                const optionLabel = optionId && optionText ? `${optionId}. ${optionText}` : optionText || optionId || optionToken;
 
-              return (
-                <SelectItem key={optionToken} value={optionToken}>
-                  {optionLabel}
-                </SelectItem>
-              );
-            })}
+                return (
+                  <SelectItem key={optionToken} value={optionToken}>
+                    {optionLabel}
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
         </div>
@@ -407,11 +407,11 @@ function SummaryDropZone({
             collisionPadding={12}
             sideOffset={8}
           >
-          {(options || []).map((option) => (
-            <SelectItem key={option.token} value={option.token}>
-              {getSummaryDisplayText(option)}
-            </SelectItem>
-          ))}
+            {(options || []).map((option) => (
+              <SelectItem key={option.token} value={option.token}>
+                {getSummaryDisplayText(option)}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </span>
@@ -1478,6 +1478,47 @@ function StepContent({
 
                 const parseOptions = {
                   replace: (domNode) => {
+                    // Recover React bindings if passageStates captured the previously rendered DOM
+                    if (domNode.type === 'tag' && domNode.attribs && domNode.attribs['data-question-index']) {
+                      const realSlotIndex = parseInt(domNode.attribs['data-question-index'], 10);
+                      const offset = realSlotIndex - currentGroupStartIndex;
+                      const qNum = (group.questions[offset] && group.questions[offset].q_number)
+                        ? group.questions[offset].q_number
+                        : realSlotIndex + 1;
+
+                      if (isSummary && hasSummaryOptions) {
+                        return (
+                          <SummaryDropZone
+                            key={realSlotIndex}
+                            index={realSlotIndex}
+                            questionIndex={realSlotIndex}
+                            displayNumber={qNum}
+                            value={answers[realSlotIndex]}
+                            onChange={(val) => setAnswer(realSlotIndex, val)}
+                            options={summaryOptions}
+                            reviewMode={reviewMode}
+                            useDropdown={useDropdownForDragDrop}
+                          />
+                        );
+                      } else {
+                        return (
+                          <input
+                            key={realSlotIndex}
+                            id={`q-${realSlotIndex}`}
+                            data-question-index={realSlotIndex}
+                            type="text"
+                            className={`gap-fill-input ${isListening ? 'gap-fill-input-listening' : ''}`}
+                            placeholder={`${qNum}`}
+                            value={answers[realSlotIndex] || ''}
+                            onChange={(e) => !reviewMode && setAnswer(realSlotIndex, e.target.value)}
+                            readOnly={reviewMode}
+                            disabled={reviewMode}
+                            autoComplete="off"
+                          />
+                        );
+                      }
+                    }
+
                     if (domNode.type === 'text') {
                       const text = domNode.data;
                       // Split by regex
@@ -1528,9 +1569,9 @@ function StepContent({
                                 }
                               }
                               // Fallback: If number found but no matching question
-                              return <span style={{ color: 'red', fontWeight: 'bold' }}>[Q{qNum}?]</span>;
+                              return <span key={i} style={{ color: 'red', fontWeight: 'bold' }}>[Q{qNum}?]</span>;
                             }
-                            return part;
+                            return <span key={i}>{part}</span>;
                           })}
                         </>
                       );
@@ -1640,10 +1681,10 @@ function StepContent({
                     <div className="exam-options">
                       {options.map((opt) => {
                         const optKey = `opt_${item._id}_${groupIdx}_${opt.label}`;
-                        const isChecked = currentAnswers.some(ans => 
-                           normalizeReviewText(ans) === normalizeReviewText(opt.text) || 
-                           normalizeReviewText(ans) === normalizeReviewText(opt.label) ||
-                           normalizeReviewText(ans) === normalizeReviewText(opt.id)
+                        const isChecked = currentAnswers.some(ans =>
+                          normalizeReviewText(ans) === normalizeReviewText(opt.text) ||
+                          normalizeReviewText(ans) === normalizeReviewText(opt.label) ||
+                          normalizeReviewText(ans) === normalizeReviewText(opt.id)
                         );
                         return (
                           <label key={opt.label} className={`exam-option-label ${isChecked ? 'selected-multi' : ''}`}>
@@ -1850,9 +1891,9 @@ function StepContent({
                       const ri = getReviewForQuestion(gq.q_number);
                       return ri ? ri.correct_answer : null;
                     }).flat().filter(Boolean);
-                    
+
                     const groupCorrectPool = [...new Set(mappedPool)];
-                    
+
                     displayCorrectAnswer = optionPool.length
                       ? formatReviewAnswerByOptions(groupCorrectPool, optionPool)
                       : formatReviewAnswer(groupCorrectPool);
@@ -1959,18 +2000,18 @@ function StepContent({
       <div className="ielts-listening-layout">
         {hasAudio && (
           <div className="ielts-audio-controls top-sticky">
-          {/* <div className="audio-label-wrapper">
+            {/* <div className="audio-label-wrapper">
             <span className="audio-icon">🎧</span>
             <span className="audio-text">IELTS Listening Audio</span>
           </div> */}
-          <Suspense fallback={null}>
-            <IELTSAudioPlayer
-              audioUrl={audioUrl}
-              onEnded={onListeningAudioEnded}
-              initialTimeSec={listeningAudioInitialTimeSec}
-              onTimeUpdate={onListeningAudioTimeUpdate}
-            />
-          </Suspense>
+            <Suspense fallback={null}>
+              <IELTSAudioPlayer
+                audioUrl={audioUrl}
+                onEnded={onListeningAudioEnded}
+                initialTimeSec={listeningAudioInitialTimeSec}
+                onTimeUpdate={onListeningAudioTimeUpdate}
+              />
+            </Suspense>
           </div>
         )}
         <div className={`listening-content-area-top-padded${hasAudio ? '' : ' listening-content-area-no-audio'}`}>

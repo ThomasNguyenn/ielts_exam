@@ -114,7 +114,19 @@ export default function HomeworkGroupsPage() {
     setError("");
     try {
       const groupRes = await api.homeworkGetGroups({ include_inactive: true, limit: 100 });
-      setGroups(Array.isArray(groupRes?.data) ? groupRes.data : []);
+      const nextGroups = Array.isArray(groupRes?.data) ? groupRes.data : [];
+      setGroups(nextGroups);
+      setKnownStudentsMap((prev) => {
+        const next = { ...prev };
+        nextGroups.forEach((group) => {
+          (Array.isArray(group?.student_ids) ? group.student_ids : []).forEach((studentValue) => {
+            if (studentValue && typeof studentValue === "object" && studentValue._id) {
+              next[String(studentValue._id)] = studentValue;
+            }
+          });
+        });
+        return next;
+      });
     } catch (loadError) {
       setError(loadError?.message || "Failed to load groups");
     } finally {
@@ -459,11 +471,20 @@ export default function HomeworkGroupsPage() {
 
                       {group.student_ids && group.student_ids.length > 0 && (
                         <div className="flex flex-wrap gap-1.5 pt-1">
-                          {group.student_ids.slice(0, 5).map((id) => {
-                            const studentObj = knownStudentsMap[String(id)];
+                          {group.student_ids.slice(0, 5).map((studentValue, index) => {
+                            const studentId = String(
+                              studentValue?._id || studentValue?.student_id || studentValue || "",
+                            );
+                            const studentObj =
+                              (studentValue && typeof studentValue === "object" ? studentValue : null)
+                              || knownStudentsMap[studentId];
                             return (
-                              <Badge key={`badge-${group._id}-${id}`} variant="secondary" className="font-normal text-xs px-2 py-0.5">
-                                {studentObj?.name || "Student"}
+                              <Badge
+                                key={`badge-${group._id}-${studentId || index}`}
+                                variant="secondary"
+                                className="font-normal text-xs px-2 py-0.5"
+                              >
+                                {studentObj?.name || studentId || "Student"}
                               </Badge>
                             );
                           })}

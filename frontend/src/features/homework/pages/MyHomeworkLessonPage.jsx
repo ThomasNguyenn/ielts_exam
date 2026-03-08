@@ -103,6 +103,7 @@ const renderVideoBlock = ({ taskTitle, taskIndex, url, submissionStatus = "" }) 
 
 const resolveTaskBlockId = (block = {}) =>
   String(block?.data?.block_id || block?.id || block?.clientId || block?._id || "").trim();
+const normalizeBlockId = (value) => String(value || "").trim();
 
 const resolveQuizParentPassageBlockId = (block = {}) =>
   String(block?.data?.parent_passage_block_id || "").trim();
@@ -219,6 +220,11 @@ const renderInstructionBlock = (value) => {
 const normalizeMatchingItem = (item = {}, fallbackIndex = 0, side = "left") => ({
   id: String(item?.id || "").trim() || `${side}-${fallbackIndex + 1}`,
   text: String(item?.text || "").trim(),
+});
+const normalizeMatchingPairData = (pair = {}, fallbackIndex = 0) => ({
+  left_id: normalizeBlockId(pair?.left_id),
+  right_id: normalizeBlockId(pair?.right_id),
+  color_key: resolveMatchColorToken(pair?.color_key, fallbackIndex),
 });
 
 const resolveMatchingData = (block = {}) => {
@@ -402,38 +408,90 @@ const renderMatchingContent = ({ block }) => {
   const matchingData = resolveMatchingData(block);
   if (matchingData.leftItems.length === 0 && matchingData.rightItems.length === 0) return null;
 
-  const pairByLeftId = new Map(matchingData.pairs.map((pair) => [pair.left_id, pair]));
-  const pairByRightId = new Map(matchingData.pairs.map((pair) => [pair.right_id, pair]));
+  const matchingSelection = block?.matchingSelection && typeof block.matchingSelection === "object"
+    ? block.matchingSelection
+    : {};
+  const selectedLeftId = normalizeBlockId(matchingSelection.selected_left_id);
+  const normalizedPairs = (Array.isArray(matchingSelection.matches) ? matchingSelection.matches : [])
+    .map((pair, pairIndex) => ({ ...normalizeMatchingPairData(pair, pairIndex), __pairIndex: pairIndex }));
+  const leftIdSet = new Set(matchingData.leftItems.map((item) => normalizeBlockId(item?.id)).filter(Boolean));
+  const rightIdSet = new Set(matchingData.rightItems.map((item) => normalizeBlockId(item?.id)).filter(Boolean));
+  const usedLeftIds = new Set();
+  const usedRightIds = new Set();
+  const visiblePairs = [];
+  normalizedPairs.forEach((pair) => {
+    if (!pair.left_id || !pair.right_id) return;
+    if (!leftIdSet.has(pair.left_id) || !rightIdSet.has(pair.right_id)) return;
+    if (usedLeftIds.has(pair.left_id) || usedRightIds.has(pair.right_id)) return;
+    usedLeftIds.add(pair.left_id);
+    usedRightIds.add(pair.right_id);
+    visiblePairs.push(pair);
+  });
+  const pairByLeftId = new Map(visiblePairs.map((pair) => [pair.left_id, pair]));
+  const pairByRightId = new Map(visiblePairs.map((pair) => [pair.right_id, pair]));
+  const canInteract = !Boolean(block?.matchingDisabled);
 
   return (
     <div className="rounded-md border bg-muted/20 p-3">
       <p className="homework-item-title">Table Matching</p>
       {matchingData.prompt ? <p className="homework-task-sub">{matchingData.prompt}</p> : null}
+      <p className="mt-1 text-xs text-muted-foreground">
+        Select a left item, then click a right item to create a link.
+      </p>
       <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
         <div className="space-y-2">
           {matchingData.leftItems.map((item, itemIndex) => {
-            const pair = pairByLeftId.get(item.id);
+            const itemId = normalizeBlockId(item?.id);
+            const pair = pairByLeftId.get(itemId);
             const colorClass = pair ? resolveMatchColorClass(pair.color_key, pair.__pairIndex || 0) : "";
+            const isSelected = selectedLeftId && selectedLeftId === itemId;
             return (
-              <div
-                key={item.id || `left-${itemIndex}`}
-                className={`rounded-md border px-3 py-2 text-sm ${colorClass}`}
-              >
-                {item.text || `Left item ${itemIndex + 1}`}
+              <div key={item.id || `left-${itemIndex}`} className="flex items-start gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className={cx(
+                    "shrink-0",
+                    pair
+                      ? colorClass
+                      : isSelected
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "",
+                  )}
+                  onClick={() => block?.onMatchingLeftClick?.(itemId)}
+                  disabled={!canInteract}
+                >
+                  {pair ? "Unlink" : isSelected ? "Selected" : "Select"}
+                </Button>
+                <div className={cx("min-h-9 flex-1 rounded-md border px-3 py-2 text-sm", colorClass)}>
+                  {item.text || `Left item ${itemIndex + 1}`}
+                </div>
               </div>
             );
           })}
         </div>
         <div className="space-y-2">
           {matchingData.rightItems.map((item, itemIndex) => {
-            const pair = pairByRightId.get(item.id);
+            const itemId = normalizeBlockId(item?.id);
+            const pair = pairByRightId.get(itemId);
             const colorClass = pair ? resolveMatchColorClass(pair.color_key, pair.__pairIndex || 0) : "";
+            const canLink = Boolean(selectedLeftId) || Boolean(pair);
             return (
-              <div
-                key={item.id || `right-${itemIndex}`}
-                className={`rounded-md border px-3 py-2 text-sm ${colorClass}`}
-              >
-                {item.text || `Right item ${itemIndex + 1}`}
+              <div key={item.id || `right-${itemIndex}`} className="flex items-start gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className={cx("shrink-0", colorClass)}
+                  onClick={() => block?.onMatchingRightClick?.(itemId)}
+                  disabled={!canInteract || !canLink}
+                >
+                  {pair ? "Unlink" : selectedLeftId ? "Link" : "Pick left"}
+                </Button>
+                <div className={cx("min-h-9 flex-1 rounded-md border px-3 py-2 text-sm", colorClass)}>
+                  {item.text || `Right item ${itemIndex + 1}`}
+                </div>
               </div>
             );
           })}
@@ -447,7 +505,7 @@ const renderGapfillTemplateParts = ({ parsedTemplate, lineKey }) => {
   return parsedTemplate.parts.map((part, partIndex) => {
     if (part.kind === "text") {
       return (
-        <span key={`${lineKey}-text-${partIndex}`} className="whitespace-pre-wrap">
+        <span key={`${lineKey}-text-${partIndex}`} className="whitespace-pre-wrap break-words">
           {part.text}
         </span>
       );
@@ -504,12 +562,14 @@ const renderGapfillContent = ({ block }) => {
             return (
               <div key={lineKey} className="flex items-start gap-2">
                 <span className="pt-1 text-xs font-medium text-muted-foreground">{templateIndex + 1}.</span>
-                <p className="text-sm leading-7">{renderGapfillTemplateParts({ parsedTemplate, lineKey })}</p>
+                <p className="min-w-0 flex-1 break-words text-sm leading-7">
+                  {renderGapfillTemplateParts({ parsedTemplate, lineKey })}
+                </p>
               </div>
             );
           }
           return (
-            <p key={lineKey} className="text-sm leading-7">
+            <p key={lineKey} className="break-words text-sm leading-7">
               {renderGapfillTemplateParts({ parsedTemplate, lineKey })}
             </p>
           );
@@ -797,7 +857,16 @@ const TASK_BLOCK_RENDERERS = {
       disabled: isQuizDisabled,
       showQuestionPalette: true,
     }),
-  matching: ({ block }) => renderMatchingContent({ block }),
+  matching: ({ block, matchingSelection, onMatchingLeftClick, onMatchingRightClick, isMatchingDisabled }) =>
+    renderMatchingContent({
+      block: {
+        ...block,
+        matchingSelection,
+        onMatchingLeftClick,
+        onMatchingRightClick,
+        matchingDisabled: isMatchingDisabled,
+      },
+    }),
   gapfill: ({ block }) => renderGapfillContent({ block }),
   find_mistake: ({ block, findMistakeSelections, onSelectFindMistakeToken, isFindMistakeDisabled }) =>
     renderFindMistakeContent({
@@ -851,6 +920,7 @@ export default function MyHomeworkLessonPage() {
   const [drafts, setDrafts] = useState({});
   const [findMistakeSelections, setFindMistakeSelections] = useState({});
   const [quizSelections, setQuizSelections] = useState({});
+  const [matchingSelections, setMatchingSelections] = useState({});
   const [launchingTaskId, setLaunchingTaskId] = useState("");
   const recordersRef = useRef(new Map());
   const streamsRef = useRef(new Map());
@@ -904,6 +974,7 @@ export default function MyHomeworkLessonPage() {
   useEffect(() => {
     setFindMistakeSelections({});
     setQuizSelections({});
+    setMatchingSelections({});
   }, [selectedTaskId]);
 
   const handleSelectFindMistakeToken = (lineKey, tokenKey) => {
@@ -932,6 +1003,114 @@ export default function MyHomeworkLessonPage() {
       return {
         ...prev,
         [questionKey]: optionId,
+      };
+    });
+  };
+
+  const getNextMatchingColorToken = (pairs = []) => {
+    const usedColorKeys = new Set(
+      (Array.isArray(pairs) ? pairs : [])
+        .map((pair) => resolveMatchColorToken(pair?.color_key))
+        .filter(Boolean),
+    );
+    return (
+      MATCH_COLOR_TOKENS.find((token) => !usedColorKeys.has(token))
+      || MATCH_COLOR_TOKENS[(Array.isArray(pairs) ? pairs.length : 0) % MATCH_COLOR_TOKENS.length]
+    );
+  };
+
+  const updateMatchingSelectionByBlock = (blockId, updater) => {
+    const normalizedBlockId = normalizeBlockId(blockId);
+    if (!normalizedBlockId) return;
+    setMatchingSelections((prev) => {
+      const current = prev[normalizedBlockId] && typeof prev[normalizedBlockId] === "object"
+        ? prev[normalizedBlockId]
+        : { selected_left_id: "", matches: [] };
+      const nextRaw = typeof updater === "function" ? updater(current) : updater;
+      const nextPairs = (Array.isArray(nextRaw?.matches) ? nextRaw.matches : [])
+        .map((pair, pairIndex) => normalizeMatchingPairData(pair, pairIndex))
+        .filter((pair) => pair.left_id && pair.right_id);
+      return {
+        ...prev,
+        [normalizedBlockId]: {
+          selected_left_id: normalizeBlockId(nextRaw?.selected_left_id),
+          matches: nextPairs,
+        },
+      };
+    });
+  };
+
+  const handleMatchingLeftCellClick = (blockId, leftItemId) => {
+    const normalizedLeftId = normalizeBlockId(leftItemId);
+    if (!normalizedLeftId) return;
+    updateMatchingSelectionByBlock(blockId, (current) => {
+      const selectedLeft = normalizeBlockId(current?.selected_left_id);
+      const currentPairs = Array.isArray(current?.matches) ? current.matches : [];
+      if (selectedLeft === normalizedLeftId) {
+        return { ...current, selected_left_id: "" };
+      }
+      if (currentPairs.some((pair) => normalizeBlockId(pair?.left_id) === normalizedLeftId)) {
+        return {
+          ...current,
+          selected_left_id: "",
+          matches: currentPairs.filter((pair) => normalizeBlockId(pair?.left_id) !== normalizedLeftId),
+        };
+      }
+      return { ...current, selected_left_id: normalizedLeftId };
+    });
+  };
+
+  const handleMatchingRightCellClick = (blockId, rightItemId) => {
+    const normalizedRightId = normalizeBlockId(rightItemId);
+    if (!normalizedRightId) return;
+    updateMatchingSelectionByBlock(blockId, (current) => {
+      const selectedLeft = normalizeBlockId(current?.selected_left_id);
+      const currentPairs = Array.isArray(current?.matches) ? current.matches : [];
+      if (!selectedLeft) {
+        if (!currentPairs.some((pair) => normalizeBlockId(pair?.right_id) === normalizedRightId)) {
+          return current;
+        }
+        return {
+          ...current,
+          matches: currentPairs.filter((pair) => normalizeBlockId(pair?.right_id) !== normalizedRightId),
+        };
+      }
+
+      const hasExactPair = currentPairs.some(
+        (pair) =>
+          normalizeBlockId(pair?.left_id) === selectedLeft
+          && normalizeBlockId(pair?.right_id) === normalizedRightId,
+      );
+      if (hasExactPair) {
+        return {
+          ...current,
+          selected_left_id: "",
+          matches: currentPairs.filter(
+            (pair) =>
+              !(
+                normalizeBlockId(pair?.left_id) === selectedLeft
+                && normalizeBlockId(pair?.right_id) === normalizedRightId
+              ),
+          ),
+        };
+      }
+
+      const filteredPairs = currentPairs.filter(
+        (pair) =>
+          normalizeBlockId(pair?.left_id) !== selectedLeft
+          && normalizeBlockId(pair?.right_id) !== normalizedRightId,
+      );
+      return {
+        ...current,
+        selected_left_id: "",
+        matches: [
+          ...filteredPairs,
+          {
+            left_id: selectedLeft,
+            right_id: normalizedRightId,
+            color_key: getNextMatchingColorToken(filteredPairs),
+          },
+        ],
       };
     });
   };
@@ -1340,7 +1519,7 @@ export default function MyHomeworkLessonPage() {
                     }
                     const renderBlock = TASK_BLOCK_RENDERERS[blockType];
                     if (!renderBlock) return null;
-                    const currentBlockId = resolveTaskBlockId(block);
+                    const currentBlockId = resolveTaskBlockId(block) || `task-block-${blockIndex + 1}`;
                     const content = renderBlock({
                       block: {
                         ...block,
@@ -1358,6 +1537,10 @@ export default function MyHomeworkLessonPage() {
                       quizSelections,
                       onSelectQuizOption: handleSelectQuizOption,
                       isQuizDisabled: !canInteract,
+                      matchingSelection: matchingSelections[currentBlockId] || { selected_left_id: "", matches: [] },
+                      onMatchingLeftClick: (leftItemId) => handleMatchingLeftCellClick(currentBlockId, leftItemId),
+                      onMatchingRightClick: (rightItemId) => handleMatchingRightCellClick(currentBlockId, rightItemId),
+                      isMatchingDisabled: !canInteract,
                       draft,
                       onChangeTextAnswer: (value) => updateDraft(selectedTaskId, { text_answer: value }),
                       onClearTextAnswer: () => updateDraft(selectedTaskId, { text_answer: "" }),

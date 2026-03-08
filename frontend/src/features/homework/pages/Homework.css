@@ -512,10 +512,15 @@
   font-size: 1.1rem;
   color: black;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  max-width: 100%;
 }
 
 .homework-task-rich p {
   margin: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .homework-task-rich p+p,
@@ -570,6 +575,18 @@
 
 .homework-task-rich ul li+li {
   margin-top: 0.3rem;
+}
+
+.homework-task-rich,
+.homework-task-rich h1,
+.homework-task-rich h2,
+.homework-task-rich h3,
+.homework-task-rich h4,
+.homework-task-rich li,
+.homework-task-rich blockquote {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  max-width: 100%;
 }
 
 .homework-task-rich a {
