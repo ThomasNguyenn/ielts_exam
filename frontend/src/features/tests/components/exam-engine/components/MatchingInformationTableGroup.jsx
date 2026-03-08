@@ -58,6 +58,16 @@ function normalizeColumns(group) {
   return source.map(parseOption);
 }
 
+function parseUseOnceFlag(value) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on';
+  }
+  return false;
+}
+
 export default function MatchingInformationTableGroup({
   group,
   answers = {},
@@ -66,7 +76,7 @@ export default function MatchingInformationTableGroup({
 }) {
   const rows = normalizeRows(group);
   const columns = normalizeColumns(group);
-  const useOnce = Boolean(group?.use_once);
+  const useOnce = parseUseOnceFlag(group?.use_once);
 
   if (rows.length === 0) {
     return <div className="engine-empty">Matching Information rows are empty.</div>;

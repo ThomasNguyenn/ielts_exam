@@ -3,6 +3,7 @@ import { Eye, EyeOff } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Card,
   CardContent,
@@ -22,6 +23,7 @@ export function LoginForm({
   className,
   email,
   password,
+  rememberMe = true,
   loading = false,
   error = "",
   showPassword = false,
@@ -29,6 +31,7 @@ export function LoginForm({
   onTogglePassword,
   onEmailChange,
   onPasswordChange,
+  onRememberMeChange,
   ...props
 }) {
   return (
@@ -85,6 +88,21 @@ export function LoginForm({
                   >
                     {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                   </button>
+                </div>
+              </Field>
+
+              <Field>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="remember-me"
+                    checked={Boolean(rememberMe)}
+                    onCheckedChange={(checked) => onRememberMeChange?.(Boolean(checked))}
+                    disabled={loading}
+                    aria-label="Remember me"
+                  />
+                  <FieldLabel htmlFor="remember-me" className="cursor-pointer">
+                    Remember me
+                  </FieldLabel>
                 </div>
               </Field>
 

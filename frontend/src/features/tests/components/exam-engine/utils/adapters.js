@@ -1,5 +1,15 @@
 import { normalizeGroupType } from './normalizeType';
 
+function parseUseOnceFlag(value) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on';
+  }
+  return false;
+}
+
 function toCoreQuestion(question = {}, index = 0) {
   return {
     id: question.id ?? question.q_number ?? index + 1,
@@ -15,7 +25,7 @@ function toCoreGroup(group = {}) {
   const coreType = normalizeGroupType(group);
   return {
     type: coreType,
-    use_once: Boolean(group.use_once),
+    use_once: parseUseOnceFlag(group.use_once),
     passage: group.passage || group.text || '',
     table: group.table,
     diagram_items: group.diagram_items,

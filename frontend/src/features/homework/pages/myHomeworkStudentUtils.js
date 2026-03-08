@@ -8,6 +8,18 @@ export const createDraft = (submission = {}) => ({
   submitting: false,
 });
 
+const normalizeTaskBlockType = (value) => {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+  if (!normalized) return "";
+  if (normalized === "quizz" || normalized === "quizs" || normalized === "quizzes") return "quiz";
+  if (normalized === "gapfilling" || normalized === "gap_fill" || normalized === "gap_filling") return "gapfill";
+  if (normalized === "findmistake" || normalized === "find_mistakes") return "find_mistake";
+  return normalized;
+};
+
 const resolveInputTypeFromBlockData = (data = {}) => {
   const explicitType = String(data?.input_type || "").trim().toLowerCase();
   if (["text", "image", "audio"].includes(explicitType)) return explicitType;
@@ -40,7 +52,7 @@ const normalizeTaskBlocks = (blocks = []) =>
   (Array.isArray(blocks) ? blocks : [])
     .map((block, index) => ({
       ...block,
-      type: String(block?.type || "").trim().toLowerCase(),
+      type: normalizeTaskBlockType(block?.type),
       __sourceIndex: index,
       __order: Number.isFinite(Number(block?.order)) ? Number(block.order) : index,
     }))
@@ -141,7 +153,7 @@ const mapLessonToTask = (lesson = {}, fallbackOrder = 0, fallbackId = "") => ({
   content_blocks: Array.isArray(lesson?.content_blocks)
     ? lesson.content_blocks.map((block, blockIndex) => ({
         ...block,
-        type: String(block?.type || "").trim().toLowerCase(),
+        type: normalizeTaskBlockType(block?.type),
         order: Number.isFinite(Number(block?.order)) ? Number(block.order) : blockIndex,
         data: block?.data && typeof block.data === "object" ? { ...block.data } : {},
       }))
@@ -191,3 +203,5 @@ export const sortTasksByOrder = (tasks = []) =>
     }))
     .sort((a, b) => (a.__order === b.__order ? a.__sourceIndex - b.__sourceIndex : a.__order - b.__order))
     .map(({ __sourceIndex, __order, ...task }) => task);
+
+export { normalizeTaskBlockType };

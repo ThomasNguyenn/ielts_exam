@@ -15,6 +15,7 @@ import { handleControllerError, sendControllerError } from "../utils/controllerE
 const escapeRegex = (value = "") => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const ALLOWED_TEST_TYPES = ['reading', 'listening', 'writing'];
 const TRUTHY_QUERY_VALUES = new Set(['1', 'true', 'yes']);
+const TRUTHY_FLAG_VALUES = new Set(['1', 'true', 'yes', 'on']);
 const isTeacherOrAdminRequest = (req) => (
     req.user?.role === 'teacher' || req.user?.role === 'admin'
 );
@@ -22,6 +23,15 @@ const parseTruthyQueryFlag = (value) => {
     if (typeof value === 'boolean') return value;
     if (value === null || value === undefined) return false;
     return TRUTHY_QUERY_VALUES.has(String(value).trim().toLowerCase());
+};
+const parseUseOnceFlag = (value) => {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value !== 0;
+    if (typeof value === 'string') {
+        const normalized = String(value).trim().toLowerCase();
+        return TRUTHY_FLAG_VALUES.has(normalized);
+    }
+    return false;
 };
 const TRACKING_RESOURCE_TYPES = new Set(["test", "passage", "section", "speaking", "writing"]);
 const normalizeTrackingResourceType = (value) => {
@@ -681,7 +691,7 @@ function stripForExam(item) {
         question_groups: (item.question_groups || []).map((g) => ({
             type: g.type,
             group_layout: g.group_layout, // Include group_layout
-            use_once: Boolean(g.use_once),
+            use_once: parseUseOnceFlag(g.use_once),
             instructions: g.instructions,
             text: g.text, // Include summary text
             image_url: g.image_url || null,

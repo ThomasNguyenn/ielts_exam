@@ -21,13 +21,14 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer";
-import { BookOpen, CheckCircle2, ChevronLeft } from "lucide-react";
+import { ArrowLeft, BookOpen, CheckCircle2 } from "lucide-react";
 import { IconCloud } from "@tabler/icons-react";
 import { formatDate, inferMediaTypeFromUrl, resolveVideoPreview, statusLabel } from "./homework.utils";
 import {
   createDraft,
   getRenderableTaskBlocks,
   getTaskBlockKey,
+  normalizeTaskBlockType,
   resolveTaskInputType,
 } from "./myHomeworkStudentUtils";
 import {
@@ -107,9 +108,15 @@ const renderMediaBlock = ({ taskTitle, taskIndex, url, mediaType = "video" }) =>
 
 const resolveTaskBlockId = (block = {}) =>
   String(block?.data?.block_id || block?.id || block?.clientId || block?._id || "").trim();
+const normalizeBlockId = (value) => String(value || "").trim();
 
 const resolveQuizParentPassageBlockId = (block = {}) =>
   String(block?.data?.parent_passage_block_id || "").trim();
+
+const resolveQuizLayout = (block = {}) => {
+  const normalized = String(block?.data?.layout || "").trim().toLowerCase();
+  return normalized === "list" ? "list" : "grid";
+};
 
 const MATCH_COLOR_TOKENS = ["emerald", "sky", "amber", "fuchsia", "teal", "rose", "indigo", "lime"];
 
@@ -352,6 +359,11 @@ const normalizeMatchingItem = (item = {}, fallbackIndex = 0, side = "left") => (
   id: String(item?.id || "").trim() || `${side}-${fallbackIndex + 1}`,
   text: String(item?.text || "").trim(),
 });
+const normalizeMatchingPairData = (pair = {}, fallbackIndex = 0) => ({
+  left_id: normalizeBlockId(pair?.left_id),
+  right_id: normalizeBlockId(pair?.right_id),
+  color_key: resolveMatchColorToken(pair?.color_key, fallbackIndex),
+});
 
 const resolveMatchingData = (block = {}) => {
   const matchingData =
@@ -410,6 +422,7 @@ const renderQuizContent = ({
   const questions = resolveQuizQuestions(block);
   if (!questions.length) return null;
   const blockId = resolveTaskBlockId(block);
+  const quizLayout = resolveQuizLayout(block);
   const answeredCount = questions.reduce((count, questionItem, questionIndex) => {
     const questionKey = buildQuizQuestionKey({
       blockId,
@@ -465,7 +478,7 @@ const renderQuizContent = ({
             ) : null}
             {renderRichTextBlock(questionItem.question, { className: "homework-quiz-question-text" })}
             {questionItem.options.length ? (
-              <div className="homework-quiz-options">
+              <div className={cx("homework-quiz-options", quizLayout === "grid" && "homework-quiz-options--grid")}>
                 {questionItem.options.map((option, optionIndex) => (
                   <button
                     key={String(option?.id || `${questionItem.id}-option-${optionIndex}`)}
@@ -477,7 +490,7 @@ const renderQuizContent = ({
                         questionId: questionItem.id,
                         questionIndex,
                       })] === String(option?.id || "")
-                        && "homework-quiz-option--selected",
+                      && "homework-quiz-option--selected",
                     )}
                     onClick={() => onSelectOption?.({
                       questionKey: buildQuizQuestionKey({
@@ -533,38 +546,90 @@ const renderMatchingContent = ({ block }) => {
   const matchingData = resolveMatchingData(block);
   if (matchingData.leftItems.length === 0 && matchingData.rightItems.length === 0) return null;
 
-  const pairByLeftId = new Map(matchingData.pairs.map((pair) => [pair.left_id, pair]));
-  const pairByRightId = new Map(matchingData.pairs.map((pair) => [pair.right_id, pair]));
+  const matchingSelection = block?.matchingSelection && typeof block.matchingSelection === "object"
+    ? block.matchingSelection
+    : {};
+  const selectedLeftId = normalizeBlockId(matchingSelection.selected_left_id);
+  const normalizedPairs = (Array.isArray(matchingSelection.matches) ? matchingSelection.matches : [])
+    .map((pair, pairIndex) => ({ ...normalizeMatchingPairData(pair, pairIndex), __pairIndex: pairIndex }));
+  const leftIdSet = new Set(matchingData.leftItems.map((item) => normalizeBlockId(item?.id)).filter(Boolean));
+  const rightIdSet = new Set(matchingData.rightItems.map((item) => normalizeBlockId(item?.id)).filter(Boolean));
+  const usedLeftIds = new Set();
+  const usedRightIds = new Set();
+  const visiblePairs = [];
+  normalizedPairs.forEach((pair) => {
+    if (!pair.left_id || !pair.right_id) return;
+    if (!leftIdSet.has(pair.left_id) || !rightIdSet.has(pair.right_id)) return;
+    if (usedLeftIds.has(pair.left_id) || usedRightIds.has(pair.right_id)) return;
+    usedLeftIds.add(pair.left_id);
+    usedRightIds.add(pair.right_id);
+    visiblePairs.push(pair);
+  });
+  const pairByLeftId = new Map(visiblePairs.map((pair) => [pair.left_id, pair]));
+  const pairByRightId = new Map(visiblePairs.map((pair) => [pair.right_id, pair]));
+  const canInteract = !Boolean(block?.matchingDisabled);
 
   return (
     <div className="rounded-md border bg-muted/20 p-3">
       <p className="homework-item-title">Table Matching</p>
       {matchingData.prompt ? <p className="homework-task-sub">{matchingData.prompt}</p> : null}
+      <p className="mt-1 text-xs text-muted-foreground">
+        Select a left item, then click a right item to create a link.
+      </p>
       <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
         <div className="space-y-2">
           {matchingData.leftItems.map((item, itemIndex) => {
-            const pair = pairByLeftId.get(item.id);
+            const itemId = normalizeBlockId(item?.id);
+            const pair = pairByLeftId.get(itemId);
             const colorClass = pair ? resolveMatchColorClass(pair.color_key, pair.__pairIndex || 0) : "";
+            const isSelected = selectedLeftId && selectedLeftId === itemId;
             return (
-              <div
-                key={item.id || `left-${itemIndex}`}
-                className={`rounded-md border px-3 py-2 text-sm ${colorClass}`}
-              >
-                {item.text || `Left item ${itemIndex + 1}`}
+              <div key={item.id || `left-${itemIndex}`} className="flex items-start gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className={cx(
+                    "shrink-0",
+                    pair
+                      ? colorClass
+                      : isSelected
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "",
+                  )}
+                  onClick={() => block?.onMatchingLeftClick?.(itemId)}
+                  disabled={!canInteract}
+                >
+                  {pair ? "Unlink" : isSelected ? "Selected" : "Select"}
+                </Button>
+                <div className={cx("min-h-9 flex-1 rounded-md border px-3 py-2 text-sm", colorClass)}>
+                  {item.text || `Left item ${itemIndex + 1}`}
+                </div>
               </div>
             );
           })}
         </div>
         <div className="space-y-2">
           {matchingData.rightItems.map((item, itemIndex) => {
-            const pair = pairByRightId.get(item.id);
+            const itemId = normalizeBlockId(item?.id);
+            const pair = pairByRightId.get(itemId);
             const colorClass = pair ? resolveMatchColorClass(pair.color_key, pair.__pairIndex || 0) : "";
+            const canLink = Boolean(selectedLeftId) || Boolean(pair);
             return (
-              <div
-                key={item.id || `right-${itemIndex}`}
-                className={`rounded-md border px-3 py-2 text-sm ${colorClass}`}
-              >
-                {item.text || `Right item ${itemIndex + 1}`}
+              <div key={item.id || `right-${itemIndex}`} className="flex items-start gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className={cx("shrink-0", colorClass)}
+                  onClick={() => block?.onMatchingRightClick?.(itemId)}
+                  disabled={!canInteract || !canLink}
+                >
+                  {pair ? "Unlink" : selectedLeftId ? "Link" : "Pick left"}
+                </Button>
+                <div className={cx("min-h-9 flex-1 rounded-md border px-3 py-2 text-sm", colorClass)}>
+                  {item.text || `Right item ${itemIndex + 1}`}
+                </div>
               </div>
             );
           })}
@@ -584,7 +649,7 @@ const renderGapfillTemplateParts = ({
   return parsedTemplate.parts.map((part, partIndex) => {
     if (part.kind === "text") {
       return (
-        <span key={`${lineKey}-text-${partIndex}`} className="whitespace-pre-wrap">
+        <span key={`${lineKey}-text-${partIndex}`} className="whitespace-pre-wrap break-words">
           {part.text}
         </span>
       );
@@ -653,7 +718,7 @@ const renderGapfillContent = ({
             return (
               <div key={lineKey} className="flex items-start gap-2">
                 <span className="pt-1 text-xs font-medium text-muted-foreground">{templateIndex + 1}.</span>
-                <p className="text-sm leading-7">
+                <p className="min-w-0 flex-1 break-words text-sm leading-7">
                   {renderGapfillTemplateParts({
                     parsedTemplate,
                     lineKey,
@@ -666,7 +731,7 @@ const renderGapfillContent = ({
             );
           }
           return (
-            <p key={lineKey} className="text-sm leading-7">
+            <p key={lineKey} className="break-words text-sm leading-7">
               {renderGapfillTemplateParts({
                 parsedTemplate,
                 lineKey,
@@ -964,7 +1029,16 @@ const TASK_BLOCK_RENDERERS = {
       disabled: isQuizDisabled,
       showQuestionPalette: true,
     }),
-  matching: ({ block }) => renderMatchingContent({ block }),
+  matching: ({ block, matchingSelection, onMatchingLeftClick, onMatchingRightClick, isMatchingDisabled }) =>
+    renderMatchingContent({
+      block: {
+        ...block,
+        matchingSelection,
+        onMatchingLeftClick,
+        onMatchingRightClick,
+        matchingDisabled: isMatchingDisabled,
+      },
+    }),
   gapfill: ({ block, gapfillSelections, onChangeGapfillBlank, isGapfillDisabled }) =>
     renderGapfillContent({
       block,
@@ -1025,6 +1099,7 @@ export default function MyHomeworkLessonPage() {
   const [findMistakeSelections, setFindMistakeSelections] = useState({});
   const [gapfillSelections, setGapfillSelections] = useState({});
   const [quizSelections, setQuizSelections] = useState({});
+  const [matchingSelections, setMatchingSelections] = useState({});
   const [launchingTaskId, setLaunchingTaskId] = useState("");
   const recordersRef = useRef(new Map());
   const streamsRef = useRef(new Map());
@@ -1076,11 +1151,11 @@ export default function MyHomeworkLessonPage() {
   }, [assignment]);
 
   useEffect(() => {
-    const objectiveAnswers = normalizeObjectiveAnswersFromMeta(submission?.meta);
-    setQuizSelections(toSelectionMap(objectiveAnswers.quiz, "question_key", "selected_option_id"));
-    setGapfillSelections(toSelectionMap(objectiveAnswers.gapfill, "blank_key", "value"));
-    setFindMistakeSelections(toSelectionMap(objectiveAnswers.find_mistake, "line_key", "token_key"));
-  }, [selectedTaskId, submission?.updatedAt, submission?.submitted_at, submission?.meta]);
+    setFindMistakeSelections({});
+    setGapfillSelections({});
+    setQuizSelections({});
+    setMatchingSelections({});
+  }, [selectedTaskId]);
 
   const handleSelectFindMistakeToken = (lineKey, tokenKey) => {
     if (!lineKey) return;
@@ -1113,19 +1188,123 @@ export default function MyHomeworkLessonPage() {
   };
 
   const handleChangeGapfillBlank = (blankKey, value) => {
-    const normalizedBlankKey = String(blankKey || "").trim();
-    if (!normalizedBlankKey) return;
-    const normalizedValue = String(value || "");
+    if (!blankKey) return;
     setGapfillSelections((prev) => {
+      const next = { ...prev };
+      const normalizedValue = String(value || "");
       if (!normalizedValue.trim()) {
-        if (!Object.prototype.hasOwnProperty.call(prev, normalizedBlankKey)) return prev;
-        const next = { ...prev };
-        delete next[normalizedBlankKey];
+        delete next[blankKey];
         return next;
       }
+      next[blankKey] = normalizedValue;
+      return next;
+    });
+  };
+
+  const getNextMatchingColorToken = (pairs = []) => {
+    const usedColorKeys = new Set(
+      (Array.isArray(pairs) ? pairs : [])
+        .map((pair) => resolveMatchColorToken(pair?.color_key))
+        .filter(Boolean),
+    );
+    return (
+      MATCH_COLOR_TOKENS.find((token) => !usedColorKeys.has(token))
+      || MATCH_COLOR_TOKENS[(Array.isArray(pairs) ? pairs.length : 0) % MATCH_COLOR_TOKENS.length]
+    );
+  };
+
+  const updateMatchingSelectionByBlock = (blockId, updater) => {
+    const normalizedBlockId = normalizeBlockId(blockId);
+    if (!normalizedBlockId) return;
+    setMatchingSelections((prev) => {
+      const current = prev[normalizedBlockId] && typeof prev[normalizedBlockId] === "object"
+        ? prev[normalizedBlockId]
+        : { selected_left_id: "", matches: [] };
+      const nextRaw = typeof updater === "function" ? updater(current) : updater;
+      const nextPairs = (Array.isArray(nextRaw?.matches) ? nextRaw.matches : [])
+        .map((pair, pairIndex) => normalizeMatchingPairData(pair, pairIndex))
+        .filter((pair) => pair.left_id && pair.right_id);
       return {
         ...prev,
-        [normalizedBlankKey]: normalizedValue,
+        [normalizedBlockId]: {
+          selected_left_id: normalizeBlockId(nextRaw?.selected_left_id),
+          matches: nextPairs,
+        },
+      };
+    });
+  };
+
+  const handleMatchingLeftCellClick = (blockId, leftItemId) => {
+    const normalizedLeftId = normalizeBlockId(leftItemId);
+    if (!normalizedLeftId) return;
+    updateMatchingSelectionByBlock(blockId, (current) => {
+      const selectedLeft = normalizeBlockId(current?.selected_left_id);
+      const currentPairs = Array.isArray(current?.matches) ? current.matches : [];
+      if (selectedLeft === normalizedLeftId) {
+        return { ...current, selected_left_id: "" };
+      }
+      if (currentPairs.some((pair) => normalizeBlockId(pair?.left_id) === normalizedLeftId)) {
+        return {
+          ...current,
+          selected_left_id: "",
+          matches: currentPairs.filter((pair) => normalizeBlockId(pair?.left_id) !== normalizedLeftId),
+        };
+      }
+      return { ...current, selected_left_id: normalizedLeftId };
+    });
+  };
+
+  const handleMatchingRightCellClick = (blockId, rightItemId) => {
+    const normalizedRightId = normalizeBlockId(rightItemId);
+    if (!normalizedRightId) return;
+    updateMatchingSelectionByBlock(blockId, (current) => {
+      const selectedLeft = normalizeBlockId(current?.selected_left_id);
+      const currentPairs = Array.isArray(current?.matches) ? current.matches : [];
+      if (!selectedLeft) {
+        if (!currentPairs.some((pair) => normalizeBlockId(pair?.right_id) === normalizedRightId)) {
+          return current;
+        }
+        return {
+          ...current,
+          matches: currentPairs.filter((pair) => normalizeBlockId(pair?.right_id) !== normalizedRightId),
+        };
+      }
+
+      const hasExactPair = currentPairs.some(
+        (pair) =>
+          normalizeBlockId(pair?.left_id) === selectedLeft
+          && normalizeBlockId(pair?.right_id) === normalizedRightId,
+      );
+      if (hasExactPair) {
+        return {
+          ...current,
+          selected_left_id: "",
+          matches: currentPairs.filter(
+            (pair) =>
+              !(
+                normalizeBlockId(pair?.left_id) === selectedLeft
+                && normalizeBlockId(pair?.right_id) === normalizedRightId
+              ),
+          ),
+        };
+      }
+
+      const filteredPairs = currentPairs.filter(
+        (pair) =>
+          normalizeBlockId(pair?.left_id) !== selectedLeft
+          && normalizeBlockId(pair?.right_id) !== normalizedRightId,
+      );
+      return {
+        ...current,
+        selected_left_id: "",
+        matches: [
+          ...filteredPairs,
+          {
+            left_id: selectedLeft,
+            right_id: normalizedRightId,
+            color_key: getNextMatchingColorToken(filteredPairs),
+          },
+        ],
       };
     });
   };
@@ -1440,7 +1619,7 @@ export default function MyHomeworkLessonPage() {
   const canSubmit = !isDeadlinePassed && !isPreviewMode;
   const canInteract = !draft.submitting && (!isDeadlinePassed || isPreviewMode);
   const taskBlocks = selectedTask ? getRenderableTaskBlocks(selectedTask) : [];
-  const dictationBlocks = taskBlocks.filter((block) => String(block?.type || "").trim().toLowerCase() === "dictation");
+  const dictationBlocks = taskBlocks.filter((block) => normalizeTaskBlockType(block?.type) === "dictation");
   const hasDictationBlock = dictationBlocks.length > 0;
   const primaryDictationBlockId = hasDictationBlock ? resolveTaskBlockId(dictationBlocks[0]) : "";
   const shouldUseDictationTranscript = hasTextInput && hasDictationBlock;
@@ -1455,12 +1634,12 @@ export default function MyHomeworkLessonPage() {
     : "No strict word limit";
   const passageBlockIdSet = new Set(
     taskBlocks
-      .filter((block) => String(block?.type || "").trim().toLowerCase() === "passage")
+      .filter((block) => normalizeTaskBlockType(block?.type) === "passage")
       .map((block) => resolveTaskBlockId(block))
       .filter(Boolean),
   );
   const nestedQuizBlocksByPassageId = taskBlocks.reduce((grouped, block) => {
-    const blockType = String(block?.type || "").trim().toLowerCase();
+    const blockType = normalizeTaskBlockType(block?.type);
     if (blockType !== "quiz") return grouped;
     const parentPassageBlockId = resolveQuizParentPassageBlockId(block);
     if (!parentPassageBlockId) return grouped;
@@ -1473,302 +1652,306 @@ export default function MyHomeworkLessonPage() {
   return (
     <div className="homework-page">
       <div className="homework-shell">
-        <section className="homework-header">
-          <button
+        <section className="mb-6 flex items-center justify-between">
+          <Button
             type="button"
-            className="homework-header-back"
+            variant="ghost"
             onClick={() => navigate(lessonListPath)}
-            aria-label="Back to assignment lessons"
+            className="flex items-center gap-2 border bg-background shadow-sm"
           >
-            <ChevronLeft size={24} />
-          </button>
-          <div className="homework-header-main">
-            <h1 className="homework-header-title">{selectedTask?.title || "Lesson"}</h1>
-          </div>
+            <ArrowLeft className="h-4 w-4" />
+            Back
+          </Button>
+          <h2 className="text-lg font-semibold tracking-tight text-foreground">
+            {assignment?.title || "Assignment"}
+          </h2>
         </section>
 
         <section className="homework-stacked">
-            {!selectedTask ? (
-              <article className="homework-card">
-                <p className="homework-danger">Lesson not found.</p>
-                <button type="button" className="homework-btn" onClick={() => navigate(lessonListPath)}>
-                  Back to Month
-                </button>
-              </article>
-            ) : (
-              <>
-                {isPreviewMode ? (
-                  <section className="homework-card">
-                    <p className="homework-item-meta">
-                      Preview mode: this page simulates student UI. Submit actions are disabled.
-                    </p>
-                  </section>
-                ) : null}
+          {!selectedTask ? (
+            <article className="homework-card">
+              <p className="homework-danger">Lesson not found.</p>
+              <button type="button" className="homework-btn" onClick={() => navigate(lessonListPath)}>
+                Back to Month
+              </button>
+            </article>
+          ) : (
+            <>
+              {isPreviewMode ? (
+                <section className="homework-card">
+                  <p className="homework-item-meta">
+                    Preview mode: this page simulates student UI. Submit actions are disabled.
+                  </p>
+                </section>
+              ) : null}
 
-                {isDeadlinePassed ? (
-                  <section className="homework-card">
-                    <p className="homework-danger">
-                      Deadline has passed. You can still review your submissions.
-                    </p>
-                  </section>
-                ) : null}
+              {isDeadlinePassed ? (
+                <section className="homework-card">
+                  <p className="homework-danger">
+                    Deadline has passed. You can still review your submissions.
+                  </p>
+                </section>
+              ) : null}
 
-                <article className="homework-task-card">
-                  <div className="homework-task-head">
-                    <div className="homework-task-left">
-                      <div className="homework-task-logo">
-                        <BookOpen className="homework-task-icon" size={22} color="#4285F4" />
-                      </div>
-                      <div className="homework-task-title-wrap">
-                        <h3>{selectedTask.title || "Lesson"}</h3>
-                      </div>
+              <article className="homework-task-card">
+                <div className="homework-task-head">
+                  <div className="homework-task-left">
+                    <div className="homework-task-logo">
+                      <BookOpen className="homework-task-icon" size={22} color="#4285F4" />
                     </div>
-                    <div className={`homework-task-status-icon ${submission ? "submitted" : ""}`}>
-                      <CheckCircle2 size={24} />
+                    <div className="homework-task-title-wrap">
+                      <h3>{selectedTask.title || "Lesson"}</h3>
                     </div>
                   </div>
-
-                  <div className="homework-task-blocks">
-                    {taskBlocks.map((block, blockIndex) => {
-                      const blockType = String(block?.type || "").trim().toLowerCase();
-                      const parentPassageBlockId = resolveQuizParentPassageBlockId(block);
-                      if (
-                        blockType === "quiz"
-                        && parentPassageBlockId
-                        && passageBlockIdSet.has(parentPassageBlockId)
-                      ) {
-                        return null;
-                      }
-                      const renderBlock = TASK_BLOCK_RENDERERS[blockType];
-                      if (!renderBlock) return null;
-                      const currentBlockId = resolveTaskBlockId(block);
-                      const content = renderBlock({
-                        block: {
-                          ...block,
-                          onLaunchInternal: handleLaunchInternalResource,
-                          canLaunchInternal: !isPreviewMode && canAccessPage,
-                          isLaunchingInternal: launchingTaskId === selectedTaskId,
-                        },
-                        task: selectedTask,
-                        taskIndex: selectedTaskIndex >= 0 ? selectedTaskIndex : 0,
-                        nestedQuizBlocks:
-                          blockType === "passage" ? nestedQuizBlocksByPassageId.get(currentBlockId) || [] : [],
-                        findMistakeSelections,
-                        onSelectFindMistakeToken: handleSelectFindMistakeToken,
-                        isFindMistakeDisabled: !canInteract,
-                        gapfillSelections,
-                        onChangeGapfillBlank: handleChangeGapfillBlank,
-                        isGapfillDisabled: !canInteract,
-                        quizSelections,
-                        onSelectQuizOption: handleSelectQuizOption,
-                        isQuizDisabled: !canInteract,
-                        draft,
-                        onChangeTextAnswer: (value) => updateDraft(selectedTaskId, { text_answer: value }),
-                        onClearTextAnswer: () => updateDraft(selectedTaskId, { text_answer: "" }),
-                        isDictationDisabled: !canInteract,
-                        showDictationTranscriptInput:
-                          shouldUseDictationTranscript && currentBlockId === primaryDictationBlockId,
-                        dictationTextPlaceholder: textAnswerPlaceholder,
-                        minWords: selectedTask?.min_words,
-                        maxWords: selectedTask?.max_words,
-                        submissionStatus: submission ? statusLabel(submission.status) : "Not submitted",
-                      });
-                      if (!content) return null;
-                      return (
-                        <div
-                          key={getTaskBlockKey({ taskId: selectedTaskId, block, fallbackIndex: blockIndex })}
-                          data-testid="task-content-block"
-                          data-task-id={selectedTaskId}
-                          data-block-type={blockType}
-                        >
-                          {content}
-                        </div>
-                      );
-                    })}
+                  <div className={`homework-task-status-icon ${submission ? "submitted" : ""}`}>
+                    <CheckCircle2 size={24} />
                   </div>
+                </div>
 
-                  <div className="homework-grid">
-                    {hasTextInput && !shouldUseDictationTranscript ? (
-                      <div className="homework-text-answer-card homework-span-12">
-                        <div className="homework-text-answer-head">
-                          <div>
-                            <p className="homework-text-answer-label">Text Answer</p>
-                            <p className="homework-item-meta">Write your final response before submitting.</p>
-                          </div>
-                          <span className="homework-chip neutral">{textAnswerWordCount} words</span>
-                        </div>
-                        <textarea
-                          className="homework-text-answer-textarea"
-                          value={draft.text_answer || ""}
-                          onChange={(event) => updateDraft(selectedTaskId, { text_answer: event.target.value })}
-                          disabled={!canInteract}
-                          placeholder={textAnswerPlaceholder}
-                        />
-                        
+                <div className="homework-task-blocks">
+                  {taskBlocks.map((block, blockIndex) => {
+                    const blockType = normalizeTaskBlockType(block?.type);
+                    const parentPassageBlockId = resolveQuizParentPassageBlockId(block);
+                    if (
+                      blockType === "quiz"
+                      && parentPassageBlockId
+                      && passageBlockIdSet.has(parentPassageBlockId)
+                    ) {
+                      return null;
+                    }
+                    const renderBlock = TASK_BLOCK_RENDERERS[blockType];
+                    if (!renderBlock) return null;
+                    const currentBlockId = resolveTaskBlockId(block) || `task-block-${blockIndex + 1}`;
+                    const content = renderBlock({
+                      block: {
+                        ...block,
+                        onLaunchInternal: handleLaunchInternalResource,
+                        canLaunchInternal: !isPreviewMode && canAccessPage,
+                        isLaunchingInternal: launchingTaskId === selectedTaskId,
+                      },
+                      task: selectedTask,
+                      taskIndex: selectedTaskIndex >= 0 ? selectedTaskIndex : 0,
+                      nestedQuizBlocks:
+                        blockType === "passage" ? nestedQuizBlocksByPassageId.get(currentBlockId) || [] : [],
+                      findMistakeSelections,
+                      onSelectFindMistakeToken: handleSelectFindMistakeToken,
+                      isFindMistakeDisabled: !canInteract,
+                      gapfillSelections,
+                      onChangeGapfillBlank: handleChangeGapfillBlank,
+                      isGapfillDisabled: !canInteract,
+                      quizSelections,
+                      onSelectQuizOption: handleSelectQuizOption,
+                      isQuizDisabled: !canInteract,
+                      matchingSelection: matchingSelections[currentBlockId] || { selected_left_id: "", matches: [] },
+                      onMatchingLeftClick: (leftItemId) => handleMatchingLeftCellClick(currentBlockId, leftItemId),
+                      onMatchingRightClick: (rightItemId) => handleMatchingRightCellClick(currentBlockId, rightItemId),
+                      isMatchingDisabled: !canInteract,
+                      draft,
+                      onChangeTextAnswer: (value) => updateDraft(selectedTaskId, { text_answer: value }),
+                      onClearTextAnswer: () => updateDraft(selectedTaskId, { text_answer: "" }),
+                      isDictationDisabled: !canInteract,
+                      showDictationTranscriptInput:
+                        shouldUseDictationTranscript && currentBlockId === primaryDictationBlockId,
+                      dictationTextPlaceholder: textAnswerPlaceholder,
+                      minWords: selectedTask?.min_words,
+                      maxWords: selectedTask?.max_words,
+                      submissionStatus: submission ? statusLabel(submission.status) : "Not submitted",
+                    });
+                    if (!content) return null;
+                    return (
+                      <div
+                        key={getTaskBlockKey({ taskId: selectedTaskId, block, fallbackIndex: blockIndex })}
+                        data-testid="task-content-block"
+                        data-task-id={selectedTaskId}
+                        data-block-type={blockType}
+                      >
+                        {content}
                       </div>
-                    ) : null}
+                    );
+                  })}
+                </div>
 
-                    {hasImageInput ? (
-                      <Card className="homework-span-12 rounded-3xl border shadow-sm">
-                        <input
-                          id={uploadInputId}
-                          type="file"
-                          accept="image/*,video/*"
-                          multiple
-                          className="hidden"
-                          onChange={(event) =>
-                            updateDraft(selectedTaskId, { image_files: Array.from(event.target.files || []) })
-                          }
-                          disabled={!canInteract}
-                        />
-                        <CardHeader className="space-y-3 pb-3">
-                          <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div className="space-y-2">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <Badge
-                                  variant={selectedImageFiles.length ? "default" : "outline"}
-                                  className="rounded-full px-3 py-1"
-                                >
-                                  {selectedImageFiles.length
-                                    ? `${selectedImageFiles.length} file đã chọn`
-                                    : "Chưa chọn file"}
-                                </Badge>
-                              </div>
-                              <CardTitle className="text-xl">Nộp ảnh / Video bài làm</CardTitle>
-                        
-                            </div>
-                            {submission?.image_items?.length ? (
-                              <Badge variant="outline" className="rounded-full px-3 py-1">
-                                Hiện tại: {submission.image_items.length} file
-                              </Badge>
-                            ) : null}
-                          </div>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                          <Card
-                            className={`rounded-2xl border-dashed shadow-none transition-colors ${
-                              selectedImageFiles.length ? "border-primary/40 bg-primary/[0.04]" : "bg-muted/40"
-                            }`}
-                          >
-                            <CardContent className="space-y-3 p-4">
-                              <Button
-                                asChild
-                                variant="outline"
-                                className="h-11 w-full rounded-2xl"
-                                disabled={!canInteract}
-                              >
-                                <label
-                                  htmlFor={canInteract ? uploadInputId : undefined}
-                                  className={canInteract ? "cursor-pointer" : "pointer-events-none cursor-not-allowed"}
-                                >
-                                  <IconCloud className="mr-2 h-4 w-4" />
-                                  {selectedImageFiles.length ? "Chọn lại file" : "Upload"}
-                                </label>
-                              </Button>
-                            </CardContent>
-                          </Card>
-                          {selectedImageFileNames.length ? (
-                            <div className="space-y-2">
-                              <p className="text-sm font-medium text-foreground">File da chon</p>
-                              <div className="flex flex-wrap gap-2">
-                                {selectedImageFileNames.slice(0, 6).map((fileName, index) => (
-                                  <Badge
-                                    key={`${fileName}-${index}`}
-                                    variant="outline"
-                                    className="max-w-full truncate rounded-full px-3 py-1"
-                                    title={fileName}
-                                  >
-                                    {fileName}
-                                  </Badge>
-                                ))}
-                                {selectedImageFileNames.length > 6 ? (
-                                  <Badge variant="outline" className="rounded-full px-3 py-1">
-                                    +{selectedImageFileNames.length - 6} file
-                                  </Badge>
-                                ) : null}
-                              </div>
-                            </div>
-                          ) : (
-                            <p className="text-sm text-muted-foreground">Chưa có file nào được chọn.</p>
-                          )}
-                        </CardContent>
-                      </Card>
-                    ) : null}
-
-                    {hasAudioInput ? (
-                      <div className="homework-field homework-span-12">
-                        <label>Audio Recording</label>
-                        <div className="homework-audio-recorder">
-                          <div className="homework-inline">
-                            <button
-                              type="button"
-                              className={`homework-btn ${draft.is_recording ? "ghost" : "primary"}`}
-                              onClick={() =>
-                                draft.is_recording
-                                  ? stopAudioRecording(selectedTaskId)
-                                  : void startAudioRecording(selectedTaskId)
-                              }
-                              disabled={!canInteract || isPreviewMode}
-                            >
-                              {draft.is_recording ? "Stop recording" : "Start recording"}
-                            </button>
-                            <button
-                              type="button"
-                              className="homework-btn ghost"
-                              onClick={() => clearDraftAudio(selectedTaskId)}
-                              disabled={!canInteract || (!draft.audio_file && !draft.audio_preview_url)}
-                            >
-                              Clear
-                            </button>
-                          </div>
-                          <p className="homework-item-meta">
-                            Record directly in the browser. No audio file upload is required.
-                          </p>
-                          {draft.audio_error ? <p className="homework-danger">{draft.audio_error}</p> : null}
-                          {draft.audio_preview_url ? (
-                            <audio controls src={draft.audio_preview_url} style={{ width: "100%", marginTop: "0.4rem" }} />
-                          ) : submission?.audio_item?.url ? (
-                            <audio controls src={submission.audio_item.url} style={{ width: "100%", marginTop: "0.4rem" }} />
-                          ) : null}
+                <div className="homework-grid">
+                  {hasTextInput && !shouldUseDictationTranscript ? (
+                    <div className="homework-text-answer-card homework-span-12">
+                      <div className="homework-text-answer-head">
+                        <div>
+                          <p className="homework-text-answer-label">Text Answer</p>
+                          <p className="homework-item-meta">Write your final response before submitting.</p>
                         </div>
+                        <span className="homework-chip neutral">{textAnswerWordCount} words</span>
                       </div>
-                    ) : null}
-                  </div>
+                      <textarea
+                        className="homework-text-answer-textarea"
+                        value={draft.text_answer || ""}
+                        onChange={(event) => updateDraft(selectedTaskId, { text_answer: event.target.value })}
+                        disabled={!canInteract}
+                        placeholder={textAnswerPlaceholder}
+                      />
 
-                  <div className="homework-task-actions homework-task-actions--lesson">
-                    <div className="homework-submit-meta">
-                      <p className="homework-item-meta">
-                        {isPreviewMode
-                          ? "Preview mode disables submit."
-                          : isDeadlinePassed
-                            ? "Deadline has passed. You can review only."
-                            : "Submitting will update your latest answer for this lesson."}
-                      </p>
-                      {submission?.status === "graded" ? (
-                        <span className="homework-chip">
-                          Score: {submission?.score ?? "--"} / 10
-                        </span>
-                      ) : null}
-                    </div>
-                    <button
-                      type="button"
-                      className="homework-submit-btn"
-                      onClick={() => void handleSubmitTask()}
-                      disabled={!canSubmit || draft.submitting}
-                    >
-                      {isPreviewMode ? "Preview only" : draft.submitting ? "Submitting..." : "Submit Task"}
-                    </button>
-                  </div>
-
-                  {submission?.teacher_feedback ? (
-                    <div className="homework-card">
-                      <h4 className="homework-item-title" style={{ fontSize: "0.95rem" }}>Teacher Feedback</h4>
-                      <p className="homework-task-sub">{submission.teacher_feedback}</p>
                     </div>
                   ) : null}
-                </article>
-              </>
-            )}
+
+                  {hasImageInput ? (
+                    <Card className="homework-span-12 rounded-3xl border shadow-sm">
+                      <input
+                        id={uploadInputId}
+                        type="file"
+                        accept="image/*,video/*"
+                        multiple
+                        className="hidden"
+                        onChange={(event) =>
+                          updateDraft(selectedTaskId, { image_files: Array.from(event.target.files || []) })
+                        }
+                        disabled={!canInteract}
+                      />
+                      <CardHeader className="space-y-3 pb-3">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="space-y-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge
+                                variant={selectedImageFiles.length ? "default" : "outline"}
+                                className="rounded-full px-3 py-1"
+                              >
+                                {selectedImageFiles.length
+                                  ? `${selectedImageFiles.length} file đã chọn`
+                                  : "Chưa chọn file"}
+                              </Badge>
+                            </div>
+                            <CardTitle className="text-xl">Nộp ảnh / Video bài làm</CardTitle>
+
+                          </div>
+                          {submission?.image_items?.length ? (
+                            <Badge variant="outline" className="rounded-full px-3 py-1">
+                              Hiện tại: {submission.image_items.length} file
+                            </Badge>
+                          ) : null}
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <Card
+                          className={`rounded-2xl border-dashed shadow-none transition-colors ${selectedImageFiles.length ? "border-primary/40 bg-primary/[0.04]" : "bg-muted/40"
+                            }`}
+                        >
+                          <CardContent className="space-y-3 p-4">
+                            <Button
+                              asChild
+                              variant="outline"
+                              className="h-11 w-full rounded-2xl"
+                              disabled={!canInteract}
+                            >
+                              <label
+                                htmlFor={canInteract ? uploadInputId : undefined}
+                                className={canInteract ? "cursor-pointer" : "pointer-events-none cursor-not-allowed"}
+                              >
+                                <IconCloud className="mr-2 h-4 w-4" />
+                                {selectedImageFiles.length ? "Chọn lại file" : "Upload"}
+                              </label>
+                            </Button>
+                          </CardContent>
+                        </Card>
+                        {selectedImageFileNames.length ? (
+                          <div className="space-y-2">
+                            <p className="text-sm font-medium text-foreground">File da chon</p>
+                            <div className="flex flex-wrap gap-2">
+                              {selectedImageFileNames.slice(0, 6).map((fileName, index) => (
+                                <Badge
+                                  key={`${fileName}-${index}`}
+                                  variant="outline"
+                                  className="max-w-full truncate rounded-full px-3 py-1"
+                                  title={fileName}
+                                >
+                                  {fileName}
+                                </Badge>
+                              ))}
+                              {selectedImageFileNames.length > 6 ? (
+                                <Badge variant="outline" className="rounded-full px-3 py-1">
+                                  +{selectedImageFileNames.length - 6} file
+                                </Badge>
+                              ) : null}
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">Chưa có file nào được chọn.</p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ) : null}
+
+                  {hasAudioInput ? (
+                    <div className="homework-field homework-span-12">
+                      <label>Audio Recording</label>
+                      <div className="homework-audio-recorder">
+                        <div className="homework-inline">
+                          <button
+                            type="button"
+                            className={`homework-btn ${draft.is_recording ? "ghost" : "primary"}`}
+                            onClick={() =>
+                              draft.is_recording
+                                ? stopAudioRecording(selectedTaskId)
+                                : void startAudioRecording(selectedTaskId)
+                            }
+                            disabled={!canInteract || isPreviewMode}
+                          >
+                            {draft.is_recording ? "Stop recording" : "Start recording"}
+                          </button>
+                          <button
+                            type="button"
+                            className="homework-btn ghost"
+                            onClick={() => clearDraftAudio(selectedTaskId)}
+                            disabled={!canInteract || (!draft.audio_file && !draft.audio_preview_url)}
+                          >
+                            Clear
+                          </button>
+                        </div>
+                        <p className="homework-item-meta">
+                          Record directly in the browser. No audio file upload is required.
+                        </p>
+                        {draft.audio_error ? <p className="homework-danger">{draft.audio_error}</p> : null}
+                        {draft.audio_preview_url ? (
+                          <audio controls src={draft.audio_preview_url} style={{ width: "100%", marginTop: "0.4rem" }} />
+                        ) : submission?.audio_item?.url ? (
+                          <audio controls src={submission.audio_item.url} style={{ width: "100%", marginTop: "0.4rem" }} />
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="homework-task-actions homework-task-actions--lesson">
+                  <div className="homework-submit-meta">
+                    <p className="homework-item-meta">
+                      {isPreviewMode
+                        ? "Preview mode disables submit."
+                        : isDeadlinePassed
+                          ? "Deadline has passed. You can review only."
+                          : "Submitting will update your latest answer for this lesson."}
+                    </p>
+                    {submission?.status === "graded" ? (
+                      <span className="homework-chip">
+                        Score: {submission?.score ?? "--"} / 10
+                      </span>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    className="homework-submit-btn"
+                    onClick={() => void handleSubmitTask()}
+                    disabled={!canSubmit || draft.submitting}
+                  >
+                    {isPreviewMode ? "Preview only" : draft.submitting ? "Submitting..." : "Submit Task"}
+                  </button>
+                </div>
+
+                {submission?.teacher_feedback ? (
+                  <div className="homework-card">
+                    <h4 className="homework-item-title" style={{ fontSize: "0.95rem" }}>Teacher Feedback</h4>
+                    <p className="homework-task-sub">{submission.teacher_feedback}</p>
+                  </div>
+                ) : null}
+              </article>
+            </>
+          )}
         </section>
       </div>
     </div>

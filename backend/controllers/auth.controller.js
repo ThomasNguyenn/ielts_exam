@@ -8,6 +8,7 @@ import {
   JWT_REFRESH_SECRET,
   ACCESS_TOKEN_EXPIRES_IN,
   REFRESH_TOKEN_EXPIRES_IN,
+  REFRESH_TOKEN_EXPIRES_IN_SHORT,
   REFRESH_COOKIE_NAME,
   REFRESH_COOKIE_PATH,
   REFRESH_COOKIE_SAMESITE,
@@ -238,6 +239,19 @@ const applySessionRevocationToUserDoc = (user, options = {}) => {
   Object.assign(user, updates);
 };
 
+const parseBooleanFlag = (value, fallback = false) => {
+  if (value === undefined || value === null || value === "") return fallback;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1;
+  const normalized = String(value).trim().toLowerCase();
+  if (TRUTHY_VALUES.has(normalized)) return true;
+  if (FALSY_VALUES.has(normalized)) return false;
+  return false;
+};
+
+const resolveRefreshTokenExpiresIn = (rememberMe) =>
+  rememberMe ? REFRESH_TOKEN_EXPIRES_IN : REFRESH_TOKEN_EXPIRES_IN_SHORT;
+
 const issueAccessTokenForUser = (user, sessionId = null) => {
   const payload = {
     userId: user._id,
@@ -253,7 +267,8 @@ const issueAccessTokenForUser = (user, sessionId = null) => {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRES_IN });
 };
 
-const issueRefreshTokenForUser = (user, sessionId = null) => {
+const issueRefreshTokenForUser = (user, sessionId = null, options = {}) => {
+  const { rememberMe, expiresIn = REFRESH_TOKEN_EXPIRES_IN } = options;
   const payload = {
     userId: user._id,
     email: user.email,
@@ -263,8 +278,11 @@ const issueRefreshTokenForUser = (user, sessionId = null) => {
   if (sessionId) {
     payload.sessionId = sessionId;
   }
+  if (typeof rememberMe === "boolean") {
+    payload.rememberMe = rememberMe;
+  }
 
-  const token = jwt.sign(payload, JWT_REFRESH_SECRET, { expiresIn: REFRESH_TOKEN_EXPIRES_IN });
+  const token = jwt.sign(payload, JWT_REFRESH_SECRET, { expiresIn });
   return {
     token,
     expiresAt: decodeTokenExpiry(token),
@@ -725,6 +743,7 @@ export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
     const normalizedEmail = normalizeEmail(email);
+    const rememberMe = parseBooleanFlag(req.body?.rememberMe, true);
 
     if (!normalizedEmail || !password) {
       return sendControllerError(req, res, { statusCode: 400, message: "Email and password are required"  });
@@ -754,7 +773,10 @@ export const login = async (req, res) => {
     }
 
     const accessToken = issueAccessTokenForUser(user, studentSessionId);
-    const refreshToken = issueRefreshTokenForUser(user, studentSessionId);
+    const refreshToken = issueRefreshTokenForUser(user, studentSessionId, {
+      rememberMe,
+      expiresIn: resolveRefreshTokenExpiresIn(rememberMe),
+    });
     user.refreshTokenHash = hashToken(refreshToken.token);
     user.refreshTokenIssuedAt = new Date();
     user.refreshTokenExpiresAt = refreshToken.expiresAt;
@@ -825,7 +847,11 @@ export const refreshAccessToken = async (req, res) => {
 
     const sessionId = isStudentRole(user.role) ? String(user.activeSessionId || "").trim() : null;
     const accessToken = issueAccessTokenForUser(user, sessionId || null);
-    const nextRefresh = issueRefreshTokenForUser(user, sessionId || null);
+    const rememberMe = parseBooleanFlag(decoded?.rememberMe, true);
+    const nextRefresh = issueRefreshTokenForUser(user, sessionId || null, {
+      rememberMe,
+      expiresIn: resolveRefreshTokenExpiresIn(rememberMe),
+    });
 
     user.refreshTokenHash = hashToken(nextRefresh.token);
     user.refreshTokenIssuedAt = new Date();

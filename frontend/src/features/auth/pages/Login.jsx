@@ -8,7 +8,7 @@ import { LoginForm } from "@/components/login-form"
 
 export default function LoginPage() {
   const navigate = useNavigate()
-  const [form, setForm] = useState({ email: "", password: "" })
+  const [form, setForm] = useState({ email: "", password: "", rememberMe: true })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -47,6 +47,7 @@ export default function LoginPage() {
         <LoginForm
           email={form.email}
           password={form.password}
+          rememberMe={form.rememberMe}
           loading={loading}
           error={error}
           showPassword={showPassword}
@@ -54,6 +55,7 @@ export default function LoginPage() {
           onTogglePassword={() => setShowPassword((prev) => !prev)}
           onEmailChange={(email) => setForm((prev) => ({ ...prev, email }))}
           onPasswordChange={(password) => setForm((prev) => ({ ...prev, password }))}
+          onRememberMeChange={(rememberMe) => setForm((prev) => ({ ...prev, rememberMe }))}
         />
       </div>
     </div>

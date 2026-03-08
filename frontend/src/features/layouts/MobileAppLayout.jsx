@@ -1,58 +1,89 @@
-import { Fragment, useMemo } from 'react';
+import { useMemo } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   BookOpen,
   ClipboardList,
   Languages,
+  Library,
   Mic,
   Pencil,
+  ShieldCheck,
   UserCircle,
-  Library,
 } from 'lucide-react';
 import './MobileAppLayout.css';
 
-const BASE = '/student-ielts';
+const IELTS_BASE = '/student-ielts';
+const ACA_BASE = '/student-aca';
 
-const TABS = [
-  {
-    key: 'homework',
-    label: 'Bài Tập',
-    to: `${BASE}/homework`,
-    icon: ClipboardList,
-    matchPrefix: `${BASE}/homework`,
-  },
-  {
-    key: 'ielts',
-    label: 'IELTS Zone',
-    to: `${BASE}/tests`,
-    icon: BookOpen,
-    matchPrefix: [
-      `${BASE}/tests`,
-      `${BASE}/practice`,
-      `${BASE}/speaking`,
+const MOBILE_LAYOUTS = {
+  ielts: {
+    brand: 'IELTS MASTER',
+    subnavTabKey: 'ielts',
+    tabs: [
+      {
+        key: 'homework',
+        label: 'Bai tap',
+        to: `${IELTS_BASE}/homework`,
+        icon: ClipboardList,
+        matchPrefix: `${IELTS_BASE}/homework`,
+      },
+      {
+        key: 'ielts',
+        label: 'IELTS Zone',
+        to: `${IELTS_BASE}/tests`,
+        icon: BookOpen,
+        matchPrefix: [
+          `${IELTS_BASE}/tests`,
+          `${IELTS_BASE}/practice`,
+          `${IELTS_BASE}/speaking`,
+        ],
+      },
+      {
+        key: 'vocabulary',
+        label: 'Quizlet',
+        to: `${IELTS_BASE}/vocabulary`,
+        icon: Languages,
+        matchPrefix: `${IELTS_BASE}/vocabulary`,
+      },
+      {
+        key: 'profile',
+        label: 'Profile',
+        to: `${IELTS_BASE}/profile`,
+        icon: UserCircle,
+        matchPrefix: [
+          `${IELTS_BASE}/profile`,
+          `${IELTS_BASE}/account-security`,
+        ],
+      },
+    ],
+    subItems: [
+      { key: 'tests', label: 'Full Tests', to: `${IELTS_BASE}/tests`, icon: Library },
+      { key: 'practice', label: 'Writing', to: `${IELTS_BASE}/practice`, icon: Pencil },
+      { key: 'speaking', label: 'Speaking', to: `${IELTS_BASE}/speaking`, icon: Mic },
     ],
   },
-  {
-    key: 'vocabulary',
-    label: 'Quizlet',
-    to: `${BASE}/vocabulary`,
-    icon: Languages,
-    matchPrefix: `${BASE}/vocabulary`,
+  aca: {
+    brand: 'ACA MASTER',
+    subnavTabKey: null,
+    tabs: [
+      {
+        key: 'homework',
+        label: 'Bai tap',
+        to: `${ACA_BASE}/homework`,
+        icon: ClipboardList,
+        matchPrefix: `${ACA_BASE}/homework`,
+      },
+      {
+        key: 'account',
+        label: 'Tai khoan',
+        to: `${ACA_BASE}/account-security`,
+        icon: ShieldCheck,
+        matchPrefix: `${ACA_BASE}/account-security`,
+      },
+    ],
+    subItems: [],
   },
-  {
-    key: 'profile',
-    label: 'Profile',
-    to: `${BASE}/profile`,
-    icon: UserCircle,
-    matchPrefix: `${BASE}/profile`,
-  },
-];
-
-const IELTS_SUB_ITEMS = [
-  { key: 'tests', label: 'Full Tests', to: `${BASE}/tests`, icon: Library },
-  { key: 'practice', label: 'Writing', to: `${BASE}/practice`, icon: Pencil },
-  { key: 'speaking', label: 'Speaking', to: `${BASE}/speaking`, icon: Mic },
-];
+};
 
 const isTabActive = (tab, pathname) => {
   if (Array.isArray(tab.matchPrefix)) {
@@ -63,29 +94,33 @@ const isTabActive = (tab, pathname) => {
   return pathname === tab.matchPrefix || pathname.startsWith(`${tab.matchPrefix}/`);
 };
 
-export default function MobileAppLayout() {
+export default function MobileAppLayout({ variant = 'ielts' }) {
   const { pathname } = useLocation();
+  const layout = MOBILE_LAYOUTS[variant] || MOBILE_LAYOUTS.ielts;
+  const tabs = layout.tabs;
+  const subItems = layout.subItems;
 
   const activeTabKey = useMemo(() => {
-    for (const tab of TABS) {
+    for (const tab of tabs) {
       if (isTabActive(tab, pathname)) return tab.key;
     }
     return null;
-  }, [pathname]);
+  }, [pathname, tabs]);
 
-  const showIeltsSubnav = activeTabKey === 'ielts';
+  const showSubnav =
+    Boolean(layout.subnavTabKey) &&
+    activeTabKey === layout.subnavTabKey &&
+    subItems.length > 0;
 
   return (
     <div className="mobile-app-shell">
-      {/* ── Header ─────────────────────────────── */}
       <header className="mobile-app-header">
-        <span className="mobile-app-header__brand">IELTS MASTER</span>
+        <span className="mobile-app-header__brand">{layout.brand}</span>
       </header>
 
-      {/* ── IELTS Zone sub-nav pills ───────────── */}
-      {showIeltsSubnav && (
+      {showSubnav && (
         <nav className="mobile-app-subnav">
-          {IELTS_SUB_ITEMS.map((item) => {
+          {subItems.map((item) => {
             const isActive =
               pathname === item.to || pathname.startsWith(`${item.to}/`);
             const Icon = item.icon;
@@ -103,16 +138,14 @@ export default function MobileAppLayout() {
         </nav>
       )}
 
-      {/* ── Main scrollable content ────────────── */}
       <main className="mobile-app-content">
         <div className="mobile-app-content__inner" key={pathname}>
           <Outlet />
         </div>
       </main>
 
-      {/* ── Bottom tab bar ─────────────────────── */}
       <nav className="mobile-tab-bar">
-        {TABS.map((tab) => {
+        {tabs.map((tab) => {
           const active = tab.key === activeTabKey;
           const Icon = tab.icon;
           return (

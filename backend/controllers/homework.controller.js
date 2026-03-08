@@ -32,9 +32,12 @@ import {
   issueHomeworkContextToken,
   trackHomeworkActivityOpen,
 } from "../services/homeworkTrackingBridge.service.js";
+import { generateHomeworkQuizBlock } from "../services/homeworkGen.service.js";
 import { parsePagination, buildPaginationMeta } from "../utils/pagination.js";
 import { handleControllerError, sendControllerError } from "../utils/controllerError.js";
 import { STUDENT_ROLE_VALUES } from "../utils/role.utils.js";
+import { calculateIELTSBand } from "../utils/ieltsUtils.js";
+
 
 const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 const TASK_RESOURCE_MODES_SET = new Set(TASK_RESOURCE_MODES);
@@ -152,6 +155,15 @@ const parseWeekOrNull = (value) => {
   return normalized;
 };
 
+const parseBoundedInt = (value, { min = 0, max = Number.MAX_SAFE_INTEGER, fallback = min } = {}) => {
+  if (value === undefined || value === null || String(value).trim() === "") {
+    return Math.max(min, Math.min(max, fallback));
+  }
+  const parsed = Number(value);
+  const intValue = Number.isFinite(parsed) ? Math.trunc(parsed) : fallback;
+  return Math.max(min, Math.min(max, intValue));
+};
+
 const parseOptionalDateOrNull = (value) => {
   if (value === undefined || value === null || value === "") return null;
   return parseDateOrNull(value);
@@ -175,6 +187,11 @@ const resolveMatchColorToken = (value, fallbackIndex = 0) => {
   const normalized = String(value || "").trim();
   if (MATCH_COLOR_TOKENS.includes(normalized)) return normalized;
   return MATCH_COLOR_TOKENS[fallbackIndex % MATCH_COLOR_TOKENS.length];
+};
+
+const normalizeQuizLayout = (value) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  return normalized === "list" ? "list" : "grid";
 };
 
 const sanitizeQuizOptionData = (option = {}, optionIndex = 0) => {
@@ -206,11 +223,11 @@ const sanitizeQuizQuestionData = (question = {}, questionIndex = 0) => {
   const options = normalizedOptions.length >= 2
     ? normalizedOptions
     : [
-        ...normalizedOptions,
-        ...Array.from({ length: Math.max(0, 2 - normalizedOptions.length) }, (_, index) =>
-          sanitizeQuizOptionData({}, normalizedOptions.length + index),
-        ),
-      ];
+      ...normalizedOptions,
+      ...Array.from({ length: Math.max(0, 2 - normalizedOptions.length) }, (_, index) =>
+        sanitizeQuizOptionData({}, normalizedOptions.length + index),
+      ),
+    ];
 
   const optionIdSet = new Set(options.map((option) => option.id));
   const allowMultiple = toBoolean(normalizedQuestion.allow_multiple, false);
@@ -265,6 +282,7 @@ const sanitizeQuizBlockData = (data = {}, blockIndex = 0) => {
 
   return {
     block_id: normalizeBlockId(normalizedData.block_id, `block-${blockIndex + 1}`),
+    layout: normalizeQuizLayout(normalizedData.layout),
     parent_passage_block_id: normalizeBlockId(normalizedData.parent_passage_block_id),
     questions: questions.length > 0 ? questions : [sanitizeQuizQuestionData({}, 0)],
   };
@@ -282,13 +300,13 @@ const sanitizeMatchingBlockData = (data = {}, blockIndex = 0) => {
   const normalizedData = sanitizeBlockData(data);
   const normalizedLeftItems = Array.isArray(normalizedData.left_items)
     ? normalizedData.left_items
-        .map((item, itemIndex) => sanitizeMatchingItemData(item, itemIndex, "left"))
-        .filter((item) => Boolean(item.id))
+      .map((item, itemIndex) => sanitizeMatchingItemData(item, itemIndex, "left"))
+      .filter((item) => Boolean(item.id))
     : [];
   const normalizedRightItems = Array.isArray(normalizedData.right_items)
     ? normalizedData.right_items
-        .map((item, itemIndex) => sanitizeMatchingItemData(item, itemIndex, "right"))
-        .filter((item) => Boolean(item.id))
+      .map((item, itemIndex) => sanitizeMatchingItemData(item, itemIndex, "right"))
+      .filter((item) => Boolean(item.id))
     : [];
   const normalizedRowCount = Math.max(normalizedLeftItems.length, normalizedRightItems.length, 2);
   const leftItems = Array.from({ length: normalizedRowCount }, (_, itemIndex) =>
@@ -386,6 +404,14 @@ const sanitizeDictationBlockData = (data = {}, blockIndex = 0) => {
   };
 };
 
+const sanitizeAnswerBlockData = (data = {}, blockIndex = 0) => {
+  const normalizedData = sanitizeBlockData(data);
+  return {
+    block_id: normalizeBlockId(normalizedData.block_id, `block-${blockIndex + 1}`),
+    text: String(normalizedData.text || ""),
+  };
+};
+
 const sanitizeBlockDataByType = (type, data, blockIndex) => {
   if (type === "passage") return sanitizePassageBlockData(data, blockIndex);
   if (type === "quiz") return sanitizeQuizBlockData(data, blockIndex);
@@ -393,6 +419,7 @@ const sanitizeBlockDataByType = (type, data, blockIndex) => {
   if (type === "gapfill") return sanitizeGapfillBlockData(data, blockIndex);
   if (type === "find_mistake") return sanitizeFindMistakeBlockData(data, blockIndex);
   if (type === "dictation") return sanitizeDictationBlockData(data, blockIndex);
+  if (type === "answer") return sanitizeAnswerBlockData(data, blockIndex);
 
   const normalizedData = sanitizeBlockData(data);
   return {
@@ -684,7 +711,7 @@ const sanitizeAssignmentPayload = (body = {}, { partial = false } = {}) => {
   if (Array.isArray(payload.sections) && payload.sections.length > 0) {
     payload.tasks = flattenSectionsToTasks(payload.sections);
   }
-  
+
   if (!partial || Object.prototype.hasOwnProperty.call(body, "co_teachers")) {
     payload.co_teachers = toUniqueObjectIds(body.co_teachers);
   }
@@ -1135,28 +1162,30 @@ const getRemovedLessonIds = (beforeSections = [], afterSections = []) => {
   return Array.from(beforeIds).filter((lessonId) => !afterIds.has(lessonId));
 };
 
-const removeDictationTranscriptFromSections = (sections = []) =>
+const removeStudentHiddenBlocksFromSections = (sections = []) =>
   (Array.isArray(sections) ? sections : []).map((section) => ({
     ...section,
     lessons: (Array.isArray(section?.lessons) ? section.lessons : []).map((lesson) => ({
       ...lesson,
-      content_blocks: (Array.isArray(lesson?.content_blocks) ? lesson.content_blocks : []).map((block) => {
-        const blockType = normalizeOptionalString(block?.type);
-        if (blockType !== "dictation") return block;
-        const blockData = sanitizeBlockData(block?.data);
-        const { transcript, ...restData } = blockData;
-        return {
-          ...block,
-          data: restData,
-        };
-      }),
+      content_blocks: (Array.isArray(lesson?.content_blocks) ? lesson.content_blocks : [])
+        .filter((block) => normalizeOptionalString(block?.type) !== "answer")
+        .map((block) => {
+          const blockType = normalizeOptionalString(block?.type);
+          if (blockType !== "dictation") return block;
+          const blockData = sanitizeBlockData(block?.data);
+          const { transcript, ...restData } = blockData;
+          return {
+            ...block,
+            data: restData,
+          };
+        }),
     })),
   }));
 
 const mapAssignmentForResponse = (assignment = {}, { forStudent = false } = {}) => {
   const plain = toPlainAssignmentObject(assignment);
   const sections = forStudent ? getEffectivePublishedSections(plain) : getAssignmentSections(plain);
-  const normalizedSections = forStudent ? removeDictationTranscriptFromSections(sections) : sections;
+  const normalizedSections = forStudent ? removeStudentHiddenBlocksFromSections(sections) : sections;
   const tasks = flattenSectionsToTasks(normalizedSections);
   return {
     ...plain,
@@ -1204,6 +1233,13 @@ const filterStudentsByGradeScope = ({ students = [], assignment, user }) => {
   });
 };
 
+const resolveScoreSnapshot = (meta = null) => {
+  const snapshotRaw = meta && typeof meta === "object" ? meta.score_snapshot : null;
+  if (snapshotRaw === undefined || snapshotRaw === null || snapshotRaw === "") return null;
+  const parsed = Number(snapshotRaw);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 const mapSubmissionToResponse = (submission = {}) => ({
   _id: submission._id,
   assignment_id: submission.assignment_id,
@@ -1219,7 +1255,11 @@ const mapSubmissionToResponse = (submission = {}) => ({
   graded_at: submission.graded_at || null,
   submitted_at: submission.submitted_at || null,
   updatedAt: submission.updatedAt || null,
-  meta: toPlainObject(submission.meta),
+  submission_source: submission.submission_source || "manual_homework",
+  linked_test_attempt_id: submission.linked_test_attempt_id || null,
+  meta: submission?.meta && typeof submission.meta === "object" ? submission.meta : {},
+  score_snapshot: resolveScoreSnapshot(submission?.meta),
+  internal_score: resolveScoreSnapshot(submission?.meta) ?? (submission?.score ?? null),
 });
 
 const parseScoreOrNull = (value) => {
@@ -1330,6 +1370,7 @@ export const getHomeworkGroups = async (req, res) => {
         .skip(skip)
         .limit(limit)
         .populate("created_by", "name email role")
+        .populate("student_ids", "name email role homeroom_teacher_id")
         .lean(),
     ]);
 
@@ -1860,6 +1901,81 @@ export const patchHomeworkAssignmentLessonById = async (req, res) => {
         assignment: mapAssignmentForResponse(updated),
         section: match?.section || null,
         lesson: match?.lesson || null,
+      },
+    });
+  } catch (error) {
+    return handleControllerError(req, res, error);
+  }
+};
+
+export const generateHomeworkQuizBlockByAI = async (req, res) => {
+  try {
+    const prompt = normalizeOptionalString(req.body?.prompt);
+    if (!prompt) {
+      return sendControllerError(req, res, {
+        statusCode: 400,
+        code: "BAD_REQUEST",
+        message: "prompt is required",
+      });
+    }
+
+    const questionCount = parseBoundedInt(req.body?.question_count, {
+      min: 1,
+      max: 20,
+      fallback: 4,
+    });
+    const optionsPerQuestion = parseBoundedInt(req.body?.options_per_question, {
+      min: 2,
+      max: 6,
+      fallback: 4,
+    });
+    const passageText = normalizeOptionalString(req.body?.passage_text) || "";
+
+    const generated = await generateHomeworkQuizBlock({
+      prompt,
+      passageText,
+      questionCount,
+      optionsPerQuestion,
+    });
+
+    const generatedQuestions = Array.isArray(generated?.questions) ? generated.questions : [];
+    const normalizedQuizQuestionPayload = generatedQuestions.map((question, questionIndex) => ({
+      id: `question-${questionIndex + 1}`,
+      question: String(question?.question || question?.text || "").trim(),
+      allow_multiple: false,
+      options: (Array.isArray(question?.options) ? question.options : []).map((option, optionIndex) => ({
+        id: `option-${optionIndex + 1}`,
+        text: String(typeof option === "string" ? option : (option?.text || option?.value || "")).trim(),
+      })),
+      correct_option_ids: [],
+    }));
+
+    const sanitizedQuizBlock = sanitizeQuizBlockData(
+      {
+        layout: "grid",
+        questions: normalizedQuizQuestionPayload,
+      },
+      0,
+    );
+
+    const quizBlock = {
+      ...sanitizedQuizBlock,
+      questions: (Array.isArray(sanitizedQuizBlock.questions) ? sanitizedQuizBlock.questions : []).map((question) => ({
+        ...question,
+        allow_multiple: false,
+        correct_option_ids: [],
+      })),
+    };
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        quiz_block: quizBlock,
+        meta: {
+          model: generated?.meta?.model || null,
+          question_count: questionCount,
+          options_per_question: optionsPerQuestion,
+        },
       },
     });
   } catch (error) {
@@ -2472,19 +2588,53 @@ export const getHomeworkAssignmentDashboard = async (req, res) => {
     }
 
     const targetStudents = await getAssignmentTargetStudents(assignment);
-    const scopedStudents = filterStudentsByGradeScope({
+    const targetScopedStudents = filterStudentsByGradeScope({
       students: targetStudents,
       assignment,
       user: req.user,
     });
-    const scopedStudentIds = scopedStudents.map((student) => student._id);
+    const targetScopedStudentIdSet = new Set(
+      targetScopedStudents.map((student) => String(student?._id || "")).filter(Boolean),
+    );
 
-    const submissions = scopedStudentIds.length
-      ? await MonthlyAssignmentSubmission.find({
-        assignment_id: assignment._id,
-        student_id: { $in: scopedStudentIds },
-      }).lean()
+    const allAssignmentSubmissions = await MonthlyAssignmentSubmission.find({
+      assignment_id: assignment._id,
+    }).lean();
+
+    const submissionStudentIdSet = new Set(
+      allAssignmentSubmissions.map((submission) => String(submission?.student_id || "")).filter(Boolean),
+    );
+    const additionalStudentObjectIds = Array.from(submissionStudentIdSet)
+      .filter((studentId) => !targetScopedStudentIdSet.has(studentId))
+      .filter((studentId) => mongoose.Types.ObjectId.isValid(studentId))
+      .map((studentId) => new mongoose.Types.ObjectId(studentId));
+
+    const additionalStudents = additionalStudentObjectIds.length
+      ? await User.find({
+        _id: { $in: additionalStudentObjectIds },
+        role: { $in: STUDENT_ROLE_VALUES },
+      })
+        .select("_id name email homeroom_teacher_id")
+        .lean()
       : [];
+    const scopedAdditionalStudents = filterStudentsByGradeScope({
+      students: additionalStudents,
+      assignment,
+      user: req.user,
+    });
+
+    const scopedStudents = [...targetScopedStudents];
+    const visibleStudentIdSet = new Set(targetScopedStudentIdSet);
+    scopedAdditionalStudents.forEach((student) => {
+      const studentId = String(student?._id || "");
+      if (!studentId || visibleStudentIdSet.has(studentId)) return;
+      visibleStudentIdSet.add(studentId);
+      scopedStudents.push(student);
+    });
+
+    const submissions = allAssignmentSubmissions.filter((submission) =>
+      visibleStudentIdSet.has(String(submission?.student_id || "")),
+    );
 
     const effectiveSections = getEffectivePublishedSections(assignment);
     const tasks = flattenSectionsToTasks(effectiveSections);
@@ -2493,10 +2643,11 @@ export const getHomeworkAssignmentDashboard = async (req, res) => {
       const submittedStudentSet = new Set(
         submissions
           .filter((submission) => String(submission.task_id || "") === taskIdKey)
+          .filter((submission) => targetScopedStudentIdSet.has(String(submission.student_id || "")))
           .map((submission) => String(submission.student_id || "")),
       );
       const submitted = submittedStudentSet.size;
-      const notSubmitted = Math.max(0, scopedStudents.length - submitted);
+      const notSubmitted = Math.max(0, targetScopedStudents.length - submitted);
       return {
         task_id: task._id,
         title: task.title || task.type || "Task",
@@ -2508,7 +2659,7 @@ export const getHomeworkAssignmentDashboard = async (req, res) => {
 
     const submissionMap = new Map();
     submissions.forEach((submission) => {
-      submissionMap.set(`${submission.student_id}:${submission.task_id}`, submission);
+      submissionMap.set(`${String(submission.student_id || "")}:${String(submission.task_id || "")}`, submission);
     });
 
     const students = scopedStudents.map((student) => ({
@@ -2517,10 +2668,11 @@ export const getHomeworkAssignmentDashboard = async (req, res) => {
       email: student.email,
       homeroom_teacher_id: student.homeroom_teacher_id || null,
       tasks: tasks.map((task) => {
-        const key = `${student._id}:${task._id}`;
+        const key = `${String(student._id || "")}:${String(task._id || "")}`;
         const submission = submissionMap.get(key);
         return {
           task_id: task._id,
+          submission_id: submission?._id || null,
           submitted: Boolean(submission),
           status: submission?.status || "not_submitted",
           score: submission?.score ?? null,
@@ -2531,7 +2683,7 @@ export const getHomeworkAssignmentDashboard = async (req, res) => {
     }));
 
     const submittedTotal = taskSummary.reduce((sum, item) => sum + Number(item.submitted || 0), 0);
-    const totalSlots = scopedStudents.length * tasks.length;
+    const totalSlots = targetScopedStudents.length * tasks.length;
     const notSubmittedTotal = Math.max(0, totalSlots - submittedTotal);
 
     return res.status(200).json({
@@ -2544,7 +2696,8 @@ export const getHomeworkAssignmentDashboard = async (req, res) => {
         },
         totals: {
           students_in_target: targetStudents.length,
-          students_in_scope: scopedStudents.length,
+          students_in_scope: targetScopedStudents.length,
+          students_with_submissions: scopedStudents.length,
           tasks_total: tasks.length,
           submitted_total: submittedTotal,
           not_submitted_total: notSubmittedTotal,
@@ -2578,34 +2731,89 @@ export const getHomeworkTaskSubmissions = async (req, res) => {
     }
 
     const targetStudents = await getAssignmentTargetStudents(assignment);
-    const scopedStudents = filterStudentsByGradeScope({
+    const targetScopedStudents = filterStudentsByGradeScope({
       students: targetStudents,
       assignment,
       user: req.user,
     });
-    const scopedStudentIds = scopedStudents.map((student) => student._id);
-    const studentMap = new Map(scopedStudents.map((student) => [String(student._id), student]));
-
-    const submissions = scopedStudentIds.length
-      ? await MonthlyAssignmentSubmission.find({
-        assignment_id: assignmentId,
-        task_id: taskId,
-        student_id: { $in: scopedStudentIds },
-      }).lean()
-      : [];
-
-    const submittedStudentSet = new Set(submissions.map((submission) => String(submission.student_id || "")));
-    const notSubmittedStudents = scopedStudents.filter(
-      (student) => !submittedStudentSet.has(String(student._id)),
+    const targetScopedStudentIdSet = new Set(
+      targetScopedStudents.map((student) => String(student?._id || "")).filter(Boolean),
     );
+
+    const allTaskSubmissions = await MonthlyAssignmentSubmission.find({
+      assignment_id: assignmentId,
+      task_id: taskId,
+    }).lean();
+
+    const submissionStudentIdSet = new Set(
+      allTaskSubmissions.map((submission) => String(submission?.student_id || "")).filter(Boolean),
+    );
+    const additionalStudentObjectIds = Array.from(submissionStudentIdSet)
+      .filter((studentId) => !targetScopedStudentIdSet.has(studentId))
+      .filter((studentId) => mongoose.Types.ObjectId.isValid(studentId))
+      .map((studentId) => new mongoose.Types.ObjectId(studentId));
+
+    const additionalStudents = additionalStudentObjectIds.length
+      ? await User.find({
+        _id: { $in: additionalStudentObjectIds },
+        role: { $in: STUDENT_ROLE_VALUES },
+      })
+        .select("_id name email homeroom_teacher_id")
+        .lean()
+      : [];
+    const scopedAdditionalStudents = filterStudentsByGradeScope({
+      students: additionalStudents,
+      assignment,
+      user: req.user,
+    });
+
+    const scopedStudents = [...targetScopedStudents];
+    const visibleStudentIdSet = new Set(targetScopedStudentIdSet);
+    scopedAdditionalStudents.forEach((student) => {
+      const studentId = String(student?._id || "");
+      if (!studentId || visibleStudentIdSet.has(studentId)) return;
+      visibleStudentIdSet.add(studentId);
+      scopedStudents.push(student);
+    });
+
+    const submissions = allTaskSubmissions.filter((submission) =>
+      visibleStudentIdSet.has(String(submission?.student_id || "")),
+    );
+
+    const studentMap = new Map(scopedStudents.map((student) => [String(student._id), student]));
+    const submittedTargetStudentSet = new Set(
+      submissions
+        .map((submission) => String(submission.student_id || ""))
+        .filter((studentId) => targetScopedStudentIdSet.has(studentId)),
+    );
+    const notSubmittedStudents = targetScopedStudents.filter(
+      (student) => !submittedTargetStudentSet.has(String(student._id)),
+    );
+
+    const task = effectiveTasks.find((t) => String(t._id || "") === String(taskId));
+    let testInfo = null;
+    if (task && task.resource_mode === "internal" && task.resource_ref_type === "test" && task.resource_ref_id) {
+      testInfo = await Test.findById(task.resource_ref_id).select("title type").lean();
+    }
+
+    const submissionResponses = submissions.map((submission) => {
+      const subRes = {
+        ...mapSubmissionToResponse(submission),
+        student: studentMap.get(String(submission.student_id || "")) || null,
+      };
+      if (testInfo) {
+        subRes.test_title = testInfo.title;
+        if (subRes.internal_score !== null && ["reading", "listening"].includes(String(testInfo.type).toLowerCase())) {
+          subRes.ielts_band = calculateIELTSBand(subRes.internal_score, testInfo.type);
+        }
+      }
+      return subRes;
+    });
 
     return res.status(200).json({
       success: true,
       data: {
-        submissions: submissions.map((submission) => ({
-          ...mapSubmissionToResponse(submission),
-          student: studentMap.get(String(submission.student_id || "")) || null,
-        })),
+        submissions: submissionResponses,
         not_submitted_students: notSubmittedStudents,
       },
     });
@@ -2652,12 +2860,35 @@ export const getHomeworkSubmissionById = async (req, res) => {
       });
     }
 
+    const mappedAssignment = mapAssignmentForResponse(assignment);
+    const assignmentTasks = Array.isArray(mappedAssignment?.tasks) ? mappedAssignment.tasks : [];
+    const task = assignmentTasks.find(
+      (item) => String(item?._id || "") === String(submission?.task_id || ""),
+    ) || null;
+
+    const subResponse = mapSubmissionToResponse(submission);
+    let testTitle = null;
+    let ieltsBand = null;
+
+    if (task && task.resource_mode === "internal" && task.resource_ref_type === "test" && task.resource_ref_id) {
+      const test = await Test.findById(task.resource_ref_id).select("title type").lean();
+      if (test) {
+        testTitle = test.title;
+        if (subResponse.internal_score !== null && ["reading", "listening"].includes(String(test.type).toLowerCase())) {
+          ieltsBand = calculateIELTSBand(subResponse.internal_score, test.type);
+        }
+      }
+    }
+
     return res.status(200).json({
       success: true,
       data: {
-        ...mapSubmissionToResponse(submission),
-        assignment: mapAssignmentForResponse(assignment),
+        ...subResponse,
+        assignment: mappedAssignment,
+        task,
         student,
+        test_title: testTitle,
+        ielts_band: ieltsBand,
       },
     });
   } catch (error) {

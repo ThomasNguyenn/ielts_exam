@@ -47,6 +47,31 @@ function normalizeRightOptions(group) {
   return [];
 }
 
+function parseUseOnceFlag(value) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on';
+  }
+  return false;
+}
+
+function shouldUseOnceByDefault(group = {}) {
+  const type = String(group?.type || '').trim().toLowerCase();
+  const rawUseOnce = group?.use_once;
+  const isUnset =
+    rawUseOnce === undefined ||
+    rawUseOnce === null ||
+    (typeof rawUseOnce === 'string' && rawUseOnce.trim() === '');
+
+  if ((type === 'matching_headings' || type === 'matching_heading') && isUnset) {
+    return true;
+  }
+
+  return parseUseOnceFlag(rawUseOnce);
+}
+
 export default function MatchingGroup({
   group,
   answers = {},
@@ -55,7 +80,7 @@ export default function MatchingGroup({
 }) {
   const leftItems = normalizeLeftItems(group);
   const rightOptions = normalizeRightOptions(group);
-  const useOnce = Boolean(group.use_once);
+  const useOnce = shouldUseOnceByDefault(group);
 
   return (
     <div className="engine-group">

@@ -3,7 +3,20 @@ import mongoose from "mongoose";
 const ASSIGNMENT_STATUSES = ["draft", "published", "archived"];
 const TASK_RESOURCE_MODES = ["internal", "external_url", "uploaded"];
 const TASK_RESOURCE_REF_TYPES = ["passage", "section", "speaking", "writing", "test", null];
-const CONTENT_BLOCK_TYPES = ["instruction", "video", "input", "title", "internal", "passage", "quiz", "matching", "gapfill", "find_mistake", "dictation"];
+const CONTENT_BLOCK_TYPES = [
+  "instruction",
+  "video",
+  "input",
+  "title",
+  "internal",
+  "passage",
+  "quiz",
+  "matching",
+  "gapfill",
+  "find_mistake",
+  "dictation",
+  "answer",
+];
 
 const isPlainObject = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
@@ -15,6 +28,9 @@ const isValidQuizQuestion = (question) => {
 
 const isValidQuizBlockData = (data) => {
   if (!isPlainObject(data)) return false;
+  if (data.layout !== undefined && !["list", "grid"].includes(String(data.layout || "").trim().toLowerCase())) {
+    return false;
+  }
   if (data.questions !== undefined) {
     if (!Array.isArray(data.questions)) return false;
     return data.questions.every((question) => isValidQuizQuestion(question));

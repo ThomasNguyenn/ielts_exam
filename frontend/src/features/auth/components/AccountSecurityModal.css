@@ -1,0 +1,46 @@
+.account-security-modal {
+  width: 100%;
+}
+
+.account-security-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.account-security-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.account-security-actions {
+  gap: 0.5rem;
+}
+
+@media (max-width: 1440px) {
+  .account-security-overlay {
+    padding: 10px;
+  }
+
+  .account-security-modal {
+    max-width: 380px;
+  }
+
+  .account-security-header {
+    padding: 10px 12px;
+  }
+
+  .account-security-form {
+    padding: 12px;
+    gap: 0.5rem;
+  }
+
+  .account-security-field {
+    gap: 0.2rem;
+  }
+
+  .account-security-actions {
+    gap: 0.4rem;
+  }
+}

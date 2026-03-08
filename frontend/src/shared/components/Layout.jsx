@@ -17,6 +17,7 @@ import RateReviewOutlined from '@mui/icons-material/RateReviewOutlined';
 import AppsOutlined from '@mui/icons-material/AppsOutlined';
 import WorkspacesOutlined from '@mui/icons-material/WorkspacesOutlined';
 import AssignmentTurnedInOutlined from '@mui/icons-material/AssignmentTurnedInOutlined';
+import ManageAccountsOutlined from '@mui/icons-material/ManageAccountsOutlined';
 import { api } from '@/shared/api/client';
 import { isStudentFamilyRole } from '@/app/roleRouting';
 import {
@@ -29,7 +30,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import LevelProgress from './LevelProgress';
+// removed LevelProgress import
 import './Navigation.css';
 import './Navigation-mobile.css';
 
@@ -129,6 +130,14 @@ const NAV_SCHEMA = {
       visibility: 'auth',
       isActive: (pathname) => pathname.startsWith('/student-ielts/achievements'),
     },
+    {
+      key: 'account_security',
+      to: '/student-ielts/account-security',
+      label: 'Tài khoản',
+      icon: 'manage_accounts',
+      visibility: 'student',
+      isActive: (pathname) => pathname.startsWith('/student-ielts/account-security'),
+    },
   ],
   workspace: [
     {
@@ -189,6 +198,7 @@ const NAV_ICON_COMPONENTS = {
   admin_panel_settings: AdminPanelSettingsOutlined,
   send: RateReviewOutlined,
   assignment: AssignmentTurnedInOutlined,
+  manage_accounts: ManageAccountsOutlined,
 };
 
 const isItemVisible = (item, user) => {
@@ -273,6 +283,7 @@ export default function Layout() {
   // Test detail pages (e.g. /student-ielts/tests/abc123 but not /student-ielts/tests or /student-ielts/tests/abc123/exam).
   const isTestDetailPage = /^\/student-ielts\/tests\/[^/]+$/.test(pathname);
   const isTestHistoryPage = /^\/student-ielts\/tests\/[^/]+\/history$/.test(pathname);
+  const isTestResultPage = /\/student-ielts\/tests\/[^/]+\/attempts\/[^/]+\/result/.test(pathname);
 
   // Profile page custom width.
   const isProfilePage = pathname.startsWith('/student-ielts/profile');
@@ -490,7 +501,7 @@ export default function Layout() {
 
               {user ? (
                 <div className="nav-user-section">
-                  <LevelProgress user={user} />
+                  {/* LevelProgress removed */}
                   <button
                     type="button"
                     className="logout-btn"
@@ -543,11 +554,9 @@ export default function Layout() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <main className={`layout-main ${isExamPage ? 'layout-main--fullscreen' : ''} ${isPracticePage || isTestDetailPage || isTestHistoryPage ? 'layout-main--wide' : ''} ${isResultAiPage ? 'layout-main--result-ai' : ''} ${isManagePage ? 'layout-main--manage' : ''} ${isGradingPage ? 'layout-main--grading' : ''} ${pathname === '/' ? 'layout-main--home' : ''} ${isProfilePage ? 'layout-main--profile' : ''} ${isAnalyticsPage ? 'layout-main--analytics' : ''} ${isAchievementsPage ? 'layout-main--achievements' : ''} ${isWritingLivePage ? 'layout-main--writing-live' : ''}`}>
+      <main className={`layout-main ${isExamPage ? 'layout-main--fullscreen' : ''} ${isPracticePage || isTestDetailPage || isTestHistoryPage ? 'layout-main--wide' : ''} ${isTestResultPage ? 'layout-main--test-result' : ''} ${isResultAiPage ? 'layout-main--result-ai' : ''} ${isManagePage ? 'layout-main--manage' : ''} ${isGradingPage ? 'layout-main--grading' : ''} ${pathname === '/' ? 'layout-main--home' : ''} ${isProfilePage ? 'layout-main--profile' : ''} ${isAnalyticsPage ? 'layout-main--analytics' : ''} ${isAchievementsPage ? 'layout-main--achievements' : ''} ${isWritingLivePage ? 'layout-main--writing-live' : ''}`}>
         <Outlet />
       </main>
     </div>
   );
 }
-
-

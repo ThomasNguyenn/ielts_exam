@@ -30,6 +30,7 @@ router.get("/students/pending", getPendingStudents);
 router.get("/students/online", isAdmin, getOnlineStudents);
 router.post("/students/bulk-create", isTeacherOrAdmin, createBulkStudents);
 router.put("/students/:userId/homeroom-teacher", isAdmin, setStudentHomeroomTeacher);
+router.post("/students/:userId/homeroom-teacher", isAdmin, setStudentHomeroomTeacher);
 router.post("/speaking/sessions/repair-stuck", isAdmin, repairStuckSpeakingSessions);
 router.post("/speaking/sessions/:id/retry-error-logs", isAdmin, retrySpeakingErrorLogs);
 router.post("/speaking/error-logs/retry-failed", isAdmin, retryFailedSpeakingErrorLogsBulk);

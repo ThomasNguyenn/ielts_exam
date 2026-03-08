@@ -76,6 +76,13 @@ export default function ProfileSidebar({
             View Detailed Analytics
             <ArrowForwardIcon className="text-[16px]" />
           </Link>
+          <Link
+            to="/student-ielts/account-security"
+            className="mt-2 text-sm text-[#1152d4] font-medium hover:underline flex items-center gap-1 justify-center"
+          >
+            Account Security
+            <ArrowForwardIcon className="text-[16px]" />
+          </Link>
         </div>
       </div>
     </aside>

@@ -84,6 +84,16 @@ function canonicalizeQuestionType(type = '') {
   return normalized || 'mult_choice';
 }
 
+function parseUseOnceFlag(value) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on';
+  }
+  return false;
+}
+
 function normalizeGroupLayoutForType(type = '', layout = '') {
   const normalizedType = canonicalizeQuestionType(type);
   if (normalizedType === 'mult_choice') {
@@ -150,7 +160,7 @@ function sectionToForm(section) {
         type: normalizedType,
         group_layout: normalizeGroupLayoutForType(normalizedType, group.group_layout),
         required_count: group.required_count ?? '',
-        use_once: Boolean(group.use_once),
+        use_once: parseUseOnceFlag(group.use_once),
         instructions: group.instructions || '',
         text: group.text || '',
         image_url: (() => {
@@ -912,7 +922,7 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
           type: canonicalizeQuestionType(group.type),
           group_layout: normalizeGroupLayoutForType(group.type, group.group_layout),
           required_count: group.required_count ? Number(group.required_count) : undefined,
-          use_once: Boolean(group.use_once),
+          use_once: parseUseOnceFlag(group.use_once),
           instructions: group.instructions || undefined,
           text: group.text || undefined,
           image_url: group.image_url?.trim() || undefined,

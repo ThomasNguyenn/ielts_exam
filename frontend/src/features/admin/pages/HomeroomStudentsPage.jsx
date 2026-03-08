@@ -144,6 +144,7 @@ const normalizeTeacherRoleLabel = (role) => {
   return 'Teacher';
 };
 
+const normalizeUserRole = (role) => String(role || '').trim().toLowerCase();
 const normalizeLookupValue = (value) => String(value || '').trim().toLowerCase();
 const escapeCsvCell = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
 
@@ -187,7 +188,7 @@ export default function HomeroomStudentsPage() {
   const { showNotification } = useNotification();
 
   const currentUser = api.getUser();
-  const isAdminUser = currentUser?.role === 'admin';
+  const isAdminUser = normalizeUserRole(currentUser?.role) === 'admin';
 
   const [search, setSearch] = useState('');
   const [levelFilter, setLevelFilter] = useState('all');
@@ -205,6 +206,7 @@ export default function HomeroomStudentsPage() {
   const [assignSearchTerm, setAssignSearchTerm] = useState('');
   const [assignScope, setAssignScope] = useState('unassigned');
   const [selectedStudentIds, setSelectedStudentIds] = useState([]);
+  const [unassigningStudentId, setUnassigningStudentId] = useState('');
   const [bulkStudentText, setBulkStudentText] = useState('');
   const [bulkMatchSummary, setBulkMatchSummary] = useState({
     matched: [],
@@ -344,10 +346,14 @@ export default function HomeroomStudentsPage() {
 
   const openAssignDialog = (student = null) => {
     const shouldOpenAllScope = Boolean(student?.homeroom_teacher_id);
-    setAssignScope(shouldOpenAllScope ? 'all' : 'unassigned');
+    const hasUnassignedStudents = unassignedStudents.length > 0;
+    const nextScope = shouldOpenAllScope || !hasUnassignedStudents ? 'all' : 'unassigned';
+    const defaultStudentId = student?.id && student?.homeroom_teacher_id ? student.id : '';
+
+    setAssignScope(nextScope);
     setAssignTeacherId('');
     setAssignSearchTerm('');
-    setSelectedStudentIds(student?.id ? [student.id] : []);
+    setSelectedStudentIds(defaultStudentId ? [defaultStudentId] : []);
     setBulkStudentText('');
     setBulkMatchSummary({
       matched: [],
@@ -355,6 +361,30 @@ export default function HomeroomStudentsPage() {
       notFound: [],
     });
     setAssignDialogOpen(true);
+  };
+
+  const handleUnassignStudent = async (student) => {
+    if (!isAdminUser) {
+      showNotification('Only admin can unassign homeroom teacher.', 'error');
+      return;
+    }
+
+    if (!student?.id) return;
+    if (!student?.homeroom_teacher_id) {
+      showNotification('Student does not have a homeroom teacher.', 'error');
+      return;
+    }
+
+    try {
+      setUnassigningStudentId(student.id);
+      await api.setStudentHomeroomTeacher(student.id, null);
+      await fetchData();
+      showNotification(`Unassigned ${student.name} successfully.`, 'success');
+    } catch (error) {
+      showNotification(error?.message || 'Cannot unassign student.', 'error');
+    } finally {
+      setUnassigningStudentId('');
+    }
   };
 
   const toggleSelectedStudent = (studentId) => {
@@ -440,6 +470,10 @@ export default function HomeroomStudentsPage() {
   };
 
   const handleAssign = async () => {
+    if (!isAdminUser) {
+      showNotification('Only admin can assign homeroom teacher.', 'error');
+      return;
+    }
     if (!assignTeacherId) {
       showNotification('Vui lòng chọn giáo viên hoặc admin.', 'error');
       return;
@@ -629,7 +663,7 @@ export default function HomeroomStudentsPage() {
                     <TableHead className="font-semibold text-foreground">User</TableHead>
                     <TableHead className="font-semibold text-foreground">Role</TableHead>
                     <TableHead className="font-semibold text-foreground">Account created</TableHead>
-                    <TableHead className="w-14 pr-6 text-right font-semibold text-foreground" />
+                    <TableHead className="w-64 pr-6 text-right font-semibold text-foreground">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -662,18 +696,46 @@ export default function HomeroomStudentsPage() {
                         {formatDate(student.enrolledDate)}
                       </TableCell>
                       <TableCell className="pr-6 text-right">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-8 w-8 p-0 text-muted-foreground"
-                          title="Open student details"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            openProfile(student);
-                          }}
-                        >
-                          <ChevronDown className="size-4" />
-                        </Button>
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-xs"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openAssignDialog(student);
+                            }}
+                            disabled={!isAdminUser || assigning || unassigningStudentId === student.id}
+                          >
+                            {student.homeroom_teacher_id ? 'Reassign' : 'Assign'}
+                          </Button>
+                          {student.homeroom_teacher_id ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 text-xs text-rose-600 hover:text-rose-700"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void handleUnassignStudent(student);
+                              }}
+                              disabled={!isAdminUser || assigning || unassigningStudentId === student.id}
+                            >
+                              {unassigningStudentId === student.id ? 'Unassigning...' : 'Unassign'}
+                            </Button>
+                          ) : null}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0 text-muted-foreground"
+                            title="Open student details"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openProfile(student);
+                            }}
+                          >
+                            <ChevronDown className="size-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -722,18 +784,34 @@ export default function HomeroomStudentsPage() {
                         </div>
                         <span className="text-xs text-muted-foreground">{percentage}%</span>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          openAssignDialog(student);
-                        }}
-                        disabled={!isAdminUser}
-                      >
-                        Assign
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openAssignDialog(student);
+                          }}
+                          disabled={!isAdminUser || assigning || unassigningStudentId === student.id}
+                        >
+                          {student.homeroom_teacher_id ? 'Reassign' : 'Assign'}
+                        </Button>
+                        {student.homeroom_teacher_id ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs text-rose-600 hover:text-rose-700"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void handleUnassignStudent(student);
+                            }}
+                            disabled={!isAdminUser || assigning || unassigningStudentId === student.id}
+                          >
+                            {unassigningStudentId === student.id ? 'Unassigning...' : 'Unassign'}
+                          </Button>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
                 );

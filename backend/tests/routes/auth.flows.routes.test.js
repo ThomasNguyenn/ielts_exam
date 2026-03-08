@@ -105,15 +105,24 @@ describe("auth route integration flows", () => {
       }),
     );
 
-    const res = await request(app).post("/api/auth/login").send({
-      email: "student@example.com",
-      password: "Password1",
-    });
+    const res = await request(app)
+      .post("/api/auth/login")
+      .set("Origin", "http://localhost:5173")
+      .send({
+        email: "student@example.com",
+        password: "Password1",
+        rememberMe: false,
+      });
 
     expect(res.status).toBe(200);
     expect(res.body?.success).toBe(true);
     expect(res.body?.data?.token).toBe("access.jwt.token");
     expect(res.headers["set-cookie"]?.[0]).toContain("lr_refresh=refresh.jwt.token");
+    const refreshSignCall = jwtSignMock.mock.calls.find(
+      ([payload]) => payload?.tokenType === "refresh",
+    );
+    expect(refreshSignCall?.[0]).toMatchObject({ rememberMe: false });
+    expect(refreshSignCall?.[2]).toMatchObject({ expiresIn: "1d" });
   });
 
   it("POST /api/auth/refresh rotates refresh cookie and returns a new access token", async () => {
@@ -154,9 +163,12 @@ describe("auth route integration flows", () => {
   it("POST /api/auth/forgot-password returns generic success when account is missing", async () => {
     userFindOneMock.mockResolvedValue(null);
 
-    const res = await request(app).post("/api/auth/forgot-password").send({
-      email: "missing@example.com",
-    });
+    const res = await request(app)
+      .post("/api/auth/forgot-password")
+      .set("Origin", "http://localhost:5173")
+      .send({
+        email: "missing@example.com",
+      });
 
     expect(res.status).toBe(200);
     expect(res.body?.success).toBe(true);
@@ -168,9 +180,12 @@ describe("auth route integration flows", () => {
     const user = createUserDoc();
     userFindOneMock.mockResolvedValue(user);
 
-    const res = await request(app).post("/api/auth/forgot-password").send({
-      email: "student@example.com",
-    });
+    const res = await request(app)
+      .post("/api/auth/forgot-password")
+      .set("Origin", "http://localhost:5173")
+      .send({
+        email: "student@example.com",
+      });
 
     expect(res.status).toBe(200);
     expect(res.body?.success).toBe(true);
@@ -185,10 +200,13 @@ describe("auth route integration flows", () => {
       or: vi.fn().mockResolvedValue(null),
     });
 
-    const res = await request(app).post("/api/auth/reset-password").send({
-      token: "invalid-token",
-      newPassword: "Password1",
-    });
+    const res = await request(app)
+      .post("/api/auth/reset-password")
+      .set("Origin", "http://localhost:5173")
+      .send({
+        token: "invalid-token",
+        newPassword: "Password1",
+      });
 
     expect(res.status).toBe(400);
     expect(res.body?.success).toBe(false);
@@ -205,10 +223,13 @@ describe("auth route integration flows", () => {
       or: vi.fn().mockResolvedValue(user),
     });
 
-    const res = await request(app).post("/api/auth/reset-password").send({
-      token: "valid-token",
-      newPassword: "Password1",
-    });
+    const res = await request(app)
+      .post("/api/auth/reset-password")
+      .set("Origin", "http://localhost:5173")
+      .send({
+        token: "valid-token",
+        newPassword: "Password1",
+      });
 
     expect(res.status).toBe(200);
     expect(res.body?.success).toBe(true);

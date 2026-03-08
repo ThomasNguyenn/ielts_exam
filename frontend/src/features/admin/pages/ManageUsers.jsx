@@ -5,6 +5,14 @@ import { useNotification } from '@/shared/context/NotificationContext';
 import ConfirmationModal from '@/shared/components/ConfirmationModal';
 import PaginationControls from '@/shared/components/PaginationControls';
 import { isStudentFamilyRole } from '@/app/roleRouting';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import './AdminPeopleWorkspace.css';
 
 const ROLE_FILTERS = [
@@ -21,6 +29,14 @@ const ROLE_CHIP_CLASS = {
   studentIELTS: 'admin-people-chip admin-people-chip--student',
   studentACA: 'admin-people-chip admin-people-chip--student',
 };
+
+const PROMOTABLE_ROLES = [
+  { value: 'student', label: 'Student' },
+  { value: 'studentIELTS', label: 'Student IELTS' },
+  { value: 'studentACA', label: 'Student ACA' },
+  { value: 'teacher', label: 'Teacher' },
+  { value: 'admin', label: 'Admin' },
+];
 
 export default function ManageUsers() {
   const PAGE_SIZE = 20;
@@ -41,9 +57,16 @@ export default function ManageUsers() {
     isOpen: false,
     title: '',
     message: '',
-    onConfirm: () => {},
+    onConfirm: () => { },
     isDanger: false,
   });
+  const [roleChangeModal, setRoleChangeModal] = useState({
+    isOpen: false,
+    user: null, // { id, name, role }
+    newRole: '',
+  });
+  const [isChangingRole, setIsChangingRole] = useState(false);
+
   const requestSeqRef = useRef(0);
   const { showNotification } = useNotification();
 
@@ -62,6 +85,16 @@ export default function ManageUsers() {
   useEffect(() => {
     void fetchUsers(currentPage);
   }, [roleFilter, currentPage, searchQuery]);
+
+  // Debounce search term to trigger backend query Automatically
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setSearchQuery(searchTerm);
+      // Reset page to 1 when search changes unless it's exactly what we already had
+      // (The other useEffect already handles page 1 reset for searchQuery, but we can do it here too)
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
 
   const fetchUsers = async (page = 1) => {
     const requestId = requestSeqRef.current + 1;
@@ -146,8 +179,38 @@ export default function ManageUsers() {
     });
   };
 
+  const submitRoleChange = async () => {
+    console.log('submitRoleChange triggered');
+    console.log('roleChangeModal:', roleChangeModal);
+    if (!roleChangeModal.user || !roleChangeModal.newRole) {
+      console.log('Abort: missing user or newRole');
+      return;
+    }
+    try {
+      console.log('Setting isChangingRole = true');
+      setIsChangingRole(true);
+      console.log('Calling api.changeUserRole with:', roleChangeModal.user.id, roleChangeModal.newRole);
+      const res = await api.changeUserRole(roleChangeModal.user.id, roleChangeModal.newRole);
+      console.log('API response:', res);
+      if (res.success) {
+        showNotification('User role updated successfully.', 'success');
+        setRoleChangeModal({ isOpen: false, user: null, newRole: '' });
+        void fetchUsers(currentPage);
+      } else {
+        console.log('API returned non-success:', res);
+      }
+    } catch (error) {
+      console.error('Error during role change:', error);
+      showNotification(error?.message || 'Failed to update user role.', 'error');
+    } finally {
+      setIsChangingRole(false);
+    }
+  };
+
+  // We rely fully on server-side search now, no more local filtering.
+
   const totalCount = Number(pagination?.totalItems || users.length || 0);
-  const hasSearch = String(searchQuery || '').trim().length > 0;
+  const hasSearch = String(searchQuery || searchTerm || '').trim().length > 0;
 
   return (
     <div className="admin-people-shell">
@@ -231,7 +294,7 @@ export default function ManageUsers() {
                     setSearchQuery(String(searchTerm || '').trim());
                   }
                 }}
-                placeholder="Search by name or email"
+                placeholder="Search by name or email..."
                 aria-label="Search users"
               />
             </div>
@@ -267,6 +330,7 @@ export default function ManageUsers() {
                 : 'No users are available for this filter.'}
             </p>
           </div>
+
         ) : (
           <div className="admin-people-list">
             {users.map((user) => {
@@ -292,7 +356,20 @@ export default function ManageUsers() {
                     </div>
                   </div>
                   <div className="admin-people-card-actions">
-                    {isAdminUser && role !== 'admin' ? (
+                    {isAdminUser && role !== 'admin' && userId !== currentUser?._id ? (
+                      <button
+                        type="button"
+                        className="admin-people-btn admin-people-btn-outline"
+                        onClick={() => setRoleChangeModal({
+                          isOpen: true,
+                          user: { id: userId, name: user?.name || user?.email || 'Unknown', role },
+                          newRole: role,
+                        })}
+                      >
+                        Change Role
+                      </button>
+                    ) : null}
+                    {isAdminUser && role !== 'admin' && userId !== currentUser?._id ? (
                       <button
                         type="button"
                         className="admin-people-btn admin-people-btn-danger"
@@ -328,6 +405,73 @@ export default function ManageUsers() {
         message={confirmModal.message}
         isDanger={confirmModal.isDanger}
       />
+
+      {/* Role Change Modal */}
+      <Dialog
+        open={roleChangeModal.isOpen}
+        onOpenChange={(open) => {
+          if (!open && !isChangingRole) {
+            setRoleChangeModal({ isOpen: false, user: null, newRole: '' })
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Change Role</DialogTitle>
+            <DialogDescription>
+              Select a new role for <strong>{roleChangeModal.user?.name}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4" style={{ zIndex: 60, position: 'relative' }}>
+            <div className="flex flex-col gap-2">
+              <label htmlFor="role-select" className="text-sm font-medium leading-none">
+                Role
+              </label>
+              <select
+                id="role-select"
+                value={roleChangeModal.newRole}
+                onChange={(e) => setRoleChangeModal(prev => ({ ...prev, newRole: e.target.value }))}
+                style={{
+                  width: '100%',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  background: '#ffffff',
+                  color: '#0f172a',
+                  fontSize: '0.95rem',
+                  fontWeight: 500,
+                  padding: '0.65rem 0.75rem',
+                  outline: 'none',
+                }}
+                disabled={isChangingRole}
+              >
+                {PROMOTABLE_ROLES.map(r => (
+                  <option key={r.value} value={r.value}>{r.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <DialogFooter className="mt-4">
+            <button
+              type="button"
+              className="px-4 py-2 border border-slate-300 rounded-md text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50"
+              onClick={() => setRoleChangeModal({ isOpen: false, user: null, newRole: '' })}
+              disabled={isChangingRole}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="px-4 py-2 rounded-md font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
+              onClick={submitRoleChange}
+              disabled={isChangingRole || roleChangeModal.newRole === roleChangeModal.user?.role}
+            >
+              {isChangingRole ? 'Saving...' : 'Save Changes'}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

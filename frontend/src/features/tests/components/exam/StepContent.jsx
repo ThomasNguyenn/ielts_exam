@@ -172,18 +172,16 @@ function QuestionInput({
   ) {
     const options = slot.headings || [];
     const normalizedValue = normalizeReviewText(value);
-    const selectedOption = normalizedValue
-      ? options.find((option) => {
-          const normalizedId = normalizeReviewText(option?.id);
-          const normalizedLabel = normalizeReviewText(option?.label);
-          const normalizedText = normalizeReviewText(option?.text);
-          return (
-            (normalizedId && normalizedId === normalizedValue) ||
-            (normalizedLabel && normalizedLabel === normalizedValue) ||
-            (normalizedText && normalizedText === normalizedValue)
-          );
-        })
+    const selectedById = normalizedValue
+      ? options.find((option) => normalizeReviewText(option?.id) === normalizedValue)
       : null;
+    const selectedByLabel = normalizedValue && !selectedById
+      ? options.find((option) => normalizeReviewText(option?.label) === normalizedValue)
+      : null;
+    const selectedByText = normalizedValue && !selectedById && !selectedByLabel
+      ? options.find((option) => normalizeReviewText(option?.text) === normalizedValue)
+      : null;
+    const selectedOption = selectedById || selectedByLabel || selectedByText || null;
 
     if (reviewMode) {
       return (
@@ -274,19 +272,19 @@ function QuestionInput({
               collisionPadding={12}
               sideOffset={8}
             >
-            {options.map((option) => {
-              const optionToken = getMatchingOptionToken(option);
-              if (!optionToken) return null;
-              const optionId = String(option?.id ?? '').trim();
-              const optionText = String(option?.text ?? '').trim();
-              const optionLabel = optionId && optionText ? `${optionId}. ${optionText}` : optionText || optionId || optionToken;
+              {options.map((option) => {
+                const optionToken = getMatchingOptionToken(option);
+                if (!optionToken) return null;
+                const optionId = String(option?.id ?? '').trim();
+                const optionText = String(option?.text ?? '').trim();
+                const optionLabel = optionId && optionText ? `${optionId}. ${optionText}` : optionText || optionId || optionToken;
 
-              return (
-                <SelectItem key={optionToken} value={optionToken}>
-                  {optionLabel}
-                </SelectItem>
-              );
-            })}
+                return (
+                  <SelectItem key={optionToken} value={optionToken}>
+                    {optionLabel}
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
         </div>
@@ -407,11 +405,11 @@ function SummaryDropZone({
             collisionPadding={12}
             sideOffset={8}
           >
-          {(options || []).map((option) => (
-            <SelectItem key={option.token} value={option.token}>
-              {getSummaryDisplayText(option)}
-            </SelectItem>
-          ))}
+            {(options || []).map((option) => (
+              <SelectItem key={option.token} value={option.token}>
+                {getSummaryDisplayText(option)}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </span>
@@ -914,12 +912,43 @@ function normalizeReviewText(value) {
 function normalizeMatchingGroupType(value = '') {
   const raw = String(value || '').trim().toLowerCase();
   if (raw === 'matching_info') return 'matching_information';
+  if (raw === 'matching_heading') return 'matching_headings';
   return raw;
 }
 
+function parseMatchingUseOnceFlag(value) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on') return true;
+    if (
+      normalized === 'false' ||
+      normalized === '0' ||
+      normalized === 'no' ||
+      normalized === 'off' ||
+      normalized === '' ||
+      normalized === 'null' ||
+      normalized === 'undefined'
+    ) {
+      return false;
+    }
+    return false;
+  }
+  return false;
+}
+
 function shouldUseMatchingOptionOnce(group = {}) {
-  if (Boolean(group?.use_once)) return true;
-  return normalizeMatchingGroupType(group?.type) === 'matching_headings';
+  const groupType = normalizeMatchingGroupType(group?.type);
+  if (groupType === 'matching_headings') {
+    const rawUseOnce = group?.use_once;
+    const isUnset =
+      rawUseOnce === undefined ||
+      rawUseOnce === null ||
+      (typeof rawUseOnce === 'string' && rawUseOnce.trim() === '');
+    if (isUnset) return true;
+  }
+  return parseMatchingUseOnceFlag(group?.use_once);
 }
 
 function setMatchingAnswerWithSingleUse({
@@ -933,6 +962,11 @@ function setMatchingAnswerWithSingleUse({
 }) {
   const nextToken = String(nextValue ?? '').trim();
   const shouldEnforceSingleUse = shouldUseMatchingOptionOnce(group);
+  console.log('matching debug', {
+    type: group?.type,
+    use_once: group?.use_once,
+    shouldUse: shouldEnforceSingleUse,
+  });
 
   if (
     !shouldEnforceSingleUse ||
@@ -1227,6 +1261,7 @@ function StepContent({
         const isDiagramLabel = group.type === 'diagram_label_completion';
         const summaryOptions = isSummary ? getNormalizedSummaryOptions(group.options || []) : [];
         const hasSummaryOptions = summaryOptions.length > 0;
+        const shouldStyleMatchingOptionAsUsed = isMatching && shouldUseMatchingOptionOnce(group);
         const groupStartIndex = slotIndex;
         const groupQuestionCount = (group.questions || []).length;
         const matchingPoolOptions = isMatching ? (group.headings || []) : [];
@@ -1267,7 +1302,7 @@ function StepContent({
                     const optionToken = getMatchingOptionToken(option);
                     if (!optionToken) return null;
                     const normalizedToken = normalizeReviewText(optionToken);
-                    const isUsed = selectedTokens.has(normalizedToken);
+                    const isUsed = shouldStyleMatchingOptionAsUsed && selectedTokens.has(normalizedToken);
                     return (
                       <button
                         key={`matching-pool-${groupIdx}-${optionToken}-${optionIndex}`}
@@ -1472,12 +1507,85 @@ function StepContent({
                 slotIndex += group.questions.length;
                 const rawGroupText = (passageStates && passageStates[`group_text_${item._id}_${groupIdx}`]) || group.text || '';
                 const groupTextHtml = getGroupTextHtml(rawGroupText);
+                const getQuestionNumberBySlotIndex = (slotIdx) => {
+                  if (!Number.isInteger(slotIdx)) return null;
+                  const offset = slotIdx - currentGroupStartIndex;
+                  if (offset < 0 || offset >= (group.questions || []).length) return null;
+                  const qNumber = group.questions[offset]?.q_number;
+                  if (qNumber == null || String(qNumber).trim() === '') return null;
+                  return qNumber;
+                };
+                const serializeGroupTextForPersistence = (rootEl) => {
+                  if (!rootEl) return '';
+                  const clone = rootEl.cloneNode(true);
+                  const runtimeControls = clone.querySelectorAll(
+                    'input.gap-fill-input[data-question-index], .summary-dropzone[data-question-index]'
+                  );
+
+                  runtimeControls.forEach((node) => {
+                    const slotIdx = Number.parseInt(node.getAttribute('data-question-index'), 10);
+                    const qNumber = getQuestionNumberBySlotIndex(slotIdx);
+                    if (qNumber == null) {
+                      node.remove();
+                      return;
+                    }
+                    node.replaceWith(document.createTextNode(`[${qNumber}]`));
+                  });
+
+                  return clone.innerHTML;
+                };
 
                 // Regex to find [33], [34], [Q33], [ 33 ] etc
                 const questionPlaceholderRegex = /\[\s*[Qq]?(\d+)\s*\]/g;
 
                 const parseOptions = {
                   replace: (domNode) => {
+                    // Recover React bindings if passageStates captured the previously rendered DOM
+                    if (domNode.type === 'tag' && domNode.attribs) {
+                      const className = String(domNode.attribs.class || '');
+                      const tagName = String(domNode.name || '').toLowerCase();
+                      const hasQuestionIndex = Object.prototype.hasOwnProperty.call(domNode.attribs, 'data-question-index');
+                      const isGapInput = tagName === 'input' && /\bgap-fill-input\b/.test(className);
+                      const isSummaryDropzone = (tagName === 'span' || tagName === 'div') && /\bsummary-dropzone\b/.test(className);
+                      if (!hasQuestionIndex || (!isGapInput && !isSummaryDropzone)) return;
+
+                      const realSlotIndex = Number.parseInt(domNode.attribs['data-question-index'], 10);
+                      const qNum = getQuestionNumberBySlotIndex(realSlotIndex);
+                      if (qNum == null) return null;
+
+                      if (isSummary && hasSummaryOptions) {
+                        return (
+                          <SummaryDropZone
+                            key={realSlotIndex}
+                            index={realSlotIndex}
+                            questionIndex={realSlotIndex}
+                            displayNumber={qNum}
+                            value={answers[realSlotIndex]}
+                            onChange={(val) => setAnswer(realSlotIndex, val)}
+                            options={summaryOptions}
+                            reviewMode={reviewMode}
+                            useDropdown={useDropdownForDragDrop}
+                          />
+                        );
+                      } else {
+                        return (
+                          <input
+                            key={realSlotIndex}
+                            id={`q-${realSlotIndex}`}
+                            data-question-index={realSlotIndex}
+                            type="text"
+                            className={`gap-fill-input ${isListening ? 'gap-fill-input-listening' : ''}`}
+                            placeholder={`${qNum}`}
+                            value={answers[realSlotIndex] || ''}
+                            onChange={(e) => !reviewMode && setAnswer(realSlotIndex, e.target.value)}
+                            readOnly={reviewMode}
+                            disabled={reviewMode}
+                            autoComplete="off"
+                          />
+                        );
+                      }
+                    }
+
                     if (domNode.type === 'text') {
                       const text = domNode.data;
                       // Split by regex
@@ -1528,9 +1636,9 @@ function StepContent({
                                 }
                               }
                               // Fallback: If number found but no matching question
-                              return <span style={{ color: 'red', fontWeight: 'bold' }}>[Q{qNum}?]</span>;
+                              return <span key={i} style={{ color: 'red', fontWeight: 'bold' }}>[Q{qNum}?]</span>;
                             }
-                            return part;
+                            return <span key={i}>{part}</span>;
                           })}
                         </>
                       );
@@ -1545,6 +1653,7 @@ function StepContent({
                         <HighlightableWrapper
                           onUpdateHtml={(html) => handleHtmlUpdate(`group_text_${item._id}_${groupIdx}`, html)}
                           tagName="div"
+                          serializeHtmlForUpdate={serializeGroupTextForPersistence}
                         >
                           {parse(
                             groupTextHtml,
@@ -1640,10 +1749,10 @@ function StepContent({
                     <div className="exam-options">
                       {options.map((opt) => {
                         const optKey = `opt_${item._id}_${groupIdx}_${opt.label}`;
-                        const isChecked = currentAnswers.some(ans => 
-                           normalizeReviewText(ans) === normalizeReviewText(opt.text) || 
-                           normalizeReviewText(ans) === normalizeReviewText(opt.label) ||
-                           normalizeReviewText(ans) === normalizeReviewText(opt.id)
+                        const isChecked = currentAnswers.some(ans =>
+                          normalizeReviewText(ans) === normalizeReviewText(opt.text) ||
+                          normalizeReviewText(ans) === normalizeReviewText(opt.label) ||
+                          normalizeReviewText(ans) === normalizeReviewText(opt.id)
                         );
                         return (
                           <label key={opt.label} className={`exam-option-label ${isChecked ? 'selected-multi' : ''}`}>
@@ -1850,9 +1959,9 @@ function StepContent({
                       const ri = getReviewForQuestion(gq.q_number);
                       return ri ? ri.correct_answer : null;
                     }).flat().filter(Boolean);
-                    
+
                     const groupCorrectPool = [...new Set(mappedPool)];
-                    
+
                     displayCorrectAnswer = optionPool.length
                       ? formatReviewAnswerByOptions(groupCorrectPool, optionPool)
                       : formatReviewAnswer(groupCorrectPool);
@@ -1959,18 +2068,18 @@ function StepContent({
       <div className="ielts-listening-layout">
         {hasAudio && (
           <div className="ielts-audio-controls top-sticky">
-          {/* <div className="audio-label-wrapper">
+            {/* <div className="audio-label-wrapper">
             <span className="audio-icon">🎧</span>
             <span className="audio-text">IELTS Listening Audio</span>
           </div> */}
-          <Suspense fallback={null}>
-            <IELTSAudioPlayer
-              audioUrl={audioUrl}
-              onEnded={onListeningAudioEnded}
-              initialTimeSec={listeningAudioInitialTimeSec}
-              onTimeUpdate={onListeningAudioTimeUpdate}
-            />
-          </Suspense>
+            <Suspense fallback={null}>
+              <IELTSAudioPlayer
+                audioUrl={audioUrl}
+                onEnded={onListeningAudioEnded}
+                initialTimeSec={listeningAudioInitialTimeSec}
+                onTimeUpdate={onListeningAudioTimeUpdate}
+              />
+            </Suspense>
           </div>
         )}
         <div className={`listening-content-area-top-padded${hasAudio ? '' : ' listening-content-area-no-audio'}`}>

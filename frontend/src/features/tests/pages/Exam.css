@@ -965,7 +965,8 @@
 .matching-chip-text,
 .summary-chip-text {
     font-size: 0.95rem;
-    white-space: nowrap;
+    white-space: normal;
+    text-wrap: wrap;
     overflow: hidden;
     text-overflow: ellipsis;
     /* Prevent huge expansion */
@@ -2350,6 +2351,10 @@
 
 /* Laptop chuẩn */
 @media (max-width: 1440px) {
+    .exam-page--stepper {
+        font-size: 12px;
+    }
+
     .matching-question-text span {
         font-size: 1.0rem;
     }

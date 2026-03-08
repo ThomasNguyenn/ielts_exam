@@ -9,7 +9,8 @@ import {
 import { api } from "@/shared/api/client";
 import { formatDate } from "./homework.utils";
 import { useHomeworkAssignmentDetail } from "./useHomeworkAssignmentDetail";
-import { CheckCircle2, BookOpen, MapPin, ChevronLeft } from "lucide-react";
+import { CheckCircle2, BookOpen, MapPin, ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import "./Homework.css";
 
 export default function MyHomeworkDetailPage() {
@@ -66,17 +67,17 @@ export default function MyHomeworkDetailPage() {
 
     return tasks.length > 0
       ? [
-          {
-            _id: "section-fallback",
-            title: "Lessons",
-            lessons: tasks.map((task) => ({
-              _id: task?._id,
-              name: task?.title || "",
-              title: task?.title || "",
-              instruction: task?.instruction || "",
-            })),
-          },
-        ]
+        {
+          _id: "section-fallback",
+          title: "Lessons",
+          lessons: tasks.map((task) => ({
+            _id: task?._id,
+            name: task?.title || "",
+            title: task?.title || "",
+            instruction: task?.instruction || "",
+          })),
+        },
+      ]
       : [];
   }, [assignment?.sections, tasks]);
 
@@ -132,17 +133,24 @@ export default function MyHomeworkDetailPage() {
   return (
     <div className="homework-page">
       <div className="homework-shell">
-        <section className="homework-header">
-          <button
+        <section className="mb-6 flex items-center justify-between">
+          <Button
             type="button"
-            className="homework-header-back"
+            variant="ghost"
             onClick={() => navigate(backToMonthPath)}
-            aria-label="Back to month"
+            className="flex items-center gap-2 border bg-background shadow-sm"
           >
-            <ChevronLeft size={24} />
-          </button>
-          <div className="homework-header-main">
-            <h1 className="homework-header-title">{assignment.title || "Assignment"}</h1>
+            <ArrowLeft className="h-4 w-4" />
+            Back
+          </Button>
+          <div className="text-right">
+            <h2 className="text-lg font-semibold tracking-tight text-foreground">
+              {assignment.title || "Assignment"}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Week {assignment.week || "--"} - Due {formatDate(assignment.due_date)} -{" "}
+              {assignment.month || "--"}
+            </p>
           </div>
         </section>
 
@@ -159,7 +167,7 @@ export default function MyHomeworkDetailPage() {
             <p className="homework-danger">Deadline has passed. You can still review your submissions.</p>
           </section>
         ) : null}
-        
+
         <section className="homework-list">
           {sectionGroups.length === 0 ? (
             <div className="homework-empty">No lessons found for this assignment.</div>

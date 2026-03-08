@@ -15,12 +15,16 @@ const mockedControllers = vi.hoisted(() => ({
   patchHomeworkAssignmentOutline: vi.fn((_req, res) => res.status(200).json({ route: "patch-outline" })),
   getHomeworkAssignmentLessonById: vi.fn((_req, res) => res.status(200).json({ route: "get-lesson" })),
   patchHomeworkAssignmentLessonById: vi.fn((_req, res) => res.status(200).json({ route: "patch-lesson" })),
+  generateHomeworkQuizBlockByAI: vi.fn((req, res) => {
+    if (!req.body?.prompt) return res.status(400).json({ route: "quiz-ai-generate", message: "prompt is required" });
+    return res.status(200).json({ route: "quiz-ai-generate" });
+  }),
   updateHomeworkAssignmentStatus: vi.fn((_req, res) => res.status(200).json({ route: "update-status" })),
   deleteHomeworkAssignment: vi.fn((_req, res) => res.status(200).json({ route: "delete-assignment" })),
   uploadHomeworkAssignmentResource: vi.fn((_req, res) => res.status(200).json({ route: "upload-resource" })),
   getMyHomeworkAssignments: vi.fn((_req, res) => res.status(200).json({ route: "my-assignments" })),
   getMyHomeworkAssignmentById: vi.fn((_req, res) => res.status(200).json({ route: "my-assignment-by-id" })),
-  launchMyHomeworkTaskTracking: vi.fn((_req, res) => res.status(200).json({ route: "my-track-task" })),
+  launchMyHomeworkTaskTracking: vi.fn((_req, res) => res.status(200).json({ route: "launch-tracking" })),
   upsertMyHomeworkTaskSubmission: vi.fn((_req, res) => res.status(200).json({ route: "my-submit-task" })),
   getHomeworkAssignmentDashboard: vi.fn((_req, res) => res.status(200).json({ route: "dashboard" })),
   getHomeworkTaskSubmissions: vi.fn((_req, res) => res.status(200).json({ route: "task-submissions" })),
@@ -107,5 +111,37 @@ describe("homework routes role guards", () => {
 
     expect(res.status).toBe(403);
     expect(mockedControllers.getMyHomeworkAssignments).not.toHaveBeenCalled();
+  });
+
+  it("allows teacher to call quiz AI generate", async () => {
+    const res = await request(app)
+      .post("/api/homework/ai/quiz-block/generate")
+      .set("x-test-role", "teacher")
+      .send({ prompt: "Create 4 reading questions" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.route).toBe("quiz-ai-generate");
+    expect(mockedControllers.generateHomeworkQuizBlockByAI).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects student on quiz AI generate route", async () => {
+    const res = await request(app)
+      .post("/api/homework/ai/quiz-block/generate")
+      .set("x-test-role", "student")
+      .send({ prompt: "Create 4 reading questions" });
+
+    expect(res.status).toBe(403);
+    expect(mockedControllers.generateHomeworkQuizBlockByAI).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when prompt is missing for quiz AI generate", async () => {
+    const res = await request(app)
+      .post("/api/homework/ai/quiz-block/generate")
+      .set("x-test-role", "teacher")
+      .send({});
+
+    expect(res.status).toBe(400);
+    expect(res.body.route).toBe("quiz-ai-generate");
+    expect(mockedControllers.generateHomeworkQuizBlockByAI).toHaveBeenCalledTimes(1);
   });
 });

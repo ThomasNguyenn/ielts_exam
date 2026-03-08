@@ -10,6 +10,16 @@ import { extractPlaceholderIds } from './utils/gapFillParser';
 import { CORE_TYPES, normalizeGroupType } from './utils/normalizeType';
 import './ExamEngine.css';
 
+function parseUseOnceFlag(value) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on';
+  }
+  return false;
+}
+
 function getQuestionId(question, index) {
   return String(question?.id ?? question?.q_number ?? index + 1);
 }
@@ -58,7 +68,7 @@ function normalizeMatchingGroup(group) {
     left_items,
     right_options,
     answers: toAnswerList(group),
-    use_once: Boolean(group.use_once),
+    use_once: parseUseOnceFlag(group.use_once),
   };
 }
 

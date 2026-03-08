@@ -18,6 +18,7 @@ const Layout = lazy(() => import('@/shared/components/Layout'));
 const Home = lazy(() => import('@/features/home/pages/Home'));
 const Login = lazy(() => import('@/features/auth/pages/Login'));
 const FirstLoginSetup = lazy(() => import('@/features/auth/pages/FirstLoginSetup'));
+const StudentAccountSecurityPage = lazy(() => import('@/features/auth/pages/StudentAccountSecurityPage'));
 const Register = lazy(() => import('@/features/auth/pages/Register'));
 const VerifyEmail = lazy(() => import('@/features/auth/pages/VerifyEmail'));
 const VerifyEmailChange = lazy(() => import('@/features/auth/pages/VerifyEmailChange'));
@@ -230,6 +231,7 @@ export default function App() {
         <Route path="/student-ielts" element={<StudentIELTSRoutes />}>
           <Route index element={<Navigate to="/student-ielts/learn" replace />} />
           <Route path="profile" element={withSuspense(<Profile />)} />
+          <Route path="account-security" element={withSuspense(<StudentAccountSecurityPage />)} />
           <Route path="tests" element={withSuspense(<TestList />)} />
           <Route path="tests/:id" element={withSuspense(<TestDetail />)} />
           <Route path="tests/:id/history" element={withSuspense(<TestHistory />)} />
@@ -255,6 +257,7 @@ export default function App() {
           <Route path="achievements" element={withSuspense(<AchievementsPage />)} />
 
           <Route path="homework" element={withSuspense(<MyHomeworkMonthPage />)} />
+          <Route path="account-security" element={withSuspense(<StudentAccountSecurityPage />)} />
           <Route path="homework/:assignmentId" element={withSuspense(<MyHomeworkDetailPage />)} />
           <Route path="homework/:assignmentId/lessons/:lessonId" element={withSuspense(<MyHomeworkLessonPage />)} />
 
@@ -264,6 +267,7 @@ export default function App() {
         <Route path="/student-aca" element={<StudentACARoutes />}>
           <Route index element={<Navigate to="/student-aca/homework" replace />} />
           <Route path="homework" element={withSuspense(<MyHomeworkMonthPage />)} />
+          <Route path="account-security" element={withSuspense(<StudentAccountSecurityPage />)} />
           <Route path="homework/:assignmentId" element={withSuspense(<MyHomeworkDetailPage />)} />
           <Route path="homework/:assignmentId/lessons/:lessonId" element={withSuspense(<MyHomeworkLessonPage />)} />
           <Route path="*" element={<Navigate to="/student-aca/homework" replace />} />

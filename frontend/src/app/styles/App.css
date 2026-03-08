@@ -116,6 +116,12 @@ a {
   overflow: hidden;
 }
 
+/* Test Result full width mode */
+.layout-main--test-result {
+  max-width: none !important;
+  width: 100% !important;
+}
+
 /* AI Result wide mode */
 .layout-main--result-ai {
   max-width: 95vw !important;

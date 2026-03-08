@@ -134,6 +134,43 @@ describe("auth session flows", () => {
     expect(user.refreshTokenExpiresAt).toBeInstanceOf(Date);
     expect(typeof user.activeSessionId).toBe("string");
     expect(user.lastSeenAt).toBeInstanceOf(Date);
+
+    const refreshSignCall = jwtSignMock.mock.calls.find(
+      ([payload]) => payload?.tokenType === "refresh",
+    );
+    expect(refreshSignCall?.[0]).toMatchObject({ rememberMe: true });
+    expect(refreshSignCall?.[2]).toMatchObject({ expiresIn: "30d" });
+  });
+
+  it("login uses short refresh expiry when rememberMe is false", async () => {
+    const user = {
+      _id: "user-1",
+      email: "student@example.com",
+      name: "Student",
+      role: "student",
+      isConfirmed: true,
+      password: "hashed-password",
+      save: vi.fn().mockResolvedValue(undefined),
+    };
+    userFindOneMock.mockResolvedValue(user);
+
+    const req = {
+      body: {
+        email: "student@example.com",
+        password: "Password1",
+        rememberMe: false,
+      },
+    };
+    const res = createMockResponse();
+
+    await login(req, res);
+
+    expect(res.statusCode).toBe(200);
+    const refreshSignCall = jwtSignMock.mock.calls.find(
+      ([payload]) => payload?.tokenType === "refresh",
+    );
+    expect(refreshSignCall?.[0]).toMatchObject({ rememberMe: false });
+    expect(refreshSignCall?.[2]).toMatchObject({ expiresIn: "1d" });
   });
 
   it("refresh returns 401 and clears cookie when refresh token is missing", async () => {
@@ -186,6 +223,45 @@ describe("auth session flows", () => {
     expect(user.lastSeenAt).toBeInstanceOf(Date);
     expect(res.cookies).toHaveLength(1);
     expect(res.cookies[0]?.[1]).toBe("next.refresh.token");
+  });
+
+  it("refresh rotation keeps short rememberMe policy from decoded refresh token", async () => {
+    const currentRefresh = "current.refresh.token";
+    const user = {
+      _id: "user-1",
+      email: "student@example.com",
+      name: "Student",
+      role: "student",
+      isConfirmed: true,
+      activeSessionId: "session-1",
+      refreshTokenHash: hashToken(currentRefresh),
+      refreshTokenExpiresAt: new Date(Date.now() + 60_000),
+      save: vi.fn().mockResolvedValue(undefined),
+    };
+
+    jwtVerifyMock.mockReturnValue({
+      tokenType: "refresh",
+      userId: "user-1",
+      role: "student",
+      sessionId: "session-1",
+      rememberMe: false,
+    });
+    jwtSignMock.mockImplementation((payload) =>
+      payload?.tokenType === "access" ? "next.access.token" : "next.refresh.token",
+    );
+    userFindByIdMock.mockResolvedValue(user);
+
+    const req = { headers: { cookie: `lr_refresh=${encodeURIComponent(currentRefresh)}` } };
+    const res = createMockResponse();
+
+    await refreshAccessToken(req, res);
+
+    expect(res.statusCode).toBe(200);
+    const refreshSignCall = jwtSignMock.mock.calls.find(
+      ([payload]) => payload?.tokenType === "refresh",
+    );
+    expect(refreshSignCall?.[0]).toMatchObject({ rememberMe: false });
+    expect(refreshSignCall?.[2]).toMatchObject({ expiresIn: "1d" });
   });
 
   it("logout revokes refresh token and clears cookie", async () => {

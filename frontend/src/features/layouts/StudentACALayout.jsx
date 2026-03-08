@@ -2,7 +2,9 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
 import { Loader2, LogOut, Menu, X } from 'lucide-react';
 import AssignmentTurnedInOutlined from '@mui/icons-material/AssignmentTurnedInOutlined';
+import ManageAccountsOutlined from '@mui/icons-material/ManageAccountsOutlined';
 import { api } from '@/shared/api/client';
+import MobileAppLayout from './MobileAppLayout';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,10 +19,16 @@ import LevelProgress from '@/shared/components/LevelProgress';
 import '@/shared/components/Navigation.css';
 import '@/shared/components/Navigation-mobile.css';
 
+const MOBILE_QUERY = '(max-width: 768px)';
+
 export default function StudentACALayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const pathname = location.pathname;
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia(MOBILE_QUERY).matches;
+  });
   const [user, setUser] = useState(() => api.getUser());
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -36,6 +44,13 @@ export default function StudentACALayout() {
     const syncUser = () => setUser(api.getUser());
     window.addEventListener('auth-user-updated', syncUser);
     return () => window.removeEventListener('auth-user-updated', syncUser);
+  }, []);
+
+  useEffect(() => {
+    const mql = window.matchMedia(MOBILE_QUERY);
+    const onChange = (event) => setIsMobile(event.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
   }, []);
 
   useEffect(() => {
@@ -84,6 +99,8 @@ export default function StudentACALayout() {
     }
   };
 
+  if (isMobile) return <MobileAppLayout variant="aca" />;
+
   return (
     <div className="layout">
       <header className="layout-header">
@@ -111,14 +128,22 @@ export default function StudentACALayout() {
               onClick={closeAllMenus}
             >
               <AssignmentTurnedInOutlined className="nav-item-symbol" aria-hidden="true" fontSize="inherit" />
-              <span className="nav-item-text">Bai tap thang</span>
+              <span className="nav-item-text">Bài tập tháng</span>
+            </NavLink>
+
+            <NavLink
+              to="/student-aca/account-security"
+              className={() => `nav-item ${pathname.startsWith('/student-aca/account-security') ? 'active' : ''}`.trim()}
+              onClick={closeAllMenus}
+            >
+              <ManageAccountsOutlined className="nav-item-symbol" aria-hidden="true" fontSize="inherit" />
+              <span className="nav-item-text">Settings</span>
             </NavLink>
 
             <div className="nav-spacer desktop-only" />
 
             {user ? (
               <div className="nav-user-section">
-                <LevelProgress user={user} />
                 <button
                   type="button"
                   className="logout-btn"

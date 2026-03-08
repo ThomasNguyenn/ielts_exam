@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CalendarDays, Search, Users } from 'lucide-react';
+import { CalendarDays, Loader2, Search, Users } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { TODAY, loadHomeroomHomeworkProgress } from './homeworkProgress.data';
+import { TODAY, loadHomeroomHomeworkProgress, loadHomeroomStudentsQuick } from './homeworkProgress.data';
 import { DailyProgressBadge, StatusBadge } from './status-badge';
 
 const toDateLabel = (isoDate) => {
@@ -36,45 +36,86 @@ const resolveLevelTone = (level) =>
     ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
     : 'border-teal-200 bg-teal-50 text-teal-700';
 
+/** Inline skeleton for a single cell while progress data loads */
+const CellSkeleton = () => <Skeleton className="h-5 w-20 rounded-full" />;
+
 export default function HomeworkProgressPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [levelFilter, setLevelFilter] = useState('all');
   const [progressFilter, setProgressFilter] = useState('all');
   const [selectedDate, setSelectedDate] = useState(TODAY);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [students, setStudents] = useState([]);
-  const [dateOptions, setDateOptions] = useState([TODAY]);
 
+  // Phase 1: quick student list (names + levels only)
+  const [studentsLoading, setStudentsLoading] = useState(true);
+  const [students, setStudents] = useState([]);
+
+  // Phase 2: assignment dashboards (progress data)
+  const [progressLoading, setProgressLoading] = useState(true);
+  const [dateOptions, setDateOptions] = useState([TODAY]);
+  const [error, setError] = useState('');
+
+  // Track which phase-2 load is current to avoid stale updates
+  const progressSeqRef = useRef(0);
+
+  // ── Phase 1: load student list immediately ──
   useEffect(() => {
     let isActive = true;
 
-    const loadData = async () => {
+    const loadQuick = async () => {
       try {
-        setLoading(true);
-        setError('');
-        const response = await loadHomeroomHomeworkProgress({ selectedDate });
+        setStudentsLoading(true);
+        const quickStudents = await loadHomeroomStudentsQuick();
         if (!isActive) return;
-        const nextStudents = Array.isArray(response?.students) ? response.students : [];
-        const nextDateOptions = Array.isArray(response?.dateOptions) && response.dateOptions.length > 0
-          ? response.dateOptions
-          : [selectedDate];
-        setStudents(nextStudents);
-        setDateOptions(nextDateOptions);
-      } catch (loadError) {
+        setStudents(quickStudents);
+      } catch (_err) {
         if (!isActive) return;
         setStudents([]);
-        setDateOptions([selectedDate]);
-        setError(loadError?.message || 'Failed to load homework progress.');
       } finally {
-        if (isActive) setLoading(false);
+        if (isActive) setStudentsLoading(false);
       }
     };
 
-    void loadData();
+    void loadQuick();
     return () => {
       isActive = false;
+    };
+  }, []); // only once on mount
+
+  // ── Phase 2: load full progress data (can re-run when date changes) ──
+  useEffect(() => {
+    progressSeqRef.current += 1;
+    const currentSeq = progressSeqRef.current;
+
+    const loadProgress = async () => {
+      try {
+        setProgressLoading(true);
+        setError('');
+        const response = await loadHomeroomHomeworkProgress({ selectedDate });
+        if (currentSeq !== progressSeqRef.current) return; // stale
+
+        const fullStudents = Array.isArray(response?.students) ? response.students : [];
+        const nextDateOptions =
+          Array.isArray(response?.dateOptions) && response.dateOptions.length > 0
+            ? response.dateOptions
+            : [selectedDate];
+
+        setStudents(fullStudents);
+        setDateOptions(nextDateOptions);
+      } catch (loadError) {
+        if (currentSeq !== progressSeqRef.current) return;
+        setError(loadError?.message || 'Failed to load homework progress.');
+      } finally {
+        if (currentSeq === progressSeqRef.current) {
+          setProgressLoading(false);
+        }
+      }
+    };
+
+    void loadProgress();
+    return () => {
+      // bump seq on cleanup to ignore stale results
+      progressSeqRef.current += 1;
     };
   }, [selectedDate]);
 
@@ -83,7 +124,8 @@ export default function HomeworkProgressPage() {
       students.map((student) => {
         const dailyProgress = Array.isArray(student?.dailyProgress) ? student.dailyProgress : [];
         const selectedProgress = dailyProgress.find((entry) => entry?.date === selectedDate);
-        const missing = Number(selectedProgress?.missing || 0);
+        // missing === -1 means progress hasn't loaded yet
+        const missing = student?.missing === -1 ? -1 : Number(selectedProgress?.missing || 0);
         return {
           ...student,
           missing,
@@ -98,12 +140,17 @@ export default function HomeworkProgressPage() {
       preparedStudents.filter((student) => {
         if (search && !String(student?.name || '').toLowerCase().includes(search.toLowerCase())) return false;
         if (levelFilter !== 'all' && String(student?.level || '') !== levelFilter) return false;
-        if (progressFilter === 'ontime' && student.missing > 0) return false;
-        if (progressFilter === 'missing' && student.missing === 0) return false;
+        // When progress is still loading, skip progress-based filters
+        if (student.missing !== -1) {
+          if (progressFilter === 'ontime' && student.missing > 0) return false;
+          if (progressFilter === 'missing' && student.missing === 0) return false;
+        }
         return true;
       }),
     [preparedStudents, search, levelFilter, progressFilter],
   );
+
+  const isInitialLoading = studentsLoading && students.length === 0;
 
   return (
     <div className="mx-auto flex w-full max-w-[1300px] flex-col gap-6 p-4 md:p-6">
@@ -173,6 +220,13 @@ export default function HomeworkProgressPage() {
             </span>
             <span className="text-border">|</span>
             <span>{toDateLabel(selectedDate)}</span>
+            {progressLoading && students.length > 0 ? (
+              <>
+                <span className="text-border">|</span>
+                <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+                <span className="text-xs">Loading progress…</span>
+              </>
+            ) : null}
           </div>
 
           {error ? (
@@ -181,7 +235,8 @@ export default function HomeworkProgressPage() {
             </div>
           ) : null}
 
-          {loading ? (
+          {/* Phase 1 skeleton: only while we don't have ANY students yet */}
+          {isInitialLoading ? (
             <div className="rounded-lg border">
               <div className="space-y-4 p-4">
                 {Array.from({ length: 5 }).map((_, index) => (
@@ -197,7 +252,7 @@ export default function HomeworkProgressPage() {
             </div>
           ) : null}
 
-          {!loading && !error && students.length === 0 ? (
+          {!isInitialLoading && !error && students.length === 0 ? (
             <div className="rounded-lg border p-12 text-center">
               <Users className="mx-auto mb-3 size-10 text-muted-foreground" />
               <p className="text-muted-foreground">No homeroom students yet</p>
@@ -207,7 +262,7 @@ export default function HomeworkProgressPage() {
             </div>
           ) : null}
 
-          {!loading && students.length > 0 && filteredStudents.length === 0 ? (
+          {!isInitialLoading && students.length > 0 && filteredStudents.length === 0 ? (
             <div className="rounded-lg border p-12 text-center">
               <Users className="mx-auto mb-3 size-10 text-muted-foreground" />
               <p className="text-muted-foreground">No students found</p>
@@ -215,8 +270,9 @@ export default function HomeworkProgressPage() {
             </div>
           ) : null}
 
-          {!loading && filteredStudents.length > 0 ? (
+          {!isInitialLoading && filteredStudents.length > 0 ? (
             <>
+              {/* Desktop table */}
               <div className="hidden overflow-hidden rounded-lg border md:block">
                 <Table>
                   <TableHeader>
@@ -229,24 +285,60 @@ export default function HomeworkProgressPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredStudents.map((student) => (
-                      <TableRow key={student.id}>
-                        <TableCell className="font-medium">{student.name}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={resolveLevelTone(student.level)}>
-                            {student.level}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <StatusBadge status={student.overallStatus} />
-                        </TableCell>
-                        <TableCell>
-                          <DailyProgressBadge missing={student.missing} />
-                        </TableCell>
-                        <TableCell className="text-right">
+                    {filteredStudents.map((student) => {
+                      const isProgressPending = student.overallStatus === '_loading';
+                      return (
+                        <TableRow key={student.id}>
+                          <TableCell className="font-medium">{student.name}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={resolveLevelTone(student.level)}>
+                              {student.level}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {isProgressPending ? <CellSkeleton /> : <StatusBadge status={student.overallStatus} />}
+                          </TableCell>
+                          <TableCell>
+                            {isProgressPending ? <CellSkeleton /> : <DailyProgressBadge missing={student.missing} />}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={isProgressPending}
+                              onClick={() =>
+                                navigate(`/dashboard/homework-progress/${student.id}`, {
+                                  state: { studentSnapshot: student, selectedDate },
+                                })}
+                            >
+                              View
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Mobile cards */}
+              <div className="space-y-3 md:hidden">
+                {filteredStudents.map((student) => {
+                  const isProgressPending = student.overallStatus === '_loading';
+                  return (
+                    <Card key={student.id} className="border-border/70 shadow-sm">
+                      <CardContent className="space-y-3 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="space-y-1">
+                            <p className="font-medium text-foreground">{student.name}</p>
+                            <Badge variant="outline" className={resolveLevelTone(student.level)}>
+                              {student.level}
+                            </Badge>
+                          </div>
                           <Button
                             size="sm"
                             variant="outline"
+                            disabled={isProgressPending}
                             onClick={() =>
                               navigate(`/dashboard/homework-progress/${student.id}`, {
                                 state: { studentSnapshot: student, selectedDate },
@@ -254,42 +346,24 @@ export default function HomeworkProgressPage() {
                           >
                             View
                           </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-
-              <div className="space-y-3 md:hidden">
-                {filteredStudents.map((student) => (
-                  <Card key={student.id} className="border-border/70 shadow-sm">
-                    <CardContent className="space-y-3 p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="space-y-1">
-                          <p className="font-medium text-foreground">{student.name}</p>
-                          <Badge variant="outline" className={resolveLevelTone(student.level)}>
-                            {student.level}
-                          </Badge>
                         </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() =>
-                            navigate(`/dashboard/homework-progress/${student.id}`, {
-                              state: { studentSnapshot: student, selectedDate },
-                            })}
-                        >
-                          View
-                        </Button>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <StatusBadge status={student.overallStatus} />
-                        <DailyProgressBadge missing={student.missing} />
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                        <div className="flex items-center gap-2">
+                          {isProgressPending ? (
+                            <>
+                              <CellSkeleton />
+                              <CellSkeleton />
+                            </>
+                          ) : (
+                            <>
+                              <StatusBadge status={student.overallStatus} />
+                              <DailyProgressBadge missing={student.missing} />
+                            </>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             </>
           ) : null}
@@ -298,4 +372,3 @@ export default function HomeworkProgressPage() {
     </div>
   );
 }
-

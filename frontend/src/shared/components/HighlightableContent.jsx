@@ -118,7 +118,14 @@ const NoteModal = ({ isOpen, onClose, onSave, initialValue = '' }) => {
 };
 
 
-const HighlightableContent = forwardRef(({ htmlContent, onUpdateHtml, id, tagName = 'div', className = '' }, ref) => {
+const HighlightableContent = forwardRef(({
+  htmlContent,
+  onUpdateHtml,
+  id,
+  tagName = 'div',
+  className = '',
+  serializeHtmlForUpdate,
+}, ref) => {
   const internalContainerRef = useRef(null);
   // Allow parent to access the container ref
   useImperativeHandle(ref, () => internalContainerRef.current);
@@ -192,7 +199,10 @@ const HighlightableContent = forwardRef(({ htmlContent, onUpdateHtml, id, tagNam
 
   const triggerUpdate = () => {
     if (onUpdateHtml && containerRef.current) {
-      onUpdateHtml(containerRef.current.innerHTML);
+      const html = serializeHtmlForUpdate
+        ? serializeHtmlForUpdate(containerRef.current)
+        : containerRef.current.innerHTML;
+      onUpdateHtml(html);
     }
   };
 
@@ -400,7 +410,14 @@ const HighlightableContent = forwardRef(({ htmlContent, onUpdateHtml, id, tagNam
 
 export default HighlightableContent;
 
-export function HighlightableWrapper({ children, onUpdateHtml, className = '', tagName = 'div', style = {} }) {
+export function HighlightableWrapper({
+  children,
+  onUpdateHtml,
+  className = '',
+  tagName = 'div',
+  style = {},
+  serializeHtmlForUpdate,
+}) {
   const containerRef = useRef(null);
   const wrapperRef = useRef(null);
   const [showTooltip, setShowTooltip] = useState(false);
@@ -445,7 +462,10 @@ export function HighlightableWrapper({ children, onUpdateHtml, className = '', t
 
   const triggerUpdate = () => {
     if (onUpdateHtml && containerRef.current) {
-      onUpdateHtml(containerRef.current.innerHTML);
+      const html = serializeHtmlForUpdate
+        ? serializeHtmlForUpdate(containerRef.current)
+        : containerRef.current.innerHTML;
+      onUpdateHtml(html);
     }
   };
 

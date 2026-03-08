@@ -83,16 +83,14 @@ export default function ScoreDashboard() {
     fetchUsers();
   }, [currentPage, showNotification, searchQuery]);
 
-  const filteredUsers = useMemo(() => {
-    const query = String(searchTerm || '').trim().toLowerCase();
-    if (!query) return users;
-
-    return users.filter((user) => (
-      String(user?.name || '').toLowerCase().includes(query)
-      || String(user?.email || '').toLowerCase().includes(query)
-      || String(user?.role || '').toLowerCase().includes(query)
-    ));
-  }, [searchTerm, users]);
+  // Debounce search term to trigger backend query
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setSearchQuery(searchTerm);
+      setCurrentPage(1);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
 
   const handleRetryAllFailedSpeakingLogs = async () => {
     if (!isAdmin || retryingAllFailedLogs) return;
@@ -116,7 +114,7 @@ export default function ScoreDashboard() {
 
   const page = Number(pagination?.page || currentPage || 1);
   const totalPages = Math.max(1, Number(pagination?.totalPages || 1));
-  const totalItems = Number(pagination?.totalItems || filteredUsers.length || 0);
+  const totalItems = Number(pagination?.totalItems || users.length || 0);
   const hasPrevPage = Boolean(pagination?.hasPrevPage ?? page > 1);
   const hasNextPage = Boolean(pagination?.hasNextPage ?? page < totalPages);
 
@@ -131,7 +129,7 @@ export default function ScoreDashboard() {
             </CardDescription>
           </div>
           <Badge variant="outline" className="w-fit rounded-full px-3 py-1 text-xs">
-            {loading ? 'Loading...' : `${filteredUsers.length} users on this page`}
+            {loading ? 'Loading...' : `${users.length} users on this page`}
           </Badge>
         </CardHeader>
       </Card>
@@ -148,14 +146,8 @@ export default function ScoreDashboard() {
               <Input
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    setCurrentPage(1);
-                    setSearchQuery(searchTerm);
-                  }
-                }}
                 className="pl-9"
-                placeholder="Search by name, email, or role (Press Enter to search all)..."
+                placeholder="Search by name or email..."
               />
             </div>
             {isAdmin ? (
@@ -208,7 +200,7 @@ export default function ScoreDashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody className="[&_td]:py-4">
-                  {filteredUsers.length === 0 ? (
+                  {users.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="py-12 text-center text-sm text-muted-foreground">
                         No users found.
@@ -216,7 +208,7 @@ export default function ScoreDashboard() {
                     </TableRow>
                   ) : null}
 
-                  {filteredUsers.map((user) => {
+                  {users.map((user) => {
                     const normalizedRole = String(user?.role || 'student').toLowerCase();
                     const roleBadgeClass = roleBadgeClassMap[normalizedRole] || roleBadgeClassMap.student;
                     return (

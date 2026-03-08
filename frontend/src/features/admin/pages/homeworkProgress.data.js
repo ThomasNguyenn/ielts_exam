@@ -15,6 +15,51 @@ const toIsoDay = (value) => {
   return date.toISOString().slice(0, 10);
 };
 
+const shiftMonthValue = (monthValue, offset = 0) => {
+  const normalized = String(monthValue || '').trim();
+  if (!/^\d{4}-\d{2}$/.test(normalized)) return '';
+  const [yearRaw, monthRaw] = normalized.split('-');
+  const year = Number(yearRaw);
+  const monthIndex = Number(monthRaw) - 1;
+  if (!Number.isFinite(year) || !Number.isFinite(monthIndex)) return '';
+  const date = new Date(Date.UTC(year, monthIndex + Number(offset || 0), 1));
+  if (Number.isNaN(date.getTime())) return '';
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
+};
+
+const expandMonthKeys = (months = []) => {
+  const expanded = new Set();
+  months.forEach((month) => {
+    const normalized = String(month || '').trim();
+    if (!normalized) return;
+    expanded.add(normalized);
+    const previous = shiftMonthValue(normalized, -1);
+    const next = shiftMonthValue(normalized, 1);
+    if (previous) expanded.add(previous);
+    if (next) expanded.add(next);
+  });
+  return Array.from(expanded);
+};
+
+const buildLookbackMonthKeys = (centerMonth, lookback = 6, forward = 1) => {
+  const normalized = String(centerMonth || '').trim();
+  if (!normalized) return [];
+  const keys = new Set([normalized]);
+  for (let offset = 1; offset <= Number(lookback || 0); offset += 1) {
+    const previous = shiftMonthValue(normalized, -offset);
+    if (previous) keys.add(previous);
+  }
+  for (let offset = 1; offset <= Number(forward || 0); offset += 1) {
+    const next = shiftMonthValue(normalized, offset);
+    if (next) keys.add(next);
+  }
+  return Array.from(keys);
+};
+
+const normalizeAssignmentStatus = (status) => String(status || '').trim().toLowerCase();
+
 const normalizeStudentLevel = (role) => {
   const normalized = String(role || '').toLowerCase();
   if (normalized === 'studentaca') return 'ACA';
@@ -63,15 +108,15 @@ const fetchAllPublishedAssignmentsForMonth = async (monthValue) => {
     const response = await api.homeworkGetAssignments({
       page,
       limit: ASSIGNMENT_FETCH_LIMIT,
-      status: 'published',
       ...(monthValue ? { month: monthValue } : {}),
     });
-    const chunk = Array.isArray(response?.data) ? response.data : [];
+    const chunkRaw = Array.isArray(response?.data) ? response.data : [];
+    const chunk = chunkRaw.filter((assignment) => normalizeAssignmentStatus(assignment?.status) !== 'draft');
     rows.push(...chunk);
 
     const reportedTotalPages = Number(response?.pagination?.totalPages || 1);
     totalPages = Math.max(1, reportedTotalPages);
-    if (page >= totalPages || chunk.length === 0) break;
+    if (page >= totalPages || chunkRaw.length === 0) break;
     page += 1;
   }
 
@@ -173,6 +218,26 @@ const fetchPublishedAssignmentsByMonths = async (months = []) => {
   return Array.from(assignmentMap.values());
 };
 
+export const loadHomeroomStudentsQuick = async () => {
+  const currentUser = api.getUser();
+  const currentUserId = String(currentUser?._id || '').trim();
+  if (!currentUserId) return [];
+
+  const allStudents = await fetchAllUsersByRole('student');
+  return allStudents
+    .filter((student) => String(student?.homeroom_teacher_id || '').trim() === currentUserId)
+    .map((student) => ({
+      id: String(student?._id || ''),
+      name: String(student?.name || 'Unnamed student'),
+      level: normalizeStudentLevel(student?.role),
+      missing: -1, // sentinel: progress not loaded yet
+      dailyProgress: [],
+      assignments: [],
+      overallStatus: '_loading',
+    }))
+    .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+};
+
 export const loadHomeroomHomeworkProgress = async ({ selectedDate = TODAY } = {}) => {
   const currentUser = api.getUser();
   const currentUserId = String(currentUser?._id || '').trim();
@@ -204,52 +269,111 @@ export const loadHomeroomHomeworkProgress = async ({ selectedDate = TODAY } = {}
   }
 
   const assignmentMonth = String(selectedDate || TODAY).slice(0, 7);
-  const assignments = await fetchAllPublishedAssignmentsForMonth(assignmentMonth);
+  const assignmentMonths = buildLookbackMonthKeys(assignmentMonth, 6, 1);
+  const assignments = await fetchPublishedAssignmentsByMonths(assignmentMonths);
   const dateSet = new Set([selectedDate || TODAY, TODAY]);
 
-  for (const assignment of assignments) {
-    const assignmentId = String(assignment?._id || '').trim();
-    if (!assignmentId) continue;
-
-    try {
+  // Fetch all assignment dashboards in parallel instead of sequentially
+  const dashboardPromises = assignments
+    .filter((assignment) => String(assignment?._id || '').trim())
+    .map(async (assignment) => {
+      const assignmentId = String(assignment._id).trim();
       const dashboardResponse = await api.homeworkGetAssignmentDashboard(assignmentId);
-      const dashboardData = dashboardResponse?.data || {};
-      const dashboardStudents = Array.isArray(dashboardData?.students) ? dashboardData.students : [];
-      const assignmentTitle = String(
-        dashboardData?.assignment?.title || assignment?.title || 'Untitled assignment',
-      ).trim();
+      return { assignmentId, assignment, dashboardData: dashboardResponse?.data || {} };
+    });
 
-      dashboardStudents.forEach((dashboardStudent) => {
-        const studentId = String(dashboardStudent?._id || '').trim();
-        const target = studentById.get(studentId);
-        if (!target) return;
+  const dashboardResults = await Promise.allSettled(dashboardPromises);
 
-        const tasks = Array.isArray(dashboardStudent?.tasks) ? dashboardStudent.tasks : [];
-        if (tasks.length === 0) return;
+  for (const result of dashboardResults) {
+    if (result.status !== 'fulfilled') continue;
+    const { assignmentId, assignment, dashboardData } = result.value;
 
-        const normalizedStatuses = tasks.map((task) => String(task?.status || '').toLowerCase());
-        const submittedTasks = normalizedStatuses.filter((status) => status === 'submitted' || status === 'graded').length;
-        const gradedTasks = normalizedStatuses.filter((status) => status === 'graded').length;
-        const missingTasks = normalizedStatuses.filter((status) => status === 'not_submitted').length;
-        const submittedDateCandidates = tasks.map((task) => toIsoDay(task?.submitted_at)).filter(Boolean);
-        const latestSubmittedAt = submittedDateCandidates.sort().at(-1) || null;
-        if (latestSubmittedAt) dateSet.add(latestSubmittedAt);
+    const dashboardStudents = Array.isArray(dashboardData?.students) ? dashboardData.students : [];
+    const assignmentTitle = String(
+      dashboardData?.assignment?.title || assignment?.title || 'Untitled assignment',
+    ).trim();
 
-        target.assignments.push({
-          id: assignmentId,
-          assignmentId,
-          title: assignmentTitle || 'Untitled assignment',
-          status: submittedTasks > 0 && missingTasks === 0 ? 'Submitted' : 'Missing',
-          gradingStatus: submittedTasks > 0 && gradedTasks === submittedTasks ? 'Done' : 'Pending',
-          submittedAt: latestSubmittedAt,
-        });
-        target.missing += missingTasks;
-        if (missingTasks > 0) target.hasMissing = true;
-        if (normalizedStatuses.includes('submitted')) target.hasPendingReview = true;
+    // Build a map of task_id → { due_date, title } from dashboard tasks
+    const dashboardTasks = Array.isArray(dashboardData?.assignment?.tasks) ? dashboardData.assignment.tasks : [];
+    const taskMetaMap = new Map();
+    dashboardTasks.forEach((task) => {
+      const taskId = String(task?._id || '').trim();
+      if (!taskId) return;
+      taskMetaMap.set(taskId, {
+        title: String(task?.title || task?.type || 'Task').trim(),
+        due_date: toIsoDay(task?.due_date) || null,
       });
-    } catch (_error) {
-      // Keep rendering with partial data if one assignment dashboard fails.
-    }
+    });
+    const assignmentDueDay = toIsoDay(dashboardData?.assignment?.due_date || assignment?.due_date) || null;
+
+    dashboardStudents.forEach((dashboardStudent) => {
+      const studentId = String(dashboardStudent?._id || '').trim();
+      const target = studentById.get(studentId);
+      if (!target) return;
+
+      const tasks = Array.isArray(dashboardStudent?.tasks) ? dashboardStudent.tasks : [];
+      if (tasks.length === 0) return;
+      const assignmentMonthValue = String(
+        dashboardData?.assignment?.month || assignment?.month || '',
+      ).slice(0, 7);
+
+      let submittedTasks = 0;
+      let gradedTasks = 0;
+      let missingTasks = 0;
+      const taskSubmissions = [];
+
+      tasks.forEach((task) => {
+        const taskStatus = String(task?.status || '').toLowerCase();
+        const taskId = String(task?.task_id || '').trim();
+        const meta = taskMetaMap.get(taskId) || {};
+        const taskDueDay = meta.due_date || assignmentDueDay;
+        const isDeadlinePassed = taskDueDay ? taskDueDay <= TODAY : true;
+
+        if (taskStatus === 'submitted' || taskStatus === 'graded') {
+          submittedTasks += 1;
+        }
+        if (taskStatus === 'graded') {
+          gradedTasks += 1;
+        }
+        // Only count as missing if deadline has passed
+        if (taskStatus === 'not_submitted' && isDeadlinePassed) {
+          missingTasks += 1;
+        }
+
+        // submission_id is now returned directly from dashboard API
+        const submissionId = task?.submission_id ? String(task.submission_id) : null;
+        taskSubmissions.push({
+          task_id: taskId,
+          task_title: meta.title || 'Task',
+          task_due_date: taskDueDay || null,
+          status: taskStatus || 'not_submitted',
+          submitted_at: task?.submitted_at || null,
+          score: task?.score ?? null,
+          graded_at: task?.graded_at || null,
+          homework_submission_id: submissionId,
+        });
+      });
+
+      const submittedDateCandidates = tasks.map((task) => toIsoDay(task?.submitted_at)).filter(Boolean);
+      const latestSubmittedAt = submittedDateCandidates.sort().at(-1) || null;
+      if (latestSubmittedAt) dateSet.add(latestSubmittedAt);
+      const shouldInclude = assignmentMonthValue === assignmentMonth || submittedTasks > 0;
+      if (!shouldInclude) return;
+
+      target.assignments.push({
+        id: assignmentId,
+        assignmentId,
+        title: assignmentTitle || 'Untitled assignment',
+        status: submittedTasks > 0 && missingTasks === 0 ? 'Submitted' : 'Missing',
+        gradingStatus: submittedTasks > 0 && gradedTasks === submittedTasks ? 'Done' : 'Pending',
+        submittedAt: latestSubmittedAt,
+        taskSubmissions,
+      });
+      target.missing += missingTasks;
+      if (missingTasks > 0) target.hasMissing = true;
+      const hasPending = tasks.some((t) => String(t?.status || '').toLowerCase() === 'submitted');
+      if (hasPending) target.hasPendingReview = true;
+    });
   }
 
   const students = Array.from(studentById.values())
@@ -322,7 +446,7 @@ export const loadStaffDashboardData = async ({ rangeDays = 7, scope = 'homeroom'
   });
 
   const monthKeys = Array.from(new Set(days.map((day) => String(day).slice(0, 7)).filter(Boolean)));
-  const publishedAssignments = await fetchPublishedAssignmentsByMonths(monthKeys);
+  const publishedAssignments = await fetchPublishedAssignmentsByMonths(expandMonthKeys(monthKeys));
 
   const dayTotals = new Map(days.map((day) => [day, { submitted: 0, total: 0 }]));
   const eventRows = [];
@@ -331,94 +455,120 @@ export const loadStaffDashboardData = async ({ rangeDays = 7, scope = 'homeroom'
   let totalSubmitted = 0;
   let totalPendingReviews = 0;
 
-  for (const assignment of publishedAssignments) {
-    const assignmentId = String(assignment?._id || '').trim();
-    const dueDay = toIsoDay(assignment?.due_date);
-    if (!assignmentId || !dueDay || !daySet.has(dueDay)) continue;
-
-    try {
+  // Fetch all assignment dashboards in parallel
+  const staffDashPromises = publishedAssignments
+    .filter((assignment) => String(assignment?._id || '').trim())
+    .map(async (assignment) => {
+      const assignmentId = String(assignment._id).trim();
+      const dueDay = toIsoDay(assignment?.due_date);
+      const dueInRange = Boolean(dueDay && daySet.has(dueDay));
       const dashboardResponse = await api.homeworkGetAssignmentDashboard(assignmentId);
-      const dashboardData = dashboardResponse?.data || {};
-      const assignmentTitle = String(
-        dashboardData?.assignment?.title || assignment?.title || 'Untitled assignment',
-      ).trim();
-      const dashboardStudents = Array.isArray(dashboardData?.students) ? dashboardData.students : [];
-      const assignmentDueTs = toTimestamp(dashboardData?.assignment?.due_date || assignment?.due_date);
+      return { assignmentId, assignment, dueDay, dueInRange, dashboardData: dashboardResponse?.data || {} };
+    });
 
-      dashboardStudents.forEach((dashboardStudent) => {
-        const studentId = String(dashboardStudent?._id || '').trim();
-        const targetStudent = studentById.get(studentId);
-        if (!targetStudent) return;
+  const staffDashResults = await Promise.allSettled(staffDashPromises);
 
-        const tasks = Array.isArray(dashboardStudent?.tasks) ? dashboardStudent.tasks : [];
-        if (tasks.length === 0) return;
+  for (const result of staffDashResults) {
+    if (result.status !== 'fulfilled') continue;
+    const { assignmentId, assignment, dueDay, dueInRange, dashboardData } = result.value;
 
-        let submittedSlots = 0;
-        let pendingReviewSlots = 0;
-        let missingSlots = 0;
-        let latestSubmittedAt = null;
+    const assignmentTitle = String(
+      dashboardData?.assignment?.title || assignment?.title || 'Untitled assignment',
+    ).trim();
+    const dashboardStudents = Array.isArray(dashboardData?.students) ? dashboardData.students : [];
+    const assignmentDueTs = toTimestamp(dashboardData?.assignment?.due_date || assignment?.due_date);
 
-        tasks.forEach((task) => {
-          const taskStatus = String(task?.status || '').toLowerCase();
-          if (isSubmittedStatus(taskStatus)) submittedSlots += 1;
-          if (isPendingReviewStatus(taskStatus)) pendingReviewSlots += 1;
-          if (taskStatus === 'not_submitted') missingSlots += 1;
+    dashboardStudents.forEach((dashboardStudent) => {
+      const studentId = String(dashboardStudent?._id || '').trim();
+      const targetStudent = studentById.get(studentId);
+      if (!targetStudent) return;
 
-          const submittedAtTs = toTimestamp(task?.submitted_at);
-          const submittedAtDay = toIsoDay(task?.submitted_at);
-          if (submittedAtTs !== null && submittedAtDay && daySet.has(submittedAtDay)) {
-            if (!latestSubmittedAt || submittedAtTs > latestSubmittedAt) {
-              latestSubmittedAt = submittedAtTs;
-            }
+      const tasks = Array.isArray(dashboardStudent?.tasks) ? dashboardStudent.tasks : [];
+      if (tasks.length === 0) return;
+
+      let submittedSlots = 0;
+      let submittedInRangeSlots = 0;
+      let pendingReviewSlots = 0;
+      let pendingReviewInRangeSlots = 0;
+      let missingSlots = 0;
+      let latestSubmittedAt = null;
+
+      tasks.forEach((task) => {
+        const taskStatus = String(task?.status || '').toLowerCase();
+        const submittedAtTs = toTimestamp(task?.submitted_at);
+        const submittedAtDay = toIsoDay(task?.submitted_at);
+        const submittedInRange = submittedAtTs !== null && submittedAtDay && daySet.has(submittedAtDay);
+
+        if (isSubmittedStatus(taskStatus)) {
+          submittedSlots += 1;
+          if (submittedInRange) submittedInRangeSlots += 1;
+        }
+        if (isPendingReviewStatus(taskStatus)) {
+          pendingReviewSlots += 1;
+          if (submittedInRange) pendingReviewInRangeSlots += 1;
+        }
+        if (taskStatus === 'not_submitted') missingSlots += 1;
+
+        if (submittedInRange) {
+          if (!latestSubmittedAt || submittedAtTs > latestSubmittedAt) {
+            latestSubmittedAt = submittedAtTs;
           }
-        });
-
-        targetStudent.assignments.push({
-          id: assignmentId,
-          title: assignmentTitle || 'Untitled assignment',
-          dueDay,
-          status: submittedSlots > 0 && missingSlots === 0 ? 'Submitted' : 'Missing',
-          gradingStatus: pendingReviewSlots > 0 ? 'Pending' : 'Done',
-          totalSlots: tasks.length,
-          submittedSlots,
-          missingSlots,
-        });
-
-        targetStudent.totalMissing += missingSlots;
-        targetStudent.totalSubmitted += submittedSlots;
-        targetStudent.totalSlots += tasks.length;
-        targetStudent.pendingReviewSlots += pendingReviewSlots;
-        if (missingSlots > 0) targetStudent.hasMissing = true;
-        if (pendingReviewSlots > 0) targetStudent.hasPendingReview = true;
-
-        if (dueDay === TODAY) {
-          targetStudent.todayMissingSlots += missingSlots;
-          targetStudent.todayTotalSlots += tasks.length;
-        }
-
-        const dayBucket = dayTotals.get(dueDay);
-        if (dayBucket) {
-          dayBucket.submitted += submittedSlots;
-          dayBucket.total += tasks.length;
-        }
-
-        totalSubmitted += submittedSlots;
-        totalSlots += tasks.length;
-        totalPendingReviews += pendingReviewSlots;
-
-        if (latestSubmittedAt !== null) {
-          eventRows.push({
-            id: `${assignmentId}-${studentId}-${latestSubmittedAt}`,
-            studentName: targetStudent.name,
-            assignmentName: assignmentTitle || 'Untitled assignment',
-            submittedAtTs: latestSubmittedAt,
-            status: assignmentDueTs !== null && latestSubmittedAt > assignmentDueTs ? 'Late' : 'Submitted',
-          });
         }
       });
-    } catch (_error) {
-      // Keep rendering partial dashboard data when one assignment dashboard fails.
-    }
+
+      const hasSubmissionInRange = submittedInRangeSlots > 0;
+      if (!dueInRange && !hasSubmissionInRange) return;
+
+      const effectiveSubmittedSlots = dueInRange ? submittedSlots : submittedInRangeSlots;
+      const effectivePendingReviewSlots = dueInRange ? pendingReviewSlots : pendingReviewInRangeSlots;
+      const effectiveMissingSlots = dueInRange ? missingSlots : 0;
+      const effectiveTotalSlots = dueInRange ? tasks.length : submittedInRangeSlots;
+
+      targetStudent.assignments.push({
+        id: assignmentId,
+        title: assignmentTitle || 'Untitled assignment',
+        dueDay,
+        status: effectiveSubmittedSlots > 0 && effectiveMissingSlots === 0 ? 'Submitted' : 'Missing',
+        gradingStatus: effectivePendingReviewSlots > 0 ? 'Pending' : 'Done',
+        totalSlots: effectiveTotalSlots,
+        submittedSlots: effectiveSubmittedSlots,
+        missingSlots: effectiveMissingSlots,
+      });
+
+      targetStudent.totalMissing += effectiveMissingSlots;
+      targetStudent.totalSubmitted += effectiveSubmittedSlots;
+      targetStudent.totalSlots += effectiveTotalSlots;
+      targetStudent.pendingReviewSlots += effectivePendingReviewSlots;
+      if (effectiveMissingSlots > 0) targetStudent.hasMissing = true;
+      if (effectivePendingReviewSlots > 0) targetStudent.hasPendingReview = true;
+
+      if (dueInRange && dueDay === TODAY) {
+        targetStudent.todayMissingSlots += effectiveMissingSlots;
+        targetStudent.todayTotalSlots += effectiveTotalSlots;
+      }
+
+      if (dueInRange) {
+        const dayBucket = dayTotals.get(dueDay);
+        if (dayBucket) {
+          dayBucket.submitted += effectiveSubmittedSlots;
+          dayBucket.total += effectiveTotalSlots;
+        }
+      }
+
+      totalSubmitted += effectiveSubmittedSlots;
+      totalSlots += effectiveTotalSlots;
+      totalPendingReviews += effectivePendingReviewSlots;
+
+      if (latestSubmittedAt !== null) {
+        eventRows.push({
+          id: `${assignmentId}-${studentId}-${latestSubmittedAt}`,
+          studentName: targetStudent.name,
+          assignmentName: assignmentTitle || 'Untitled assignment',
+          submittedAtTs: latestSubmittedAt,
+          status: assignmentDueTs !== null && latestSubmittedAt > assignmentDueTs ? 'Late' : 'Submitted',
+        });
+      }
+    });
   }
 
   const students = Array.from(studentById.values())

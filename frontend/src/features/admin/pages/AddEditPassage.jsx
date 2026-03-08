@@ -84,6 +84,16 @@ function canonicalizeQuestionType(type = '') {
   return normalized || 'mult_choice';
 }
 
+function parseUseOnceFlag(value) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on';
+  }
+  return false;
+}
+
 function normalizeGroupLayoutForType(type = '', layout = '') {
   const normalizedType = canonicalizeQuestionType(type);
   if (normalizedType === 'mult_choice') {
@@ -174,7 +184,7 @@ function passageToForm(p) {
         type: normalizedType,
         group_layout: normalizeGroupLayoutForType(normalizedType, g.group_layout),
         required_count: g.required_count ?? '',
-        use_once: Boolean(g.use_once),
+        use_once: parseUseOnceFlag(g.use_once),
         instructions: g.instructions || '',
         text: g.text || '',
         image_url: (g.image_url && String(g.image_url).trim())
@@ -825,7 +835,7 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
           type: canonicalizeQuestionType(g.type),
           group_layout: normalizeGroupLayoutForType(g.type, g.group_layout),
           required_count: g.required_count ? Number(g.required_count) : undefined,
-          use_once: Boolean(g.use_once),
+          use_once: parseUseOnceFlag(g.use_once),
           instructions: g.instructions || undefined,
           text: g.text || undefined,
           image_url: g.image_url?.trim() || undefined,
