@@ -21,7 +21,7 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer";
-import { BookOpen, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, BookOpen, CheckCircle2 } from "lucide-react";
 import { IconCloud } from "@tabler/icons-react";
 import { formatDate, resolveVideoPreview, statusLabel } from "./homework.utils";
 import {
@@ -106,6 +106,11 @@ const resolveTaskBlockId = (block = {}) =>
 
 const resolveQuizParentPassageBlockId = (block = {}) =>
   String(block?.data?.parent_passage_block_id || "").trim();
+
+const resolveQuizLayout = (block = {}) => {
+  const normalized = String(block?.data?.layout || "").trim().toLowerCase();
+  return normalized === "list" ? "list" : "grid";
+};
 
 const MATCH_COLOR_TOKENS = ["emerald", "sky", "amber", "fuchsia", "teal", "rose", "indigo", "lime"];
 
@@ -273,6 +278,7 @@ const renderQuizContent = ({
   const questions = resolveQuizQuestions(block);
   if (!questions.length) return null;
   const blockId = resolveTaskBlockId(block);
+  const quizLayout = resolveQuizLayout(block);
   const answeredCount = questions.reduce((count, questionItem, questionIndex) => {
     const questionKey = buildQuizQuestionKey({
       blockId,
@@ -328,7 +334,7 @@ const renderQuizContent = ({
             ) : null}
             {renderRichTextBlock(questionItem.question, { className: "homework-quiz-question-text" })}
             {questionItem.options.length ? (
-              <div className="homework-quiz-options">
+              <div className={cx("homework-quiz-options", quizLayout === "grid" && "homework-quiz-options--grid")}>
                 {questionItem.options.map((option, optionIndex) => (
                   <button
                     key={String(option?.id || `${questionItem.id}-option-${optionIndex}`)}
@@ -340,7 +346,7 @@ const renderQuizContent = ({
                         questionId: questionItem.id,
                         questionIndex,
                       })] === String(option?.id || "")
-                        && "homework-quiz-option--selected",
+                      && "homework-quiz-option--selected",
                     )}
                     onClick={() => onSelectOption?.({
                       questionKey: buildQuizQuestionKey({
@@ -1265,307 +1271,299 @@ export default function MyHomeworkLessonPage() {
   return (
     <div className="homework-page">
       <div className="homework-shell">
-        <section className="homework-header">
-          <button
+        <section className="mb-6 flex items-center justify-between">
+          <Button
             type="button"
-            className="homework-header-back"
+            variant="ghost"
             onClick={() => navigate(lessonListPath)}
-            aria-label="Back to assignment lessons"
+            className="flex items-center gap-2 border bg-background shadow-sm"
           >
-            {"<"}
-          </button>
-          <div className="homework-header-main">
-            <p className="homework-header-subtitle">{assignment.title || "Assignment"}</p>
-            <h1 className="homework-header-title">{selectedTask?.title || "Lesson"}</h1>
-          </div>
-          <span className="homework-header-badge">
-            {isPreviewMode
-              ? "Preview"
-              : isDeadlinePassed
-                ? "Closed"
-                : `Due ${formatDate(assignment?.due_date)}`}
-          </span>
+            <ArrowLeft className="h-4 w-4" />
+            Back
+          </Button>
+          <h2 className="text-lg font-semibold tracking-tight text-foreground">
+            {assignment?.title || "Assignment"}
+          </h2>
         </section>
 
         <section className="homework-stacked">
-            {!selectedTask ? (
-              <article className="homework-card">
-                <p className="homework-danger">Lesson not found.</p>
-                <button type="button" className="homework-btn" onClick={() => navigate(lessonListPath)}>
-                  Back to Month
-                </button>
-              </article>
-            ) : (
-              <>
-                {isPreviewMode ? (
-                  <section className="homework-card">
-                    <p className="homework-item-meta">
-                      Preview mode: this page simulates student UI. Submit actions are disabled.
-                    </p>
-                  </section>
-                ) : null}
+          {!selectedTask ? (
+            <article className="homework-card">
+              <p className="homework-danger">Lesson not found.</p>
+              <button type="button" className="homework-btn" onClick={() => navigate(lessonListPath)}>
+                Back to Month
+              </button>
+            </article>
+          ) : (
+            <>
+              {isPreviewMode ? (
+                <section className="homework-card">
+                  <p className="homework-item-meta">
+                    Preview mode: this page simulates student UI. Submit actions are disabled.
+                  </p>
+                </section>
+              ) : null}
 
-                {isDeadlinePassed ? (
-                  <section className="homework-card">
-                    <p className="homework-danger">
-                      Deadline has passed. You can still review your submissions.
-                    </p>
-                  </section>
-                ) : null}
+              {isDeadlinePassed ? (
+                <section className="homework-card">
+                  <p className="homework-danger">
+                    Deadline has passed. You can still review your submissions.
+                  </p>
+                </section>
+              ) : null}
 
-                <article className="homework-task-card">
-                  <div className="homework-task-head">
-                    <div className="homework-task-left">
-                      <div className="homework-task-logo">
-                        <BookOpen className="homework-task-icon" size={22} color="#4285F4" />
-                      </div>
-                      <div className="homework-task-title-wrap">
-                        <h3>{selectedTask.title || "Lesson"}</h3>
-                      </div>
+              <article className="homework-task-card">
+                <div className="homework-task-head">
+                  <div className="homework-task-left">
+                    <div className="homework-task-logo">
+                      <BookOpen className="homework-task-icon" size={22} color="#4285F4" />
                     </div>
-                    <div className={`homework-task-status-icon ${submission ? "submitted" : ""}`}>
-                      <CheckCircle2 size={24} />
+                    <div className="homework-task-title-wrap">
+                      <h3>{selectedTask.title || "Lesson"}</h3>
                     </div>
                   </div>
-
-                  <div className="homework-task-blocks">
-                    {taskBlocks.map((block, blockIndex) => {
-                      const blockType = String(block?.type || "").trim().toLowerCase();
-                      const parentPassageBlockId = resolveQuizParentPassageBlockId(block);
-                      if (
-                        blockType === "quiz"
-                        && parentPassageBlockId
-                        && passageBlockIdSet.has(parentPassageBlockId)
-                      ) {
-                        return null;
-                      }
-                      const renderBlock = TASK_BLOCK_RENDERERS[blockType];
-                      if (!renderBlock) return null;
-                      const currentBlockId = resolveTaskBlockId(block);
-                      const content = renderBlock({
-                        block: {
-                          ...block,
-                          onLaunchInternal: handleLaunchInternalResource,
-                          canLaunchInternal: !isPreviewMode && canAccessPage,
-                          isLaunchingInternal: launchingTaskId === selectedTaskId,
-                        },
-                        task: selectedTask,
-                        taskIndex: selectedTaskIndex >= 0 ? selectedTaskIndex : 0,
-                        nestedQuizBlocks:
-                          blockType === "passage" ? nestedQuizBlocksByPassageId.get(currentBlockId) || [] : [],
-                        findMistakeSelections,
-                        onSelectFindMistakeToken: handleSelectFindMistakeToken,
-                        isFindMistakeDisabled: !canInteract,
-                        quizSelections,
-                        onSelectQuizOption: handleSelectQuizOption,
-                        isQuizDisabled: !canInteract,
-                        draft,
-                        onChangeTextAnswer: (value) => updateDraft(selectedTaskId, { text_answer: value }),
-                        onClearTextAnswer: () => updateDraft(selectedTaskId, { text_answer: "" }),
-                        isDictationDisabled: !canInteract,
-                        showDictationTranscriptInput:
-                          shouldUseDictationTranscript && currentBlockId === primaryDictationBlockId,
-                        dictationTextPlaceholder: textAnswerPlaceholder,
-                        minWords: selectedTask?.min_words,
-                        maxWords: selectedTask?.max_words,
-                        submissionStatus: submission ? statusLabel(submission.status) : "Not submitted",
-                      });
-                      if (!content) return null;
-                      return (
-                        <div
-                          key={getTaskBlockKey({ taskId: selectedTaskId, block, fallbackIndex: blockIndex })}
-                          data-testid="task-content-block"
-                          data-task-id={selectedTaskId}
-                          data-block-type={blockType}
-                        >
-                          {content}
-                        </div>
-                      );
-                    })}
+                  <div className={`homework-task-status-icon ${submission ? "submitted" : ""}`}>
+                    <CheckCircle2 size={24} />
                   </div>
+                </div>
 
-                  <div className="homework-grid">
-                    {hasTextInput && !shouldUseDictationTranscript ? (
-                      <div className="homework-text-answer-card homework-span-12">
-                        <div className="homework-text-answer-head">
-                          <div>
-                            <p className="homework-text-answer-label">Text Answer</p>
-                            <p className="homework-item-meta">Write your final response before submitting.</p>
-                          </div>
-                          <span className="homework-chip neutral">{textAnswerWordCount} words</span>
-                        </div>
-                        <textarea
-                          className="homework-text-answer-textarea"
-                          value={draft.text_answer || ""}
-                          onChange={(event) => updateDraft(selectedTaskId, { text_answer: event.target.value })}
-                          disabled={!canInteract}
-                          placeholder={textAnswerPlaceholder}
-                        />
-                        
+                <div className="homework-task-blocks">
+                  {taskBlocks.map((block, blockIndex) => {
+                    const blockType = String(block?.type || "").trim().toLowerCase();
+                    const parentPassageBlockId = resolveQuizParentPassageBlockId(block);
+                    if (
+                      blockType === "quiz"
+                      && parentPassageBlockId
+                      && passageBlockIdSet.has(parentPassageBlockId)
+                    ) {
+                      return null;
+                    }
+                    const renderBlock = TASK_BLOCK_RENDERERS[blockType];
+                    if (!renderBlock) return null;
+                    const currentBlockId = resolveTaskBlockId(block);
+                    const content = renderBlock({
+                      block: {
+                        ...block,
+                        onLaunchInternal: handleLaunchInternalResource,
+                        canLaunchInternal: !isPreviewMode && canAccessPage,
+                        isLaunchingInternal: launchingTaskId === selectedTaskId,
+                      },
+                      task: selectedTask,
+                      taskIndex: selectedTaskIndex >= 0 ? selectedTaskIndex : 0,
+                      nestedQuizBlocks:
+                        blockType === "passage" ? nestedQuizBlocksByPassageId.get(currentBlockId) || [] : [],
+                      findMistakeSelections,
+                      onSelectFindMistakeToken: handleSelectFindMistakeToken,
+                      isFindMistakeDisabled: !canInteract,
+                      quizSelections,
+                      onSelectQuizOption: handleSelectQuizOption,
+                      isQuizDisabled: !canInteract,
+                      draft,
+                      onChangeTextAnswer: (value) => updateDraft(selectedTaskId, { text_answer: value }),
+                      onClearTextAnswer: () => updateDraft(selectedTaskId, { text_answer: "" }),
+                      isDictationDisabled: !canInteract,
+                      showDictationTranscriptInput:
+                        shouldUseDictationTranscript && currentBlockId === primaryDictationBlockId,
+                      dictationTextPlaceholder: textAnswerPlaceholder,
+                      minWords: selectedTask?.min_words,
+                      maxWords: selectedTask?.max_words,
+                      submissionStatus: submission ? statusLabel(submission.status) : "Not submitted",
+                    });
+                    if (!content) return null;
+                    return (
+                      <div
+                        key={getTaskBlockKey({ taskId: selectedTaskId, block, fallbackIndex: blockIndex })}
+                        data-testid="task-content-block"
+                        data-task-id={selectedTaskId}
+                        data-block-type={blockType}
+                      >
+                        {content}
                       </div>
-                    ) : null}
+                    );
+                  })}
+                </div>
 
-                    {hasImageInput ? (
-                      <Card className="homework-span-12 rounded-3xl border shadow-sm">
-                        <input
-                          id={uploadInputId}
-                          type="file"
-                          accept="image/*,video/*"
-                          multiple
-                          className="hidden"
-                          onChange={(event) =>
-                            updateDraft(selectedTaskId, { image_files: Array.from(event.target.files || []) })
-                          }
-                          disabled={!canInteract}
-                        />
-                        <CardHeader className="space-y-3 pb-3">
-                          <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div className="space-y-2">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <Badge
-                                  variant={selectedImageFiles.length ? "default" : "outline"}
-                                  className="rounded-full px-3 py-1"
-                                >
-                                  {selectedImageFiles.length
-                                    ? `${selectedImageFiles.length} file đã chọn`
-                                    : "Chưa chọn file"}
-                                </Badge>
-                              </div>
-                              <CardTitle className="text-xl">Nộp ảnh / Video bài làm</CardTitle>
-                        
-                            </div>
-                            {submission?.image_items?.length ? (
-                              <Badge variant="outline" className="rounded-full px-3 py-1">
-                                Hiện tại: {submission.image_items.length} file
-                              </Badge>
-                            ) : null}
-                          </div>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                          <Card
-                            className={`rounded-2xl border-dashed shadow-none transition-colors ${
-                              selectedImageFiles.length ? "border-primary/40 bg-primary/[0.04]" : "bg-muted/40"
-                            }`}
-                          >
-                            <CardContent className="space-y-3 p-4">
-                              <Button
-                                asChild
-                                variant="outline"
-                                className="h-11 w-full rounded-2xl"
-                                disabled={!canInteract}
-                              >
-                                <label
-                                  htmlFor={canInteract ? uploadInputId : undefined}
-                                  className={canInteract ? "cursor-pointer" : "pointer-events-none cursor-not-allowed"}
-                                >
-                                  <IconCloud className="mr-2 h-4 w-4" />
-                                  {selectedImageFiles.length ? "Chọn lại file" : "Upload"}
-                                </label>
-                              </Button>
-                            </CardContent>
-                          </Card>
-                          {selectedImageFileNames.length ? (
-                            <div className="space-y-2">
-                              <p className="text-sm font-medium text-foreground">File da chon</p>
-                              <div className="flex flex-wrap gap-2">
-                                {selectedImageFileNames.slice(0, 6).map((fileName, index) => (
-                                  <Badge
-                                    key={`${fileName}-${index}`}
-                                    variant="outline"
-                                    className="max-w-full truncate rounded-full px-3 py-1"
-                                    title={fileName}
-                                  >
-                                    {fileName}
-                                  </Badge>
-                                ))}
-                                {selectedImageFileNames.length > 6 ? (
-                                  <Badge variant="outline" className="rounded-full px-3 py-1">
-                                    +{selectedImageFileNames.length - 6} file
-                                  </Badge>
-                                ) : null}
-                              </div>
-                            </div>
-                          ) : (
-                            <p className="text-sm text-muted-foreground">Chưa có file nào được chọn.</p>
-                          )}
-                        </CardContent>
-                      </Card>
-                    ) : null}
-
-                    {hasAudioInput ? (
-                      <div className="homework-field homework-span-12">
-                        <label>Audio Recording</label>
-                        <div className="homework-audio-recorder">
-                          <div className="homework-inline">
-                            <button
-                              type="button"
-                              className={`homework-btn ${draft.is_recording ? "ghost" : "primary"}`}
-                              onClick={() =>
-                                draft.is_recording
-                                  ? stopAudioRecording(selectedTaskId)
-                                  : void startAudioRecording(selectedTaskId)
-                              }
-                              disabled={!canInteract || isPreviewMode}
-                            >
-                              {draft.is_recording ? "Stop recording" : "Start recording"}
-                            </button>
-                            <button
-                              type="button"
-                              className="homework-btn ghost"
-                              onClick={() => clearDraftAudio(selectedTaskId)}
-                              disabled={!canInteract || (!draft.audio_file && !draft.audio_preview_url)}
-                            >
-                              Clear
-                            </button>
-                          </div>
-                          <p className="homework-item-meta">
-                            Record directly in the browser. No audio file upload is required.
-                          </p>
-                          {draft.audio_error ? <p className="homework-danger">{draft.audio_error}</p> : null}
-                          {draft.audio_preview_url ? (
-                            <audio controls src={draft.audio_preview_url} style={{ width: "100%", marginTop: "0.4rem" }} />
-                          ) : submission?.audio_item?.url ? (
-                            <audio controls src={submission.audio_item.url} style={{ width: "100%", marginTop: "0.4rem" }} />
-                          ) : null}
+                <div className="homework-grid">
+                  {hasTextInput && !shouldUseDictationTranscript ? (
+                    <div className="homework-text-answer-card homework-span-12">
+                      <div className="homework-text-answer-head">
+                        <div>
+                          <p className="homework-text-answer-label">Text Answer</p>
+                          <p className="homework-item-meta">Write your final response before submitting.</p>
                         </div>
+                        <span className="homework-chip neutral">{textAnswerWordCount} words</span>
                       </div>
-                    ) : null}
-                  </div>
+                      <textarea
+                        className="homework-text-answer-textarea"
+                        value={draft.text_answer || ""}
+                        onChange={(event) => updateDraft(selectedTaskId, { text_answer: event.target.value })}
+                        disabled={!canInteract}
+                        placeholder={textAnswerPlaceholder}
+                      />
 
-                  <div className="homework-task-actions homework-task-actions--lesson">
-                    <div className="homework-submit-meta">
-                      <p className="homework-item-meta">
-                        {isPreviewMode
-                          ? "Preview mode disables submit."
-                          : isDeadlinePassed
-                            ? "Deadline has passed. You can review only."
-                            : "Submitting will update your latest answer for this lesson."}
-                      </p>
-                      {submission?.status === "graded" ? (
-                        <span className="homework-chip">
-                          Score: {submission?.score ?? "--"} / 10
-                        </span>
-                      ) : null}
-                    </div>
-                    <button
-                      type="button"
-                      className="homework-submit-btn"
-                      onClick={() => void handleSubmitTask()}
-                      disabled={!canSubmit || draft.submitting}
-                    >
-                      {isPreviewMode ? "Preview only" : draft.submitting ? "Submitting..." : "Submit Task"}
-                    </button>
-                  </div>
-
-                  {submission?.teacher_feedback ? (
-                    <div className="homework-card">
-                      <h4 className="homework-item-title" style={{ fontSize: "0.95rem" }}>Teacher Feedback</h4>
-                      <p className="homework-task-sub">{submission.teacher_feedback}</p>
                     </div>
                   ) : null}
-                </article>
-              </>
-            )}
+
+                  {hasImageInput ? (
+                    <Card className="homework-span-12 rounded-3xl border shadow-sm">
+                      <input
+                        id={uploadInputId}
+                        type="file"
+                        accept="image/*,video/*"
+                        multiple
+                        className="hidden"
+                        onChange={(event) =>
+                          updateDraft(selectedTaskId, { image_files: Array.from(event.target.files || []) })
+                        }
+                        disabled={!canInteract}
+                      />
+                      <CardHeader className="space-y-3 pb-3">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="space-y-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge
+                                variant={selectedImageFiles.length ? "default" : "outline"}
+                                className="rounded-full px-3 py-1"
+                              >
+                                {selectedImageFiles.length
+                                  ? `${selectedImageFiles.length} file đã chọn`
+                                  : "Chưa chọn file"}
+                              </Badge>
+                            </div>
+                            <CardTitle className="text-xl">Nộp ảnh / Video bài làm</CardTitle>
+
+                          </div>
+                          {submission?.image_items?.length ? (
+                            <Badge variant="outline" className="rounded-full px-3 py-1">
+                              Hiện tại: {submission.image_items.length} file
+                            </Badge>
+                          ) : null}
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <Card
+                          className={`rounded-2xl border-dashed shadow-none transition-colors ${selectedImageFiles.length ? "border-primary/40 bg-primary/[0.04]" : "bg-muted/40"
+                            }`}
+                        >
+                          <CardContent className="space-y-3 p-4">
+                            <Button
+                              asChild
+                              variant="outline"
+                              className="h-11 w-full rounded-2xl"
+                              disabled={!canInteract}
+                            >
+                              <label
+                                htmlFor={canInteract ? uploadInputId : undefined}
+                                className={canInteract ? "cursor-pointer" : "pointer-events-none cursor-not-allowed"}
+                              >
+                                <IconCloud className="mr-2 h-4 w-4" />
+                                {selectedImageFiles.length ? "Chọn lại file" : "Upload"}
+                              </label>
+                            </Button>
+                          </CardContent>
+                        </Card>
+                        {selectedImageFileNames.length ? (
+                          <div className="space-y-2">
+                            <p className="text-sm font-medium text-foreground">File da chon</p>
+                            <div className="flex flex-wrap gap-2">
+                              {selectedImageFileNames.slice(0, 6).map((fileName, index) => (
+                                <Badge
+                                  key={`${fileName}-${index}`}
+                                  variant="outline"
+                                  className="max-w-full truncate rounded-full px-3 py-1"
+                                  title={fileName}
+                                >
+                                  {fileName}
+                                </Badge>
+                              ))}
+                              {selectedImageFileNames.length > 6 ? (
+                                <Badge variant="outline" className="rounded-full px-3 py-1">
+                                  +{selectedImageFileNames.length - 6} file
+                                </Badge>
+                              ) : null}
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">Chưa có file nào được chọn.</p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ) : null}
+
+                  {hasAudioInput ? (
+                    <div className="homework-field homework-span-12">
+                      <label>Audio Recording</label>
+                      <div className="homework-audio-recorder">
+                        <div className="homework-inline">
+                          <button
+                            type="button"
+                            className={`homework-btn ${draft.is_recording ? "ghost" : "primary"}`}
+                            onClick={() =>
+                              draft.is_recording
+                                ? stopAudioRecording(selectedTaskId)
+                                : void startAudioRecording(selectedTaskId)
+                            }
+                            disabled={!canInteract || isPreviewMode}
+                          >
+                            {draft.is_recording ? "Stop recording" : "Start recording"}
+                          </button>
+                          <button
+                            type="button"
+                            className="homework-btn ghost"
+                            onClick={() => clearDraftAudio(selectedTaskId)}
+                            disabled={!canInteract || (!draft.audio_file && !draft.audio_preview_url)}
+                          >
+                            Clear
+                          </button>
+                        </div>
+                        <p className="homework-item-meta">
+                          Record directly in the browser. No audio file upload is required.
+                        </p>
+                        {draft.audio_error ? <p className="homework-danger">{draft.audio_error}</p> : null}
+                        {draft.audio_preview_url ? (
+                          <audio controls src={draft.audio_preview_url} style={{ width: "100%", marginTop: "0.4rem" }} />
+                        ) : submission?.audio_item?.url ? (
+                          <audio controls src={submission.audio_item.url} style={{ width: "100%", marginTop: "0.4rem" }} />
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="homework-task-actions homework-task-actions--lesson">
+                  <div className="homework-submit-meta">
+                    <p className="homework-item-meta">
+                      {isPreviewMode
+                        ? "Preview mode disables submit."
+                        : isDeadlinePassed
+                          ? "Deadline has passed. You can review only."
+                          : "Submitting will update your latest answer for this lesson."}
+                    </p>
+                    {submission?.status === "graded" ? (
+                      <span className="homework-chip">
+                        Score: {submission?.score ?? "--"} / 10
+                      </span>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    className="homework-submit-btn"
+                    onClick={() => void handleSubmitTask()}
+                    disabled={!canSubmit || draft.submitting}
+                  >
+                    {isPreviewMode ? "Preview only" : draft.submitting ? "Submitting..." : "Submit Task"}
+                  </button>
+                </div>
+
+                {submission?.teacher_feedback ? (
+                  <div className="homework-card">
+                    <h4 className="homework-item-title" style={{ fontSize: "0.95rem" }}>Teacher Feedback</h4>
+                    <p className="homework-task-sub">{submission.teacher_feedback}</p>
+                  </div>
+                ) : null}
+              </article>
+            </>
+          )}
         </section>
       </div>
     </div>

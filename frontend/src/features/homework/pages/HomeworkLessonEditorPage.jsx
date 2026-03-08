@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
 import HomeworkRichTextEditor from "@/features/homework/components/HomeworkRichTextEditor";
 import {
   GAPFILL_MODE_NUMBERED,
@@ -54,6 +55,7 @@ const HOMEWORK_RESOURCE_MAX_BYTES = 50 * 1024 * 1024;
 
 const BLOCK_TYPES = [
   { type: "instruction", label: "Instruction" },
+  { type: "answer", label: "Answer (Teacher)" },
   { type: "video", label: "Video" },
   { type: "dictation", label: "Dictation" },
   { type: "input", label: "Input" },
@@ -71,6 +73,13 @@ const INPUT_TYPE_OPTIONS = [
   { value: "image", label: "Image Upload" },
   { value: "audio", label: "Audio Recording" },
 ];
+
+const QUIZ_LAYOUT_OPTIONS = [
+  { value: "grid", label: "Grid (2x2)" },
+  { value: "list", label: "List" },
+];
+const QUIZ_AI_DEFAULT_QUESTION_COUNT = 4;
+const QUIZ_AI_DEFAULT_OPTIONS_PER_QUESTION = 4;
 
 const MATCH_COLOR_TOKENS = ["emerald", "sky", "amber", "fuchsia", "teal", "rose", "indigo", "lime"];
 
@@ -103,6 +112,14 @@ const ensureBlockDataId = (data = {}) => {
 };
 
 const normalizePassageBlockData = (data = {}) => {
+  const base = ensureBlockDataId(data);
+  return {
+    ...base,
+    text: String(base.text || ""),
+  };
+};
+
+const normalizeAnswerBlockData = (data = {}) => {
   const base = ensureBlockDataId(data);
   return {
     ...base,
@@ -177,6 +194,11 @@ const normalizeQuizOptionData = (option = {}, fallbackIndex = 0) => ({
   text: String(option?.text || "").trim(),
 });
 
+const normalizeQuizLayout = (value) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  return normalized === "list" ? "list" : "grid";
+};
+
 const normalizeQuizQuestionData = (question = {}, fallbackIndex = 0) => {
   const normalizedQuestion = question && typeof question === "object" ? question : {};
   const normalizedOptions = Array.isArray(normalizedQuestion.options)
@@ -237,6 +259,7 @@ const normalizeQuizBlockData = (data = {}) => {
 
   return {
     ...rest,
+    layout: normalizeQuizLayout(rest.layout),
     parent_passage_block_id: normalizeBlockId(rest.parent_passage_block_id),
     questions,
   };
@@ -287,6 +310,13 @@ const createBlock = (type, data = {}) => {
   const baseData = ensureBlockDataId(data);
   if (type === "instruction") {
     return { id: createTempId(), type, data: { text: "", ...baseData } };
+  }
+  if (type === "answer") {
+    return {
+      id: createTempId(),
+      type,
+      data: normalizeAnswerBlockData({ text: "", ...baseData }),
+    };
   }
   if (type === "video") {
     return { id: createTempId(), type, data: { url: "", ...baseData } };
@@ -459,6 +489,9 @@ const applyBlocksToLesson = (lesson = {}, blocks = []) => {
       if (blockType === "dictation") {
         return normalizeDictationBlockData(block?.data || {});
       }
+      if (blockType === "answer") {
+        return normalizeAnswerBlockData(block?.data || {});
+      }
       return ensureBlockDataId(block?.data || {});
     })(),
   }));
@@ -525,6 +558,12 @@ const toDateInputValue = (value) => {
   return date.toISOString().slice(0, 10);
 };
 
+const clampQuizAiInteger = (value, { min, max, fallback }) => {
+  const parsed = Number(value);
+  const normalized = Number.isFinite(parsed) ? Math.trunc(parsed) : fallback;
+  return Math.max(min, Math.min(max, normalized));
+};
+
 export default function HomeworkLessonEditorPage() {
   const { id, lessonId } = useParams();
   const navigate = useNavigate();
@@ -549,6 +588,14 @@ export default function HomeworkLessonEditorPage() {
   const [internalPickerOpenByBlockId, setInternalPickerOpenByBlockId] = useState({});
   const [matchingSelections, setMatchingSelections] = useState({});
   const [dictationUploadLoadingByBlockId, setDictationUploadLoadingByBlockId] = useState({});
+  const [quizAiDialog, setQuizAiDialog] = useState({
+    open: false,
+    blockId: "",
+    prompt: "",
+    questionCount: String(QUIZ_AI_DEFAULT_QUESTION_COUNT),
+    optionsPerQuestion: String(QUIZ_AI_DEFAULT_OPTIONS_PER_QUESTION),
+    loading: false,
+  });
   const dictationFileInputRefs = useRef(new Map());
 
   const load = async () => {
@@ -651,6 +698,41 @@ export default function HomeworkLessonEditorPage() {
 
   const addBlock = (type) => {
     setContentBlocks((prev) => [...prev, createBlock(type)]);
+  };
+
+  const resolveAttachedPassageTextForQuizBlock = (quizBlockId) => {
+    const targetBlock = contentBlocks.find((block) => String(block?.id || "") === String(quizBlockId || ""));
+    if (String(targetBlock?.type || "").trim() !== "quiz") return "";
+    const quizData = normalizeQuizBlockData(targetBlock?.data || {});
+    const parentPassageBlockId = normalizeBlockId(quizData?.parent_passage_block_id);
+    if (!parentPassageBlockId) return "";
+
+    const passageBlock = contentBlocks.find(
+      (block) =>
+        String(block?.type || "").trim() === "passage"
+        && resolveBlockDataId(block) === parentPassageBlockId,
+    );
+
+    return String(passageBlock?.data?.text || "").trim();
+  };
+
+  const openQuizAiDialog = (blockId) => {
+    setQuizAiDialog({
+      open: true,
+      blockId: String(blockId || ""),
+      prompt: "",
+      questionCount: String(QUIZ_AI_DEFAULT_QUESTION_COUNT),
+      optionsPerQuestion: String(QUIZ_AI_DEFAULT_OPTIONS_PER_QUESTION),
+      loading: false,
+    });
+  };
+
+  const closeQuizAiDialog = () => {
+    setQuizAiDialog((prev) => ({
+      ...prev,
+      open: false,
+      loading: false,
+    }));
   };
 
   const addQuizBlockForPassage = (passageBlockId) => {
@@ -810,6 +892,63 @@ export default function HomeworkLessonEditorPage() {
       ...question,
       ...patch,
     }));
+  };
+
+  const generateQuizBlockByAi = async () => {
+    if (quizAiDialog.loading) return;
+    const prompt = String(quizAiDialog.prompt || "").trim();
+    if (!prompt) {
+      showNotification("Prompt is required", "warning");
+      return;
+    }
+
+    const blockId = String(quizAiDialog.blockId || "").trim();
+    if (!blockId) {
+      showNotification("Cannot resolve quiz block", "error");
+      return;
+    }
+
+    const questionCount = clampQuizAiInteger(quizAiDialog.questionCount, {
+      min: 1,
+      max: 20,
+      fallback: QUIZ_AI_DEFAULT_QUESTION_COUNT,
+    });
+    const optionsPerQuestion = clampQuizAiInteger(quizAiDialog.optionsPerQuestion, {
+      min: 2,
+      max: 6,
+      fallback: QUIZ_AI_DEFAULT_OPTIONS_PER_QUESTION,
+    });
+    const passageText = resolveAttachedPassageTextForQuizBlock(blockId);
+
+    setQuizAiDialog((prev) => ({ ...prev, loading: true }));
+    try {
+      const response = await api.homeworkGenerateQuizBlock({
+        prompt,
+        passage_text: passageText || undefined,
+        question_count: questionCount,
+        options_per_question: optionsPerQuestion,
+      });
+
+      const generatedQuizBlock = response?.data?.quiz_block;
+      if (!generatedQuizBlock || !Array.isArray(generatedQuizBlock?.questions)) {
+        throw new Error("AI did not return valid quiz data");
+      }
+
+      updateQuizBlock(blockId, (currentData) => ({
+        ...currentData,
+        questions: generatedQuizBlock.questions,
+      }));
+
+      setQuizAiDialog((prev) => ({
+        ...prev,
+        open: false,
+        loading: false,
+      }));
+      showNotification(`Generated ${generatedQuizBlock.questions.length} question(s)`, "success");
+    } catch (generateError) {
+      setQuizAiDialog((prev) => ({ ...prev, loading: false }));
+      showNotification(generateError?.message || "Failed to generate quiz block with AI", "error");
+    }
   };
 
   const resolveQuizQuestions = (quizData = {}) =>
@@ -1397,6 +1536,7 @@ export default function HomeworkLessonEditorPage() {
                   const quizData = blockType === "quiz" ? normalizeQuizBlockData(block?.data || {}) : null;
                   const quizQuestions = blockType === "quiz" ? resolveQuizQuestions(quizData) : [];
                   const quizParentPassageId = normalizeBlockId(quizData?.parent_passage_block_id);
+                  const quizLayout = blockType === "quiz" ? normalizeQuizLayout(quizData?.layout) : "grid";
                   const matchingData = blockType === "matching" ? normalizeMatchingBlockData(block?.data || {}) : null;
                   const matchingLeftItems = Array.isArray(matchingData?.left_items) ? matchingData.left_items : [];
                   const matchingRightItems = Array.isArray(matchingData?.right_items) ? matchingData.right_items : [];
@@ -1482,6 +1622,23 @@ export default function HomeworkLessonEditorPage() {
                             placeholder="Add instruction for students..."
                             minHeight={150}
                           />
+                        </div>
+                      ) : null}
+
+                      {blockType === "answer" ? (
+                        <div className="space-y-2">
+                          <Label>Answer (optional, teacher only)</Label>
+                          <HomeworkRichTextEditor
+                            value={block.data.text || ""}
+                            onChange={(nextText) =>
+                              updateBlockData(block.id, normalizeAnswerBlockData({ ...(block.data || {}), text: nextText }))}
+                            placeholder="Model answer / marking reference for teacher view."
+                            minHeight={150}
+                            outputFormat="html"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            This block will not be shown to students in homework process.
+                          </p>
                         </div>
                       ) : null}
 
@@ -1772,13 +1929,39 @@ export default function HomeworkLessonEditorPage() {
                                   : "This quiz will be shown as a normal standalone quiz block."}
                               </p>
                             </div>
+                            <div className="space-y-2">
+                              <Label>Quiz layout</Label>
+                              <Select
+                                value={quizLayout}
+                                onValueChange={(value) => updateQuizBlock(block.id, { layout: value })}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {QUIZ_LAYOUT_OPTIONS.map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <p className="text-xs text-muted-foreground">
+                                List keeps options in one column. Grid shows options in 2 columns (2x2 with 4 options).
+                              </p>
+                            </div>
                           </div>
                           <div className="flex items-center justify-between gap-2">
                             <Label>Questions</Label>
-                            <Button type="button" variant="outline" size="sm" onClick={() => addQuizQuestion(block.id)}>
-                              <Plus className="h-3.5 w-3.5" />
-                              Add question
-                            </Button>
+                            <div className="flex items-center gap-2">
+                              <Button type="button" variant="outline" size="sm" onClick={() => openQuizAiDialog(block.id)}>
+                                Soạn nhanh AI
+                              </Button>
+                              <Button type="button" variant="outline" size="sm" onClick={() => addQuizQuestion(block.id)}>
+                                <Plus className="h-3.5 w-3.5" />
+                                Add question
+                              </Button>
+                            </div>
                           </div>
                           {quizQuestions.map((quizQuestion, questionIndex) => {
                             const questionId = normalizeBlockId(quizQuestion?.id) || `${block.id}-q-${questionIndex}`;
@@ -1877,16 +2060,6 @@ export default function HomeworkLessonEditorPage() {
                                       );
                                     })}
                                   </div>
-                                </div>
-                                <div className="space-y-2">
-                                  <Label>Explanation (optional)</Label>
-                                  <HomeworkRichTextEditor
-                                    value={quizQuestion?.explanation || ""}
-                                    onChange={(nextText) =>
-                                      updateQuizQuestionField(block.id, questionId, { explanation: nextText })}
-                                    placeholder="Add explanation shown in review mode (optional)"
-                                    minHeight={120}
-                                  />
                                 </div>
                               </div>
                             );
@@ -2405,6 +2578,69 @@ export default function HomeworkLessonEditorPage() {
             </CardContent>
           </Card>
         </div>
+
+        <Dialog
+          open={quizAiDialog.open}
+          onOpenChange={(open) => {
+            if (!open) {
+              closeQuizAiDialog();
+              return;
+            }
+            setQuizAiDialog((prev) => ({ ...prev, open: true }));
+          }}
+        >
+          <DialogContent className="sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Soạn nhanh Quiz bằng AI</DialogTitle>
+              <DialogDescription>
+                AI sẽ sinh câu hỏi và lựa chọn cho block Quiz hiện tại. Danh sách câu hỏi cũ sẽ bị thay thế.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Prompt</Label>
+                <Textarea
+                  value={quizAiDialog.prompt}
+                  onChange={(event) => setQuizAiDialog((prev) => ({ ...prev, prompt: event.target.value }))}
+                  placeholder="Ví dụ: Tạo quiz kiểm tra hiểu nội dung bài đọc, mức độ trung bình, tập trung từ vựng và ý chính."
+                  rows={8}
+                />
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Số câu</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={quizAiDialog.questionCount}
+                    onChange={(event) =>
+                      setQuizAiDialog((prev) => ({ ...prev, questionCount: event.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Số đáp án/câu</Label>
+                  <Input
+                    type="number"
+                    min={2}
+                    max={6}
+                    value={quizAiDialog.optionsPerQuestion}
+                    onChange={(event) =>
+                      setQuizAiDialog((prev) => ({ ...prev, optionsPerQuestion: event.target.value }))}
+                  />
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={closeQuizAiDialog} disabled={quizAiDialog.loading}>
+                Cancel
+              </Button>
+              <Button type="button" onClick={() => void generateQuizBlockByAi()} disabled={quizAiDialog.loading}>
+                {quizAiDialog.loading ? "Generating..." : "Generate Quiz"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={isLessonSettingsOpen} onOpenChange={setIsLessonSettingsOpen}>
           <DialogContent>

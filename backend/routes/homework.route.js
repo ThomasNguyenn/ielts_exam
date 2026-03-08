@@ -18,6 +18,7 @@ import {
   createHomeworkGroup,
   deleteHomeworkAssignment,
   deleteHomeworkGroup,
+  generateHomeworkQuizBlockByAI,
   getHomeworkAssignmentLessonById,
   patchHomeworkAssignmentLessonById,
   patchHomeworkAssignmentOutline,
@@ -157,6 +158,7 @@ router.delete("/groups/:id", isTeacherOrAdmin, deleteHomeworkGroup);
 
 router.post("/assignments", isTeacherOrAdmin, createHomeworkAssignment);
 router.get("/assignments", isTeacherOrAdmin, getHomeworkAssignments);
+router.post("/ai/quiz-block/generate", isTeacherOrAdmin, generateHomeworkQuizBlockByAI);
 router.post("/assignments/upload-resource", isTeacherOrAdmin, handleResourceUpload, uploadHomeworkAssignmentResource);
 router.get("/assignments/:id", isTeacherOrAdmin, getHomeworkAssignmentById);
 router.put("/assignments/:id", isTeacherOrAdmin, updateHomeworkAssignment);

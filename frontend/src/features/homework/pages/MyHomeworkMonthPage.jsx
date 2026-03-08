@@ -60,10 +60,10 @@ export default function MyHomeworkMonthPage() {
   return (
     <div className="homework-page">
       <div className="homework-shell">
-        <section className="homework-header">
-          <div className="homework-title-wrap">
-            <h1>Bài Tập Tháng Của Tôi</h1>
-            <p>Track monthly assignments and task completion progress.</p>
+        <section className="mb-6 flex items-center justify-between">
+          <div className="space-y-1">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">Bài Tập Tháng Của Tôi</h1>
+            <p className="text-sm text-muted-foreground">Track monthly assignments and task completion progress.</p>
           </div>
         </section>
 
@@ -106,7 +106,7 @@ export default function MyHomeworkMonthPage() {
                             <CheckCircle2 size={24} />
                           </div>
                         </div>
-                        
+
                         <div className="homework-task-footer">
                           <div className="homework-task-badges">
                             <span className="homework-task-badge">

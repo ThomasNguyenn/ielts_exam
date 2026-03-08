@@ -39,7 +39,7 @@ const SPEAKING_STUCK_THRESHOLD_MS = Math.max(
 const SPEAKING_REPAIR_DEFAULT_WINDOW_HOURS = 24;
 const SPEAKING_REPAIR_DEFAULT_LIMIT = 200;
 const SPEAKING_REPAIR_MAX_LIMIT = 1000;
-const ADMIN_USER_LIST_SELECT = "name email role isConfirmed createdAt lastSeenAt avatarSeed targets xp level";
+const ADMIN_USER_LIST_SELECT = "name email role isConfirmed createdAt lastSeenAt avatarSeed targets xp level homeroom_teacher_id";
 
 const toBoolean = (value, fallback = false) => {
     if (value === undefined || value === null) return fallback;

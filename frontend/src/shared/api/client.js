@@ -651,7 +651,7 @@ export const api = {
   approveStudent: (userId) => request(`/api/admin/students/${userId}/approve`, { method: 'PUT' }),
   setStudentHomeroomTeacher: (userId, homeroomTeacherId) =>
     request(`/api/admin/students/${userId}/homeroom-teacher`, {
-      method: 'PUT',
+      method: 'POST',
       body: JSON.stringify({ homeroom_teacher_id: homeroomTeacherId ?? null }),
     }),
 
@@ -702,6 +702,8 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
+  homeworkGenerateQuizBlock: (body) =>
+    request('/api/homework/ai/quiz-block/generate', { method: 'POST', body: JSON.stringify(body) }),
   homeworkUpdateAssignmentStatus: (id, status) =>
     request(`/api/homework/assignments/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   homeworkDeleteAssignment: (id) => request(`/api/homework/assignments/${id}`, { method: 'DELETE' }),

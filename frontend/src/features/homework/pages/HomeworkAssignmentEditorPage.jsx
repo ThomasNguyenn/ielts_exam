@@ -74,12 +74,12 @@ const createLesson = (name = "", index = 0, dueDate = "") => ({
   content_blocks: [],
 });
 
-const createSection = (name = "", index = 0, lessonDueDate = "") => ({
+const createSection = (name = "", index = 0) => ({
   _id: createTempId(),
   name: String(name || "").trim() || `Section ${index + 1}`,
   order: index,
   is_published: false,
-  lessons: [createLesson("", 0, lessonDueDate)],
+  lessons: [],
 });
 
 const createForm = () => ({
@@ -89,8 +89,9 @@ const createForm = () => ({
   due_date: "",
   status: "draft",
   target_group_ids: [],
-  sections: [createSection("General", 0, "")],
+  sections: [],
 });
+
 
 const toDateInputValue = (value) => {
   if (!value) return "";
@@ -139,7 +140,8 @@ const normalizeSectionsFromAssignment = (assignment = {}) => {
   }
 
   const tasks = Array.isArray(assignment?.tasks) ? assignment.tasks : [];
-  if (!tasks.length) return [createSection("General", 0)];
+  if (!tasks.length) return [];
+
 
   return [
     {
@@ -197,10 +199,10 @@ const outlinePayload = (sections = []) =>
       due_date: lesson.due_date || null,
       content_blocks: Array.isArray(lesson.content_blocks)
         ? lesson.content_blocks.map((block, index) => ({
-            type: String(block?.type || "instruction"),
-            order: Number.isFinite(Number(block?.order)) ? Number(block.order) : index,
-            data: block?.data && typeof block.data === "object" ? { ...block.data } : {},
-          }))
+          type: String(block?.type || "instruction"),
+          order: Number.isFinite(Number(block?.order)) ? Number(block.order) : index,
+          data: block?.data && typeof block.data === "object" ? { ...block.data } : {},
+        }))
         : [],
     })),
   }));
@@ -657,7 +659,7 @@ export default function HomeworkAssignmentEditorPage() {
           ...section,
           lessons: (section.lessons || []).map((lesson) =>
             String(section._id) === String(renameState.sectionId) &&
-            String(lesson._id) === String(renameState.lessonId)
+              String(lesson._id) === String(renameState.lessonId)
               ? { ...lesson, name: nextValue }
               : lesson,
           ),
@@ -684,13 +686,13 @@ export default function HomeworkAssignmentEditorPage() {
       updateSections((sections) =>
         sections.map((section) => {
           if (String(section._id) !== String(deleteState.sectionId)) return section;
-          const nextLessons = (section.lessons || []).filter(
-            (lesson) => String(lesson._id) !== String(deleteState.lessonId),
-          );
           return {
             ...section,
-            lessons: nextLessons.length ? nextLessons : [createLesson("", 0, form.due_date)],
+            lessons: (section.lessons || []).filter(
+              (lesson) => String(lesson._id) !== String(deleteState.lessonId),
+            ),
           };
+
         }),
       );
     }
@@ -810,7 +812,9 @@ export default function HomeworkAssignmentEditorPage() {
       (sum, section) => sum + ((section.lessons || []).length || 0),
       0,
     );
-    if (lessonCount === 0) return "At least one lesson is required";
+    // Allow empty assignments as requested
+    // if (lessonCount === 0) return "At least one lesson is required";
+
     for (const section of form.sections || []) {
       for (const lesson of section.lessons || []) {
         if (!String(lesson?.due_date || "").trim()) {

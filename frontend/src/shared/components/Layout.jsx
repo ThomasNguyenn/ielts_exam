@@ -29,7 +29,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import LevelProgress from './LevelProgress';
+// removed LevelProgress import
 import './Navigation.css';
 import './Navigation-mobile.css';
 
@@ -273,6 +273,7 @@ export default function Layout() {
   // Test detail pages (e.g. /student-ielts/tests/abc123 but not /student-ielts/tests or /student-ielts/tests/abc123/exam).
   const isTestDetailPage = /^\/student-ielts\/tests\/[^/]+$/.test(pathname);
   const isTestHistoryPage = /^\/student-ielts\/tests\/[^/]+\/history$/.test(pathname);
+  const isTestResultPage = /\/student-ielts\/tests\/[^/]+\/attempts\/[^/]+\/result/.test(pathname);
 
   // Profile page custom width.
   const isProfilePage = pathname.startsWith('/student-ielts/profile');
@@ -490,7 +491,7 @@ export default function Layout() {
 
               {user ? (
                 <div className="nav-user-section">
-                  <LevelProgress user={user} />
+                  {/* LevelProgress removed */}
                   <button
                     type="button"
                     className="logout-btn"
@@ -543,7 +544,7 @@ export default function Layout() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <main className={`layout-main ${isExamPage ? 'layout-main--fullscreen' : ''} ${isPracticePage || isTestDetailPage || isTestHistoryPage ? 'layout-main--wide' : ''} ${isResultAiPage ? 'layout-main--result-ai' : ''} ${isManagePage ? 'layout-main--manage' : ''} ${isGradingPage ? 'layout-main--grading' : ''} ${pathname === '/' ? 'layout-main--home' : ''} ${isProfilePage ? 'layout-main--profile' : ''} ${isAnalyticsPage ? 'layout-main--analytics' : ''} ${isAchievementsPage ? 'layout-main--achievements' : ''} ${isWritingLivePage ? 'layout-main--writing-live' : ''}`}>
+      <main className={`layout-main ${isExamPage ? 'layout-main--fullscreen' : ''} ${isPracticePage || isTestDetailPage || isTestHistoryPage ? 'layout-main--wide' : ''} ${isTestResultPage ? 'layout-main--test-result' : ''} ${isResultAiPage ? 'layout-main--result-ai' : ''} ${isManagePage ? 'layout-main--manage' : ''} ${isGradingPage ? 'layout-main--grading' : ''} ${pathname === '/' ? 'layout-main--home' : ''} ${isProfilePage ? 'layout-main--profile' : ''} ${isAnalyticsPage ? 'layout-main--analytics' : ''} ${isAchievementsPage ? 'layout-main--achievements' : ''} ${isWritingLivePage ? 'layout-main--writing-live' : ''}`}>
         <Outlet />
       </main>
     </div>

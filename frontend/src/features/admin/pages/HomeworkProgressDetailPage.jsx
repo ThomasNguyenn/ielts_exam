@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, CalendarDays, ClipboardList, UserRound } from 'lucide-react';
+import { ArrowLeft, CalendarDays, CheckCircle2, ClipboardList, Clock, FileText, UserRound } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,7 +19,9 @@ const toDateLabel = (isoDate) => {
 const toAssignmentStatusTone = (status) => {
   const normalized = String(status || '').trim().toLowerCase();
   if (normalized === 'submitted') return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+  if (normalized === 'graded') return 'border-blue-200 bg-blue-50 text-blue-700';
   if (normalized === 'missing') return 'border-rose-200 bg-rose-50 text-rose-700';
+  if (normalized === 'not_submitted') return 'border-zinc-200 bg-zinc-50 text-zinc-500';
   return 'border-border bg-muted text-muted-foreground';
 };
 
@@ -32,6 +34,30 @@ const toGradingStatusTone = (status) => {
 
 const toSubmissionLabel = (assignment, index) =>
   String(assignment?.title || '').trim() || `Submission ${index + 1}`;
+
+const toTaskStatusLabel = (status) => {
+  const normalized = String(status || '').toLowerCase();
+  if (normalized === 'submitted') return 'Submitted';
+  if (normalized === 'graded') return 'Graded';
+  if (normalized === 'not_submitted') return 'Not submitted';
+  return status || '--';
+};
+
+const toDeadlineLabel = (dueDate) => {
+  if (!dueDate) return null;
+  const today = TODAY;
+  if (dueDate < today) return 'Overdue';
+  if (dueDate === today) return 'Due today';
+  return `Due ${toDateLabel(dueDate)}`;
+};
+
+const toDeadlineTone = (dueDate) => {
+  if (!dueDate) return '';
+  const today = TODAY;
+  if (dueDate < today) return 'text-rose-600';
+  if (dueDate === today) return 'text-amber-600';
+  return 'text-muted-foreground';
+};
 
 export default function HomeworkProgressDetailPage() {
   const navigate = useNavigate();
@@ -112,7 +138,7 @@ export default function HomeworkProgressDetailPage() {
 
   const dailyProgress = Array.isArray(student.dailyProgress) ? student.dailyProgress : [];
   const assignments = Array.isArray(student.assignments) ? student.assignments : [];
-  const missingTotal = dailyProgress.reduce((sum, entry) => sum + Number(entry?.missing || 0), 0);
+  const missingTotal = Number(student.missing || 0);
   const submittedCount = assignments.filter(
     (item) => String(item?.status || '').toLowerCase() === 'submitted',
   ).length;
@@ -150,7 +176,7 @@ export default function HomeworkProgressDetailPage() {
               </div>
             </div>
             <div className="rounded-lg border border-border/70 p-4">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Missing (tracked dates)</p>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Missing (past deadline)</p>
               <div className="mt-2 inline-flex items-center gap-2">
                 <CalendarDays className="h-4 w-4 text-muted-foreground" />
                 <span className="font-medium">{missingTotal}</span>
@@ -186,19 +212,20 @@ export default function HomeworkProgressDetailPage() {
       <Card className="border-border/70 shadow-sm">
         <CardHeader>
           <CardTitle className="text-base">Assignment Snapshots</CardTitle>
-          <CardDescription>Progress summary by assignment for this student.</CardDescription>
+          <CardDescription>Student submissions by assignment. Use Grade to review and score.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-4">
           {assignments.length ? (
             assignments.map((assignment, index) => {
-              const assignmentId = String(assignment?.assignmentId || assignment?.id || '').trim();
+              const taskSubmissions = Array.isArray(assignment?.taskSubmissions) ? assignment.taskSubmissions : [];
               return (
                 <div
                   key={`${student.id}-${assignment?.id || index}`}
-                  className="rounded-lg border border-border/70 p-4"
+                  className="rounded-lg border border-border/70"
                 >
-                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                    <div className="space-y-2">
+                  {/* Assignment header */}
+                  <div className="flex flex-col gap-2 border-b border-border/50 bg-muted/20 px-4 py-3 md:flex-row md:items-center md:justify-between">
+                    <div className="space-y-1">
                       <p className="font-medium text-foreground">{toSubmissionLabel(assignment, index)}</p>
                       <div className="flex flex-wrap items-center gap-2">
                         <Badge variant="outline" className={toAssignmentStatusTone(assignment?.status)}>
@@ -209,15 +236,88 @@ export default function HomeworkProgressDetailPage() {
                         </Badge>
                       </div>
                     </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={!assignmentId}
-                      onClick={() => navigate(`/homework/assignments/${assignmentId}/dashboard`)}
-                    >
-                      Open Dashboard
-                    </Button>
                   </div>
+
+                  {/* Per-task submissions */}
+                  {taskSubmissions.length > 0 ? (
+                    <div className="divide-y divide-border/40">
+                      {taskSubmissions.map((taskSub, taskIndex) => {
+                        const taskStatus = String(taskSub?.status || '').toLowerCase();
+                        const isSubmitted = taskStatus === 'submitted' || taskStatus === 'graded';
+                        const isGraded = taskStatus === 'graded';
+                        const hasSubmissionId = Boolean(taskSub?.homework_submission_id);
+                        const deadlineLabel = toDeadlineLabel(taskSub?.task_due_date);
+                        const deadlineTone = toDeadlineTone(taskSub?.task_due_date);
+
+                        return (
+                          <div
+                            key={`${assignment?.id}-${taskSub?.task_id || taskIndex}`}
+                            className="flex flex-col gap-2 px-4 py-3 md:flex-row md:items-center md:justify-between"
+                          >
+                            <div className="flex-1 space-y-1">
+                              <div className="flex items-center gap-2">
+                                {isGraded ? (
+                                  <CheckCircle2 className="h-4 w-4 shrink-0 text-blue-500" />
+                                ) : isSubmitted ? (
+                                  <FileText className="h-4 w-4 shrink-0 text-emerald-500" />
+                                ) : (
+                                  <Clock className="h-4 w-4 shrink-0 text-zinc-400" />
+                                )}
+                                <span className="text-sm font-medium">{taskSub?.task_title || 'Task'}</span>
+                              </div>
+                              <div className="ml-6 flex flex-wrap items-center gap-2">
+                                <Badge variant="outline" className={toAssignmentStatusTone(taskStatus)}>
+                                  {toTaskStatusLabel(taskStatus)}
+                                </Badge>
+                                {isSubmitted && taskSub?.submitted_at ? (
+                                  <span className="text-xs text-muted-foreground">
+                                    Submitted {toDateLabel(String(taskSub.submitted_at).slice(0, 10))}
+                                  </span>
+                                ) : null}
+                                {isGraded && taskSub?.score !== null && taskSub?.score !== undefined ? (
+                                  <span className="text-xs font-medium text-blue-600">
+                                    Score: {taskSub.score}/10
+                                  </span>
+                                ) : null}
+                                {deadlineLabel ? (
+                                  <span className={`text-xs ${deadlineTone}`}>
+                                    {deadlineLabel}
+                                  </span>
+                                ) : null}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 md:ml-4">
+                              {isSubmitted && hasSubmissionId ? (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant={isGraded ? 'outline' : 'default'}
+                                  onClick={() =>
+                                    navigate(`/homework/submissions/${taskSub.homework_submission_id}`)
+                                  }
+                                >
+                                  {isGraded ? 'View Grade' : 'Grade'}
+                                </Button>
+                              ) : isSubmitted && !hasSubmissionId ? (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  disabled
+                                >
+                                  No data
+                                </Button>
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="px-4 py-3 text-sm text-muted-foreground">
+                      No task submissions available.
+                    </div>
+                  )}
                 </div>
               );
             })
