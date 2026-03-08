@@ -1,6 +1,7 @@
 import express from "express";
 import multer from "multer";
 import { verifyToken, isTeacherOrAdmin } from "../middleware/auth.middleware.js";
+import { createCacheInvalidator, createResponseCache, getCacheTtlSec } from "../middleware/responseCache.middleware.js";
 import { isStudentRole } from "../utils/role.utils.js";
 import {
   getHomeworkAssignments,
@@ -36,12 +37,119 @@ import {
 import { sendControllerError } from "../utils/controllerError.js";
 
 const router = express.Router();
+const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 const HOMEWORK_RESOURCE_MAX_BYTES = getHomeworkResourceUploadLimitBytes();
 const HOMEWORK_IMAGE_MAX_BYTES = getHomeworkImageUploadLimitBytes();
 const HOMEWORK_IMAGE_MAX_FILES = getHomeworkImageMaxFiles();
 const HOMEWORK_AUDIO_MAX_BYTES = getHomeworkAudioUploadLimitBytes();
 const HOMEWORK_SUBMISSION_MAX_BYTES = Math.max(HOMEWORK_IMAGE_MAX_BYTES, HOMEWORK_AUDIO_MAX_BYTES);
+
+const HOMEWORK_LIST_TTL_SEC = getCacheTtlSec("API_RESPONSE_CACHE_TTL_HOMEWORK_LIST_SEC", 180);
+const HOMEWORK_DASHBOARD_TTL_SEC = getCacheTtlSec("API_RESPONSE_CACHE_TTL_HOMEWORK_DASHBOARD_SEC", 180);
+
+const normalizeString = (value) => String(value || "").trim();
+
+const resolveMonthValueForTag = (rawMonth) => {
+  const month = normalizeString(rawMonth);
+  return MONTH_PATTERN.test(month) ? month : "all";
+};
+
+const collectAssignmentTagsFromBody = (body) => {
+  const rows = Array.isArray(body?.data) ? body.data : [];
+  const uniqueIds = new Set();
+  rows.forEach((row) => {
+    const id = normalizeString(row?._id || row?.id);
+    if (!id) return;
+    uniqueIds.add(`homework:assignment:${id}`);
+  });
+  return Array.from(uniqueIds);
+};
+
+const homeworkTeacherListCache = createResponseCache({
+  namespace: "homework-assignments-list",
+  ttlSec: HOMEWORK_LIST_TTL_SEC,
+  scope: "user",
+  tags: (req, _res, body) => [
+    "homework:list:teacher",
+    `homework:month:${resolveMonthValueForTag(req.query?.month)}`,
+    ...collectAssignmentTagsFromBody(body),
+  ],
+});
+
+const homeworkStudentListCache = createResponseCache({
+  namespace: "homework-my-list",
+  ttlSec: HOMEWORK_LIST_TTL_SEC,
+  scope: "user",
+  tags: (req, _res, body) => [
+    "homework:list:student",
+    `homework:month:${resolveMonthValueForTag(req.query?.month)}`,
+    `homework:user:${normalizeString(req.user?.userId)}:my-list`,
+    ...collectAssignmentTagsFromBody(body),
+  ],
+});
+
+const homeworkAssignmentDashboardCache = createResponseCache({
+  namespace: "homework-assignment-dashboard",
+  ttlSec: HOMEWORK_DASHBOARD_TTL_SEC,
+  scope: "user",
+  tags: (req) => {
+    const assignmentId = normalizeString(req.params?.id);
+    return [
+      "homework:dashboard",
+      ...(assignmentId ? [`homework:assignment:${assignmentId}`] : []),
+    ];
+  },
+});
+
+const homeworkTaskSubmissionsCache = createResponseCache({
+  namespace: "homework-task-submissions",
+  ttlSec: HOMEWORK_DASHBOARD_TTL_SEC,
+  scope: "user",
+  tags: (req) => {
+    const assignmentId = normalizeString(req.params?.id);
+    const taskId = normalizeString(req.params?.taskId);
+    return [
+      "homework:dashboard",
+      ...(assignmentId ? [`homework:assignment:${assignmentId}`] : []),
+      ...(taskId ? [`homework:task:${taskId}`] : []),
+    ];
+  },
+});
+
+const invalidateHomeworkGroupReads = createCacheInvalidator({
+  tags: ["homework:list:teacher", "homework:list:student", "homework:dashboard"],
+});
+
+const invalidateHomeworkAssignmentReads = createCacheInvalidator({
+  tags: (req) => {
+    const assignmentId = normalizeString(req.params?.id);
+    return [
+      "homework:list:teacher",
+      "homework:list:student",
+      "homework:dashboard",
+      ...(assignmentId ? [`homework:assignment:${assignmentId}`] : []),
+    ];
+  },
+});
+
+const invalidateHomeworkStudentSubmitReads = createCacheInvalidator({
+  tags: (req) => {
+    const assignmentId = normalizeString(req.params?.assignmentId);
+    const taskId = normalizeString(req.params?.taskId);
+    return [
+      `homework:user:${normalizeString(req.user?.userId)}:my-list`,
+      "homework:list:student",
+      "homework:dashboard",
+      ...(assignmentId ? [`homework:assignment:${assignmentId}`] : []),
+      ...(taskId ? [`homework:task:${taskId}`] : []),
+    ];
+  },
+});
+
+const invalidateHomeworkGradeReads = createCacheInvalidator({
+  tags: ["homework:list:student", "homework:dashboard", "homework:list:teacher"],
+});
 
 const isStudent = (req, res, next) => {
   if (isStudentRole(req.user?.role)) return next();
@@ -149,24 +257,24 @@ const handleSubmissionUpload = (req, res, next) =>
 
 router.use(verifyToken);
 
-router.post("/groups", isTeacherOrAdmin, createHomeworkGroup);
+router.post("/groups", isTeacherOrAdmin, invalidateHomeworkGroupReads, createHomeworkGroup);
 router.get("/groups", isTeacherOrAdmin, getHomeworkGroups);
 router.get("/groups/:id", isTeacherOrAdmin, getHomeworkGroupById);
-router.put("/groups/:id", isTeacherOrAdmin, updateHomeworkGroup);
-router.delete("/groups/:id", isTeacherOrAdmin, deleteHomeworkGroup);
+router.put("/groups/:id", isTeacherOrAdmin, invalidateHomeworkGroupReads, updateHomeworkGroup);
+router.delete("/groups/:id", isTeacherOrAdmin, invalidateHomeworkGroupReads, deleteHomeworkGroup);
 
-router.post("/assignments", isTeacherOrAdmin, createHomeworkAssignment);
-router.get("/assignments", isTeacherOrAdmin, getHomeworkAssignments);
+router.post("/assignments", isTeacherOrAdmin, invalidateHomeworkAssignmentReads, createHomeworkAssignment);
+router.get("/assignments", isTeacherOrAdmin, homeworkTeacherListCache, getHomeworkAssignments);
 router.post("/assignments/upload-resource", isTeacherOrAdmin, handleResourceUpload, uploadHomeworkAssignmentResource);
 router.get("/assignments/:id", isTeacherOrAdmin, getHomeworkAssignmentById);
-router.put("/assignments/:id", isTeacherOrAdmin, updateHomeworkAssignment);
-router.patch("/assignments/:id/outline", isTeacherOrAdmin, patchHomeworkAssignmentOutline);
+router.put("/assignments/:id", isTeacherOrAdmin, invalidateHomeworkAssignmentReads, updateHomeworkAssignment);
+router.patch("/assignments/:id/outline", isTeacherOrAdmin, invalidateHomeworkAssignmentReads, patchHomeworkAssignmentOutline);
 router.get("/assignments/:id/lessons/:lessonId", isTeacherOrAdmin, getHomeworkAssignmentLessonById);
-router.patch("/assignments/:id/lessons/:lessonId", isTeacherOrAdmin, patchHomeworkAssignmentLessonById);
-router.patch("/assignments/:id/status", isTeacherOrAdmin, updateHomeworkAssignmentStatus);
-router.delete("/assignments/:id", isTeacherOrAdmin, deleteHomeworkAssignment);
+router.patch("/assignments/:id/lessons/:lessonId", isTeacherOrAdmin, invalidateHomeworkAssignmentReads, patchHomeworkAssignmentLessonById);
+router.patch("/assignments/:id/status", isTeacherOrAdmin, invalidateHomeworkAssignmentReads, updateHomeworkAssignmentStatus);
+router.delete("/assignments/:id", isTeacherOrAdmin, invalidateHomeworkAssignmentReads, deleteHomeworkAssignment);
 
-router.get("/me", isStudent, getMyHomeworkAssignments);
+router.get("/me", isStudent, homeworkStudentListCache, getMyHomeworkAssignments);
 router.get("/me/:assignmentId", isStudent, getMyHomeworkAssignmentById);
 router.post(
   "/me/:assignmentId/tasks/:taskId/tracking/launch",
@@ -176,13 +284,14 @@ router.post(
 router.put(
   "/me/:assignmentId/tasks/:taskId/submission",
   isStudent,
+  invalidateHomeworkStudentSubmitReads,
   handleSubmissionUpload,
   upsertMyHomeworkTaskSubmission,
 );
 
-router.get("/assignments/:id/dashboard", isTeacherOrAdmin, getHomeworkAssignmentDashboard);
-router.get("/assignments/:id/tasks/:taskId/submissions", isTeacherOrAdmin, getHomeworkTaskSubmissions);
+router.get("/assignments/:id/dashboard", isTeacherOrAdmin, homeworkAssignmentDashboardCache, getHomeworkAssignmentDashboard);
+router.get("/assignments/:id/tasks/:taskId/submissions", isTeacherOrAdmin, homeworkTaskSubmissionsCache, getHomeworkTaskSubmissions);
 router.get("/submissions/:submissionId", isTeacherOrAdmin, getHomeworkSubmissionById);
-router.put("/submissions/:submissionId/grade", isTeacherOrAdmin, gradeHomeworkSubmission);
+router.put("/submissions/:submissionId/grade", isTeacherOrAdmin, invalidateHomeworkGradeReads, gradeHomeworkSubmission);
 
 export default router;

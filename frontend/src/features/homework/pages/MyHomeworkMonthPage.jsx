@@ -9,7 +9,7 @@ import {
 } from "@/app/roleRouting";
 import { api } from "@/shared/api/client";
 import { groupAssignmentsByMonth, monthLabel, toMonthValue } from "./homework.utils";
-import { CheckCircle2, BookOpen, MapPin } from "lucide-react";
+import { CheckCircle2, BookOpen, MapPin, ChevronLeft } from "lucide-react";
 import "./Homework.css";
 
 export default function MyHomeworkMonthPage() {
@@ -61,9 +61,16 @@ export default function MyHomeworkMonthPage() {
     <div className="homework-page">
       <div className="homework-shell">
         <section className="homework-header">
-          <div className="homework-title-wrap">
-            <h1>Bài Tập Tháng Của Tôi</h1>
-            <p>Track monthly assignments and task completion progress.</p>
+          <button
+            type="button"
+            className="homework-header-back"
+            onClick={() => navigate("/")}
+            aria-label="Back to home"
+          >
+            <ChevronLeft size={24} />
+          </button>
+          <div className="homework-header-main">
+            <h1 className="homework-header-title">Bài Tập Tháng Của Tôi</h1>
           </div>
         </section>
 

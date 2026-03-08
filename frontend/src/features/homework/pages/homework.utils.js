@@ -125,6 +125,15 @@ const extractVimeoId = (url) => {
   return null;
 };
 
+const normalizeMediaType = (value = "") => {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "image" || normalized === "video") return normalized;
+  return "";
+};
+
+const IMAGE_EXTENSION_PATTERN = /\.(png|jpe?g|gif|webp|bmp|svg|avif)$/i;
+const VIDEO_EXTENSION_PATTERN = /\.(mp4|webm|ogg|mov|m4v|avi|mkv)$/i;
+
 export const resolveVideoPreview = (rawUrl = "") => {
   const normalized = normalizeUrl(rawUrl);
   if (!normalized) return { kind: "none", src: "", youtubeId: "" };
@@ -145,4 +154,18 @@ export const resolveVideoPreview = (rawUrl = "") => {
   }
 
   return { kind: "unsupported", src: normalized.toString(), youtubeId: "" };
+};
+
+export const inferMediaTypeFromUrl = (rawUrl = "", fallback = "") => {
+  const normalized = normalizeUrl(rawUrl);
+  const normalizedFallback = normalizeMediaType(fallback);
+  if (!normalized) return normalizedFallback;
+
+  const path = String(normalized.pathname || "").toLowerCase();
+  if (IMAGE_EXTENSION_PATTERN.test(path)) return "image";
+  if (VIDEO_EXTENSION_PATTERN.test(path)) return "video";
+
+  const preview = resolveVideoPreview(normalized.toString());
+  if (preview.kind !== "none" && preview.kind !== "unsupported") return "video";
+  return normalizedFallback;
 };

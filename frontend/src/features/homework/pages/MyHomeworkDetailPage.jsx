@@ -9,7 +9,7 @@ import {
 import { api } from "@/shared/api/client";
 import { formatDate } from "./homework.utils";
 import { useHomeworkAssignmentDetail } from "./useHomeworkAssignmentDetail";
-import { CheckCircle2, BookOpen, MapPin } from "lucide-react";
+import { CheckCircle2, BookOpen, MapPin, ChevronLeft } from "lucide-react";
 import "./Homework.css";
 
 export default function MyHomeworkDetailPage() {
@@ -133,19 +133,16 @@ export default function MyHomeworkDetailPage() {
     <div className="homework-page">
       <div className="homework-shell">
         <section className="homework-header">
-          <div className="homework-title-wrap">
-            <h1>{assignment.title || "Assignment"}</h1>
-            <p>
-              Week {assignment.week || "--"} - Due {formatDate(assignment.due_date)} - {assignment.month || "--"}
-            </p>
-          </div>
-          <div className="homework-actions">
-            <button type="button" className="homework-btn ghost" onClick={() => navigate("/")}>
-              Home
-            </button>
-            <button type="button" className="homework-btn" onClick={() => navigate(backToMonthPath)}>
-              Month
-            </button>
+          <button
+            type="button"
+            className="homework-header-back"
+            onClick={() => navigate(backToMonthPath)}
+            aria-label="Back to month"
+          >
+            <ChevronLeft size={24} />
+          </button>
+          <div className="homework-header-main">
+            <h1 className="homework-header-title">{assignment.title || "Assignment"}</h1>
           </div>
         </section>
 

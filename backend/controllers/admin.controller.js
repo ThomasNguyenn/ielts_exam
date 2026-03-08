@@ -88,6 +88,49 @@ const withOnlineFlag = (user = {}, thresholdTimeMs = 0) => {
 const escapeRegex = (value = "") =>
     String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+const buildUserSearchFilter = (rawQuery = "") => {
+    const queryText = String(rawQuery || "").trim().toLowerCase();
+    if (!queryText) return null;
+
+    const phraseRegex = new RegExp(escapeRegex(queryText), "i");
+    const tokens = Array.from(
+        new Set(
+            queryText
+                .split(/\s+/)
+                .map((part) => part.trim())
+                .filter(Boolean),
+        ),
+    ).slice(0, 5);
+
+    const tokenClauses = tokens.map((token) => {
+        const tokenRegex = new RegExp(escapeRegex(token), "i");
+        return {
+            $or: [{ name: tokenRegex }, { email: tokenRegex }],
+        };
+    });
+
+    return {
+        $or: [
+            { name: phraseRegex },
+            { email: phraseRegex },
+            ...(tokenClauses.length > 1 ? [{ $and: tokenClauses }] : []),
+        ],
+    };
+};
+
+const combineFiltersWithSearch = (baseFilter = {}, rawQuery = "") => {
+    const searchFilter = buildUserSearchFilter(rawQuery);
+    if (!searchFilter) return baseFilter;
+    if (!baseFilter || Object.keys(baseFilter).length === 0) return searchFilter;
+    const hasLogicalOperators = ["$or", "$and", "$nor"].some((key) =>
+        Object.prototype.hasOwnProperty.call(baseFilter, key),
+    );
+    if (!hasLogicalOperators) {
+        return { ...baseFilter, ...searchFilter };
+    }
+    return { $and: [baseFilter, searchFilter] };
+};
+
 const mapWritingSubmissionToAttempt = (submission = {}) => {
     const taskTitles = (Array.isArray(submission?.writing_answers) ? submission.writing_answers : [])
         .map((item) => String(item?.task_title || "").trim())
@@ -149,14 +192,7 @@ export const getAllUsersWithLatestScores = async (req, res) => {
         const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 20, maxLimit: 100 });
         const queryText = String(req.query?.search || req.query?.q || "").trim();
 
-        const filter = {};
-        if (queryText) {
-            const safeRegex = new RegExp(escapeRegex(queryText), "i");
-            filter.$or = [
-                { name: safeRegex },
-                { email: safeRegex },
-            ];
-        }
+        const filter = combineFiltersWithSearch({}, queryText);
 
         const totalItems = await User.countDocuments(filter);
 
@@ -493,18 +529,11 @@ export const getUsers = async (req, res) => {
         const includeTotal = parseBooleanQuery(req.query?.include_total, true);
         const queryText = String(req.query?.search || req.query?.q || "").trim();
 
-        const filter = {};
+        const baseFilter = {};
         if (role) {
-            filter.role = role === "student" ? { $in: STUDENT_ROLE_VALUES } : role;
+            baseFilter.role = role === "student" ? { $in: STUDENT_ROLE_VALUES } : role;
         }
-
-        if (queryText) {
-            const safeRegex = new RegExp(escapeRegex(queryText), "i");
-            filter.$or = [
-                { name: safeRegex },
-                { email: safeRegex },
-            ];
-        }
+        const filter = combineFiltersWithSearch(baseFilter, queryText);
         const threshold = buildOnlineThreshold();
         const thresholdTimeMs = threshold.getTime();
 
@@ -553,20 +582,13 @@ export const getOnlineStudents = async (req, res) => {
         const now = new Date();
         const threshold = buildOnlineThreshold(now);
         const thresholdTimeMs = threshold.getTime();
-        const queryText = String(req.query?.q || "").trim();
+        const queryText = String(req.query?.search || req.query?.q || "").trim();
 
-        const filter = {
+        const baseFilter = {
             role: { $in: STUDENT_ROLE_VALUES },
             lastSeenAt: { $gte: threshold },
         };
-
-        if (queryText) {
-            const safeRegex = new RegExp(escapeRegex(queryText), "i");
-            filter.$or = [
-                { name: safeRegex },
-                { email: safeRegex },
-            ];
-        }
+        const filter = combineFiltersWithSearch(baseFilter, queryText);
         const queryLimit = includeTotal ? limit : limit + 1;
         const studentsQuery = User.find(filter)
             .sort({ lastSeenAt: -1, createdAt: -1 })

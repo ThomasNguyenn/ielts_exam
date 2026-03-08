@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowDown, ArrowLeft, ArrowUp, MoreVertical, Plus, Trash2, Upload, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, ChevronDown, ChevronRight, MoreVertical, Plus, Trash2, Upload, X } from "lucide-react";
 import LiteYouTubeEmbed from "react-lite-youtube-embed";
 import "react-lite-youtube-embed/dist/LiteYouTubeEmbed.css";
 import { api } from "@/shared/api/client";
@@ -23,7 +23,7 @@ import {
   parseGapfillTemplate,
 } from "./gapfill.utils";
 import DictationAudioPlayer from "./DictationAudioPlayer";
-import { resolveVideoPreview } from "./homework.utils";
+import { inferMediaTypeFromUrl, resolveVideoPreview } from "./homework.utils";
 import "./Homework.css";
 
 const createLessonForm = () => ({
@@ -54,7 +54,7 @@ const HOMEWORK_RESOURCE_MAX_BYTES = 50 * 1024 * 1024;
 
 const BLOCK_TYPES = [
   { type: "instruction", label: "Instruction" },
-  { type: "video", label: "Video" },
+  { type: "video", label: "Media" },
   { type: "dictation", label: "Dictation" },
   { type: "input", label: "Input" },
   { type: "title", label: "Title" },
@@ -177,6 +177,12 @@ const normalizeQuizOptionData = (option = {}, fallbackIndex = 0) => ({
   text: String(option?.text || "").trim(),
 });
 
+const resolveQuizQuestionText = (question = {}) =>
+  String(question?.question || question?.text || question?.question_html || question?.prompt || "").trim();
+
+const resolveQuizExplanationText = (question = {}) =>
+  String(question?.explanation || question?.explanation_html || "").trim();
+
 const normalizeQuizQuestionData = (question = {}, fallbackIndex = 0) => {
   const normalizedQuestion = question && typeof question === "object" ? question : {};
   const normalizedOptions = Array.isArray(normalizedQuestion.options)
@@ -206,8 +212,8 @@ const normalizeQuizQuestionData = (question = {}, fallbackIndex = 0) => {
 
   return {
     id: normalizeBlockId(normalizedQuestion.id) || `question-${fallbackIndex + 1}`,
-    question: String(normalizedQuestion.question || normalizedQuestion.text || "").trim(),
-    explanation: String(normalizedQuestion.explanation || "").trim(),
+    question: resolveQuizQuestionText(normalizedQuestion),
+    explanation: resolveQuizExplanationText(normalizedQuestion),
     allow_multiple: allowMultiple,
     options,
     correct_option_ids: allowMultiple ? uniqueCorrectIds : uniqueCorrectIds.slice(0, 1),
@@ -219,12 +225,16 @@ const normalizeQuizBlockData = (data = {}) => {
   const {
     question: legacyQuestion,
     text: legacyText,
+    question_html: legacyQuestionHtml,
+    prompt: legacyPrompt,
     options: legacyOptions,
     ...rest
   } = base;
   const hasLegacySingleQuestion =
     String(legacyQuestion || "").trim() !== ""
     || String(legacyText || "").trim() !== ""
+    || String(legacyQuestionHtml || "").trim() !== ""
+    || String(legacyPrompt || "").trim() !== ""
     || (Array.isArray(legacyOptions) && legacyOptions.length > 0);
   const rawQuestions = Array.isArray(rest.questions) && rest.questions.length > 0
     ? rest.questions
@@ -278,18 +288,57 @@ const normalizeDictationBlockData = (data = {}) => {
   };
 };
 
+const normalizeMediaType = (value = "") => {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "image" || normalized === "video") return normalized;
+  return "";
+};
+
+const normalizeMediaSourceType = (value = "") => {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "upload" || normalized === "link") return normalized;
+  return "";
+};
+
+const normalizeVideoBlockData = (data = {}) => {
+  const base = ensureBlockDataId(data);
+  const url = String(base.url || "").trim();
+  const storageKey = String(base.storage_key || "").trim();
+  const sourceType = normalizeMediaSourceType(base.source_type) || (storageKey ? "upload" : "link");
+  const mediaType =
+    normalizeMediaType(base.media_type) || inferMediaTypeFromUrl(url, "video") || "video";
+
+  return {
+    ...base,
+    url,
+    media_type: mediaType,
+    source_type: sourceType,
+    storage_key: storageKey,
+  };
+};
+
 const resolveBlockDataId = (block = {}) =>
   normalizeBlockId(block?.data?.block_id) || normalizeBlockId(block?.id);
 
 const resolveQuizParentPassageId = (block = {}) => normalizeBlockId(block?.data?.parent_passage_block_id);
 
 const createBlock = (type, data = {}) => {
-  const baseData = ensureBlockDataId(data);
+  const baseData = type === "video" ? normalizeVideoBlockData(data) : ensureBlockDataId(data);
   if (type === "instruction") {
     return { id: createTempId(), type, data: { text: "", ...baseData } };
   }
   if (type === "video") {
-    return { id: createTempId(), type, data: { url: "", ...baseData } };
+    return {
+      id: createTempId(),
+      type,
+      data: normalizeVideoBlockData({
+        url: "",
+        media_type: "video",
+        source_type: "link",
+        storage_key: "",
+        ...baseData,
+      }),
+    };
   }
   if (type === "input") {
     return {
@@ -394,7 +443,15 @@ const buildBlocksFromLesson = (lesson = {}) => {
     (lesson.resource_mode === "external_url" || lesson.resource_mode === "uploaded")
     && String(lesson.resource_url || "").trim() !== ""
   ) {
-    blocks.push(createBlock("video", { url: lesson.resource_url || "" }));
+    const legacyUrl = String(lesson.resource_url || "").trim();
+    blocks.push(
+      createBlock("video", {
+        url: legacyUrl,
+        media_type: inferMediaTypeFromUrl(legacyUrl, "video") || "video",
+        source_type: lesson.resource_mode === "uploaded" ? "upload" : "link",
+        storage_key: lesson.resource_mode === "uploaded" ? String(lesson.resource_storage_key || "").trim() : "",
+      }),
+    );
   }
   const hasInputConfig =
     Boolean(lesson.requires_text) ||
@@ -459,6 +516,9 @@ const applyBlocksToLesson = (lesson = {}, blocks = []) => {
       if (blockType === "dictation") {
         return normalizeDictationBlockData(block?.data || {});
       }
+      if (blockType === "video") {
+        return normalizeVideoBlockData(block?.data || {});
+      }
       return ensureBlockDataId(block?.data || {});
     })(),
   }));
@@ -502,11 +562,16 @@ const applyBlocksToLesson = (lesson = {}, blocks = []) => {
     next.resource_url = "";
     next.resource_storage_key = "";
   } else if (resourceBlock?.type === "video") {
-    next.resource_mode = "external_url";
+    const normalizedVideoData = normalizeVideoBlockData(resourceBlock?.data || {});
+    const hasUploadedStorageKey =
+      normalizedVideoData.source_type === "upload" && String(normalizedVideoData.storage_key || "").trim() !== "";
+    next.resource_mode = hasUploadedStorageKey ? "uploaded" : "external_url";
     next.resource_ref_type = null;
     next.resource_ref_id = "";
-    next.resource_url = String(resourceBlock?.data?.url || "").trim();
-    next.resource_storage_key = "";
+    next.resource_url = String(normalizedVideoData.url || "").trim();
+    next.resource_storage_key = hasUploadedStorageKey
+      ? String(normalizedVideoData.storage_key || "").trim()
+      : "";
   } else {
     next.resource_mode = lesson?.resource_mode || "internal";
     next.resource_ref_type = lesson?.resource_ref_type || "passage";
@@ -547,8 +612,11 @@ export default function HomeworkLessonEditorPage() {
   });
   const [searchKeyword, setSearchKeyword] = useState("");
   const [internalPickerOpenByBlockId, setInternalPickerOpenByBlockId] = useState({});
+  const [collapsedBlockById, setCollapsedBlockById] = useState({});
   const [matchingSelections, setMatchingSelections] = useState({});
+  const [mediaUploadLoadingByBlockId, setMediaUploadLoadingByBlockId] = useState({});
   const [dictationUploadLoadingByBlockId, setDictationUploadLoadingByBlockId] = useState({});
+  const mediaFileInputRefs = useRef(new Map());
   const dictationFileInputRefs = useRef(new Map());
 
   const load = async () => {
@@ -601,6 +669,8 @@ export default function HomeworkLessonEditorPage() {
       });
       setContentBlocks(buildBlocksFromLesson(nextLesson));
       setInternalPickerOpenByBlockId({});
+      setCollapsedBlockById({});
+      setMediaUploadLoadingByBlockId({});
       setCatalog({
         passage: Array.isArray(passageRes?.data) ? passageRes.data : [],
         section: Array.isArray(sectionRes?.data) ? sectionRes.data : [],
@@ -650,7 +720,23 @@ export default function HomeworkLessonEditorPage() {
   }, [contentBlocks]);
 
   const addBlock = (type) => {
-    setContentBlocks((prev) => [...prev, createBlock(type)]);
+    const nextBlock = createBlock(type);
+    setContentBlocks((prev) => [...prev, nextBlock]);
+    setCollapsedBlockById((prev) => {
+      if (!Object.prototype.hasOwnProperty.call(prev, String(nextBlock.id))) return prev;
+      const next = { ...prev };
+      delete next[String(nextBlock.id)];
+      return next;
+    });
+  };
+
+  const toggleBlockCollapsed = (blockId) => {
+    const normalizedBlockId = String(blockId || "");
+    if (!normalizedBlockId) return;
+    setCollapsedBlockById((prev) => ({
+      ...prev,
+      [normalizedBlockId]: !Boolean(prev[normalizedBlockId]),
+    }));
   };
 
   const addQuizBlockForPassage = (passageBlockId) => {
@@ -816,6 +902,105 @@ export default function HomeworkLessonEditorPage() {
     (Array.isArray(quizData?.questions) ? quizData.questions : []).map((question, questionIndex) =>
       normalizeQuizQuestionData(question, questionIndex),
     );
+
+  const updateVideoBlock = (blockId, updater) => {
+    setContentBlocks((prev) =>
+      prev.map((block) => {
+        if (String(block.id) !== String(blockId)) return block;
+        const currentData = normalizeVideoBlockData(block?.data || {});
+        const nextData =
+          typeof updater === "function"
+            ? normalizeVideoBlockData(updater(currentData))
+            : normalizeVideoBlockData({ ...currentData, ...(updater || {}) });
+        return {
+          ...block,
+          data: nextData,
+        };
+      }),
+    );
+  };
+
+  const setMediaUploadLoading = (blockId, nextLoading) => {
+    const normalizedBlockId = String(blockId || "");
+    setMediaUploadLoadingByBlockId((prev) => ({
+      ...prev,
+      [normalizedBlockId]: Boolean(nextLoading),
+    }));
+  };
+
+  const registerMediaFileInputRef = (blockId, node) => {
+    const normalizedBlockId = String(blockId || "");
+    if (!normalizedBlockId) return;
+    if (!node) {
+      mediaFileInputRefs.current.delete(normalizedBlockId);
+      return;
+    }
+    mediaFileInputRefs.current.set(normalizedBlockId, node);
+  };
+
+  const openMediaUploadPicker = (blockId) => {
+    const normalizedBlockId = String(blockId || "");
+    mediaFileInputRefs.current.get(normalizedBlockId)?.click();
+  };
+
+  const handleMediaFileSelected = async (blockId, event) => {
+    const file = event.target?.files?.[0];
+    const resetInput = () => {
+      if (event?.target) event.target.value = "";
+    };
+    if (!file) {
+      resetInput();
+      return;
+    }
+
+    const mime = String(file.type || "").toLowerCase();
+    const isImage = mime.startsWith("image/");
+    const isVideo = mime.startsWith("video/");
+    if (!isImage && !isVideo) {
+      showNotification("Only image/video files are allowed.", "error");
+      resetInput();
+      return;
+    }
+
+    if (file.size > HOMEWORK_RESOURCE_MAX_BYTES) {
+      showNotification("Media file must be 50MB or smaller.", "error");
+      resetInput();
+      return;
+    }
+
+    setMediaUploadLoading(blockId, true);
+    try {
+      const formData = new FormData();
+      formData.append("resource", file);
+      if (String(id || "").trim()) {
+        formData.append("assignment_id", String(id || "").trim());
+      }
+      if (String(lessonId || "").trim()) {
+        formData.append("task_id", String(lessonId || "").trim());
+      }
+      const response = await api.uploadHomeworkResource(formData);
+      const uploadedUrl = String(response?.data?.url || "").trim();
+      const uploadedKey = String(response?.data?.key || "").trim();
+
+      if (!uploadedUrl || !uploadedKey) {
+        throw new Error("Upload succeeded but missing url/key.");
+      }
+
+      updateVideoBlock(blockId, (currentData) => ({
+        ...currentData,
+        url: uploadedUrl,
+        media_type: isImage ? "image" : "video",
+        source_type: "upload",
+        storage_key: uploadedKey,
+      }));
+      showNotification("Media uploaded.", "success");
+    } catch (uploadError) {
+      showNotification(uploadError?.message || "Failed to upload media.", "error");
+    } finally {
+      setMediaUploadLoading(blockId, false);
+      resetInput();
+    }
+  };
 
   const updateDictationBlock = (blockId, updater) => {
     setContentBlocks((prev) =>
@@ -1183,7 +1368,14 @@ export default function HomeworkLessonEditorPage() {
 
   const removeBlock = (blockId) => {
     const normalizedBlockId = String(blockId || "");
+    mediaFileInputRefs.current.delete(normalizedBlockId);
     dictationFileInputRefs.current.delete(normalizedBlockId);
+    setMediaUploadLoadingByBlockId((prev) => {
+      if (!Object.prototype.hasOwnProperty.call(prev, normalizedBlockId)) return prev;
+      const next = { ...prev };
+      delete next[normalizedBlockId];
+      return next;
+    });
     setDictationUploadLoadingByBlockId((prev) => {
       if (!Object.prototype.hasOwnProperty.call(prev, normalizedBlockId)) return prev;
       const next = { ...prev };
@@ -1200,6 +1392,12 @@ export default function HomeworkLessonEditorPage() {
     });
 
     setInternalPickerOpenByBlockId((prev) => {
+      if (!Object.prototype.hasOwnProperty.call(prev, normalizedBlockId)) return prev;
+      const next = { ...prev };
+      delete next[normalizedBlockId];
+      return next;
+    });
+    setCollapsedBlockById((prev) => {
       if (!Object.prototype.hasOwnProperty.call(prev, normalizedBlockId)) return prev;
       const next = { ...prev };
       delete next[normalizedBlockId];
@@ -1392,6 +1590,8 @@ export default function HomeworkLessonEditorPage() {
                   const blockTypeLabel = BLOCK_TYPES.find((item) => item.type === blockType)?.label || "Block";
                   const blockDataId = resolveBlockDataId(block);
                   const passageTextPreview = blockType === "passage" ? String(block?.data?.text || "").trim() : "";
+                  const mediaData = blockType === "video" ? normalizeVideoBlockData(block?.data || {}) : null;
+                  const isMediaUploadLoading = Boolean(mediaUploadLoadingByBlockId[String(block.id)]);
                   const dictationData = blockType === "dictation" ? normalizeDictationBlockData(block?.data || {}) : null;
                   const isDictationUploadLoading = Boolean(dictationUploadLoadingByBlockId[String(block.id)]);
                   const quizData = blockType === "quiz" ? normalizeQuizBlockData(block?.data || {}) : null;
@@ -1428,14 +1628,67 @@ export default function HomeworkLessonEditorPage() {
                       { ...pair, __pairIndex: pairIndex },
                     ]),
                   );
+                  const isCollapsed = Boolean(collapsedBlockById[String(block.id)]);
+                  const collapsedPreviewRaw = (() => {
+                    if (blockType === "title" || blockType === "instruction") {
+                      return String(block?.data?.text || "");
+                    }
+                    if (blockType === "video") {
+                      return String(mediaData?.url || "");
+                    }
+                    if (blockType === "dictation") {
+                      return String(dictationData?.prompt || dictationData?.audio_url || "");
+                    }
+                    if (blockType === "input") {
+                      return `Input type: ${String(block?.data?.input_type || "text")}`;
+                    }
+                    if (blockType === "passage") {
+                      return passageTextPreview;
+                    }
+                    if (blockType === "quiz") {
+                      return `${quizQuestions.length} question(s)`;
+                    }
+                    if (blockType === "matching") {
+                      return `${matchingPairs.length} pair(s) • ${Math.max(matchingLeftItems.length, matchingRightItems.length)} row(s)`;
+                    }
+                    if (blockType === "gapfill") {
+                      return gapfillData?.mode === GAPFILL_MODE_PARAGRAPH
+                        ? "Paragraph mode"
+                        : `${gapfillTemplates.length} sentence(s)`;
+                    }
+                    if (blockType === "find_mistake") {
+                      return `${findMistakeTemplates.length} sentence(s)`;
+                    }
+                    if (blockType === "internal") {
+                      const resourceType = String(block?.data?.resource_ref_type || "passage");
+                      const resourceId = String(block?.data?.resource_ref_id || "").trim();
+                      return resourceId ? `${resourceType}: ${resourceId}` : `${resourceType}: (not selected)`;
+                    }
+                    return "";
+                  })();
+                  const collapsedPreview = String(collapsedPreviewRaw || "").replace(/\s+/g, " ").trim();
+                  const collapsedSummary = collapsedPreview
+                    ? (collapsedPreview.length > 140 ? `${collapsedPreview.slice(0, 140)}...` : collapsedPreview)
+                    : "No content yet.";
 
                   return (
                     <div key={block.id} className="space-y-3 rounded-md border p-3">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-2">
                         <p className="text-sm font-medium">
                           {index + 1}. {blockTypeLabel}
                         </p>
                         <div className="flex items-center gap-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2"
+                            onClick={() => toggleBlockCollapsed(block.id)}
+                            aria-label={isCollapsed ? "Expand block" : "Collapse block"}
+                          >
+                            {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                            {isCollapsed ? "Expand" : "Collapse"}
+                          </Button>
                           <Button
                             type="button"
                             variant="ghost"
@@ -1462,6 +1715,12 @@ export default function HomeworkLessonEditorPage() {
                         </div>
                       </div>
 
+                      {isCollapsed ? (
+                        <p className="text-xs text-muted-foreground">{collapsedSummary}</p>
+                      ) : null}
+
+                      {!isCollapsed ? (
+                        <>
                       {blockType === "title" ? (
                         <div className="space-y-2">
                           <Label>Title</Label>
@@ -1486,15 +1745,127 @@ export default function HomeworkLessonEditorPage() {
                       ) : null}
 
                       {blockType === "video" ? (
-                        <div className="space-y-2">
-                          <Label>Video URL</Label>
-                          <Input
-                            value={block.data.url || ""}
-                            onChange={(event) => updateBlockData(block.id, { url: event.target.value })}
-                            placeholder="https://youtube.com/..."
-                          />
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <div className="space-y-2">
+                              <Label>Source</Label>
+                              <Select
+                                value={mediaData?.source_type || "link"}
+                                onValueChange={(value) =>
+                                  updateVideoBlock(block.id, (currentData) => ({
+                                    ...currentData,
+                                    source_type: value,
+                                    storage_key: value === "upload" ? currentData.storage_key : "",
+                                  }))}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="link">Link</SelectItem>
+                                  <SelectItem value="upload">Upload</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Media Type</Label>
+                              <Select
+                                value={mediaData?.media_type || "video"}
+                                onValueChange={(value) =>
+                                  updateVideoBlock(block.id, (currentData) => ({
+                                    ...currentData,
+                                    media_type: value,
+                                  }))}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="video">Video</SelectItem>
+                                  <SelectItem value="image">Image</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+
+                          {(mediaData?.source_type || "link") === "upload" ? (
+                            <div className="space-y-2">
+                              <Label>Upload File</Label>
+                              <Input
+                                ref={(node) => registerMediaFileInputRef(block.id, node)}
+                                type="file"
+                                accept="image/*,video/*"
+                                onChange={(event) => void handleMediaFileSelected(block.id, event)}
+                                className="hidden"
+                              />
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={() => openMediaUploadPicker(block.id)}
+                                  disabled={isMediaUploadLoading}
+                                >
+                                  <Upload className="h-4 w-4" />
+                                  {isMediaUploadLoading
+                                    ? "Uploading..."
+                                    : mediaData?.url
+                                      ? "Replace Media"
+                                      : "Upload Media"}
+                                </Button>
+                                <span className="text-xs text-muted-foreground">Max file size: 50MB</span>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Uploaded file will be stored in DigitalOcean Spaces.
+                              </p>
+                            </div>
+                          ) : null}
+
+                          <div className="space-y-2">
+                            <Label>Media URL</Label>
+                            <Input
+                              value={mediaData?.url || ""}
+                              onChange={(event) => {
+                                const nextUrl = event.target.value;
+                                const inferredMediaType =
+                                  inferMediaTypeFromUrl(nextUrl) || String(mediaData?.media_type || "").trim();
+                                updateVideoBlock(block.id, (currentData) => ({
+                                  ...currentData,
+                                  url: nextUrl,
+                                  source_type: "link",
+                                  storage_key: "",
+                                  media_type: inferredMediaType || currentData.media_type || "video",
+                                }));
+                              }}
+                              placeholder={
+                                (mediaData?.media_type || "video") === "image"
+                                  ? "https://example.com/image.jpg"
+                                  : "https://youtube.com/..."
+                              }
+                            />
+                            {mediaData?.source_type === "upload" && mediaData?.storage_key ? (
+                              <p className="text-xs text-muted-foreground">
+                                Editing URL manually switches to external link and clears storage key.
+                              </p>
+                            ) : null}
+                          </div>
+
                           {(() => {
-                            const preview = resolveVideoPreview(block.data.url || "");
+                            const mediaType = mediaData?.media_type || "video";
+                            const currentUrl = String(mediaData?.url || "").trim();
+                            if (!currentUrl) return null;
+                            if (mediaType === "image") {
+                              return (
+                                <div className="overflow-hidden rounded-md border bg-muted/20 p-2">
+                                  <img
+                                    src={currentUrl}
+                                    alt={`Media preview ${block.id}`}
+                                    className="max-h-80 w-full rounded-md object-contain"
+                                  />
+                                </div>
+                              );
+                            }
+
+                            const preview = resolveVideoPreview(currentUrl);
                             if (preview.kind === "youtube" && preview.youtubeId) {
                               return (
                                 <div className="overflow-hidden rounded-md border homework-video-lite">
@@ -1530,23 +1901,40 @@ export default function HomeworkLessonEditorPage() {
                                 </div>
                               );
                             }
-                            if (preview.kind === "unsupported") {
-                              return (
-                                <p className="text-xs text-muted-foreground">
-                                  This URL does not support embed preview.{" "}
-                                  <a
-                                    href={preview.src}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="text-primary underline-offset-4 hover:underline"
-                                  >
-                                    Open link
-                                  </a>
-                                </p>
-                              );
-                            }
-                            return null;
+                            return (
+                              <p className="text-xs text-muted-foreground">
+                                This URL does not support embed preview.{" "}
+                                <a
+                                  href={currentUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-primary underline-offset-4 hover:underline"
+                                >
+                                  Open link
+                                </a>
+                              </p>
+                            );
                           })()}
+
+                          {mediaData?.url ? (
+                            <div className="flex justify-end">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() =>
+                                  updateVideoBlock(block.id, (currentData) => ({
+                                    ...currentData,
+                                    url: "",
+                                    source_type: "link",
+                                    storage_key: "",
+                                  }))}
+                              >
+                                <X className="h-4 w-4" />
+                                Clear media
+                              </Button>
+                            </div>
+                          ) : null}
                         </div>
                       ) : null}
 
@@ -1802,7 +2190,10 @@ export default function HomeworkLessonEditorPage() {
                                   <HomeworkRichTextEditor
                                     value={quizQuestion?.question || ""}
                                     onChange={(nextText) =>
-                                      updateQuizQuestionField(block.id, questionId, { question: nextText })}
+                                      updateQuizQuestionField(block.id, questionId, {
+                                        question: nextText,
+                                        text: nextText,
+                                      })}
                                     placeholder="Type your quiz question..."
                                     minHeight={130}
                                   />
@@ -2367,6 +2758,8 @@ export default function HomeworkLessonEditorPage() {
                             );
                           })()}
                         </div>
+                      ) : null}
+                        </>
                       ) : null}
                     </div>
                   );

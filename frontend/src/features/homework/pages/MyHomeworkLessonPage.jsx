@@ -21,9 +21,9 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer";
-import { BookOpen, CheckCircle2 } from "lucide-react";
+import { BookOpen, CheckCircle2, ChevronLeft } from "lucide-react";
 import { IconCloud } from "@tabler/icons-react";
-import { formatDate, resolveVideoPreview, statusLabel } from "./homework.utils";
+import { formatDate, inferMediaTypeFromUrl, resolveVideoPreview, statusLabel } from "./homework.utils";
 import {
   createDraft,
   getRenderableTaskBlocks,
@@ -41,13 +41,6 @@ import DictationAudioPlayer from "./DictationAudioPlayer";
 import { useHomeworkAssignmentDetail } from "./useHomeworkAssignmentDetail";
 import { toSanitizedInnerHtml } from "@/shared/utils/safeHtml";
 import "./Homework.css";
-
-const resolveVideoSourceLabel = (preview = {}) => {
-  if (preview.kind === "youtube") return "YouTube";
-  if (preview.kind === "vimeo") return "Vimeo";
-  if (preview.kind === "direct") return "Direct";
-  return "External";
-};
 
 const renderVideoPlayer = ({ preview, taskTitle, taskIndex, url }) => {
   if (preview.kind === "youtube" && preview.youtubeId) {
@@ -89,7 +82,18 @@ const renderVideoPlayer = ({ preview, taskTitle, taskIndex, url }) => {
   );
 };
 
-const renderVideoBlock = ({ taskTitle, taskIndex, url, submissionStatus = "" }) => {
+const renderMediaBlock = ({ taskTitle, taskIndex, url, mediaType = "video" }) => {
+  const normalizedMediaType = String(mediaType || "").trim().toLowerCase() === "image" ? "image" : "video";
+  if (normalizedMediaType === "image") {
+    return (
+      <div className="homework-video-card">
+        <div className="overflow-hidden rounded-xl bg-muted/20 p-2">
+          <img src={url} alt={taskTitle || `Task ${taskIndex + 1} media`} className="max-h-[420px] w-full object-contain" />
+        </div>
+      </div>
+    );
+  }
+
   const preview = resolveVideoPreview(url || "");
 
   return (
@@ -129,6 +133,14 @@ const resolveMatchColorToken = (value, fallbackIndex = 0) => {
 const resolveMatchColorClass = (value, fallbackIndex = 0) =>
   MATCH_COLOR_CLASSES[resolveMatchColorToken(value, fallbackIndex)] || MATCH_COLOR_CLASSES.emerald;
 
+const resolveFirstNonEmptyString = (...values) => {
+  for (const value of values) {
+    const normalized = String(value || "").trim();
+    if (normalized) return normalized;
+  }
+  return "";
+};
+
 const normalizeQuizOption = (option = {}, fallbackIndex = 0) => ({
   id: String(option?.id || "").trim() || `option-${fallbackIndex + 1}`,
   text: String(option?.text || "").trim(),
@@ -142,7 +154,12 @@ const normalizeQuizQuestion = (question = {}, fallbackIndex = 0) => {
     .filter((option) => option.id);
   return {
     id: String(normalizedQuestion.id || "").trim() || `question-${fallbackIndex + 1}`,
-    question: String(normalizedQuestion.question || normalizedQuestion.text || "").trim(),
+    question: resolveFirstNonEmptyString(
+      normalizedQuestion.question,
+      normalizedQuestion.text,
+      normalizedQuestion.question_html,
+      normalizedQuestion.prompt,
+    ),
     options,
   };
 };
@@ -162,16 +179,21 @@ const resolveQuizQuestions = (block = {}) => {
       .filter((question) => question.question || question.options.length > 0);
   }
 
-  const hasLegacyQuestion =
-    String(quizData.question || quizData.text || "").trim() !== ""
-    || (Array.isArray(quizData.options) && quizData.options.length > 0);
+  const hasLegacyQuestion = Boolean(
+    resolveFirstNonEmptyString(quizData.question, quizData.text, quizData.question_html, quizData.prompt),
+  ) || (Array.isArray(quizData.options) && quizData.options.length > 0);
   if (!hasLegacyQuestion) return [];
 
   return [
     normalizeQuizQuestion(
       {
         id: String(quizData.id || "").trim() || "legacy-question",
-        question: quizData.question || quizData.text || "",
+        question: resolveFirstNonEmptyString(
+          quizData.question,
+          quizData.text,
+          quizData.question_html,
+          quizData.prompt,
+        ),
         options: Array.isArray(quizData.options) ? quizData.options : [],
       },
       0,
@@ -186,6 +208,121 @@ const countWords = (value = "") => {
   const matches = String(value || "").trim().match(/\S+/g);
   return matches ? matches.length : 0;
 };
+
+const toPlainObject = (value) =>
+  value && typeof value === "object" && !Array.isArray(value) ? value : {};
+
+const parseJsonObjectSafely = (value) => {
+  if (value === undefined || value === null) return {};
+  if (typeof value === "string") {
+    const normalized = value.trim();
+    if (!normalized) return {};
+    try {
+      return toPlainObject(JSON.parse(normalized));
+    } catch {
+      return {};
+    }
+  }
+  return toPlainObject(value);
+};
+
+const normalizeObjectiveAnswerEntries = (entries = [], keyField, valueField) => {
+  const entryMap = new Map();
+  (Array.isArray(entries) ? entries : []).forEach((entry) => {
+    const key = String(entry?.[keyField] || "").trim();
+    const value = String(entry?.[valueField] || "").trim();
+    if (!key || !value) return;
+    entryMap.set(key, { [keyField]: key, [valueField]: value });
+  });
+  return Array.from(entryMap.values());
+};
+
+const normalizeObjectiveAnswersFromMeta = (meta = {}) => {
+  const normalizedMeta = toPlainObject(meta);
+  const objectiveAnswers = parseJsonObjectSafely(normalizedMeta.objective_answers);
+  const rawQuiz = Array.isArray(objectiveAnswers.quiz)
+    ? objectiveAnswers.quiz
+    : Array.isArray(normalizedMeta.quiz_answers)
+      ? normalizedMeta.quiz_answers
+      : [];
+  const rawGapfill = Array.isArray(objectiveAnswers.gapfill) ? objectiveAnswers.gapfill : [];
+  const rawFindMistake = Array.isArray(objectiveAnswers.find_mistake) ? objectiveAnswers.find_mistake : [];
+
+  return {
+    quiz: normalizeObjectiveAnswerEntries(
+      rawQuiz.map((entry) => ({
+        question_key: String(entry?.question_key || entry?.questionKey || entry?.key || "").trim(),
+        selected_option_id: String(
+          entry?.selected_option_id || entry?.selectedOptionId || entry?.option_id || entry?.value || "",
+        ).trim(),
+      })),
+      "question_key",
+      "selected_option_id",
+    ),
+    gapfill: normalizeObjectiveAnswerEntries(
+      rawGapfill.map((entry) => ({
+        blank_key: String(entry?.blank_key || entry?.blankKey || entry?.key || "").trim(),
+        value: String(entry?.value || entry?.answer || entry?.text || "").trim(),
+      })),
+      "blank_key",
+      "value",
+    ),
+    find_mistake: normalizeObjectiveAnswerEntries(
+      rawFindMistake.map((entry) => ({
+        line_key: String(entry?.line_key || entry?.lineKey || entry?.key || "").trim(),
+        token_key: String(entry?.token_key || entry?.tokenKey || entry?.value || "").trim(),
+      })),
+      "line_key",
+      "token_key",
+    ),
+  };
+};
+
+const toSelectionMap = (entries = [], keyField, valueField) =>
+  (Array.isArray(entries) ? entries : []).reduce((acc, entry) => {
+    const key = String(entry?.[keyField] || "").trim();
+    const value = String(entry?.[valueField] || "").trim();
+    if (!key || !value) return acc;
+    acc[key] = value;
+    return acc;
+  }, {});
+
+const buildObjectiveAnswersPayload = ({
+  quizSelections = {},
+  gapfillSelections = {},
+  findMistakeSelections = {},
+} = {}) => {
+  const quiz = normalizeObjectiveAnswerEntries(
+    Object.entries(quizSelections || {}).map(([questionKey, selectedOptionId]) => ({
+      question_key: questionKey,
+      selected_option_id: selectedOptionId,
+    })),
+    "question_key",
+    "selected_option_id",
+  );
+  const gapfill = normalizeObjectiveAnswerEntries(
+    Object.entries(gapfillSelections || {}).map(([blankKey, value]) => ({
+      blank_key: blankKey,
+      value,
+    })),
+    "blank_key",
+    "value",
+  );
+  const find_mistake = normalizeObjectiveAnswerEntries(
+    Object.entries(findMistakeSelections || {}).map(([lineKey, tokenKey]) => ({
+      line_key: lineKey,
+      token_key: tokenKey,
+    })),
+    "line_key",
+    "token_key",
+  );
+  return { quiz, gapfill, find_mistake };
+};
+
+const hasObjectiveAnswersPayload = (payload = {}) =>
+  Array.isArray(payload?.quiz) && payload.quiz.length > 0
+  || Array.isArray(payload?.gapfill) && payload.gapfill.length > 0
+  || Array.isArray(payload?.find_mistake) && payload.find_mistake.length > 0;
 
 const renderRichTextBlock = (value, { className = "homework-task-sub", emptyFallback = null } = {}) => {
   const rawText = String(value || "");
@@ -437,7 +574,13 @@ const renderMatchingContent = ({ block }) => {
   );
 };
 
-const renderGapfillTemplateParts = ({ parsedTemplate, lineKey }) => {
+const renderGapfillTemplateParts = ({
+  parsedTemplate,
+  lineKey,
+  selectedByBlankKey = {},
+  onChangeBlank,
+  disabled = false,
+}) => {
   return parsedTemplate.parts.map((part, partIndex) => {
     if (part.kind === "text") {
       return (
@@ -448,11 +591,14 @@ const renderGapfillTemplateParts = ({ parsedTemplate, lineKey }) => {
     }
 
     if (part.type === "choice") {
+      const blankKey = `${lineKey}:${Number.isFinite(Number(part.blankIndex)) ? Number(part.blankIndex) : partIndex}`;
       return (
         <select
           key={`${lineKey}-blank-${partIndex}`}
           className="mx-1 inline-flex h-8 min-w-28 rounded-md border bg-background px-2 text-xs"
-          defaultValue=""
+          value={String(selectedByBlankKey[blankKey] || "")}
+          onChange={(event) => onChangeBlank?.(blankKey, event.target.value)}
+          disabled={disabled}
         >
           <option value="">Choose</option>
           {(Array.isArray(part.options) ? part.options : []).map((option, optionIndex) => (
@@ -464,18 +610,27 @@ const renderGapfillTemplateParts = ({ parsedTemplate, lineKey }) => {
       );
     }
 
+    const blankKey = `${lineKey}:${Number.isFinite(Number(part.blankIndex)) ? Number(part.blankIndex) : partIndex}`;
     return (
       <input
         key={`${lineKey}-blank-${partIndex}`}
         type="text"
         className="mx-1 inline-flex h-8 min-w-24 rounded-md border bg-background px-2 text-xs"
         placeholder={`Blank ${(part.blankIndex || 0) + 1}`}
+        value={String(selectedByBlankKey[blankKey] || "")}
+        onChange={(event) => onChangeBlank?.(blankKey, event.target.value)}
+        disabled={disabled}
       />
     );
   });
 };
 
-const renderGapfillContent = ({ block }) => {
+const renderGapfillContent = ({
+  block,
+  selectedByBlankKey = {},
+  onChangeBlank,
+  disabled = false,
+}) => {
   const gapfillData = normalizeGapfillBlockData(block?.data || {});
   const prompt = String(gapfillData?.prompt || "").trim();
   const templates = gapfillData.mode === GAPFILL_MODE_PARAGRAPH
@@ -498,13 +653,27 @@ const renderGapfillContent = ({ block }) => {
             return (
               <div key={lineKey} className="flex items-start gap-2">
                 <span className="pt-1 text-xs font-medium text-muted-foreground">{templateIndex + 1}.</span>
-                <p className="text-sm leading-7">{renderGapfillTemplateParts({ parsedTemplate, lineKey })}</p>
+                <p className="text-sm leading-7">
+                  {renderGapfillTemplateParts({
+                    parsedTemplate,
+                    lineKey,
+                    selectedByBlankKey,
+                    onChangeBlank,
+                    disabled,
+                  })}
+                </p>
               </div>
             );
           }
           return (
             <p key={lineKey} className="text-sm leading-7">
-              {renderGapfillTemplateParts({ parsedTemplate, lineKey })}
+              {renderGapfillTemplateParts({
+                parsedTemplate,
+                lineKey,
+                selectedByBlankKey,
+                onChangeBlank,
+                disabled,
+              })}
             </p>
           );
         })}
@@ -699,10 +868,14 @@ const TASK_BLOCK_RENDERERS = {
     return <h4 className="homework-item-title">{text}</h4>;
   },
   instruction: ({ block }) => renderInstructionBlock(block?.data?.text || ""),
-  video: ({ block, task, taskIndex, submissionStatus }) => {
+  video: ({ block, task, taskIndex }) => {
     const url = String(block?.data?.url || task?.resource_url || "").trim();
     if (!url) return null;
-    return renderVideoBlock({ taskTitle: task?.title, taskIndex, url, submissionStatus });
+    const mediaType =
+      String(block?.data?.media_type || "").trim().toLowerCase()
+      || inferMediaTypeFromUrl(url, "video")
+      || "video";
+    return renderMediaBlock({ taskTitle: task?.title, taskIndex, url, mediaType });
   },
   internal: ({ block, task }) => {
     const resourceRefType = String(block?.data?.resource_ref_type || task?.resource_ref_type || "").trim();
@@ -792,7 +965,13 @@ const TASK_BLOCK_RENDERERS = {
       showQuestionPalette: true,
     }),
   matching: ({ block }) => renderMatchingContent({ block }),
-  gapfill: ({ block }) => renderGapfillContent({ block }),
+  gapfill: ({ block, gapfillSelections, onChangeGapfillBlank, isGapfillDisabled }) =>
+    renderGapfillContent({
+      block,
+      selectedByBlankKey: gapfillSelections,
+      onChangeBlank: onChangeGapfillBlank,
+      disabled: isGapfillDisabled,
+    }),
   find_mistake: ({ block, findMistakeSelections, onSelectFindMistakeToken, isFindMistakeDisabled }) =>
     renderFindMistakeContent({
       block,
@@ -844,6 +1023,7 @@ export default function MyHomeworkLessonPage() {
 
   const [drafts, setDrafts] = useState({});
   const [findMistakeSelections, setFindMistakeSelections] = useState({});
+  const [gapfillSelections, setGapfillSelections] = useState({});
   const [quizSelections, setQuizSelections] = useState({});
   const [launchingTaskId, setLaunchingTaskId] = useState("");
   const recordersRef = useRef(new Map());
@@ -896,9 +1076,11 @@ export default function MyHomeworkLessonPage() {
   }, [assignment]);
 
   useEffect(() => {
-    setFindMistakeSelections({});
-    setQuizSelections({});
-  }, [selectedTaskId]);
+    const objectiveAnswers = normalizeObjectiveAnswersFromMeta(submission?.meta);
+    setQuizSelections(toSelectionMap(objectiveAnswers.quiz, "question_key", "selected_option_id"));
+    setGapfillSelections(toSelectionMap(objectiveAnswers.gapfill, "blank_key", "value"));
+    setFindMistakeSelections(toSelectionMap(objectiveAnswers.find_mistake, "line_key", "token_key"));
+  }, [selectedTaskId, submission?.updatedAt, submission?.submitted_at, submission?.meta]);
 
   const handleSelectFindMistakeToken = (lineKey, tokenKey) => {
     if (!lineKey) return;
@@ -926,6 +1108,24 @@ export default function MyHomeworkLessonPage() {
       return {
         ...prev,
         [questionKey]: optionId,
+      };
+    });
+  };
+
+  const handleChangeGapfillBlank = (blankKey, value) => {
+    const normalizedBlankKey = String(blankKey || "").trim();
+    if (!normalizedBlankKey) return;
+    const normalizedValue = String(value || "");
+    setGapfillSelections((prev) => {
+      if (!normalizedValue.trim()) {
+        if (!Object.prototype.hasOwnProperty.call(prev, normalizedBlankKey)) return prev;
+        const next = { ...prev };
+        delete next[normalizedBlankKey];
+        return next;
+      }
+      return {
+        ...prev,
+        [normalizedBlankKey]: normalizedValue,
       };
     });
   };
@@ -1109,6 +1309,14 @@ export default function MyHomeworkLessonPage() {
       if (currentDraft.text_answer !== undefined) {
         formData.append("text_answer", currentDraft.text_answer || "");
       }
+      const objectiveAnswers = buildObjectiveAnswersPayload({
+        quizSelections,
+        gapfillSelections,
+        findMistakeSelections,
+      });
+      if (hasObjectiveAnswersPayload(objectiveAnswers)) {
+        formData.append("objective_answers", JSON.stringify(objectiveAnswers));
+      }
       (currentDraft.image_files || []).forEach((file) => {
         formData.append("images", file);
       });
@@ -1272,19 +1480,11 @@ export default function MyHomeworkLessonPage() {
             onClick={() => navigate(lessonListPath)}
             aria-label="Back to assignment lessons"
           >
-            {"<"}
+            <ChevronLeft size={24} />
           </button>
           <div className="homework-header-main">
-            <p className="homework-header-subtitle">{assignment.title || "Assignment"}</p>
             <h1 className="homework-header-title">{selectedTask?.title || "Lesson"}</h1>
           </div>
-          <span className="homework-header-badge">
-            {isPreviewMode
-              ? "Preview"
-              : isDeadlinePassed
-                ? "Closed"
-                : `Due ${formatDate(assignment?.due_date)}`}
-          </span>
         </section>
 
         <section className="homework-stacked">
@@ -1356,6 +1556,9 @@ export default function MyHomeworkLessonPage() {
                         findMistakeSelections,
                         onSelectFindMistakeToken: handleSelectFindMistakeToken,
                         isFindMistakeDisabled: !canInteract,
+                        gapfillSelections,
+                        onChangeGapfillBlank: handleChangeGapfillBlank,
+                        isGapfillDisabled: !canInteract,
                         quizSelections,
                         onSelectQuizOption: handleSelectQuizOption,
                         isQuizDisabled: !canInteract,

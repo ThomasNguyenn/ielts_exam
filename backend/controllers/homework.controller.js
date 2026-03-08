@@ -53,6 +53,81 @@ const normalizeOptionalString = (value) => {
   return normalized || null;
 };
 
+const toPlainObject = (value) =>
+  value && typeof value === "object" && !Array.isArray(value) ? value : {};
+
+const parseJsonObjectSafely = (value) => {
+  if (value === undefined || value === null) return {};
+  if (typeof value === "string") {
+    const normalized = value.trim();
+    if (!normalized) return {};
+    try {
+      const parsed = JSON.parse(normalized);
+      return toPlainObject(parsed);
+    } catch {
+      return {};
+    }
+  }
+  return toPlainObject(value);
+};
+
+const normalizeObjectiveAnswersPayload = (value) => {
+  const parsed = parseJsonObjectSafely(value);
+  const rawQuiz = Array.isArray(parsed.quiz) ? parsed.quiz : Array.isArray(parsed.quiz_answers) ? parsed.quiz_answers : [];
+  const rawGapfill = Array.isArray(parsed.gapfill) ? parsed.gapfill : [];
+  const rawFindMistake = Array.isArray(parsed.find_mistake) ? parsed.find_mistake : [];
+
+  const quizMap = new Map();
+  rawQuiz.forEach((entry) => {
+    const questionKey = normalizeOptionalString(entry?.question_key ?? entry?.questionKey ?? entry?.key) || "";
+    const selectedOptionId = normalizeOptionalString(
+      entry?.selected_option_id ?? entry?.selectedOptionId ?? entry?.option_id ?? entry?.value,
+    ) || "";
+    if (!questionKey || !selectedOptionId) return;
+    quizMap.set(questionKey, {
+      question_key: questionKey,
+      selected_option_id: selectedOptionId,
+    });
+  });
+
+  const gapfillMap = new Map();
+  rawGapfill.forEach((entry) => {
+    const blankKey = normalizeOptionalString(entry?.blank_key ?? entry?.blankKey ?? entry?.key) || "";
+    const answerValue = normalizeOptionalString(entry?.value ?? entry?.answer ?? entry?.text) || "";
+    if (!blankKey || !answerValue) return;
+    gapfillMap.set(blankKey, {
+      blank_key: blankKey,
+      value: answerValue,
+    });
+  });
+
+  const findMistakeMap = new Map();
+  rawFindMistake.forEach((entry) => {
+    const lineKey = normalizeOptionalString(entry?.line_key ?? entry?.lineKey ?? entry?.key) || "";
+    const tokenKey = normalizeOptionalString(entry?.token_key ?? entry?.tokenKey ?? entry?.value) || "";
+    if (!lineKey || !tokenKey) return;
+    findMistakeMap.set(lineKey, {
+      line_key: lineKey,
+      token_key: tokenKey,
+    });
+  });
+
+  return {
+    quiz: Array.from(quizMap.values()),
+    gapfill: Array.from(gapfillMap.values()),
+    find_mistake: Array.from(findMistakeMap.values()),
+  };
+};
+
+const hasObjectiveAnswersPayload = (value = {}) => {
+  const normalized = normalizeObjectiveAnswersPayload(value);
+  return Boolean(
+    normalized.quiz.length > 0
+    || normalized.gapfill.length > 0
+    || normalized.find_mistake.length > 0,
+  );
+};
+
 const toBoolean = (value, fallback = false) => {
   if (value === undefined || value === null) return fallback;
   if (typeof value === "boolean") return value;
@@ -110,6 +185,18 @@ const sanitizeQuizOptionData = (option = {}, optionIndex = 0) => {
   };
 };
 
+const resolveQuizQuestionText = (question = {}) =>
+  normalizeOptionalString(question?.question)
+  || normalizeOptionalString(question?.text)
+  || normalizeOptionalString(question?.question_html)
+  || normalizeOptionalString(question?.prompt)
+  || "";
+
+const resolveQuizExplanationText = (question = {}) =>
+  normalizeOptionalString(question?.explanation)
+  || normalizeOptionalString(question?.explanation_html)
+  || "";
+
 const sanitizeQuizQuestionData = (question = {}, questionIndex = 0) => {
   const normalizedQuestion = question && typeof question === "object" && !Array.isArray(question) ? question : {};
   const rawOptions = Array.isArray(normalizedQuestion.options) ? normalizedQuestion.options : [];
@@ -140,8 +227,8 @@ const sanitizeQuizQuestionData = (question = {}, questionIndex = 0) => {
 
   return {
     id: normalizeBlockId(normalizedQuestion.id, `question-${questionIndex + 1}`),
-    question: normalizeOptionalString(normalizedQuestion.question ?? normalizedQuestion.text) || "",
-    explanation: normalizeOptionalString(normalizedQuestion.explanation) || "",
+    question: resolveQuizQuestionText(normalizedQuestion),
+    explanation: resolveQuizExplanationText(normalizedQuestion),
     allow_multiple: allowMultiple,
     options,
     correct_option_ids: allowMultiple ? uniqueCorrectOptionIds : uniqueCorrectOptionIds.slice(0, 1),
@@ -162,6 +249,8 @@ const sanitizeQuizBlockData = (data = {}, blockIndex = 0) => {
   const hasLegacySingleQuestion =
     Boolean(normalizeOptionalString(normalizedData.question))
     || Boolean(normalizeOptionalString(normalizedData.text))
+    || Boolean(normalizeOptionalString(normalizedData.question_html))
+    || Boolean(normalizeOptionalString(normalizedData.prompt))
     || (Array.isArray(normalizedData.options) && normalizedData.options.length > 0);
 
   const rawQuestions = Array.isArray(normalizedData.questions) && normalizedData.questions.length > 0
@@ -1130,6 +1219,7 @@ const mapSubmissionToResponse = (submission = {}) => ({
   graded_at: submission.graded_at || null,
   submitted_at: submission.submitted_at || null,
   updatedAt: submission.updatedAt || null,
+  meta: toPlainObject(submission.meta),
 });
 
 const parseScoreOrNull = (value) => {
@@ -2197,12 +2287,30 @@ export const upsertMyHomeworkTaskSubmission = async (req, res) => {
 
     const hasTextAnswerField = Object.prototype.hasOwnProperty.call(req.body || {}, "text_answer");
     const incomingTextAnswer = normalizeOptionalString(req.body?.text_answer) || "";
+    const hasObjectiveAnswersField = Object.prototype.hasOwnProperty.call(req.body || {}, "objective_answers");
+    const incomingObjectiveAnswers = normalizeObjectiveAnswersPayload(req.body?.objective_answers);
 
     let nextTextAnswer = hasTextAnswerField
       ? incomingTextAnswer
       : normalizeOptionalString(existingSubmission?.text_answer) || "";
     let nextImageItems = Array.isArray(existingSubmission?.image_items) ? existingSubmission.image_items : [];
     let nextAudioItem = existingSubmission?.audio_item || null;
+    const existingMeta = toPlainObject(existingSubmission?.meta);
+    const existingObjectiveAnswers = hasObjectiveAnswersPayload(existingMeta.objective_answers)
+      ? normalizeObjectiveAnswersPayload(existingMeta.objective_answers)
+      : normalizeObjectiveAnswersPayload({ quiz_answers: existingMeta.quiz_answers });
+    const nextObjectiveAnswers = hasObjectiveAnswersField ? incomingObjectiveAnswers : existingObjectiveAnswers;
+    const hasObjectiveAnswers = hasObjectiveAnswersPayload(nextObjectiveAnswers);
+    const nextMeta = {
+      ...existingMeta,
+    };
+    if (hasObjectiveAnswers) {
+      nextMeta.objective_answers = nextObjectiveAnswers;
+      nextMeta.quiz_answers = nextObjectiveAnswers.quiz;
+    } else {
+      delete nextMeta.objective_answers;
+      delete nextMeta.quiz_answers;
+    }
 
     const uploadedKeys = [];
     const keysToDeleteAfterSuccess = [];
@@ -2285,7 +2393,8 @@ export const upsertMyHomeworkTaskSubmission = async (req, res) => {
       const hasAnyPayload = Boolean(
         normalizeOptionalString(nextTextAnswer) ||
         (Array.isArray(nextImageItems) && nextImageItems.length > 0) ||
-        nextAudioItem,
+        nextAudioItem ||
+        hasObjectiveAnswers,
       );
       if (!hasAnyPayload) {
         return sendControllerError(req, res, {
@@ -2311,6 +2420,7 @@ export const upsertMyHomeworkTaskSubmission = async (req, res) => {
             graded_by: null,
             graded_at: null,
             submitted_at: new Date(),
+            meta: nextMeta,
           },
           $setOnInsert: {
             assignment_id: assignmentId,

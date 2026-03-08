@@ -20,6 +20,7 @@ const mockedControllers = vi.hoisted(() => ({
   uploadHomeworkAssignmentResource: vi.fn((_req, res) => res.status(200).json({ route: "upload-resource" })),
   getMyHomeworkAssignments: vi.fn((_req, res) => res.status(200).json({ route: "my-assignments" })),
   getMyHomeworkAssignmentById: vi.fn((_req, res) => res.status(200).json({ route: "my-assignment-by-id" })),
+  launchMyHomeworkTaskTracking: vi.fn((_req, res) => res.status(200).json({ route: "my-track-task" })),
   upsertMyHomeworkTaskSubmission: vi.fn((_req, res) => res.status(200).json({ route: "my-submit-task" })),
   getHomeworkAssignmentDashboard: vi.fn((_req, res) => res.status(200).json({ route: "dashboard" })),
   getHomeworkTaskSubmissions: vi.fn((_req, res) => res.status(200).json({ route: "task-submissions" })),

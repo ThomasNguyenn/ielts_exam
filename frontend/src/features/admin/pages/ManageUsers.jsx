@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { RefreshCcw, Search, UserRound } from 'lucide-react';
 import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
@@ -52,6 +52,14 @@ export default function ManageUsers() {
   }, [roleFilter, searchQuery]);
 
   useEffect(() => {
+    const nextQuery = String(searchTerm || '').trim();
+    const timer = setTimeout(() => {
+      setSearchQuery((prev) => (prev === nextQuery ? prev : nextQuery));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => {
     void fetchUsers(currentPage);
   }, [roleFilter, currentPage, searchQuery]);
 
@@ -63,7 +71,7 @@ export default function ManageUsers() {
       setLoading(true);
       setErrorMessage('');
       const res = roleFilter === 'online'
-        ? await api.getOnlineStudents({ page, limit: PAGE_SIZE, search: searchQuery })
+        ? await api.getOnlineStudents({ page, limit: PAGE_SIZE, search: searchQuery, q: searchQuery })
         : await api.getUsers({ role: roleFilter, page, limit: PAGE_SIZE, search: searchQuery });
 
       if (requestId !== requestSeqRef.current) return;
@@ -138,17 +146,8 @@ export default function ManageUsers() {
     });
   };
 
-  const filteredUsers = useMemo(() => {
-    const keyword = String(searchTerm || '').trim().toLowerCase();
-    if (!keyword) return users;
-    return users.filter((user) => (
-      String(user?.name || '').toLowerCase().includes(keyword)
-      || String(user?.email || '').toLowerCase().includes(keyword)
-    ));
-  }, [users, searchTerm]);
-
   const totalCount = Number(pagination?.totalItems || users.length || 0);
-  const hasSearch = String(searchTerm || '').trim().length > 0;
+  const hasSearch = String(searchQuery || '').trim().length > 0;
 
   return (
     <div className="admin-people-shell">
@@ -229,10 +228,10 @@ export default function ManageUsers() {
                 onChange={(event) => setSearchTerm(event.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
-                    setSearchQuery(searchTerm);
+                    setSearchQuery(String(searchTerm || '').trim());
                   }
                 }}
-                placeholder="Search by name or email (Press Enter to search all)"
+                placeholder="Search by name or email"
                 aria-label="Search users"
               />
             </div>
@@ -258,27 +257,19 @@ export default function ManageUsers() {
           </div>
         ) : users.length === 0 ? (
           <div className="admin-people-empty">
-            <UserRound className="admin-people-empty-icon" />
-            <h3>No Users Found</h3>
+            {hasSearch ? <Search className="admin-people-empty-icon" /> : <UserRound className="admin-people-empty-icon" />}
+            <h3>{hasSearch ? 'No Matching Results' : 'No Users Found'}</h3>
             <p>
-              {roleFilter === 'online'
+              {hasSearch
+                ? `No users match "${searchQuery.trim()}".`
+                : roleFilter === 'online'
                 ? 'No students are currently online.'
                 : 'No users are available for this filter.'}
             </p>
           </div>
-        ) : filteredUsers.length === 0 ? (
-          <div className="admin-people-empty">
-            <Search className="admin-people-empty-icon" />
-            <h3>No Matching Results</h3>
-            <p>
-              {hasSearch
-                ? `No users match "${searchTerm.trim()}".`
-                : 'Try another keyword or clear the search input.'}
-            </p>
-          </div>
         ) : (
           <div className="admin-people-list">
-            {filteredUsers.map((user) => {
+            {users.map((user) => {
               const userId = String(user?._id || '');
               const role = String(user?.role || 'student');
               const roleClass = ROLE_CHIP_CLASS[role] || ROLE_CHIP_CLASS.student;
