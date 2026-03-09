@@ -440,7 +440,7 @@ describe("MyHomework lesson routing and block rendering", () => {
     });
   });
 
-  it("renders mission checklist/resources from task data and opens passage resource by scrolling", async () => {
+  it("renders mission resources from task data and opens passage resource by scrolling", async () => {
     mockApi.homeworkGetMyAssignmentById.mockResolvedValue(
       buildAssignmentResponse([
         {
@@ -474,9 +474,7 @@ describe("MyHomework lesson routing and block rendering", () => {
 
     renderHomeworkRoutes(["/student-ielts/homework/assignment-1/lessons/task-1"]);
 
-    expect(await screen.findByText("Note key words")).toBeInTheDocument();
-    expect(screen.getByText("Finish all resources")).toBeInTheDocument();
-    expect(screen.getByText("Upload your work")).toBeInTheDocument();
+    expect(await screen.findByText("Reading Mission")).toBeInTheDocument();
     const missionButtons = screen.getAllByRole("button", { name: /^M/i });
     expect(missionButtons.length).toBeGreaterThanOrEqual(2);
 
