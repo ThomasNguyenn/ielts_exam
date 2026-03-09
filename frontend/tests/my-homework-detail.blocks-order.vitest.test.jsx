@@ -10,6 +10,7 @@ const { mockApi, mockShowNotification } = vi.hoisted(() => ({
     getUser: vi.fn(),
     homeworkGetMyAssignmentById: vi.fn(),
     homeworkGetAssignmentById: vi.fn(),
+    homeworkClaimChestReward: vi.fn(),
     homeworkSubmitTask: vi.fn(),
     homeworkLaunchTaskTracking: vi.fn(),
   },
@@ -63,6 +64,17 @@ describe("MyHomework lesson routing and block rendering", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockApi.getUser.mockReturnValue({ role: "student", _id: "student-1" });
+    mockApi.homeworkClaimChestReward.mockResolvedValue({
+      data: {
+        chest_key: "chest-3",
+        claimed: true,
+        xp_gained: 200,
+        xp_result: {
+          currentXP: 200,
+          currentLevel: 1,
+        },
+      },
+    });
   });
 
   afterEach(() => {
@@ -88,11 +100,62 @@ describe("MyHomework lesson routing and block rendering", () => {
 
     renderHomeworkRoutes(["/student-ielts/homework/assignment-1"]);
 
-    expect(await screen.findByText("Lesson One")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("Lesson One").closest(".homework-task-card"));
+    expect((await screen.findAllByText("Lesson One")).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getAllByText("Lesson One")[0].closest(".homework-task-card"));
 
     expect(await screen.findByText("Lesson One Block")).toBeInTheDocument();
     expect(screen.queryByText("Lesson Two Block")).not.toBeInTheDocument();
+  });
+
+  it("renders chest node every 3 lessons and claims reward once when unlocked", async () => {
+    mockApi.homeworkGetMyAssignmentById.mockResolvedValue(
+      buildAssignmentResponse([
+        { _id: "task-1", title: "Lesson 1", content_blocks: [] },
+        { _id: "task-2", title: "Lesson 2", content_blocks: [] },
+        { _id: "task-3", title: "Lesson 3", content_blocks: [] },
+      ]),
+    );
+    mockApi.homeworkGetMyAssignmentById.mockResolvedValueOnce({
+      data: {
+        ...buildAssignmentResponse([
+          { _id: "task-1", title: "Lesson 1", content_blocks: [] },
+          { _id: "task-2", title: "Lesson 2", content_blocks: [] },
+          { _id: "task-3", title: "Lesson 3", content_blocks: [] },
+        ]).data,
+        submissions: [
+          { task_id: "task-1", status: "submitted" },
+          { task_id: "task-2", status: "submitted" },
+          { task_id: "task-3", status: "submitted" },
+        ],
+      },
+    });
+
+    renderHomeworkRoutes(["/student-ielts/homework/assignment-1"]);
+
+    expect(await screen.findByText("Reward chest")).toBeInTheDocument();
+    const claimButton = screen.getByRole("button", { name: "Claim chest" });
+    fireEvent.click(claimButton);
+
+    await waitFor(() => {
+      expect(mockApi.homeworkClaimChestReward).toHaveBeenCalledWith("assignment-1", "chest-3");
+    });
+  });
+
+  it("keeps chest locked before milestone completion", async () => {
+    mockApi.homeworkGetMyAssignmentById.mockResolvedValue(
+      buildAssignmentResponse([
+        { _id: "task-1", title: "Lesson 1", content_blocks: [] },
+        { _id: "task-2", title: "Lesson 2", content_blocks: [] },
+        { _id: "task-3", title: "Lesson 3", content_blocks: [] },
+      ]),
+    );
+
+    renderHomeworkRoutes(["/student-ielts/homework/assignment-1"]);
+
+    expect(await screen.findByText("Reward chest")).toBeInTheDocument();
+    const rewardButton = screen.getByTestId("chest-action-chest-3");
+    expect(rewardButton).toBeDisabled();
+    expect(mockApi.homeworkClaimChestReward).not.toHaveBeenCalled();
   });
 
   it("breadcrumb Month link navigates back to the assignment lesson list page", async () => {
@@ -608,5 +671,86 @@ describe("MyHomework lesson routing and block rendering", () => {
     const objectiveAnswers = JSON.parse(submittedFormData.get("objective_answers"));
     expect(objectiveAnswers.quiz).toHaveLength(1);
     expect(objectiveAnswers.quiz[0].selected_option_id).toBe("o-1");
+  });
+
+  it("shows previously uploaded media, allows removing old file, and submits retain_image_keys", async () => {
+    mockApi.homeworkSubmitTask.mockResolvedValue({ ok: true });
+    mockApi.homeworkGetMyAssignmentById.mockResolvedValue({
+      data: {
+        ...buildAssignmentResponse([
+          {
+            _id: "task-1",
+            title: "Task 1",
+            requires_image: true,
+            content_blocks: [],
+          },
+        ]).data,
+        submissions: [
+          {
+            task_id: "task-1",
+            status: "submitted",
+            image_items: [
+              {
+                url: "https://cdn.example.com/old-1.jpg",
+                storage_key: "homework/submissions/images/old-1.jpg",
+                mime: "image/jpeg",
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    renderHomeworkRoutes(["/student-ielts/homework/assignment-1/lessons/task-1"]);
+
+    expect(await screen.findByText("File đã nộp")).toBeInTheDocument();
+    expect(screen.getByAltText("old-1.jpg")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove uploaded file 1" }));
+    const fileInput = document.getElementById("homework-upload-input-task-1");
+    const replacementFile = new File(["hello"], "replacement.jpg", { type: "image/jpeg" });
+    fireEvent.change(fileInput, { target: { files: [replacementFile] } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit Task" }));
+
+    await waitFor(() => {
+      expect(mockApi.homeworkSubmitTask).toHaveBeenCalledTimes(1);
+    });
+
+    const submittedFormData = mockApi.homeworkSubmitTask.mock.calls[0][2];
+    expect(JSON.parse(submittedFormData.get("retain_image_keys"))).toEqual([]);
+    expect(submittedFormData.getAll("images")).toHaveLength(1);
+  });
+
+  it("caps upload selection at 10 files", async () => {
+    mockApi.homeworkSubmitTask.mockResolvedValue({ ok: true });
+    mockApi.homeworkGetMyAssignmentById.mockResolvedValue(
+      buildAssignmentResponse([
+        {
+          _id: "task-1",
+          title: "Task 1",
+          requires_image: true,
+          content_blocks: [],
+        },
+      ]),
+    );
+
+    renderHomeworkRoutes(["/student-ielts/homework/assignment-1/lessons/task-1"]);
+
+    expect(await screen.findByText("Nộp ảnh / Video bài làm")).toBeInTheDocument();
+    const fileInput = document.getElementById("homework-upload-input-task-1");
+    expect(fileInput).not.toBeNull();
+    const files = Array.from({ length: 11 }, (_, index) =>
+      new File([`file-${index}`], `image-${index}.jpg`, { type: "image/jpeg" }),
+    );
+    fireEvent.change(fileInput, { target: { files } });
+    expect(await screen.findByText("10/10 file")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Submit Task" }));
+    await waitFor(() => {
+      expect(mockApi.homeworkSubmitTask).toHaveBeenCalledTimes(1);
+    });
+
+    const submittedFormData = mockApi.homeworkSubmitTask.mock.calls[0][2];
+    expect(submittedFormData.getAll("images")).toHaveLength(10);
   });
 });

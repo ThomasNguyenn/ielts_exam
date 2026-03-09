@@ -298,6 +298,27 @@ const parseJsonSafe = (value) => {
   }
 };
 
+const isLikelyTruncatedJsonParseError = (error) => {
+  const message = String(error?.message || "").toLowerCase();
+  if (!message) return false;
+  return (
+    message.includes("unexpected end of json input")
+    || message.includes("unterminated string")
+    || message.includes("unterminated")
+    || message.includes("end of data")
+  );
+};
+
+const buildModelJsonParseError = (candidate, errors = []) => {
+  const firstError = errors.find(Boolean) || null;
+  const error = new SyntaxError(`Failed to parse model JSON: ${firstError?.message || "Unknown parser error"}`);
+  error.code = "MODEL_JSON_PARSE_FAILED";
+  error.statusCode = 502;
+  error.cause = firstError;
+  error.rawPreview = String(candidate || "").slice(0, 500);
+  return error;
+};
+
 const closeJsonContainers = (stack = []) => stack
   .slice()
   .reverse()
@@ -383,6 +404,13 @@ export const parseModelJson = (rawText) => {
     return sanitizedResult.data;
   }
 
+  const shouldAttemptTruncationRepair =
+    isLikelyTruncatedJsonParseError(directResult.error)
+    || isLikelyTruncatedJsonParseError(sanitizedResult.error);
+  if (!shouldAttemptTruncationRepair) {
+    throw buildModelJsonParseError(candidate, [sanitizedResult.error, directResult.error]);
+  }
+
   const maxTrim = Math.max(
     0,
     Math.min(
@@ -408,12 +436,7 @@ export const parseModelJson = (rawText) => {
     lastRepairError = repairedResult.error || lastRepairError;
   }
 
-  const error = new SyntaxError(`Failed to parse model JSON: ${lastRepairError?.message || "Unknown parser error"}`);
-  error.code = "MODEL_JSON_PARSE_FAILED";
-  error.statusCode = 502;
-  error.cause = directResult.error || sanitizedResult.error || lastRepairError;
-  error.rawPreview = candidate.slice(0, 500);
-  throw error;
+  throw buildModelJsonParseError(candidate, [lastRepairError, sanitizedResult.error, directResult.error]);
 };
 
 export const runWithRetry = async ({

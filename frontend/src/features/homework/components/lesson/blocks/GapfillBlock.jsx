@@ -93,7 +93,7 @@ export default function GapfillBlock({
 
   return (
     <BlockSurfaceCard>
-      <BlockHeader title="Gap Filling" description={"\\u0110i\\u1EC1n t\\u1EEB v\\u00E0o c\\u00E1c \\u00F4 tr\\u1ED1ng."} />
+      <BlockHeader title="Gap Filling" description="Điền từ vào các ô trống." />
       {prompt ? <p className="text-sm leading-7 text-slate-700">{prompt}</p> : null}
 
       <div className="space-y-3">

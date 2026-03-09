@@ -117,7 +117,7 @@ describe("analytics.controller getAIInsights cache behavior", () => {
     testAttemptFindMock.mockImplementation(() => createFindChain([
       {
         type: "reading",
-        submitted_at: new Date("2026-02-01T00:00:00.000Z"),
+        submitted_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
         error_logs: [
           {
             task_type: "tfng",

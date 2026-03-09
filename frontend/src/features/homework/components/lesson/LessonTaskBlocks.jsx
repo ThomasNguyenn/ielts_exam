@@ -4,7 +4,6 @@ import {
   FindMistakeBlock,
   GapfillBlock,
   InstructionBlock,
-  InternalBlock,
   MatchingBlock,
   MediaBlock,
   PassageBlock,
@@ -12,8 +11,6 @@ import {
   TitleBlock,
 } from "./blocks";
 import {
-  resolveInternalBlockData,
-  resolveInternalSlotKeyFromBlock,
   resolveQuizParentPassageBlockId,
   resolveTaskBlockId,
 } from "./blocks/blockUtils";
@@ -35,24 +32,24 @@ export default function LessonTaskBlocks({
   const gapfillSelections = blockActions?.gapfillSelections || {};
   const quizSelections = blockActions?.quizSelections || {};
   const matchingSelections = blockActions?.matchingSelections || {};
-  const launchingScopeKeys = blockActions?.launchingScopeKeys || {};
   const draft = blockActions?.draft || {};
+  const lessonContentBlocks = taskBlocks.filter((block) => normalizeTaskBlockType(block?.type) !== "internal");
 
-  const dictationBlocks = taskBlocks.filter((block) => normalizeTaskBlockType(block?.type) === "dictation");
+  const dictationBlocks = lessonContentBlocks.filter((block) => normalizeTaskBlockType(block?.type) === "dictation");
   const hasDictationBlock = dictationBlocks.length > 0;
-  const primaryDictationBlockIndex = taskBlocks.findIndex(
+  const primaryDictationBlockIndex = lessonContentBlocks.findIndex(
     (block) => normalizeTaskBlockType(block?.type) === "dictation",
   );
   const primaryDictationBlockId = hasDictationBlock ? resolveTaskBlockId(dictationBlocks[0]) : "";
 
   const passageBlockIdSet = new Set(
-    taskBlocks
+    lessonContentBlocks
       .filter((block) => normalizeTaskBlockType(block?.type) === "passage")
       .map((block) => resolveTaskBlockId(block))
       .filter(Boolean),
   );
 
-  const nestedQuizBlocksByPassageId = taskBlocks.reduce((grouped, block) => {
+  const nestedQuizBlocksByPassageId = lessonContentBlocks.reduce((grouped, block) => {
     const blockType = normalizeTaskBlockType(block?.type);
     if (blockType !== "quiz") return grouped;
     const parentPassageBlockId = resolveQuizParentPassageBlockId(block);
@@ -67,7 +64,6 @@ export default function LessonTaskBlocks({
     title: (props) => <TitleBlock block={props.block} />,
     instruction: (props) => <InstructionBlock value={props.block?.data?.text || ""} />,
     video: (props) => <MediaBlock block={props.block} task={props.task} taskIndex={props.taskIndex} />,
-    internal: (props) => <InternalBlock block={props.block} task={props.task} />,
     passage: (props) => (
       <PassageBlock
         block={props.block}
@@ -126,7 +122,7 @@ export default function LessonTaskBlocks({
 
   return (
     <div className="space-y-4">
-      {taskBlocks.map((block, blockIndex) => {
+      {lessonContentBlocks.map((block, blockIndex) => {
         const blockType = normalizeTaskBlockType(block?.type);
         const parentPassageBlockId = resolveQuizParentPassageBlockId(block);
         if (
@@ -144,51 +140,9 @@ export default function LessonTaskBlocks({
         const blockKey = getTaskBlockKey({ taskId: selectedTaskId, block, fallbackIndex: blockIndex });
         const blockAnchorId = buildLessonBlockAnchorId({ taskId: selectedTaskId, blockKey });
 
-        const internalBlockData =
-          blockType === "internal"
-            ? resolveInternalBlockData(block)
-            : {};
-        const internalResourceRefType =
-          blockType === "internal"
-            ? String(internalBlockData?.resource_ref_type || "").trim()
-            : "";
-        const internalResourceRefId =
-          blockType === "internal"
-            ? String(internalBlockData?.resource_ref_id || "").trim()
-            : "";
-        const internalResourceBlockId =
-          blockType === "internal"
-            ? String(resolveTaskBlockId(block) || internalBlockData?.block_id || "").trim()
-            : "";
-        const internalResourceSlotKey =
-          blockType === "internal"
-            ? resolveInternalSlotKeyFromBlock(block, blockIndex)
-            : "";
-        const internalLaunchScopeKey =
-          blockType === "internal"
-            ? `${selectedTaskId}:${internalResourceSlotKey}`
-            : "";
-
-        const hasInternalConfig =
-          blockType === "internal"
-          && Boolean(internalResourceRefType && internalResourceRefId && internalResourceSlotKey);
-
         const content = renderBlock({
           block: {
             ...block,
-            onLaunchInternal: blockActions?.onLaunchInternal,
-            canLaunchInternal: !renderContext?.isPreviewMode
-              && renderContext?.canAccessPage
-              && (blockType !== "internal" || hasInternalConfig),
-            isLaunchingInternal:
-              blockType === "internal"
-                ? Boolean(launchingScopeKeys?.[internalLaunchScopeKey])
-                : false,
-            resourceRefType: internalResourceRefType,
-            resourceRefId: internalResourceRefId,
-            resourceBlockId: internalResourceBlockId,
-            resourceSlotKey: internalResourceSlotKey,
-            launchScopeKey: internalLaunchScopeKey,
           },
           task: selectedTask,
           taskIndex: selectedTaskIndex,

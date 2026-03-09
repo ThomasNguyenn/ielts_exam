@@ -16,6 +16,8 @@ const DEFAULT_SPEAKING_STT_PROMPT = [
 const DEFAULT_FILLER_WORDS = [
   "um",
   "uh",
+  "you know",
+  "like",
 ];
 
 const toBoolean = (value, fallback = false) => {

@@ -13,6 +13,7 @@ import {
   getHomeworkTaskSubmissions,
   getMyHomeworkAssignmentById,
   getMyHomeworkAssignments,
+  claimMyHomeworkChestReward,
   gradeHomeworkSubmission,
   launchMyHomeworkTaskTracking,
   createHomeworkAssignment,
@@ -148,6 +149,18 @@ const invalidateHomeworkStudentSubmitReads = createCacheInvalidator({
   },
 });
 
+const invalidateHomeworkStudentRewardReads = createCacheInvalidator({
+  tags: (req) => {
+    const assignmentId = normalizeString(req.params?.assignmentId);
+    return [
+      `homework:user:${normalizeString(req.user?.userId)}:my-list`,
+      "homework:list:student",
+      "homework:dashboard",
+      ...(assignmentId ? [`homework:assignment:${assignmentId}`] : []),
+    ];
+  },
+});
+
 const invalidateHomeworkGradeReads = createCacheInvalidator({
   tags: ["homework:list:student", "homework:dashboard", "homework:list:teacher"],
 });
@@ -278,6 +291,12 @@ router.delete("/assignments/:id", isTeacherOrAdmin, invalidateHomeworkAssignment
 
 router.get("/me", isStudent, homeworkStudentListCache, getMyHomeworkAssignments);
 router.get("/me/:assignmentId", isStudent, getMyHomeworkAssignmentById);
+router.post(
+  "/me/:assignmentId/rewards/chests/:chestKey/claim",
+  isStudent,
+  invalidateHomeworkStudentRewardReads,
+  claimMyHomeworkChestReward,
+);
 router.post(
   "/me/:assignmentId/tasks/:taskId/tracking/launch",
   isStudent,

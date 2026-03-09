@@ -90,8 +90,12 @@ const resolveAllowedOrigins = () => {
   return configuredOrigins.length > 0 ? configuredOrigins : fallbackOrigins;
 };
 
-const shouldAllowNoOriginCorsRequests = () =>
-  parseBooleanEnv(process.env.CORS_ALLOW_NO_ORIGIN, process.env.NODE_ENV !== "production");
+const shouldAllowNoOriginCorsRequests = () => {
+  if (String(process.env.NODE_ENV || "").trim().toLowerCase() === "test") {
+    return true;
+  }
+  return parseBooleanEnv(process.env.CORS_ALLOW_NO_ORIGIN, process.env.NODE_ENV !== "production");
+};
 
 const hasCloudinaryConfig = () =>
   Boolean(

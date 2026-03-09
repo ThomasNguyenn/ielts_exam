@@ -289,6 +289,7 @@ export default function Layout() {
   const isProfilePage = pathname.startsWith('/student-ielts/profile');
   const isAnalyticsPage = pathname.startsWith('/student-ielts/analytics');
   const isAchievementsPage = pathname.startsWith('/student-ielts/achievements');
+  const isHomeworkDetailPage = /^\/student-(ielts|aca)\/homework\/[^/]+$/.test(pathname);
   const isHomeworkLessonPage = /^\/student-(ielts|aca)\/homework\/[^/]+\/lessons\/[^/]+$/.test(pathname);
 
   const coreItems = useMemo(
@@ -555,7 +556,7 @@ export default function Layout() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <main className={`layout-main ${isExamPage ? 'layout-main--fullscreen' : ''} ${isPracticePage || isTestDetailPage || isTestHistoryPage ? 'layout-main--wide' : ''} ${isTestResultPage ? 'layout-main--test-result' : ''} ${isResultAiPage ? 'layout-main--result-ai' : ''} ${isManagePage ? 'layout-main--manage' : ''} ${isGradingPage ? 'layout-main--grading' : ''} ${pathname === '/' ? 'layout-main--home' : ''} ${isProfilePage ? 'layout-main--profile' : ''} ${isAnalyticsPage ? 'layout-main--analytics' : ''} ${isAchievementsPage ? 'layout-main--achievements' : ''} ${isWritingLivePage ? 'layout-main--writing-live' : ''} ${isHomeworkLessonPage ? 'layout-main--homework-lesson' : ''}`}>
+      <main className={`layout-main ${isExamPage ? 'layout-main--fullscreen' : ''} ${isPracticePage || isTestDetailPage || isTestHistoryPage ? 'layout-main--wide' : ''} ${isTestResultPage ? 'layout-main--test-result' : ''} ${isResultAiPage ? 'layout-main--result-ai' : ''} ${isManagePage ? 'layout-main--manage' : ''} ${isGradingPage ? 'layout-main--grading' : ''} ${pathname === '/' ? 'layout-main--home' : ''} ${isProfilePage ? 'layout-main--profile' : ''} ${isAnalyticsPage ? 'layout-main--analytics' : ''} ${isAchievementsPage ? 'layout-main--achievements' : ''} ${isWritingLivePage ? 'layout-main--writing-live' : ''} ${isHomeworkDetailPage ? 'layout-main--homework-detail' : ''} ${isHomeworkLessonPage ? 'layout-main--homework-lesson' : ''}`}>
         <Outlet />
       </main>
     </div>

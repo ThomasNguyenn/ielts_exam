@@ -21,7 +21,7 @@ export default function PassageBlock({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <BlockHeader
             title="Passage"
-            description={"\\u0110\\u1ECDc \\u0111o\\u1EA1n v\\u0103n tr\\u01B0\\u1EDBc, sau \\u0111\\u00F3 tr\\u1EA3 l\\u1EDDi c\\u00E2u h\\u1ECFi b\\u00EAn d\\u01B0\\u1EDBi."}
+            description="Đọc đoạn văn trước, sau đó trả lời câu hỏi bên dưới."
           />
           <Badge variant="outline" className="rounded-full px-3 py-1 text-xs font-semibold">
             Reading

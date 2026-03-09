@@ -24,6 +24,7 @@ const mockedControllers = vi.hoisted(() => ({
   uploadHomeworkAssignmentResource: vi.fn((_req, res) => res.status(200).json({ route: "upload-resource" })),
   getMyHomeworkAssignments: vi.fn((_req, res) => res.status(200).json({ route: "my-assignments" })),
   getMyHomeworkAssignmentById: vi.fn((_req, res) => res.status(200).json({ route: "my-assignment-by-id" })),
+  claimMyHomeworkChestReward: vi.fn((_req, res) => res.status(200).json({ route: "claim-chest-reward" })),
   launchMyHomeworkTaskTracking: vi.fn((_req, res) => res.status(200).json({ route: "launch-tracking" })),
   upsertMyHomeworkTaskSubmission: vi.fn((_req, res) => res.status(200).json({ route: "my-submit-task" })),
   getHomeworkAssignmentDashboard: vi.fn((_req, res) => res.status(200).json({ route: "dashboard" })),
@@ -111,6 +112,25 @@ describe("homework routes role guards", () => {
 
     expect(res.status).toBe(403);
     expect(mockedControllers.getMyHomeworkAssignments).not.toHaveBeenCalled();
+  });
+
+  it("allows student to claim chest reward", async () => {
+    const res = await request(app)
+      .post("/api/homework/me/a1/rewards/chests/chest-3/claim")
+      .set("x-test-role", "student");
+
+    expect(res.status).toBe(200);
+    expect(res.body.route).toBe("claim-chest-reward");
+    expect(mockedControllers.claimMyHomeworkChestReward).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects teacher on chest reward claim route", async () => {
+    const res = await request(app)
+      .post("/api/homework/me/a1/rewards/chests/chest-3/claim")
+      .set("x-test-role", "teacher");
+
+    expect(res.status).toBe(403);
+    expect(mockedControllers.claimMyHomeworkChestReward).not.toHaveBeenCalled();
   });
 
   it("allows teacher to call quiz AI generate", async () => {

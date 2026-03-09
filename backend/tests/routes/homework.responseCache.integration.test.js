@@ -97,6 +97,7 @@ const homeworkControllerMocks = vi.hoisted(() => ({
   deleteHomeworkAssignment: vi.fn((_req, res) => res.status(200).json({ success: true })),
   uploadHomeworkAssignmentResource: vi.fn((_req, res) => res.status(200).json({ success: true })),
   getMyHomeworkAssignmentById: vi.fn((_req, res) => res.status(200).json({ success: true })),
+  claimMyHomeworkChestReward: vi.fn((_req, res) => res.status(200).json({ success: true })),
   launchMyHomeworkTaskTracking: vi.fn((_req, res) => res.status(200).json({ success: true })),
   getHomeworkSubmissionById: vi.fn((_req, res) => res.status(200).json({ success: true })),
 }));

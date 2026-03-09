@@ -60,6 +60,59 @@ const QUESTION_TYPE_TO_TAXONOMY = {
   part3: "speaking_part_3",
 };
 
+const COGNITIVE_LABEL_BY_CODE = Object.freeze({
+  R1: "Retrieval",
+  R2: "Semantic Mapping",
+  R3: "Inference",
+  R4: "Discourse Tracking",
+  R5: "Scope Monitoring",
+  R6: "Exec Control",
+  L1: "Acoustic",
+  L2: "Segmentation",
+  L3: "Prediction",
+  L4: "Attention",
+  L5: "Working Memory",
+  W1: "Idea Generation",
+  W2: "Planning",
+  W3: "Lexical Retrieval",
+  W4: "Syntax Construction",
+  W5: "Monitoring Revision",
+  S1: "Real-time Planning",
+  S2: "Lexical Access",
+  S3: "Grammatical Encoding",
+  S4: "Phonological Encoding",
+  S5: "Monitoring",
+});
+
+const resolveCanonicalCognitiveLabel = ({ code, label }) => {
+  const normalizedCode = String(code || "").trim().toUpperCase();
+  if (normalizedCode && COGNITIVE_LABEL_BY_CODE[normalizedCode]) {
+    return COGNITIVE_LABEL_BY_CODE[normalizedCode];
+  }
+  if (normalizedCode.includes("LEXICAL") && normalizedCode.includes("RETRIEVAL")) return "Lexical Retrieval";
+  if (normalizedCode.includes("LEXICAL") && normalizedCode.includes("ACCESS")) return "Lexical Access";
+  if (normalizedCode.includes("MONITORING") && normalizedCode.includes("REVISION")) return "Monitoring Revision";
+  if (normalizedCode.includes("REAL") && normalizedCode.includes("PLANNING")) return "Real-time Planning";
+  if (normalizedCode.includes("RETRIEVAL")) return "Retrieval";
+  if (normalizedCode.includes("SEMANTIC")) return "Semantic Mapping";
+  if (normalizedCode.includes("INFERENCE")) return "Inference";
+  if (normalizedCode.includes("DISCOURSE")) return "Discourse Tracking";
+  if (normalizedCode.includes("SCOPE")) return "Scope Monitoring";
+  if (normalizedCode.includes("EXEC")) return "Exec Control";
+  if (normalizedCode.includes("ACOUSTIC") || normalizedCode.includes("SOUND")) return "Acoustic";
+  if (normalizedCode.includes("SEGMENT")) return "Segmentation";
+  if (normalizedCode.includes("PREDICT")) return "Prediction";
+  if (normalizedCode.includes("ATTENTION")) return "Attention";
+  if (normalizedCode.includes("WORKING") && normalizedCode.includes("MEMORY")) return "Working Memory";
+  if (normalizedCode.includes("IDEA")) return "Idea Generation";
+  if (normalizedCode.includes("PLANNING")) return "Planning";
+  if (normalizedCode.includes("SYNTAX")) return "Syntax Construction";
+  if (normalizedCode.includes("GRAMMATICAL")) return "Grammatical Encoding";
+  if (normalizedCode.includes("PHONO")) return "Phonological Encoding";
+  if (normalizedCode.includes("MONITORING")) return "Monitoring";
+  return String(label || "").trim() || "General";
+};
+
 const toTaxonomyQuestionType = (questionType = "unknown") => {
   const normalized = normalizeQuestionType(questionType);
   return QUESTION_TYPE_TO_TAXONOMY[normalized] || normalized;
@@ -325,7 +378,12 @@ export const listErrorCodesForSkillAndQuestionType = (skillDomain, questionType)
 export const resolveCognitiveSkill = ({ skillDomain, questionType, errorCode }) => {
   const skill = normalizeSkillDomain(skillDomain);
   const meta = getErrorCodeMeta(errorCode);
-  if (meta?.cognitiveSkill) return meta.cognitiveSkill;
+  if (meta?.cognitiveSkill || meta?.cognitiveCode) {
+    return resolveCanonicalCognitiveLabel({
+      code: meta?.cognitiveCode,
+      label: meta?.cognitiveSkill,
+    });
+  }
 
   if (!skill) return "General";
 
@@ -334,10 +392,18 @@ export const resolveCognitiveSkill = ({ skillDomain, questionType, errorCode }) 
   const codes = questionTypeMaps[skill]?.[taxonomyType] || [];
   if (codes.length > 0) {
     const firstMeta = getErrorCodeMeta(codes[0]);
-    if (firstMeta?.cognitiveSkill) return firstMeta.cognitiveSkill;
+    if (firstMeta?.cognitiveSkill || firstMeta?.cognitiveCode) {
+      return resolveCanonicalCognitiveLabel({
+        code: firstMeta?.cognitiveCode,
+        label: firstMeta?.cognitiveSkill,
+      });
+    }
   }
 
-  return coreDimensions[skill]?.cognitive?.[0]?.label || "General";
+  return resolveCanonicalCognitiveLabel({
+    code: coreDimensions[skill]?.cognitive?.[0]?.code,
+    label: coreDimensions[skill]?.cognitive?.[0]?.label,
+  });
 };
 
 const normalizeSecondaryCodes = ({ secondaryErrorCodes, primaryCode, skillDomain }) => {

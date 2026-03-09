@@ -720,6 +720,10 @@ export const api = {
     return request(`/api/homework/me${query ? `?${query}` : ''}`);
   },
   homeworkGetMyAssignmentById: (assignmentId) => request(`/api/homework/me/${assignmentId}`),
+  homeworkClaimChestReward: (assignmentId, chestKey) =>
+    request(`/api/homework/me/${assignmentId}/rewards/chests/${encodeURIComponent(String(chestKey || ''))}/claim`, {
+      method: 'POST',
+    }),
   homeworkLaunchTaskTracking: (assignmentId, taskId, body = {}) =>
     request(`/api/homework/me/${assignmentId}/tasks/${taskId}/tracking/launch`, {
       method: 'POST',

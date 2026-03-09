@@ -1,4 +1,5 @@
 import { normalizeTaskBlockType } from "@/features/homework/pages/myHomeworkStudentUtils";
+import { resolveInternalBlockData, resolveInternalSlotKeyFromBlock } from "./blocks/blockUtils";
 
 const FALLBACK_CHECKLIST = [
   "Đọc kỹ hướng dẫn và ghi chú các điểm quan trọng.",
@@ -101,8 +102,10 @@ export const buildMissionResources = ({ taskBlocks, taskId, getBlockKey }) => {
       }
 
       internalCounter.value += 1;
-      const refType = String(block?.data?.resource_ref_type || "").trim();
-      const refId = String(block?.data?.resource_ref_id || "").trim();
+      const internalData = resolveInternalBlockData(block);
+      const refType = String(internalData?.resource_ref_type || "").trim();
+      const refId = String(internalData?.resource_ref_id || "").trim();
+      const resourceSlotKey = resolveInternalSlotKeyFromBlock(block, blockIndex);
       return {
         key: blockKey,
         block,
@@ -111,7 +114,10 @@ export const buildMissionResources = ({ taskBlocks, taskId, getBlockKey }) => {
         title: refType ? `${refType} ${internalCounter.value}` : `Tài nguyên nội bộ ${internalCounter.value}`,
         subtitle: refId ? `ID: ${refId}` : "Mở nội dung nội bộ được gán cho bài học.",
         tag: "Bắt buộc",
-        actionLabel: "Open Resource",
+        actionLabel: "Launch Resource",
+        resourceRefType: refType,
+        resourceRefId: refId,
+        resourceSlotKey,
       };
     })
     .filter(Boolean);

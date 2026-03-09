@@ -127,6 +127,7 @@ const hasObjectiveAnswersPayload = (payload = {}) =>
 
 const PAGE_WRAPPER_CLASS = "min-h-screen bg-[#f5f7fb] text-slate-900";
 const PAGE_SHELL_CLASS = "mx-auto max-w-6xl px-4 py-8 md:px-6 lg:px-8";
+const MAX_UPLOAD_FILES = 10;
 
 export default function MyHomeworkLessonPage() {
   const { assignmentId, lessonId } = useParams();
@@ -536,6 +537,17 @@ export default function MyHomeworkLessonPage() {
       showNotification("Please stop recording before submitting", "error");
       return;
     }
+    const retainedImageItems = Array.isArray(currentDraft.existing_image_items)
+      ? currentDraft.existing_image_items
+      : [];
+    const retainedImageKeys = retainedImageItems
+      .map((item) => String(item?.storage_key || "").trim())
+      .filter(Boolean);
+    const nextUploadFiles = Array.isArray(currentDraft.image_files) ? currentDraft.image_files : [];
+    if (retainedImageKeys.length + nextUploadFiles.length > MAX_UPLOAD_FILES) {
+      showNotification(`Maximum ${MAX_UPLOAD_FILES} files are allowed`, "error");
+      return;
+    }
 
     updateDraft(selectedTaskId, { submitting: true });
 
@@ -555,7 +567,10 @@ export default function MyHomeworkLessonPage() {
         formData.append("objective_answers", JSON.stringify(objectiveAnswers));
       }
 
-      (currentDraft.image_files || []).forEach((file) => {
+      if (hasImageInput) {
+        formData.append("retain_image_keys", JSON.stringify(retainedImageKeys));
+      }
+      nextUploadFiles.forEach((file) => {
         formData.append("images", file);
       });
       if (currentDraft.audio_file) {
@@ -601,28 +616,14 @@ export default function MyHomeworkLessonPage() {
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
-  const shouldOpenLaunchInSameTab = () => {
-    if (typeof window === "undefined") return true;
-    const hasMatchMedia = typeof window.matchMedia === "function";
-    const isNarrowViewport = hasMatchMedia
-      ? window.matchMedia("(max-width: 1024px)").matches
-      : false;
-    const userAgent = String(window.navigator?.userAgent || "");
-    const isMobileUserAgent = /android|iphone|ipad|ipod|mobile/i.test(userAgent);
-    return isNarrowViewport || isMobileUserAgent;
-  };
-
   const openInternalLaunchUrl = (launchUrl) => {
     const normalizedUrl = String(launchUrl || "").trim();
     if (!normalizedUrl) return;
 
-    if (shouldOpenLaunchInSameTab()) {
-      window.location.assign(normalizedUrl);
-      return;
-    }
+    if (typeof window === "undefined") return;
 
-    const popup = window.open(normalizedUrl, "_blank", "noopener");
-    if (!popup) {
+    const sameTabWindow = window.open(normalizedUrl, "_self", "noopener");
+    if (!sameTabWindow) {
       window.location.assign(normalizedUrl);
     }
   };
@@ -741,6 +742,38 @@ export default function MyHomeworkLessonPage() {
     taskId: selectedTaskId,
     getBlockKey,
   });
+  const missionResourcesWithState = missionResources.map((resource) => {
+    if (resource?.blockType !== "internal") return resource;
+
+    const block = resource?.block && typeof resource.block === "object" ? resource.block : {};
+    const blockData =
+      block?.data && typeof block.data === "object" && !Array.isArray(block.data)
+        ? block.data
+        : {};
+    const resourceRefType = String(resource?.resourceRefType || blockData?.resource_ref_type || "").trim();
+    const resourceRefId = String(resource?.resourceRefId || blockData?.resource_ref_id || "").trim();
+    const resourceBlockId = String(resolveTaskBlockId(block) || blockData?.block_id || "").trim();
+    const resourceSlotKey =
+      String(resource?.resourceSlotKey || blockData?.resource_slot_key || "").trim()
+      || (resourceBlockId ? `block:${resourceBlockId}` : "");
+    const launchScopeKey = resourceSlotKey ? `${selectedTaskId}:${resourceSlotKey}` : "";
+    const hasInternalConfig = Boolean(resourceRefType && resourceRefId && resourceSlotKey);
+    const isLaunching = Boolean(launchScopeKey && launchingScopeKeys?.[launchScopeKey]);
+
+    return {
+      ...resource,
+      block: {
+        ...block,
+        resourceRefType,
+        resourceRefId,
+        resourceBlockId,
+        resourceSlotKey,
+        launchScopeKey,
+      },
+      actionLabel: isLaunching ? "Launching..." : "Launch Resource",
+      disabled: !canAccessPage || isPreviewMode || !hasInternalConfig || isLaunching,
+    };
+  });
 
   const handleOpenMissionResource = (resource) => {
     if (!resource) return;
@@ -764,7 +797,7 @@ export default function MyHomeworkLessonPage() {
             assignmentTitle={assignment?.title || "Assignment"}
             lessonTitle={selectedTask?.title || "Lesson"}
             statusLabel={lessonStatusLabel}
-            resourceCount={missionResources.length}
+            resourceCount={missionResourcesWithState.length}
             onBack={() => navigate(lessonListPath)}
           />
 
@@ -796,7 +829,7 @@ export default function MyHomeworkLessonPage() {
                   lessonTitle={selectedTask?.title || "Lesson"}
                   statusLabel={lessonStatusLabel}
                   checklistItems={checklistItems}
-                  resources={missionResources}
+                  resources={missionResourcesWithState}
                   onOpenResource={handleOpenMissionResource}
                   disabled={!canInteract}
                 />
@@ -847,6 +880,7 @@ export default function MyHomeworkLessonPage() {
                   textAnswerPlaceholder={textAnswerPlaceholder}
                   textAnswerWordCount={textAnswerWordCount}
                   uploadInputId={uploadInputId}
+                  maxMediaFiles={MAX_UPLOAD_FILES}
                   onDraftChange={(patch) => updateDraft(selectedTaskId, patch)}
                   onStartRecord={() => void startAudioRecording(selectedTaskId)}
                   onStopRecord={() => stopAudioRecording(selectedTaskId)}

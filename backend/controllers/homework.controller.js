@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import HomeworkGroup from "../models/HomeworkGroup.model.js";
 import MonthlyAssignment from "../models/MonthlyAssignment.model.js";
 import MonthlyAssignmentSubmission from "../models/MonthlyAssignmentSubmission.model.js";
+import HomeworkRewardClaim from "../models/HomeworkRewardClaim.model.js";
 import Passage from "../models/Passage.model.js";
 import Section from "../models/Section.model.js";
 import Speaking from "../models/Speaking.model.js";
@@ -33,6 +34,7 @@ import {
   trackHomeworkActivityOpen,
 } from "../services/homeworkTrackingBridge.service.js";
 import { generateHomeworkQuizBlock } from "../services/homeworkGen.service.js";
+import { addXP } from "../services/gamification.service.js";
 import { parsePagination, buildPaginationMeta } from "../utils/pagination.js";
 import { handleControllerError, sendControllerError } from "../utils/controllerError.js";
 import { STUDENT_ROLE_VALUES } from "../utils/role.utils.js";
@@ -49,6 +51,9 @@ const HOMEWORK_IMAGE_MAX_BYTES = getHomeworkImageUploadLimitBytes();
 const HOMEWORK_IMAGE_MAX_FILES = getHomeworkImageMaxFiles();
 const HOMEWORK_AUDIO_MAX_BYTES = getHomeworkAudioUploadLimitBytes();
 const HOMEWORK_SUBMISSION_MAX_BYTES = Math.max(HOMEWORK_IMAGE_MAX_BYTES, HOMEWORK_AUDIO_MAX_BYTES);
+const HOMEWORK_CHEST_INTERVAL = 3;
+const HOMEWORK_LESSON_XP = 100;
+const HOMEWORK_CHEST_XP = 200;
 
 const normalizeOptionalString = (value) => {
   if (value === undefined || value === null) return null;
@@ -72,6 +77,42 @@ const parseJsonObjectSafely = (value) => {
     }
   }
   return toPlainObject(value);
+};
+
+const normalizeStringArrayPayload = (value) => {
+  if (value === undefined || value === null) return [];
+
+  const rawItems = [];
+  if (Array.isArray(value)) {
+    rawItems.push(...value);
+  } else if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        rawItems.push(...parsed);
+      } else if (typeof parsed === "string") {
+        rawItems.push(parsed);
+      } else {
+        rawItems.push(trimmed);
+      }
+    } catch {
+      rawItems.push(trimmed);
+    }
+  } else {
+    rawItems.push(value);
+  }
+
+  const unique = new Set();
+  const normalized = [];
+  rawItems.forEach((item) => {
+    const key = normalizeOptionalString(item);
+    if (!key || unique.has(key)) return;
+    unique.add(key);
+    normalized.push(key);
+  });
+  return normalized;
 };
 
 const normalizeObjectiveAnswersPayload = (value) => {
@@ -1572,7 +1613,27 @@ const resolveTaskProgressUnits = ({ task = {}, submission = null } = {}) => {
   };
 };
 
-const mapAssignmentForStudent = (assignment = {}, submissions = []) => {
+const toIsoDateOrNull = (value) => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString();
+};
+
+const buildAssignmentChestRewards = (tasks = []) => {
+  const taskCount = Array.isArray(tasks) ? tasks.length : 0;
+  const chestCount = Math.floor(taskCount / HOMEWORK_CHEST_INTERVAL);
+  return Array.from({ length: chestCount }, (_, index) => {
+    const requiredLessons = (index + 1) * HOMEWORK_CHEST_INTERVAL;
+    return {
+      chest_key: `chest-${requiredLessons}`,
+      required_lessons: requiredLessons,
+      xp_amount: HOMEWORK_CHEST_XP,
+    };
+  });
+};
+
+const mapAssignmentForStudent = (assignment = {}, submissions = [], rewardClaims = []) => {
   const mappedAssignment = mapAssignmentForResponse(assignment, { forStudent: true });
   const tasks = Array.isArray(mappedAssignment.tasks) ? mappedAssignment.tasks : [];
   const submissionByTaskId = new Map();
@@ -1585,6 +1646,7 @@ const mapAssignmentForStudent = (assignment = {}, submissions = []) => {
   let totalUnits = 0;
   let submittedUnits = 0;
   let gradedUnits = 0;
+  let completedLessons = 0;
   tasks.forEach((task) => {
     const taskId = String(task?._id || "");
     const submission = submissionByTaskId.get(taskId) || null;
@@ -1593,7 +1655,28 @@ const mapAssignmentForStudent = (assignment = {}, submissions = []) => {
     totalUnits += taskTotal;
     submittedUnits += completedUnits;
     gradedUnits += taskGraded;
+    if (isSubmittedHomeworkStatus(submission?.status)) completedLessons += 1;
   });
+
+  const chestRewards = buildAssignmentChestRewards(tasks);
+  const claimByChestKey = new Map();
+  (Array.isArray(rewardClaims) ? rewardClaims : []).forEach((claim) => {
+    const chestKey = String(claim?.chest_key || "").trim();
+    if (!chestKey) return;
+    claimByChestKey.set(chestKey, claim);
+  });
+  const chestNodes = chestRewards.map((chest) => {
+    const claim = claimByChestKey.get(chest.chest_key) || null;
+    return {
+      chest_key: chest.chest_key,
+      required_lessons: chest.required_lessons,
+      xp_amount: chest.xp_amount,
+      unlocked: completedLessons >= chest.required_lessons,
+      claimed: Boolean(claim),
+      claimed_at: toIsoDateOrNull(claim?.claimed_at),
+    };
+  });
+  const claimedChestKeys = chestNodes.filter((node) => node.claimed).map((node) => node.chest_key);
 
   return {
     ...mappedAssignment,
@@ -1602,6 +1685,17 @@ const mapAssignmentForStudent = (assignment = {}, submissions = []) => {
       total_tasks: totalUnits,
       graded_tasks: gradedUnits,
       pending_tasks: Math.max(0, totalUnits - submittedUnits),
+    },
+    reward_path: {
+      lesson_xp: HOMEWORK_LESSON_XP,
+      chest_xp: HOMEWORK_CHEST_XP,
+      chest_interval: HOMEWORK_CHEST_INTERVAL,
+      completed_lessons: completedLessons,
+      total_lessons: tasks.length,
+      chest_nodes: chestNodes,
+    },
+    reward_claims: {
+      claimed_chest_keys: claimedChestKeys,
     },
   };
 };
@@ -2415,6 +2509,26 @@ export const uploadHomeworkAssignmentResource = async (req, res) => {
   }
 };
 
+const groupRewardClaimsByAssignment = (rewardClaims = []) => {
+  const claimsByAssignment = new Map();
+  (Array.isArray(rewardClaims) ? rewardClaims : []).forEach((claim) => {
+    const assignmentKey = String(claim?.assignment_id || "").trim();
+    if (!assignmentKey) return;
+    const current = claimsByAssignment.get(assignmentKey) || [];
+    claimsByAssignment.set(assignmentKey, [...current, claim]);
+  });
+  return claimsByAssignment;
+};
+
+const loadRewardClaimsForStudentAssignments = async ({ assignmentIds = [], studentId } = {}) => {
+  if (!Array.isArray(assignmentIds) || assignmentIds.length === 0) return new Map();
+  const claims = await HomeworkRewardClaim.find({
+    assignment_id: { $in: assignmentIds },
+    student_id: studentId,
+  }).lean();
+  return groupRewardClaimsByAssignment(claims);
+};
+
 export const getMyHomeworkAssignments = async (req, res) => {
   try {
     const { page, limit, skip } = parsePagination(req.query, { defaultLimit: 20, maxLimit: 50 });
@@ -2452,10 +2566,16 @@ export const getMyHomeworkAssignments = async (req, res) => {
     }
 
     const assignmentIds = assignments.map((assignment) => assignment._id);
-    const submissions = await MonthlyAssignmentSubmission.find({
-      assignment_id: { $in: assignmentIds },
-      student_id: req.user.userId,
-    }).lean();
+    const [submissions, rewardClaimsByAssignment] = await Promise.all([
+      MonthlyAssignmentSubmission.find({
+        assignment_id: { $in: assignmentIds },
+        student_id: req.user.userId,
+      }).lean(),
+      loadRewardClaimsForStudentAssignments({
+        assignmentIds,
+        studentId: req.user.userId,
+      }),
+    ]);
 
     const submissionsByAssignment = new Map();
     submissions.forEach((submission) => {
@@ -2465,7 +2585,11 @@ export const getMyHomeworkAssignments = async (req, res) => {
     });
 
     const enriched = assignments.map((assignment) =>
-      mapAssignmentForStudent(assignment, submissionsByAssignment.get(String(assignment._id)) || []),
+      mapAssignmentForStudent(
+        assignment,
+        submissionsByAssignment.get(String(assignment._id)) || [],
+        rewardClaimsByAssignment.get(String(assignment._id)) || [],
+      ),
     );
 
     return res.status(200).json({ success: true, data: enriched, pagination: buildPaginationMeta({ page, limit, totalItems }) });
@@ -2493,12 +2617,18 @@ export const getMyHomeworkAssignmentById = async (req, res) => {
       return sendControllerError(req, res, { statusCode: 403, message: "Forbidden" });
     }
 
-    const submissions = await MonthlyAssignmentSubmission.find({
-      assignment_id: assignment._id,
-      student_id: req.user.userId,
-    }).lean();
+    const [submissions, rewardClaims] = await Promise.all([
+      MonthlyAssignmentSubmission.find({
+        assignment_id: assignment._id,
+        student_id: req.user.userId,
+      }).lean(),
+      HomeworkRewardClaim.find({
+        assignment_id: assignment._id,
+        student_id: req.user.userId,
+      }).lean(),
+    ]);
 
-    const mappedAssignment = mapAssignmentForStudent(assignment, submissions);
+    const mappedAssignment = mapAssignmentForStudent(assignment, submissions, rewardClaims);
     const visibleTaskIds = new Set(
       (Array.isArray(mappedAssignment.tasks) ? mappedAssignment.tasks : []).map((task) =>
         String(task?._id || ""),
@@ -2513,6 +2643,125 @@ export const getMyHomeworkAssignmentById = async (req, res) => {
       data: {
         ...mappedAssignment,
         submissions: visibleSubmissions.map(mapSubmissionToResponse),
+      },
+    });
+  } catch (error) {
+    return handleControllerError(req, res, error);
+  }
+};
+
+export const claimMyHomeworkChestReward = async (req, res) => {
+  try {
+    const assignmentId = req.params.assignmentId;
+    const chestKey = String(req.params.chestKey || "").trim();
+    if (!mongoose.Types.ObjectId.isValid(assignmentId)) {
+      return sendControllerError(req, res, { statusCode: 400, message: "Invalid assignment id" });
+    }
+    if (!chestKey) {
+      return sendControllerError(req, res, { statusCode: 400, message: "chestKey is required" });
+    }
+
+    const assignment = await MonthlyAssignment.findById(assignmentId)
+      .populate("target_group_ids", "name level_label")
+      .lean();
+    if (!assignment) {
+      return sendControllerError(req, res, { statusCode: 404, message: "Assignment not found" });
+    }
+
+    const groupIds = await getStudentGroupIds(req.user.userId);
+    if (!isAssignmentVisibleToStudent(assignment, groupIds)) {
+      return sendControllerError(req, res, { statusCode: 403, message: "Forbidden" });
+    }
+
+    const [submissions, rewardClaims] = await Promise.all([
+      MonthlyAssignmentSubmission.find({
+        assignment_id: assignment._id,
+        student_id: req.user.userId,
+      }).lean(),
+      HomeworkRewardClaim.find({
+        assignment_id: assignment._id,
+        student_id: req.user.userId,
+      }).lean(),
+    ]);
+
+    const mappedAssignment = mapAssignmentForStudent(assignment, submissions, rewardClaims);
+    const chestNodes = Array.isArray(mappedAssignment?.reward_path?.chest_nodes)
+      ? mappedAssignment.reward_path.chest_nodes
+      : [];
+    const targetChest = chestNodes.find((node) => String(node?.chest_key || "").trim() === chestKey);
+    if (!targetChest) {
+      return sendControllerError(req, res, { statusCode: 404, message: "Chest reward not found" });
+    }
+    if (!targetChest.unlocked) {
+      return sendControllerError(req, res, {
+        statusCode: 403,
+        message: "Chest is still locked",
+      });
+    }
+
+    const existingClaim = rewardClaims.find(
+      (claim) => String(claim?.chest_key || "").trim() === chestKey,
+    );
+    if (existingClaim) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          chest_key: chestKey,
+          claimed: true,
+          xp_gained: 0,
+          xp_result: null,
+          claimed_at: toIsoDateOrNull(existingClaim?.claimed_at),
+        },
+      });
+    }
+
+    let createdClaim = null;
+    try {
+      createdClaim = await HomeworkRewardClaim.create({
+        assignment_id: assignment._id,
+        student_id: req.user.userId,
+        chest_key: chestKey,
+        xp_amount: HOMEWORK_CHEST_XP,
+        claimed_at: new Date(),
+      });
+    } catch (claimError) {
+      if (Number(claimError?.code) === 11000) {
+        const duplicated = await HomeworkRewardClaim.findOne({
+          assignment_id: assignment._id,
+          student_id: req.user.userId,
+          chest_key: chestKey,
+        }).lean();
+        return res.status(200).json({
+          success: true,
+          data: {
+            chest_key: chestKey,
+            claimed: true,
+            xp_gained: 0,
+            xp_result: null,
+            claimed_at: toIsoDateOrNull(duplicated?.claimed_at),
+          },
+        });
+      }
+      throw claimError;
+    }
+
+    const xpResult = await addXP(req.user.userId, HOMEWORK_CHEST_XP, "homework_chest");
+    if (!xpResult) {
+      await HomeworkRewardClaim.deleteOne({ _id: createdClaim._id });
+      return sendControllerError(req, res, {
+        statusCode: 500,
+        message: "Failed to grant chest XP",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        chest_key: chestKey,
+        claimed: true,
+        xp_gained: Number(xpResult?.xpGained || HOMEWORK_CHEST_XP),
+        xp_result: xpResult,
+        claimed_at: toIsoDateOrNull(createdClaim?.claimed_at),
       },
     });
   } catch (error) {
@@ -2776,11 +3025,14 @@ export const upsertMyHomeworkTaskSubmission = async (req, res) => {
     const incomingTextAnswer = normalizeOptionalString(req.body?.text_answer) || "";
     const hasObjectiveAnswersField = Object.prototype.hasOwnProperty.call(req.body || {}, "objective_answers");
     const incomingObjectiveAnswers = normalizeObjectiveAnswersPayload(req.body?.objective_answers);
+    const hasRetainImageKeysField = Object.prototype.hasOwnProperty.call(req.body || {}, "retain_image_keys");
+    const incomingRetainImageKeys = normalizeStringArrayPayload(req.body?.retain_image_keys);
 
     let nextTextAnswer = hasTextAnswerField
       ? incomingTextAnswer
       : normalizeOptionalString(existingSubmission?.text_answer) || "";
-    let nextImageItems = Array.isArray(existingSubmission?.image_items) ? existingSubmission.image_items : [];
+    const existingImageItems = Array.isArray(existingSubmission?.image_items) ? existingSubmission.image_items : [];
+    let nextImageItems = existingImageItems;
     let nextAudioItem = existingSubmission?.audio_item || null;
     const existingMeta = toPlainObject(existingSubmission?.meta);
     const existingObjectiveAnswers = hasObjectiveAnswersPayload(existingMeta.objective_answers)
@@ -2803,6 +3055,20 @@ export const upsertMyHomeworkTaskSubmission = async (req, res) => {
     const keysToDeleteAfterSuccess = [];
 
     try {
+      if (hasRetainImageKeysField) {
+        const retainedKeySet = new Set(incomingRetainImageKeys);
+        const removedKeys = existingImageItems
+          .map((item) => normalizeOptionalString(item?.storage_key))
+          .filter((key) => key && !retainedKeySet.has(key));
+        keysToDeleteAfterSuccess.push(...removedKeys);
+
+        nextImageItems = existingImageItems.filter((item) => {
+          const key = normalizeOptionalString(item?.storage_key);
+          if (!key) return true;
+          return retainedKeySet.has(key);
+        });
+      }
+
       if (imageFiles.length > 0) {
         const uploadedImageItems = [];
         for (const imageFile of imageFiles) {
@@ -2827,8 +3093,15 @@ export const upsertMyHomeworkTaskSubmission = async (req, res) => {
           });
         }
 
-        keysToDeleteAfterSuccess.push(...collectSubmissionStorageKeys({ image_items: nextImageItems }));
-        nextImageItems = uploadedImageItems;
+        nextImageItems = [...nextImageItems, ...uploadedImageItems];
+      }
+
+      if (nextImageItems.length > HOMEWORK_IMAGE_MAX_FILES) {
+        return sendControllerError(req, res, {
+          statusCode: 413,
+          code: "PAYLOAD_TOO_LARGE",
+          message: `Maximum ${HOMEWORK_IMAGE_MAX_FILES} files are allowed`,
+        });
       }
 
       if (audioFile) {

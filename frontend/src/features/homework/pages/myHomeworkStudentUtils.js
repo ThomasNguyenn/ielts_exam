@@ -1,5 +1,6 @@
 export const createDraft = (submission = {}) => ({
   text_answer: submission?.text_answer || "",
+  existing_image_items: Array.isArray(submission?.image_items) ? submission.image_items : [],
   image_files: [],
   audio_file: null,
   audio_preview_url: "",

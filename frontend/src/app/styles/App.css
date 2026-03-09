@@ -329,3 +329,8 @@ a {
   max-width: none !important;
   width: 100%;
 }
+
+.layout-main--homework-detail {
+  max-width: none !important;
+  width: 100%;
+}

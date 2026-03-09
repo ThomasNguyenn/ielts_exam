@@ -1,10 +1,27 @@
-﻿import { IconCloud } from "@tabler/icons-react";
+import { IconCloud } from "@tabler/icons-react";
+import { Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { resolveSubmissionStatusText } from "./lessonViewModel";
+
+const resolveExistingItemName = (item = {}, index = 0) => {
+  const storageKey = String(item?.storage_key || "").trim();
+  if (storageKey) {
+    const segments = storageKey.split("/").filter(Boolean);
+    if (segments.length > 0) return segments[segments.length - 1];
+  }
+  return `uploaded-${index + 1}`;
+};
+
+const isVideoLikeItem = (item = {}) => {
+  const mime = String(item?.mime || "").trim().toLowerCase();
+  const url = String(item?.url || "").trim().toLowerCase();
+  if (mime.startsWith("video/")) return true;
+  return /\.(mp4|webm|mov|m4v|ogg|ogv)(\?|#|$)/i.test(url);
+};
 
 export default function LessonSubmissionPanel({
   hasTextInput,
@@ -20,16 +37,19 @@ export default function LessonSubmissionPanel({
   textAnswerPlaceholder,
   textAnswerWordCount,
   uploadInputId,
+  maxMediaFiles = 10,
   onDraftChange,
   onStartRecord,
   onStopRecord,
   onClearAudio,
   onSubmit,
 }) {
+  const existingImageItems = Array.isArray(draft?.existing_image_items) ? draft.existing_image_items : [];
   const selectedImageFiles = Array.isArray(draft?.image_files) ? draft.image_files : [];
-  const selectedImageFileNames = selectedImageFiles
-    .map((file) => String(file?.name || "").trim())
-    .filter(Boolean);
+  const safeMaxMediaFiles = Math.max(1, Number(maxMediaFiles) || 10);
+  const totalMediaCount = existingImageItems.length + selectedImageFiles.length;
+  const remainingSlots = Math.max(0, safeMaxMediaFiles - existingImageItems.length);
+  const hasReachedLimit = totalMediaCount >= safeMaxMediaFiles;
 
   const handleSelectMediaFiles = (event) => {
     const nextFiles = Array.from(event?.target?.files || []);
@@ -50,8 +70,20 @@ export default function LessonSubmissionPanel({
       uniqueFiles.push(file);
     });
 
-    onDraftChange?.({ image_files: uniqueFiles });
+    onDraftChange?.({ image_files: uniqueFiles.slice(0, remainingSlots) });
     if (event?.target) event.target.value = "";
+  };
+
+  const handleRemoveExistingItem = (targetIndex) => {
+    onDraftChange?.({
+      existing_image_items: existingImageItems.filter((_, index) => index !== targetIndex),
+    });
+  };
+
+  const handleRemoveSelectedFile = (targetIndex) => {
+    onDraftChange?.({
+      image_files: selectedImageFiles.filter((_, index) => index !== targetIndex),
+    });
   };
 
   return (
@@ -90,7 +122,7 @@ export default function LessonSubmissionPanel({
             multiple
             className="hidden"
             onChange={handleSelectMediaFiles}
-            disabled={!canInteract}
+            disabled={!canInteract || hasReachedLimit}
           />
 
           <CardHeader className="space-y-3 pb-3">
@@ -98,10 +130,10 @@ export default function LessonSubmissionPanel({
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge
-                    variant={selectedImageFiles.length ? "default" : "outline"}
+                    variant={totalMediaCount ? "default" : "outline"}
                     className="rounded-full px-3 py-1"
                   >
-                    {selectedImageFiles.length ? `${selectedImageFiles.length} file đã chọn` : "Chưa chọn file"}
+                    {totalMediaCount ? `${totalMediaCount}/${safeMaxMediaFiles} file` : "Chưa chọn file"}
                   </Badge>
                 </div>
                 <CardTitle className="text-xl font-black">Nộp ảnh / Video bài làm</CardTitle>
@@ -109,7 +141,7 @@ export default function LessonSubmissionPanel({
 
               {submission?.image_items?.length ? (
                 <Badge variant="outline" className="rounded-full px-3 py-1">
-                  Hiện tại: {submission.image_items.length} file
+                  Đã nộp: {submission.image_items.length} file
                 </Badge>
               ) : null}
             </div>
@@ -118,7 +150,7 @@ export default function LessonSubmissionPanel({
           <CardContent className="space-y-4">
             <Card
               className={`rounded-2xl border-dashed shadow-none transition-colors ${
-                selectedImageFiles.length ? "border-primary/40 bg-primary/[0.04]" : "bg-muted/40"
+                totalMediaCount ? "border-primary/40 bg-primary/[0.04]" : "bg-muted/40"
               }`}
             >
               <CardContent className="space-y-3 p-4">
@@ -126,43 +158,104 @@ export default function LessonSubmissionPanel({
                   asChild
                   variant="outline"
                   className="h-11 w-full rounded-2xl"
-                  disabled={!canInteract}
+                  disabled={!canInteract || hasReachedLimit}
                 >
                   <label
-                    htmlFor={canInteract ? uploadInputId : undefined}
-                    className={canInteract ? "cursor-pointer" : "pointer-events-none cursor-not-allowed"}
+                    htmlFor={canInteract && !hasReachedLimit ? uploadInputId : undefined}
+                    className={
+                      canInteract && !hasReachedLimit
+                        ? "cursor-pointer"
+                        : "pointer-events-none cursor-not-allowed"
+                    }
                   >
                     <IconCloud className="mr-2 h-4 w-4" />
-                    {selectedImageFiles.length ? "Thêm file" : "Upload"}
+                    {hasReachedLimit ? `Đạt giới hạn ${safeMaxMediaFiles} file` : selectedImageFiles.length ? "Thêm file" : "Upload"}
                   </label>
                 </Button>
+                <p className="text-xs text-slate-500">
+                  Tối đa {safeMaxMediaFiles} file. Còn lại {Math.max(0, safeMaxMediaFiles - totalMediaCount)} slot.
+                </p>
               </CardContent>
             </Card>
 
-            {selectedImageFileNames.length ? (
+            {existingImageItems.length > 0 ? (
               <div className="space-y-2">
-                <p className="text-sm font-medium text-foreground">File đã chọn</p>
-                <div className="flex flex-wrap gap-2">
-                  {selectedImageFileNames.slice(0, 6).map((fileName, index) => (
-                    <Badge
-                      key={`${fileName}-${index}`}
-                      variant="outline"
-                      className="max-w-full truncate rounded-full px-3 py-1"
-                      title={fileName}
-                    >
-                      {fileName}
-                    </Badge>
-                  ))}
-                  {selectedImageFileNames.length > 6 ? (
-                    <Badge variant="outline" className="rounded-full px-3 py-1">
-                      +{selectedImageFileNames.length - 6} file
-                    </Badge>
-                  ) : null}
+                <p className="text-sm font-medium text-foreground">File đã nộp</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {existingImageItems.map((item, index) => {
+                    const itemUrl = String(item?.url || "").trim();
+                    const itemName = resolveExistingItemName(item, index);
+                    const isVideo = isVideoLikeItem(item);
+                    return (
+                      <Card key={`${String(item?.storage_key || itemUrl || "")}-${index}`} className="overflow-hidden border-slate-200">
+                        <CardContent className="space-y-2 p-3">
+                          {itemUrl ? (
+                            isVideo ? (
+                              <video controls className="h-40 w-full rounded-lg bg-slate-100 object-contain" src={itemUrl} />
+                            ) : (
+                              <img src={itemUrl} alt={itemName} className="h-40 w-full rounded-lg bg-slate-100 object-contain" />
+                            )
+                          ) : (
+                            <div className="flex h-40 items-center justify-center rounded-lg bg-slate-100 text-xs text-slate-500">
+                              File không có preview
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="min-w-0 flex-1 truncate text-xs text-slate-600" title={itemName}>
+                              {itemName}
+                            </p>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 text-slate-500 hover:text-red-600"
+                              onClick={() => handleRemoveExistingItem(index)}
+                              disabled={!canInteract}
+                              aria-label={`Remove uploaded file ${index + 1}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               </div>
-            ) : (
+            ) : null}
+
+            {selectedImageFiles.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-foreground">File mới sẽ upload khi submit</p>
+                <div className="space-y-2">
+                  {selectedImageFiles.map((file, index) => {
+                    const fileName = String(file?.name || "").trim() || `new-file-${index + 1}`;
+                    return (
+                      <div key={`${fileName}-${index}`} className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 px-3 py-2">
+                        <p className="min-w-0 flex-1 truncate text-sm text-slate-700" title={fileName}>
+                          {fileName}
+                        </p>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 text-slate-500 hover:text-red-600"
+                          onClick={() => handleRemoveSelectedFile(index)}
+                          disabled={!canInteract}
+                          aria-label={`Remove selected file ${index + 1}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+
+            {totalMediaCount === 0 ? (
               <p className="text-sm text-muted-foreground">Chưa có file nào được chọn.</p>
-            )}
+            ) : null}
           </CardContent>
         </Card>
       ) : null}
@@ -231,5 +324,3 @@ export default function LessonSubmissionPanel({
     </div>
   );
 }
-
-

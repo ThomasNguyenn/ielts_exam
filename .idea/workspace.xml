@@ -4,7 +4,31 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b588cd8d-9883-4ae9-b90e-a4650d93adc1" name="Changes" comment="" />
+    <list default="true" id="b588cd8d-9883-4ae9-b90e-a4650d93adc1" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/controllers/homework.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/controllers/homework.controller.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/routes/homework.route.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/routes/homework.route.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/services/objectStorage.service.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/services/objectStorage.service.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/services/speakingFastScore.service.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/services/speakingFastScore.service.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/services/taxonomy.registry.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/services/taxonomy.registry.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/tests/controllers/analytics.controller.ai-insights.cache.test.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/tests/controllers/analytics.controller.ai-insights.cache.test.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/tests/routes/homework.responseCache.integration.test.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/tests/routes/homework.responseCache.integration.test.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/tests/routes/homework.routes.test.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/tests/routes/homework.routes.test.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/utils/aiClient.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/utils/aiClient.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/app/styles/App.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/app/styles/App.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/homework/components/lesson/LessonSubmissionPanel.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/homework/components/lesson/LessonSubmissionPanel.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/homework/components/lesson/LessonTaskBlocks.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/homework/components/lesson/LessonTaskBlocks.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/homework/components/lesson/blocks/GapfillBlock.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/homework/components/lesson/blocks/GapfillBlock.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/homework/components/lesson/blocks/PassageBlock.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/homework/components/lesson/blocks/PassageBlock.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/homework/components/lesson/lessonViewModel.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/homework/components/lesson/lessonViewModel.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/homework/pages/MyHomeworkDetailPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/homework/pages/MyHomeworkDetailPage.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/homework/pages/MyHomeworkLessonPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/homework/pages/MyHomeworkLessonPage.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/homework/pages/myHomeworkStudentUtils.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/homework/pages/myHomeworkStudentUtils.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/shared/api/client.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/shared/api/client.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/shared/components/Layout.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/shared/components/Layout.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/tests/my-homework-detail.blocks-order.vitest.test.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/tests/my-homework-detail.blocks-order.vitest.test.jsx" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
