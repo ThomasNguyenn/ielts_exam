@@ -34,7 +34,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { loadStaffDashboardData } from './homeworkProgress.data';
+import { loadStaffDashboardData } from '../data/homeworkProgress.data';
 
 const AVATAR_TONES = [
   'bg-blue-100 text-blue-700',

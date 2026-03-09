@@ -1,7 +1,7 @@
 import React from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import QuestionGroup from "../src/features/admin/pages/QuestionGroup.jsx";
+import QuestionGroup from "../src/features/admin/components/QuestionGroup.jsx";
 
 const baseProps = {
   gi: 0,

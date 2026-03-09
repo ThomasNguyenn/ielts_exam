@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/table';
 
 const ITEMS_PER_PAGE = 6;
-const AddEditPassage = lazy(() => import('./AddEditPassage'));
+const AddEditPassage = lazy(() => import('../components/AddEditPassage'));
 
 const formatDate = (value) => {
   if (!value) return '-';
@@ -53,7 +53,7 @@ export default function ManagePassagesSinglePage() {
     isOpen: false,
     title: '',
     message: '',
-    onConfirm: () => {},
+    onConfirm: () => { },
     isDanger: false,
   });
 

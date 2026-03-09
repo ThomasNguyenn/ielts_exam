@@ -482,6 +482,9 @@ export default function HomeworkSubmissionGradePage() {
   const scoreSnapshot = toNumericOrNull(submission?.score_snapshot);
   const internalScore = toNumericOrNull(submission?.internal_score);
   const internalScoreSource = scoreSnapshot !== null ? "snapshot" : internalScore !== null ? "submission" : "none";
+  const internalItems = Array.isArray(payload?.internal_items) ? payload.internal_items : [];
+  const completedInternalCount = internalItems.filter((item) => String(item?.status || "").trim() === "completed").length;
+  const hasInternalItems = internalItems.length > 0;
   const isInternalTask =
     String(task?.resource_mode || "").trim().toLowerCase() === "internal"
     || promptBlocks.some((block) => normalizeBlockType(block?.type) === "internal");
@@ -596,22 +599,65 @@ export default function HomeworkSubmissionGradePage() {
                   <CardHeader>
                     <CardTitle className="text-base">Internal Test Result</CardTitle>
                     <CardDescription>
-                      {payload?.test_title || "Snapshot-first fallback: score_snapshot - score"}
+                      {hasInternalItems
+                        ? `${completedInternalCount}/${internalItems.length} internal slot completed`
+                        : (payload?.test_title || "Snapshot-first fallback: score_snapshot - score")}
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-2">
-                    <p className="text-sm text-foreground">
-                      {payload?.ielts_band ? (
-                        <>
-                          IELTS Band: <span className="font-semibold text-primary">{payload.ielts_band}</span>
-                          <span className="ml-2 text-xs text-muted-foreground">({formatScoreDisplay(internalScore)})</span>
-                        </>
-                      ) : (
-                        <>
-                          Score: <span className="font-semibold">{formatScoreDisplay(internalScore)}</span>
-                        </>
-                      )}
-                    </p>
+                  <CardContent className="space-y-3">
+                    {hasInternalItems ? (
+                      <div className="space-y-2">
+                        {internalItems.map((item, index) => {
+                          const itemScore = toNumericOrNull(item?.score_snapshot);
+                          const itemBand = String(item?.ielts_band || "").trim();
+                          const itemStatus = String(item?.status || "").trim() || "not_started";
+                          return (
+                            <div key={`internal-item-${String(item?.slot_key || index)}`} className="rounded-md border p-3">
+                              <p className="text-sm font-medium text-foreground">
+                                {String(item?.test_title || "").trim()
+                                  || `${String(item?.resource_ref_type || "content")} - ${String(item?.resource_ref_id || "--")}`}
+                              </p>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Slot: {String(item?.slot_key || "--")} | Status: {itemStatus}
+                              </p>
+                              {item?.completed_at ? (
+                                <p className="text-xs text-muted-foreground">Completed at: {formatDate(item.completed_at)}</p>
+                              ) : null}
+                              <p className="text-sm text-foreground">
+                                {itemBand ? (
+                                  <>
+                                    IELTS Band: <span className="font-semibold text-primary">{itemBand}</span>
+                                    <span className="ml-2 text-xs text-muted-foreground">({formatScoreDisplay(itemScore)})</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    Score: <span className="font-semibold">{formatScoreDisplay(itemScore)}</span>
+                                  </>
+                                )}
+                              </p>
+                              {item?.linked_test_attempt_id ? (
+                                <p className="text-xs text-muted-foreground">
+                                  Linked attempt ID: {String(item.linked_test_attempt_id)}
+                                </p>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-foreground">
+                        {payload?.ielts_band ? (
+                          <>
+                            IELTS Band: <span className="font-semibold text-primary">{payload.ielts_band}</span>
+                            <span className="ml-2 text-xs text-muted-foreground">({formatScoreDisplay(internalScore)})</span>
+                          </>
+                        ) : (
+                          <>
+                            Score: <span className="font-semibold">{formatScoreDisplay(internalScore)}</span>
+                          </>
+                        )}
+                      </p>
+                    )}
 
                     <p className="text-xs text-muted-foreground">
                       Source: {internalScoreSource}
@@ -619,7 +665,7 @@ export default function HomeworkSubmissionGradePage() {
                         ? ` | Submission source: ${submission.submission_source}`
                         : ""}
                     </p>
-                    {submission?.linked_test_attempt_id ? (
+                    {!hasInternalItems && submission?.linked_test_attempt_id ? (
                       <p className="text-xs text-muted-foreground">
                         Linked attempt ID: {String(submission.linked_test_attempt_id)}
                       </p>

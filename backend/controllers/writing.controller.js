@@ -38,6 +38,7 @@ const sanitizeWritingForLearner = (writing) => ({
     time_limit: writing.time_limit ?? null,
     is_active: writing.is_active !== false,
     is_real_test: Boolean(writing.is_real_test),
+    isSinglePart: Boolean(writing.isSinglePart),
 });
 
 const canAccessSubmission = (submission, user) => {

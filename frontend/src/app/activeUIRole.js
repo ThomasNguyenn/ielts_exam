@@ -4,7 +4,7 @@ import {
   normalizeUserRole,
   USER_ROLE_ADMIN,
   USER_ROLE_TEACHER,
-} from './roleRouting';
+} from './roleRouting.js';
 
 const ACTIVE_UI_ROLE_KEY = 'activeUIRole';
 

@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { verifyToken, isTeacherOrAdmin } from "../middleware/auth.middleware.js";
+import { verifyToken, optionalVerifyToken, isTeacherOrAdmin } from "../middleware/auth.middleware.js";
 import { createCacheInvalidator, createResponseCache, getCacheTtlSec } from '../middleware/responseCache.middleware.js';
 import Test from '../models/Test.model.js';
 import { getSectionAudioUploadLimitBytes } from "../services/objectStorage.service.js";
@@ -101,7 +101,7 @@ const invalidateTestsCache = createCacheInvalidator({
   },
 });
 
-router.get("/", verifyToken, isTeacherOrAdmin, sectionsCatalogCache, getAllSections);
+router.get("/", optionalVerifyToken, sectionsCatalogCache, getAllSections);
 router.get("/:id", verifyToken, isTeacherOrAdmin, getSectionById);
 router.post("/upload-audio", verifyToken, isTeacherOrAdmin, handleSectionAudioUpload, uploadSectionAudio);
 router.post("/", verifyToken, isTeacherOrAdmin, collectAffectedSectionTestTags, invalidateTestsCache, createSection);

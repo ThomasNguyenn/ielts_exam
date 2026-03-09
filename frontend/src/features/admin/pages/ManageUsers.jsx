@@ -13,7 +13,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import './AdminPeopleWorkspace.css';
+import '../styles/AdminPeopleWorkspace.css';
 
 const ROLE_FILTERS = [
   { value: '', label: 'All' },
@@ -326,8 +326,8 @@ export default function ManageUsers() {
               {hasSearch
                 ? `No users match "${searchQuery.trim()}".`
                 : roleFilter === 'online'
-                ? 'No students are currently online.'
-                : 'No users are available for this filter.'}
+                  ? 'No students are currently online.'
+                  : 'No users are available for this filter.'}
             </p>
           </div>
 
@@ -422,7 +422,7 @@ export default function ManageUsers() {
               Select a new role for <strong>{roleChangeModal.user?.name}</strong>.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="grid gap-4 py-4" style={{ zIndex: 60, position: 'relative' }}>
             <div className="flex flex-col gap-2">
               <label htmlFor="role-select" className="text-sm font-medium leading-none">

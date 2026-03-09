@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { verifyToken, isTeacherOrAdmin } from "../middleware/auth.middleware.js";
+import { verifyToken, optionalVerifyToken, isTeacherOrAdmin } from "../middleware/auth.middleware.js";
 import { createCacheInvalidator, createResponseCache, getCacheTtlSec } from '../middleware/responseCache.middleware.js';
 import Test from '../models/Test.model.js';
 import { sendControllerError } from '../utils/controllerError.js';
@@ -113,7 +113,7 @@ const invalidateTestsCache = createCacheInvalidator({
   },
 });
 
-router.get("/", verifyToken, isTeacherOrAdmin, passagesCatalogCache, getAllPassages);
+router.get("/", optionalVerifyToken, passagesCatalogCache, getAllPassages);
 router.post("/ai/question-insights", verifyToken, isTeacherOrAdmin, generatePassageInsights);
 router.post("/upload-diagram-image", verifyToken, isTeacherOrAdmin, handlePassageDiagramImageUpload, uploadPassageDiagramImage);
 router.get("/:id", verifyToken, isTeacherOrAdmin, getPassageById);

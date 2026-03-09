@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { TODAY, students } from './staffDashboard.mock';
+import { TODAY, students } from '../data/staffDashboard.mock';
 
 const toDateLabel = (isoDate) => {
   const normalized = String(isoDate || '').trim();
@@ -66,23 +66,23 @@ const clampScore = (value) => {
 const resolveAnswerKey = (submission = {}) =>
   String(
     submission?.answerKey
-      || submission?.answer_key
-      || submission?.modelAnswer
-      || submission?.model_answer
-      || submission?.expectedAnswer
-      || submission?.expected_answer
-      || submission?.reference_answer
-      || FALLBACK_ANSWER_KEYS_BY_ASSIGNMENT[String(submission?.id || '').trim()]
-      || '',
+    || submission?.answer_key
+    || submission?.modelAnswer
+    || submission?.model_answer
+    || submission?.expectedAnswer
+    || submission?.expected_answer
+    || submission?.reference_answer
+    || FALLBACK_ANSWER_KEYS_BY_ASSIGNMENT[String(submission?.id || '').trim()]
+    || '',
   ).trim();
 
 const resolveStudentAnswer = (submission = {}) =>
   String(
     submission?.studentAnswer
-      || submission?.student_answer
-      || submission?.textAnswer
-      || submission?.text_answer
-      || '',
+    || submission?.student_answer
+    || submission?.textAnswer
+    || submission?.text_answer
+    || '',
   ).trim();
 
 export default function HomeworkProgressSubmissionDetailPage() {

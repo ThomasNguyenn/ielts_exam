@@ -21,8 +21,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { TODAY, loadHomeroomHomeworkProgress, loadHomeroomStudentsQuick } from './homeworkProgress.data';
-import { DailyProgressBadge, StatusBadge } from './status-badge';
+import { TODAY, loadHomeroomHomeworkProgress, loadHomeroomStudentsQuick } from '../data/homeworkProgress.data';
+import { DailyProgressBadge, StatusBadge } from '../components/status-badge';
 
 const toDateLabel = (isoDate) => {
   if (isoDate === TODAY) return 'Today';

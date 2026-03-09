@@ -16,8 +16,8 @@ import {
   MATCHING_GROUP_TYPES,
   PLACEHOLDER_SYNC_TYPES,
   REFERENCE_TEXT_TYPES,
-} from './questionGroupConfig';
-import { buildMatchingInformationHeadingsFromRange, parseCorrectAnswersRaw } from './manageQuestionInputUtils';
+} from '../utils/questionGroupConfig';
+import { buildMatchingInformationHeadingsFromRange, parseCorrectAnswersRaw } from '../utils/manageQuestionInputUtils';
 
 const DEFAULT_OPTIONS = [
   { label: 'A', text: '' },
@@ -924,29 +924,30 @@ export default function QuestionGroup({
                                 const optionId = normalizeOptionToken(option.label || option.id || String.fromCharCode(65 + optionIndex));
                                 const isSelected = selectedOptionIds.includes(optionId);
                                 return (
-                                <div
-                                  key={`${questionCollapseKey}-option-${optionIndex}`}
-                                  className={`flex items-center gap-2 rounded-md border p-2 ${isSelected ? 'border-primary/60 bg-primary/5' : 'border-border/60'}`}
-                                >
-                                  <Button
-                                    type='button'
-                                    size='sm'
-                                    variant={isSelected ? 'default' : 'outline'}
-                                    className='h-8 min-w-8 px-2 font-semibold'
-                                    onClick={() => onSetCorrectAnswers(gi, questionIndex, optionId)}
+                                  <div
+                                    key={`${questionCollapseKey}-option-${optionIndex}`}
+                                    className={`flex items-center gap-2 rounded-md border p-2 ${isSelected ? 'border-primary/60 bg-primary/5' : 'border-border/60'}`}
                                   >
-                                    {optionId || String.fromCharCode(65 + optionIndex)}
-                                  </Button>
-                                  <Input
-                                    value={option.text}
-                                    onChange={(event) => onSetQuestionOption(gi, questionIndex, optionIndex, event.target.value)}
-                                    placeholder={`Option ${optionId || String.fromCharCode(65 + optionIndex)}`}
-                                  />
-                                  <Button type='button' variant='ghost' size='icon' onClick={() => onRemoveQuestionOption(gi, questionIndex, optionIndex)} className='text-destructive'>
-                                    <Trash2 className='h-4 w-4' />
-                                  </Button>
-                                </div>
-                              )})}
+                                    <Button
+                                      type='button'
+                                      size='sm'
+                                      variant={isSelected ? 'default' : 'outline'}
+                                      className='h-8 min-w-8 px-2 font-semibold'
+                                      onClick={() => onSetCorrectAnswers(gi, questionIndex, optionId)}
+                                    >
+                                      {optionId || String.fromCharCode(65 + optionIndex)}
+                                    </Button>
+                                    <Input
+                                      value={option.text}
+                                      onChange={(event) => onSetQuestionOption(gi, questionIndex, optionIndex, event.target.value)}
+                                      placeholder={`Option ${optionId || String.fromCharCode(65 + optionIndex)}`}
+                                    />
+                                    <Button type='button' variant='ghost' size='icon' onClick={() => onRemoveQuestionOption(gi, questionIndex, optionIndex)} className='text-destructive'>
+                                      <Trash2 className='h-4 w-4' />
+                                    </Button>
+                                  </div>
+                                )
+                              })}
                               <Button type='button' size='sm' variant='outline' onClick={() => onAddQuestionOption(gi, questionIndex)}>+ Add Option</Button>
                             </div>
                           ) : null}

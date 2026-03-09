@@ -9,6 +9,9 @@ const { mockApi } = vi.hoisted(() => ({
   mockApi: {
     getTests: vi.fn(),
     getTestCategories: vi.fn(),
+    getPassages: vi.fn(),
+    getSections: vi.fn(),
+    getWritings: vi.fn(),
     getMyAttemptSummary: vi.fn(),
     isAuthenticated: vi.fn(),
   },
@@ -106,6 +109,9 @@ function buildListResponse(params = {}) {
 
 function setupSuccessfulApi() {
   mockApi.isAuthenticated.mockReturnValue(true);
+  mockApi.getPassages.mockResolvedValue({ data: [] });
+  mockApi.getSections.mockResolvedValue({ data: [] });
+  mockApi.getWritings.mockResolvedValue({ data: [] });
   mockApi.getMyAttemptSummary.mockResolvedValue({
     data: [
       {
@@ -216,7 +222,7 @@ describe("TestList page", () => {
 
     expect(await screen.findByText("Passage A1")).toBeInTheDocument();
     const partCta = screen.getAllByRole("link", { name: /Start part/i })[0];
-    expect(partCta).toHaveAttribute("href", "/tests/r-1/exam?part=0&mode=single");
+    expect(partCta).toHaveAttribute("href", "/student-ielts/tests/r-1/exam?part=0&mode=single");
   });
 
   it("applies part and question-group filters in parts mode", async () => {
@@ -272,8 +278,8 @@ describe("TestList page", () => {
     const startLink = screen.getAllByRole("link", { name: /Start test/i })[0];
     const historyLink = screen.getAllByRole("link", { name: /History/i })[0];
 
-    expect(startLink).toHaveAttribute("href", "/tests/r-1");
-    expect(historyLink).toHaveAttribute("href", "/tests/r-1/history");
+    expect(startLink).toHaveAttribute("href", "/student-ielts/tests/r-1");
+    expect(historyLink).toHaveAttribute("href", "/student-ielts/tests/r-1/history");
   });
 
   it("opens mobile filter sheet", async () => {

@@ -24,10 +24,10 @@ vi.mock('@/shared/context/NotificationContext', () => ({
 
 const renderAtModule = () =>
   render(
-    <MemoryRouter initialEntries={['/learn/module-1']}>
+    <MemoryRouter initialEntries={['/student-ielts/learn/module-1']}>
       <Routes>
-        <Route path="/learn" element={<div>Learn Catalog Page</div>} />
-        <Route path="/learn/:moduleId" element={<LearnModuleDetail />} />
+        <Route path="/student-ielts/learn" element={<div>Learn Catalog Page</div>} />
+        <Route path="/student-ielts/learn/:moduleId" element={<LearnModuleDetail />} />
       </Routes>
     </MemoryRouter>,
   );

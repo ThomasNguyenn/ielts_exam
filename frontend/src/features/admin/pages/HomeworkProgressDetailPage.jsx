@@ -4,8 +4,8 @@ import { ArrowLeft, CalendarDays, CheckCircle2, ClipboardList, Clock, FileText, 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { TODAY, loadHomeroomHomeworkProgress } from './homeworkProgress.data';
-import { DailyProgressBadge } from './status-badge';
+import { TODAY, loadHomeroomHomeworkProgress } from '../data/homeworkProgress.data';
+import { DailyProgressBadge } from '../components/status-badge';
 
 const toDateLabel = (isoDate) => {
   const normalized = String(isoDate || '').trim();
@@ -18,11 +18,22 @@ const toDateLabel = (isoDate) => {
 
 const toAssignmentStatusTone = (status) => {
   const normalized = String(status || '').trim().toLowerCase();
+  if (normalized === 'completed') return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+  if (normalized === 'in_progress') return 'border-amber-200 bg-amber-50 text-amber-700';
+  if (normalized === 'not_started') return 'border-zinc-200 bg-zinc-50 text-zinc-500';
   if (normalized === 'submitted') return 'border-emerald-200 bg-emerald-50 text-emerald-700';
   if (normalized === 'graded') return 'border-blue-200 bg-blue-50 text-blue-700';
   if (normalized === 'missing') return 'border-rose-200 bg-rose-50 text-rose-700';
   if (normalized === 'not_submitted') return 'border-zinc-200 bg-zinc-50 text-zinc-500';
   return 'border-border bg-muted text-muted-foreground';
+};
+
+const toAssignmentStatusLabel = (status) => {
+  const normalized = String(status || '').trim().toLowerCase();
+  if (normalized === 'completed') return 'Completed';
+  if (normalized === 'in_progress') return 'In progress';
+  if (normalized === 'not_started') return 'Not started';
+  return status || '--';
 };
 
 const toGradingStatusTone = (status) => {
@@ -37,10 +48,17 @@ const toSubmissionLabel = (assignment, index) =>
 
 const toTaskStatusLabel = (status) => {
   const normalized = String(status || '').toLowerCase();
-  if (normalized === 'submitted') return 'Submitted';
-  if (normalized === 'graded') return 'Graded';
-  if (normalized === 'not_submitted') return 'Not submitted';
+  if (normalized === 'completed') return 'Completed';
+  if (normalized === 'in_progress') return 'In progress';
+  if (normalized === 'not_started') return 'Not started';
   return status || '--';
+};
+
+const toTaskProgressLabel = (taskSub = {}) => {
+  const doneCount = Number(taskSub?.done_count || 0);
+  const totalCountRaw = Number(taskSub?.total_count || 0);
+  const totalCount = totalCountRaw > 0 ? totalCountRaw : 1;
+  return `${doneCount}/${totalCount}`;
 };
 
 const toDeadlineLabel = (dueDate) => {
@@ -139,8 +157,8 @@ export default function HomeworkProgressDetailPage() {
   const dailyProgress = Array.isArray(student.dailyProgress) ? student.dailyProgress : [];
   const assignments = Array.isArray(student.assignments) ? student.assignments : [];
   const missingTotal = Number(student.missing || 0);
-  const submittedCount = assignments.filter(
-    (item) => String(item?.status || '').toLowerCase() === 'submitted',
+  const completedAssignmentCount = assignments.filter(
+    (item) => String(item?.status || '').toLowerCase() === 'completed',
   ).length;
 
   return (
@@ -167,11 +185,11 @@ export default function HomeworkProgressDetailPage() {
               </div>
             </div>
             <div className="rounded-lg border border-border/70 p-4">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Assignments Submitted</p>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Assignments Completed</p>
               <div className="mt-2 inline-flex items-center gap-2">
                 <ClipboardList className="h-4 w-4 text-muted-foreground" />
                 <span className="font-medium">
-                  {submittedCount}/{assignments.length || 0}
+                  {completedAssignmentCount}/{assignments.length || 0}
                 </span>
               </div>
             </div>
@@ -229,7 +247,7 @@ export default function HomeworkProgressDetailPage() {
                       <p className="font-medium text-foreground">{toSubmissionLabel(assignment, index)}</p>
                       <div className="flex flex-wrap items-center gap-2">
                         <Badge variant="outline" className={toAssignmentStatusTone(assignment?.status)}>
-                          {assignment?.status || '--'}
+                          {toAssignmentStatusLabel(assignment?.status)}
                         </Badge>
                         <Badge variant="outline" className={toGradingStatusTone(assignment?.gradingStatus)}>
                           {assignment?.gradingStatus || '--'}
@@ -243,15 +261,19 @@ export default function HomeworkProgressDetailPage() {
                     <div className="divide-y divide-border/40">
                       {taskSubmissions.map((taskSub, taskIndex) => {
                         const taskStatus = String(taskSub?.status || '').toLowerCase();
-                        const isSubmitted = taskStatus === 'submitted' || taskStatus === 'graded';
-                        const isGraded = taskStatus === 'graded';
+                        const doneCount = Number(taskSub?.done_count || 0);
+                        const isSubmitted = doneCount > 0;
+                        const isGraded =
+                          Boolean(taskSub?.graded_at)
+                          || (taskSub?.score !== null && taskSub?.score !== undefined && taskStatus === 'completed');
                         const hasSubmissionId = Boolean(taskSub?.homework_submission_id);
                         const deadlineLabel = toDeadlineLabel(taskSub?.task_due_date);
                         const deadlineTone = toDeadlineTone(taskSub?.task_due_date);
+                        const internalItems = Array.isArray(taskSub?.internal_items) ? taskSub.internal_items : [];
 
                         return (
                           <div
-                            key={`${assignment?.id}-${taskSub?.task_id || taskIndex}`}
+                            key={`${assignment?.id}-${taskSub?.task_slot_id || taskSub?.task_id || taskIndex}`}
                             className="flex flex-col gap-2 px-4 py-3 md:flex-row md:items-center md:justify-between"
                           >
                             <div className="flex-1 space-y-1">
@@ -269,6 +291,9 @@ export default function HomeworkProgressDetailPage() {
                                 <Badge variant="outline" className={toAssignmentStatusTone(taskStatus)}>
                                   {toTaskStatusLabel(taskStatus)}
                                 </Badge>
+                                <Badge variant="outline" className="border-border/60 bg-muted/30 text-foreground">
+                                  {toTaskProgressLabel(taskSub)}
+                                </Badge>
                                 {isSubmitted && taskSub?.submitted_at ? (
                                   <span className="text-xs text-muted-foreground">
                                     Submitted {toDateLabel(String(taskSub.submitted_at).slice(0, 10))}
@@ -285,6 +310,38 @@ export default function HomeworkProgressDetailPage() {
                                   </span>
                                 ) : null}
                               </div>
+                              {internalItems.length ? (
+                                <div className="ml-6 mt-2 space-y-1">
+                                  {internalItems.map((item, itemIndex) => {
+                                    const itemStatus = String(item?.status || '').trim().toLowerCase() || 'not_started';
+                                    const statusTone =
+                                      itemStatus === 'completed'
+                                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                        : itemStatus === 'in_progress'
+                                          ? 'border-amber-200 bg-amber-50 text-amber-700'
+                                          : 'border-zinc-200 bg-zinc-50 text-zinc-500';
+                                    const slotLabel = String(item?.slot_key || '').trim()
+                                      || String(item?.resource_block_id || '').trim()
+                                      || `Slot ${itemIndex + 1}`;
+                                    return (
+                                      <div
+                                        key={`${taskSub?.task_slot_id || taskSub?.task_id || taskIndex}-${slotLabel}-${itemIndex}`}
+                                        className="flex flex-wrap items-center gap-2"
+                                      >
+                                        <span className="text-xs text-muted-foreground">{slotLabel}</span>
+                                        <Badge variant="outline" className={statusTone}>
+                                          {toTaskStatusLabel(itemStatus)}
+                                        </Badge>
+                                        {item?.completed_at ? (
+                                          <span className="text-xs text-muted-foreground">
+                                            Completed {toDateLabel(String(item.completed_at).slice(0, 10))}
+                                          </span>
+                                        ) : null}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              ) : null}
                             </div>
                             <div className="flex items-center gap-2 md:ml-4">
                               {isSubmitted && hasSubmissionId ? (

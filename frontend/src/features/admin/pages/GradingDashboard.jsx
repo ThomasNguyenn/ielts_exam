@@ -15,7 +15,7 @@ import {
 import { api } from '@/shared/api/client';
 import { DatePicker } from '@/components/ui/date-picker';
 import PaginationControls from '@/shared/components/PaginationControls';
-import './GradingDashboard.css';
+import '../styles/GradingDashboard.css';
 
 const PAGE_SIZE = 10;
 
@@ -719,7 +719,7 @@ export default function GradingDashboard() {
                 const fallbackBand = firstTask ? normalizeBand(getAiResultForTask(submission, firstTask.task_id)?.band_score) : null;
                 const aiPrelimBand = aiFastBand ?? fallbackBand;
                 const teacherBand = getOverallBand(submission);
-                const statusLabel = activeTab === 'pending' ? `Submitted ${formatRelativeTime(submission.submitted_at)}` 
+                const statusLabel = activeTab === 'pending' ? `Submitted ${formatRelativeTime(submission.submitted_at)}`
                   : (activeTab === 'archived' ? `Archived ${formatRelativeTime(submission.submitted_at)}` : `Graded ${formatRelativeTime(submission.submitted_at)}`);
                 const dueLabel = activeTab === 'pending' ? getDueLabel(submission.submitted_at) : null;
 
@@ -796,7 +796,7 @@ export default function GradingDashboard() {
                             <span>{exportingId === submission._id ? 'Exporting...' : 'PDF'}</span>
                           </button>
                         )}
-                        
+
                         {activeTab === 'scored' && (
                           <button
                             type="button"

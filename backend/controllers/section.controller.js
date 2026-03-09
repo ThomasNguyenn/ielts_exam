@@ -11,6 +11,10 @@ import {
 } from "../services/objectiveAnswerValidation.service.js";
 import { handleControllerError, sendControllerError } from '../utils/controllerError.js';
 
+const isTeacherOrAdminRequest = (req) => (
+    req.user?.role === "teacher" || req.user?.role === "admin"
+);
+
 const pickSectionPayload = (body = {}, { allowId = false } = {}) => {
     const allowed = ["title", "content", "transcript", "audio_url", "audio_storage_key", "question_groups", "source", "is_active", "isSinglePart"];
     if (allowId) {
@@ -132,16 +136,61 @@ const deleteSectionAudioBestEffort = async (req, sectionId, audioStorageKey) => 
 
 export const getAllSections = async(req, res) => {
     try{
+        const privileged = isTeacherOrAdminRequest(req);
         const summaryMode = ["1", "true", "yes"].includes(String(req.query?.summary || "").toLowerCase());
+        const includeQuestionGroupTypes = !["0", "false", "no"].includes(
+            String(req.query?.includeQuestionGroupTypes || "").toLowerCase(),
+        );
         const limitValue = Number(req.query?.limit);
         const limit =
             Number.isFinite(limitValue) && limitValue > 0
                 ? Math.min(Math.floor(limitValue), 5000)
                 : null;
+        const filter = privileged ? {} : { is_active: true };
+
+        if (!privileged) {
+            let query = Section.find(filter)
+                .sort({ updatedAt: -1, createdAt: -1 })
+                .select([
+                    "_id",
+                    "title",
+                    "source",
+                    "is_active",
+                    "isSinglePart",
+                    "question_groups.type",
+                    "createdAt",
+                    "updatedAt",
+                    "created_at",
+                    "updated_at",
+                ].join(" "));
+
+            if (limit) query = query.limit(limit);
+
+            const sections = await query.lean();
+            const sanitized = sections.map((section) => ({
+                _id: section._id,
+                title: section.title,
+                source: section.source || "",
+                is_active: section.is_active !== false,
+                isSinglePart: Boolean(section.isSinglePart),
+                question_groups: includeQuestionGroupTypes
+                    ? (Array.isArray(section.question_groups) ? section.question_groups : [])
+                        .map((group) => ({ type: group?.type }))
+                        .filter((group) => Boolean(group.type))
+                    : [],
+                createdAt: section.createdAt || null,
+                updatedAt: section.updatedAt || null,
+                created_at: section.created_at || null,
+                updated_at: section.updated_at || null,
+            }));
+
+            return res.status(200).json({ success: true, data: sanitized });
+        }
 
         let sections;
         if (summaryMode) {
             const pipeline = [
+                { $match: filter },
                 { $sort: { updatedAt: -1, createdAt: -1 } },
                 {
                     $project: {
@@ -149,8 +198,11 @@ export const getAllSections = async(req, res) => {
                         title: 1,
                         source: 1,
                         is_active: 1,
+                        isSinglePart: 1,
                         createdAt: 1,
                         updatedAt: 1,
+                        created_at: 1,
+                        updated_at: 1,
                         question_count: {
                             $sum: {
                                 $map: {
@@ -166,7 +218,7 @@ export const getAllSections = async(req, res) => {
             if (limit) pipeline.push({ $limit: limit });
             sections = await Section.aggregate(pipeline);
         } else {
-            let query = Section.find({});
+            let query = Section.find(filter);
             if (limit) query = query.limit(limit);
             sections = await query.lean();
         }

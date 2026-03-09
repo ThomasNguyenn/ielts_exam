@@ -26,7 +26,10 @@ import "./TestList.css";
 const PAGE_SIZE = 12;
 const PLACEHOLDER_CARD_COUNT = PAGE_SIZE;
 const isActiveContent = (item) => item?.is_active !== false && item?.isActive !== false;
-const isStandaloneContent = (item) => item?.isSinglePart === true;
+const isStandaloneContent = (item) =>
+  item?.isSinglePart === true ||
+  item?.is_single_part === true ||
+  String(item?.isSinglePart || item?.is_single_part || "").toLowerCase() === "true";
 
 export default function TestList() {
   const [tests, setTests] = useState([]);

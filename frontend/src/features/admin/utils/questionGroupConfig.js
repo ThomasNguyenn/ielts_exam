@@ -56,7 +56,6 @@ export const GROUP_OPTION_TYPES = new Set([
   'table_completion',
   'form_completion',
   'listening_map',
-  'matching_sentence_endings',
   'matching',
 ]);
 

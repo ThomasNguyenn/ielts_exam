@@ -4,7 +4,7 @@ import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
 import ConfirmationModal from '@/shared/components/ConfirmationModal';
 import LessonEditor from '../components/LessonEditor';
-import './Manage.css';
+import '../styles/Manage.css';
 
 const emptyQuizItem = () => ({
   question: '',
@@ -68,20 +68,20 @@ const moduleToForm = (module) => ({
   resources:
     module?.content?.resources?.length > 0
       ? module.content.resources.map((r) => ({
-          title: r.title || '',
-          url: r.url || '',
-          type: r.type || 'article',
-          description: r.description || '',
-        }))
+        title: r.title || '',
+        url: r.url || '',
+        type: r.type || 'article',
+        description: r.description || '',
+      }))
       : [emptyResourceItem()],
   checkpointQuiz:
     module?.content?.checkpointQuiz?.length > 0
       ? module.content.checkpointQuiz.map((q) => ({
-          question: q.question || '',
-          options: Array.isArray(q.options) && q.options.length > 0 ? q.options : ['', '', '', ''],
-          correctAnswer: Number.isInteger(q.correctAnswer) ? q.correctAnswer : 0,
-          explanation: q.explanation || '',
-        }))
+        question: q.question || '',
+        options: Array.isArray(q.options) && q.options.length > 0 ? q.options : ['', '', '', ''],
+        correctAnswer: Number.isInteger(q.correctAnswer) ? q.correctAnswer : 0,
+        explanation: q.explanation || '',
+      }))
       : [emptyQuizItem()],
 });
 
@@ -141,7 +141,7 @@ export default function AddSkillModules() {
     isOpen: false,
     title: '',
     message: '',
-    onConfirm: () => {},
+    onConfirm: () => { },
     isDanger: false,
   });
 

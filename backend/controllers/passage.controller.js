@@ -6,6 +6,10 @@ import {
 } from "../services/objectiveAnswerValidation.service.js";
 import { handleControllerError, sendControllerError } from '../utils/controllerError.js';
 
+const isTeacherOrAdminRequest = (req) => (
+    req.user?.role === "teacher" || req.user?.role === "admin"
+);
+
 const pickPassagePayload = (body = {}, { allowId = false } = {}) => {
     const allowed = ["title", "content", "question_groups", "source", "is_active", "isSinglePart"];
     if (allowId) {
@@ -52,16 +56,61 @@ const validateObjectiveMappingsOrRespond = (req, res, questionGroups) => {
 
 export const getAllPassages = async(req, res) => {
     try{
+        const privileged = isTeacherOrAdminRequest(req);
         const summaryMode = ["1", "true", "yes"].includes(String(req.query?.summary || "").toLowerCase());
+        const includeQuestionGroupTypes = !["0", "false", "no"].includes(
+            String(req.query?.includeQuestionGroupTypes || "").toLowerCase(),
+        );
         const limitValue = Number(req.query?.limit);
         const limit =
             Number.isFinite(limitValue) && limitValue > 0
                 ? Math.min(Math.floor(limitValue), 5000)
                 : null;
+        const filter = privileged ? {} : { is_active: true };
+
+        if (!privileged) {
+            let query = Passage.find(filter)
+                .sort({ updatedAt: -1, createdAt: -1 })
+                .select([
+                    "_id",
+                    "title",
+                    "source",
+                    "is_active",
+                    "isSinglePart",
+                    "question_groups.type",
+                    "createdAt",
+                    "updatedAt",
+                    "created_at",
+                    "updated_at",
+                ].join(" "));
+
+            if (limit) query = query.limit(limit);
+
+            const passages = await query.lean();
+            const sanitized = passages.map((passage) => ({
+                _id: passage._id,
+                title: passage.title,
+                source: passage.source || "",
+                is_active: passage.is_active !== false,
+                isSinglePart: Boolean(passage.isSinglePart),
+                question_groups: includeQuestionGroupTypes
+                    ? (Array.isArray(passage.question_groups) ? passage.question_groups : [])
+                        .map((group) => ({ type: group?.type }))
+                        .filter((group) => Boolean(group.type))
+                    : [],
+                createdAt: passage.createdAt || null,
+                updatedAt: passage.updatedAt || null,
+                created_at: passage.created_at || null,
+                updated_at: passage.updated_at || null,
+            }));
+
+            return res.status(200).json({ success: true, data: sanitized });
+        }
 
         let passages;
         if (summaryMode) {
             const pipeline = [
+                { $match: filter },
                 { $sort: { updatedAt: -1, createdAt: -1 } },
                 {
                     $project: {
@@ -89,7 +138,7 @@ export const getAllPassages = async(req, res) => {
             if (limit) pipeline.push({ $limit: limit });
             passages = await Passage.aggregate(pipeline);
         } else {
-            let query = Passage.find({});
+            let query = Passage.find(filter);
             if (limit) query = query.limit(limit);
             passages = await query.lean();
         }

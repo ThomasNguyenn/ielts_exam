@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/table';
 
 const ITEMS_PER_PAGE = 6;
-const AddWriting = lazy(() => import('./AddWriting'));
+const AddWriting = lazy(() => import('../components/AddWriting'));
 
 const formatDate = (value) => {
   if (!value) return '-';
@@ -49,7 +49,7 @@ export default function ManageWritingsSinglePage() {
     isOpen: false,
     title: '',
     message: '',
-    onConfirm: () => {},
+    onConfirm: () => { },
     isDanger: false,
   });
 

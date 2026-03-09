@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildMatchingInformationHeadingsFromRange,
   parseMatchingInformationRange,
-} from "../src/features/admin/pages/manageQuestionInputUtils.js";
+} from "../src/features/admin/utils/manageQuestionInputUtils.js";
 
 describe("manageQuestionInputUtils range parser", () => {
   it("parses alphabetic range A-G", () => {

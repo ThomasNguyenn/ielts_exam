@@ -3,7 +3,7 @@ import { Check, Clock3, MailSearch, ShieldCheck, UserRound } from 'lucide-react'
 import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
 import PaginationControls from '@/shared/components/PaginationControls';
-import './AdminPeopleWorkspace.css';
+import '../styles/AdminPeopleWorkspace.css';
 
 export default function StudentRequests() {
   const PAGE_SIZE = 20;

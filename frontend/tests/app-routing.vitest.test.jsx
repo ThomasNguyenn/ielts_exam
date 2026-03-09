@@ -43,12 +43,49 @@ vi.mock("@/features/profile/pages/Profile", () => ({
   default: () => <div>Profile Page</div>,
 }));
 
+vi.mock("@/features/learn/pages/LearnPage", () => ({
+  default: () => <div>Learn Page</div>,
+}));
+
 vi.mock("@/features/auth/pages/Login", () => ({
   default: () => <div>Login Page</div>,
 }));
 
 vi.mock("@/features/system/pages/WaitForConfirmation", () => ({
   default: () => <div>Wait For Confirmation</div>,
+}));
+
+vi.mock("@/features/layouts/StudentIELTSLayout", () => ({
+  default: function MockStudentIELTSLayout() {
+    return (
+      <div>
+        <div>Student IELTS Layout</div>
+        <Outlet />
+      </div>
+    );
+  },
+}));
+
+vi.mock("@/features/layouts/StudentACALayout", () => ({
+  default: function MockStudentACALayout() {
+    return (
+      <div>
+        <div>Student ACA Layout</div>
+        <Outlet />
+      </div>
+    );
+  },
+}));
+
+vi.mock("@/features/layouts/AdminLayout", () => ({
+  default: function MockAdminLayout() {
+    return (
+      <div>
+        <div>Admin Layout</div>
+        <Outlet />
+      </div>
+    );
+  },
 }));
 
 const renderAppAt = (entry) =>
@@ -67,7 +104,7 @@ describe("App route guards", () => {
   });
 
   it("redirects unauthenticated users away from protected routes", async () => {
-    renderAppAt("/profile");
+    renderAppAt("/student-ielts/profile");
 
     expect(await screen.findByText("Login Page")).toBeInTheDocument();
     expect(mockApi.bootstrapSession).toHaveBeenCalledTimes(1);
@@ -77,9 +114,9 @@ describe("App route guards", () => {
     mockApi.isAuthenticated.mockReturnValue(true);
     mockApi.getUser.mockReturnValue({ role: "student", isConfirmed: true });
 
-    renderAppAt("/manage");
+    renderAppAt("/admin/manage");
 
-    expect(await screen.findByText("Profile Page")).toBeInTheDocument();
+    expect(await screen.findByText("Learn Page")).toBeInTheDocument();
   });
 
   it("redirects unconfirmed students from public auth routes to wait page", async () => {

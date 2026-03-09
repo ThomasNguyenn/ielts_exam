@@ -5,8 +5,8 @@ import { useNotification } from '@/shared/context/NotificationContext';
 import AIContentGeneratorModal from '@/shared/components/AIContentGeneratorModal';
 import ConfirmationModal from '@/shared/components/ConfirmationModal';
 import QuestionGroup from './QuestionGroup';
-import { PASSAGE_QUESTION_TYPE_OPTIONS, PLACEHOLDER_FROM_PASSAGE_CONTENT_TYPES } from './questionGroupConfig';
-import { buildQuestionsFromPlaceholders, parseCorrectAnswersRaw } from './manageQuestionInputUtils';
+import { PASSAGE_QUESTION_TYPE_OPTIONS, PLACEHOLDER_FROM_PASSAGE_CONTENT_TYPES } from '../utils/questionGroupConfig';
+import { buildQuestionsFromPlaceholders, parseCorrectAnswersRaw } from '../utils/manageQuestionInputUtils';
 import { MoreVertical, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -248,7 +248,7 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
     isOpen: false,
     title: '',
     message: '',
-    onConfirm: () => {},
+    onConfirm: () => { },
     isDanger: false,
   });
 
@@ -739,7 +739,7 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
       ? (form.content || '')
       : isFlowOrPlanType(normalizedType)
         ? (Array.isArray(targetGroup.steps) ? targetGroup.steps.join('\n') : '')
-      : (targetGroup.text || '');
+        : (targetGroup.text || '');
 
     const nextQuestions = buildQuestionsFromPlaceholders({
       rawText: sourceText,

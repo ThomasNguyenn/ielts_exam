@@ -106,6 +106,73 @@ function dropMatchingToken(node, token) {
   });
 }
 
+function createMultiSelectStep({ options }) {
+  const resolvedOptions = Array.isArray(options) && options.length > 0
+    ? options
+    : [
+      { id: "opt-1", label: "A", text: "Same text" },
+      { id: "opt-2", label: "B", text: "Same text" },
+    ];
+
+  const group = {
+    type: "mult_choice_multi",
+    group_layout: "checkbox",
+    questions: [
+      { q_number: 1, text: "Choose two", option: resolvedOptions },
+      { q_number: 2, text: "Choose two", option: resolvedOptions },
+    ],
+  };
+
+  return {
+    step: {
+      type: "reading",
+      startSlotIndex: 0,
+      item: {
+        _id: "multi-select-section",
+        content: "",
+        question_groups: [group],
+      },
+    },
+    slots: [
+      { type: "mult_choice_multi", q_number: 1, option: resolvedOptions },
+      { type: "mult_choice_multi", q_number: 2, option: resolvedOptions },
+    ],
+  };
+}
+
+function renderMultiSelectStep({ options }) {
+  const { step, slots } = createMultiSelectStep({ options });
+
+  function StatefulHarness() {
+    const [answers, setAnswers] = React.useState(["", ""]);
+    const setAnswer = (index, value) => {
+      setAnswers((prev) => {
+        const next = [...prev];
+        next[index] = value;
+        return next;
+      });
+    };
+
+    return (
+      <StepContent
+        step={step}
+        slots={slots}
+        answers={answers}
+        setAnswer={setAnswer}
+        passageStates={{}}
+        setPassageState={vi.fn()}
+        showResult={false}
+        listeningAudioUrl={null}
+        onListeningAudioEnded={vi.fn()}
+        reviewMode={false}
+        reviewLookup={{}}
+      />
+    );
+  }
+
+  return render(<StatefulHarness />);
+}
+
 describe("StepContent matching use_once behavior", () => {
   it("allows reusing same option in matching_information when use_once is string false", () => {
     const { container } = renderMatchingStep({
@@ -222,5 +289,45 @@ describe("StepContent matching use_once behavior", () => {
       .find((chip) => chip.querySelector(".matching-chip-id")?.textContent?.trim() === "A");
     expect(optionA).toBeTruthy();
     expect(optionA?.classList.contains("used")).toBe(false);
+  });
+
+  it("keeps distinct matching ids when option display text normalizes to the same value", () => {
+    const { container } = renderMatchingStep({
+      groupType: "matching_information",
+      useOnce: true,
+      headings: [
+        { id: "A", text: "Alpha" },
+        { id: "B", text: "Alpha." },
+      ],
+    });
+
+    const dropzones = container.querySelectorAll(".matching-dropzone");
+    expect(dropzones.length).toBe(2);
+
+    dropMatchingToken(dropzones[0], "A");
+    dropMatchingToken(dropzones[1], "B");
+
+    expect(container.querySelectorAll(".matching-selected").length).toBe(2);
+  });
+
+  it("keeps multi-select choices distinct when option text is duplicated but ids differ", () => {
+    const { container } = renderMultiSelectStep({
+      options: [
+        { id: "left-1", label: "A", text: "Same option text" },
+        { id: "left-2", label: "B", text: "Same option text" },
+      ],
+    });
+
+    const checkboxes = container.querySelectorAll('.exam-option-label input[type="checkbox"]');
+    expect(checkboxes.length).toBe(2);
+
+    fireEvent.click(checkboxes[0]);
+    fireEvent.click(checkboxes[1]);
+    expect(checkboxes[0].checked).toBe(true);
+    expect(checkboxes[1].checked).toBe(true);
+
+    fireEvent.click(checkboxes[0]);
+    expect(checkboxes[0].checked).toBe(false);
+    expect(checkboxes[1].checked).toBe(true);
   });
 });

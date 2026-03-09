@@ -12,8 +12,8 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import QuestionGroup from './QuestionGroup';
-import { PLACEHOLDER_FROM_PASSAGE_CONTENT_TYPES, SECTION_QUESTION_TYPE_OPTIONS } from './questionGroupConfig';
-import { buildQuestionsFromPlaceholders, parseCorrectAnswersRaw } from './manageQuestionInputUtils';
+import { PLACEHOLDER_FROM_PASSAGE_CONTENT_TYPES, SECTION_QUESTION_TYPE_OPTIONS } from '../utils/questionGroupConfig';
+import { buildQuestionsFromPlaceholders, parseCorrectAnswersRaw } from '../utils/manageQuestionInputUtils';
 import { MoreVertical, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
@@ -285,7 +285,7 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
     isOpen: false,
     title: '',
     message: '',
-    onConfirm: () => {},
+    onConfirm: () => { },
     isDanger: false,
   });
   const audioFileInputRef = useRef(null);
@@ -821,7 +821,7 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
       ? (form.content || '')
       : isFlowOrPlanType(normalizedType)
         ? (Array.isArray(targetGroup.steps) ? targetGroup.steps.join('\n') : '')
-      : (targetGroup.text || '');
+        : (targetGroup.text || '');
 
     const nextQuestions = buildQuestionsFromPlaceholders({
       rawText: sourceText,
@@ -917,7 +917,7 @@ export default function AddSection({ editIdOverride = null, embedded = false, on
         audio_storage_key: normalizedAudioStorageKey,
         source: form.source?.trim() || undefined,
         is_active: asDraft ? false : form.isActive,
-         isSinglePart: Boolean(form.isSinglePart),
+        isSinglePart: Boolean(form.isSinglePart),
         question_groups: form.question_groups.map((group) => ({
           type: canonicalizeQuestionType(group.type),
           group_layout: normalizeGroupLayoutForType(group.type, group.group_layout),

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
-import './GradingInterface.css';
+import '../styles/GradingInterface.css';
 
 export default function GradingInterface() {
   const { showNotification } = useNotification();

@@ -1,4 +1,4 @@
-import { clearActiveUIRole } from '@/app/activeUIRole';
+import { clearActiveUIRole } from '../../app/activeUIRole.js';
 const API_BASE = import.meta.env?.DEV
   ? ''
   : (import.meta.env?.VITE_API_URL || '');
@@ -426,13 +426,13 @@ export const api = {
   getMyAttemptResult: (attemptId) => request(`/api/tests/attempts/${attemptId}/result`),
   getMyTestHistory: (id) => request(`/api/tests/${id}/attempts`),
   getTestById: (id) => request(`/api/tests/${id}`),
-  getExam: (id) => request(`/api/tests/${id}/exam`),
+  getExam: (id, options = {}) => request(`/api/tests/${id}/exam`, options),
   trackTestActivityOpen: (id, body) =>
     request(`/api/tests/${id}/activity/open`, { method: 'POST', body: JSON.stringify(body || {}) }),
   trackTestActivityStart: (id, body) =>
     request(`/api/tests/${id}/activity/start`, { method: 'POST', body: JSON.stringify(body || {}) }),
-  trackTestActivityHeartbeat: (id, body) =>
-    request(`/api/tests/${id}/activity/heartbeat`, { method: 'POST', body: JSON.stringify(body || {}) }),
+  trackTestActivityHeartbeat: (id, body, options = {}) =>
+    request(`/api/tests/${id}/activity/heartbeat`, { method: 'POST', body: JSON.stringify(body || {}), ...options }),
   trackTestActivityAnswer: (id, body) =>
     request(`/api/tests/${id}/activity/answer`, { method: 'PATCH', body: JSON.stringify(body || {}) }),
   submitExam: (id, body) => request(`/api/tests/${id}/submit`, { method: 'POST', body: JSON.stringify(body) }),

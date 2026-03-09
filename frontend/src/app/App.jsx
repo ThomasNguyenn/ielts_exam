@@ -3,7 +3,7 @@ import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-do
 import { api } from '@/shared/api/client';
 import { NotificationProvider } from '@/shared/context/NotificationContext';
 import AchievementToast from '@/features/achievements/components/AchievementToast';
-import { PublicRoute, RequireAuth, RequireRole } from './routeGuards';
+import { PublicRoute, RequireAuth, RequireRole } from './routeGuards.jsx';
 import {
   UI_ROLE_ADMIN,
   UI_ROLE_STUDENT_ACA,
@@ -81,7 +81,7 @@ const ManageSectionsSinglePage = lazy(() => import('@/features/admin/pages/Manag
 const ManageTestsSinglePage = lazy(() => import('@/features/admin/pages/ManageTestsSinglePage'));
 const ManageWritingsSinglePage = lazy(() => import('@/features/admin/pages/ManageWritingsSinglePage'));
 const ManageSpeakingSinglePage = lazy(() => import('@/features/admin/pages/ManageSpeakingSinglePage'));
-const AddSkillModules = lazy(() => import('@/features/admin/pages/AddSkillModules'));
+const AddSkillModules = lazy(() => import('@/features/admin/components/AddSkillModules'));
 const StudentRequests = lazy(() => import('@/features/admin/pages/StudentRequests'));
 const ManageUsers = lazy(() => import('@/features/admin/pages/ManageUsers'));
 const ManageInvitations = lazy(() => import('@/features/admin/pages/ManageInvitations'));

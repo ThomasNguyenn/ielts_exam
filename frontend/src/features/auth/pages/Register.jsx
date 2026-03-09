@@ -4,7 +4,7 @@ import { GalleryVerticalEnd } from "lucide-react"
 
 import { api } from "@/shared/api/client"
 import { isStudentFamilyRole, requiresFirstLoginSetup } from "@/app/roleRouting"
-import { SignupForm } from "@/components/signup-form"
+import { SignupForm } from "@/features/auth/components/signup-form"
 
 export default function SignupPage() {
   const navigate = useNavigate()

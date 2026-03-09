@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/table';
 
 const ITEMS_PER_PAGE = 6;
-const AddSpeaking = lazy(() => import('./AddSpeaking'));
+const AddSpeaking = lazy(() => import('../components/AddSpeaking'));
 
 const formatDate = (value) => {
   if (!value) return '-';
@@ -48,7 +48,7 @@ export default function ManageSpeakingSinglePage() {
     isOpen: false,
     title: '',
     message: '',
-    onConfirm: () => {},
+    onConfirm: () => { },
     isDanger: false,
   });
 
@@ -83,11 +83,11 @@ export default function ManageSpeakingSinglePage() {
     const matched = !query
       ? speakings
       : speakings.filter((item) =>
-      String(item.title || '').toLowerCase().includes(query) ||
-      String(item._id || '').toLowerCase().includes(query) ||
-      String(item.prompt || '').toLowerCase().includes(query) ||
-      String(item.part2_question_title || '').toLowerCase().includes(query)
-    );
+        String(item.title || '').toLowerCase().includes(query) ||
+        String(item._id || '').toLowerCase().includes(query) ||
+        String(item.prompt || '').toLowerCase().includes(query) ||
+        String(item.part2_question_title || '').toLowerCase().includes(query)
+      );
     return [...matched].sort((a, b) => getSortTimestamp(b) - getSortTimestamp(a));
   }, [speakings, searchQuery]);
 

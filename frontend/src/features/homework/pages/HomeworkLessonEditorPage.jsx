@@ -53,6 +53,11 @@ const createTempId = () =>
 
 const HOMEWORK_RESOURCE_MAX_BYTES = 50 * 1024 * 1024;
 
+const isObjectStorageNotConfiguredError = (error) => {
+  const message = String(error?.message || "").trim().toLowerCase();
+  return message.includes("object storage") && message.includes("not configured");
+};
+
 const BLOCK_TYPES = [
   { type: "instruction", label: "Instruction" },
   { type: "answer", label: "Answer (Teacher)" },
@@ -194,6 +199,12 @@ const normalizeQuizOptionData = (option = {}, fallbackIndex = 0) => ({
   text: String(option?.text || "").trim(),
 });
 
+const resolveQuizQuestionText = (question = {}) =>
+  String(question?.question || question?.text || question?.question_html || question?.prompt || "").trim();
+
+const resolveQuizExplanationText = (question = {}) =>
+  String(question?.explanation || question?.explanation_html || "").trim();
+
 const normalizeQuizLayout = (value) => {
   const normalized = String(value || "").trim().toLowerCase();
   return normalized === "list" ? "list" : "grid";
@@ -203,17 +214,17 @@ const normalizeQuizQuestionData = (question = {}, fallbackIndex = 0) => {
   const normalizedQuestion = question && typeof question === "object" ? question : {};
   const normalizedOptions = Array.isArray(normalizedQuestion.options)
     ? normalizedQuestion.options
-        .map((option, optionIndex) => normalizeQuizOptionData(option, optionIndex))
-        .filter((option) => option.id)
+      .map((option, optionIndex) => normalizeQuizOptionData(option, optionIndex))
+      .filter((option) => option.id)
     : [];
   const options = normalizedOptions.length >= 2
     ? normalizedOptions
     : [
-        ...normalizedOptions,
-        ...Array.from({ length: Math.max(0, 2 - normalizedOptions.length) }, (_, idx) =>
-          normalizeQuizOptionData({}, normalizedOptions.length + idx),
-        ),
-      ];
+      ...normalizedOptions,
+      ...Array.from({ length: Math.max(0, 2 - normalizedOptions.length) }, (_, idx) =>
+        normalizeQuizOptionData({}, normalizedOptions.length + idx),
+      ),
+    ];
   const optionIdSet = new Set(options.map((option) => option.id));
   const allowMultiple = Boolean(normalizedQuestion.allow_multiple);
   const requestedCorrectIds = Array.isArray(normalizedQuestion.correct_option_ids)
@@ -597,27 +608,40 @@ const applyBlocksToLesson = (lesson = {}, blocks = []) => {
       ? String(normalizedVideoData.storage_key || "").trim()
       : "";
   } else {
-    next.resource_mode = lesson?.resource_mode || "internal";
-    next.resource_ref_type = lesson?.resource_ref_type || "passage";
-    next.resource_ref_id = lesson?.resource_ref_id || "";
-    next.resource_url = lesson?.resource_url || "";
-    next.resource_storage_key = lesson?.resource_storage_key || "";
+    next.resource_mode = "internal";
+    next.resource_ref_type = "passage";
+    next.resource_ref_id = "";
+    next.resource_url = "";
+    next.resource_storage_key = "";
   }
 
   return next;
 };
 
 const toDateInputValue = (value) => {
-  if (!value) return "";
-  const date = new Date(value);
+  const rawValue = String(value || "").trim();
+  if (!rawValue) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(rawValue)) return rawValue;
+  const date = new Date(rawValue);
   if (Number.isNaN(date.getTime())) return "";
-  return date.toISOString().slice(0, 10);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 };
 
 const clampQuizAiInteger = (value, { min, max, fallback }) => {
   const parsed = Number(value);
   const normalized = Number.isFinite(parsed) ? Math.trunc(parsed) : fallback;
   return Math.max(min, Math.min(max, normalized));
+};
+
+const toNullableNonNegativeInteger = (value) => {
+  const rawValue = String(value ?? "").trim();
+  if (!rawValue) return null;
+  const parsed = Number(rawValue);
+  if (!Number.isFinite(parsed)) return null;
+  return Math.max(0, Math.trunc(parsed));
 };
 
 export default function HomeworkLessonEditorPage() {
@@ -646,6 +670,7 @@ export default function HomeworkLessonEditorPage() {
   const [matchingSelections, setMatchingSelections] = useState({});
   const [mediaUploadLoadingByBlockId, setMediaUploadLoadingByBlockId] = useState({});
   const [dictationUploadLoadingByBlockId, setDictationUploadLoadingByBlockId] = useState({});
+  const [objectStorageUnavailable, setObjectStorageUnavailable] = useState(false);
   const [quizAiDialog, setQuizAiDialog] = useState({
     open: false,
     blockId: "",
@@ -654,34 +679,55 @@ export default function HomeworkLessonEditorPage() {
     optionsPerQuestion: String(QUIZ_AI_DEFAULT_OPTIONS_PER_QUESTION),
     loading: false,
   });
+  const loadSeqRef = useRef(0);
+  const saveSeqRef = useRef(0);
+  const isMountedRef = useRef(true);
+  const routeKeyRef = useRef(`${id || ""}:${lessonId || ""}`);
   const dictationFileInputRefs = useRef(new Map());
+  const mediaFileInputRefs = useRef(new Map());
 
-  const load = async () => {
+
+  useEffect(() => {
+    routeKeyRef.current = `${id || ""}:${lessonId || ""}`;
+  }, [id, lessonId]);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      loadSeqRef.current += 1;
+    };
+  }, []);
+
+  const load = async ({ assignmentId = id, taskLessonId = lessonId } = {}) => {
+    const requestSeq = ++loadSeqRef.current;
+    const isStaleRequest = () => !isMountedRef.current || requestSeq !== loadSeqRef.current;
     setLoading(true);
     setError("");
     try {
       const [lessonRes, passageRes, sectionRes, speakingRes, writingRes, testRes] = await Promise.all([
-        api.homeworkGetAssignmentLessonById(id, lessonId),
+        api.homeworkGetAssignmentLessonById(assignmentId, taskLessonId),
         api.getPassages({ summary: 1 }),
         api.getSections({ summary: 1 }),
         api.getSpeakings({ summary: 1, limit: 200 }),
         api.getWritings({ summary: 1 }),
         api.getTests({ summary: 1 }),
       ]);
+      if (isStaleRequest()) return;
 
       const payload = lessonRes?.data || {};
       const nextLesson = payload.lesson || {};
       setAssignment(payload.assignment || null);
       setSection(payload.section || null);
-      
-      if (id && payload.assignment?.title) {
+
+      if (assignmentId && payload.assignment?.title) {
         window.dispatchEvent(new CustomEvent('breadcrumb-label-override', {
-          detail: { segment: id, label: payload.assignment.title },
+          detail: { segment: assignmentId, label: payload.assignment.title },
         }));
       }
-      if (lessonId && nextLesson?.name) {
+      if (taskLessonId && nextLesson?.name) {
         window.dispatchEvent(new CustomEvent('breadcrumb-label-override', {
-          detail: { segment: lessonId, label: nextLesson.name },
+          detail: { segment: taskLessonId, label: nextLesson.name },
         }));
       }
 
@@ -708,6 +754,8 @@ export default function HomeworkLessonEditorPage() {
       setInternalPickerOpenByBlockId({});
       setCollapsedBlockById({});
       setMediaUploadLoadingByBlockId({});
+      setDictationUploadLoadingByBlockId({});
+      setObjectStorageUnavailable(false);
       setCatalog({
         passage: Array.isArray(passageRes?.data) ? passageRes.data : [],
         section: Array.isArray(sectionRes?.data) ? sectionRes.data : [],
@@ -716,14 +764,16 @@ export default function HomeworkLessonEditorPage() {
         test: Array.isArray(testRes?.data) ? testRes.data : [],
       });
     } catch (loadError) {
+      if (isStaleRequest()) return;
       setError(loadError?.message || "Failed to load lesson");
     } finally {
+      if (isStaleRequest()) return;
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    void load();
+    void load({ assignmentId: id, taskLessonId: lessonId });
   }, [id, lessonId]);
 
   const updateLesson = (patch) => setLesson((prev) => ({ ...prev, ...patch }));
@@ -736,7 +786,7 @@ export default function HomeworkLessonEditorPage() {
       next[type] = !keyword
         ? list
         : list
-            .filter((item) => `${item?.title || ""} ${item?._id || ""}`.toLowerCase().includes(keyword));
+          .filter((item) => `${item?.title || ""} ${item?._id || ""}`.toLowerCase().includes(keyword));
     });
     return next;
   }, [catalog, searchKeyword]);
@@ -874,9 +924,9 @@ export default function HomeworkLessonEditorPage() {
       questions: (Array.isArray(currentData.questions) ? currentData.questions : []).map((question) =>
         normalizeBlockId(question?.id) === normalizeBlockId(questionId)
           ? {
-              ...question,
-              options: [...(Array.isArray(question.options) ? question.options : []), { id: createTempId(), text: "" }],
-            }
+            ...question,
+            options: [...(Array.isArray(question.options) ? question.options : []), { id: createTempId(), text: "" }],
+          }
           : question,
       ),
     }));
@@ -1092,23 +1142,36 @@ export default function HomeworkLessonEditorPage() {
         formData.append("task_id", String(lessonId || "").trim());
       }
       const response = await api.uploadHomeworkResource(formData);
-      const uploadedUrl = String(response?.data?.url || "").trim();
-      const uploadedKey = String(response?.data?.key || "").trim();
+      const uploadedUrl = String(response?.data?.url || response?.url || "").trim();
+      const uploadedKey = String(response?.data?.key || response?.key || "").trim();
 
-      if (!uploadedUrl || !uploadedKey) {
-        throw new Error("Upload succeeded but missing url/key.");
+      if (!uploadedUrl) {
+        throw new Error("Upload succeeded but missing url.");
       }
 
       updateVideoBlock(blockId, (currentData) => ({
         ...currentData,
         url: uploadedUrl,
         media_type: isImage ? "image" : "video",
-        source_type: "upload",
+        source_type: uploadedKey ? "upload" : "link",
         storage_key: uploadedKey,
       }));
-      showNotification("Media uploaded.", "success");
+      showNotification(uploadedKey ? "Media uploaded." : "Media uploaded. Saved as external link.", "success");
     } catch (uploadError) {
-      showNotification(uploadError?.message || "Failed to upload media.", "error");
+      if (isObjectStorageNotConfiguredError(uploadError)) {
+        setObjectStorageUnavailable(true);
+        updateVideoBlock(blockId, (currentData) => ({
+          ...currentData,
+          source_type: "link",
+          storage_key: "",
+        }));
+        showNotification(
+          "Upload unavailable: Object storage is not configured. Use a direct media URL instead.",
+          "error",
+        );
+      } else {
+        showNotification(uploadError?.message || "Failed to upload media.", "error");
+      }
     } finally {
       setMediaUploadLoading(blockId, false);
       resetInput();
@@ -1188,11 +1251,11 @@ export default function HomeworkLessonEditorPage() {
         formData.append("task_id", String(lessonId || "").trim());
       }
       const response = await api.uploadHomeworkResource(formData);
-      const uploadedUrl = String(response?.data?.url || "").trim();
-      const uploadedKey = String(response?.data?.key || "").trim();
+      const uploadedUrl = String(response?.data?.url || response?.url || "").trim();
+      const uploadedKey = String(response?.data?.key || response?.key || "").trim();
 
-      if (!uploadedUrl || !uploadedKey) {
-        throw new Error("Upload succeeded but missing url/key.");
+      if (!uploadedUrl) {
+        throw new Error("Upload succeeded but missing url.");
       }
 
       updateDictationBlock(blockId, (currentData) => ({
@@ -1200,9 +1263,24 @@ export default function HomeworkLessonEditorPage() {
         audio_url: uploadedUrl,
         audio_storage_key: uploadedKey,
       }));
-      showNotification("Dictation audio uploaded.", "success");
+      showNotification(
+        uploadedKey ? "Dictation audio uploaded." : "Audio uploaded. Saved as external link.",
+        "success",
+      );
     } catch (uploadError) {
-      showNotification(uploadError?.message || "Failed to upload dictation audio.", "error");
+      if (isObjectStorageNotConfiguredError(uploadError)) {
+        setObjectStorageUnavailable(true);
+        updateDictationBlock(blockId, (currentData) => ({
+          ...currentData,
+          audio_storage_key: "",
+        }));
+        showNotification(
+          "Upload unavailable: Object storage is not configured. Use a direct audio URL instead.",
+          "error",
+        );
+      } else {
+        showNotification(uploadError?.message || "Failed to upload dictation audio.", "error");
+      }
     } finally {
       setDictationUploadLoading(blockId, false);
       resetInput();
@@ -1555,18 +1633,20 @@ export default function HomeworkLessonEditorPage() {
       prev.map((block) =>
         String(block.id) === String(blockId)
           ? {
-              ...block,
-              data: {
-                ...block.data,
-                ...patch,
-              },
-            }
+            ...block,
+            data: {
+              ...block.data,
+              ...patch,
+            },
+          }
           : block,
       ),
     );
   };
 
   const handleSave = async () => {
+    const saveSeq = ++saveSeqRef.current;
+    const saveRouteKey = `${id || ""}:${lessonId || ""}`;
     setSaving(true);
     try {
       const nextLesson = applyBlocksToLesson(lesson, contentBlocks);
@@ -1588,18 +1668,22 @@ export default function HomeworkLessonEditorPage() {
         requires_text: Boolean(nextLesson.requires_text),
         requires_image: Boolean(nextLesson.requires_image),
         requires_audio: Boolean(nextLesson.requires_audio),
-        min_words: nextLesson.min_words === "" ? null : Number(nextLesson.min_words),
-        max_words: nextLesson.max_words === "" ? null : Number(nextLesson.max_words),
+        min_words: toNullableNonNegativeInteger(nextLesson.min_words),
+        max_words: toNullableNonNegativeInteger(nextLesson.max_words),
         content_blocks: Array.isArray(nextLesson.content_blocks) ? nextLesson.content_blocks : [],
       };
 
       await api.homeworkPatchAssignmentLessonById(id, lessonId, payload);
       showNotification("Lesson updated", "success");
-      await load();
+      if (routeKeyRef.current === saveRouteKey) {
+        await load({ assignmentId: id, taskLessonId: lessonId });
+      }
     } catch (saveError) {
       showNotification(saveError?.message || "Failed to save lesson", "error");
     } finally {
-      setSaving(false);
+      if (isMountedRef.current && saveSeq === saveSeqRef.current) {
+        setSaving(false);
+      }
     }
   };
 
@@ -1607,6 +1691,14 @@ export default function HomeworkLessonEditorPage() {
     if (!id) return;
     window.open(`/student-ielts/homework/${id}?preview=1`, "_blank", "noopener,noreferrer");
   };
+
+  const toggleBlockCollapsed = (blockId) => {
+    setCollapsedBlockById((prev) => ({
+      ...prev,
+      [String(blockId)]: !prev[String(blockId)],
+    }));
+  };
+
 
   if (loading) {
     return (
@@ -1719,10 +1811,10 @@ export default function HomeworkLessonEditorPage() {
                   const gapfillData = blockType === "gapfill" ? normalizeGapfillBlockData(block?.data || {}) : null;
                   const gapfillTemplates = blockType === "gapfill"
                     ? (
-                        gapfillData?.mode === GAPFILL_MODE_PARAGRAPH
-                          ? [String(gapfillData?.paragraph_text || "")]
-                          : (Array.isArray(gapfillData?.numbered_items) ? gapfillData.numbered_items : [])
-                      )
+                      gapfillData?.mode === GAPFILL_MODE_PARAGRAPH
+                        ? [String(gapfillData?.paragraph_text || "")]
+                        : (Array.isArray(gapfillData?.numbered_items) ? gapfillData.numbered_items : [])
+                    )
                     : [];
                   const findMistakeData = blockType === "find_mistake"
                     ? normalizeFindMistakeBlockData(block?.data || {})
@@ -1835,1077 +1927,1087 @@ export default function HomeworkLessonEditorPage() {
 
                       {!isCollapsed ? (
                         <>
-                      {blockType === "title" ? (
-                        <div className="space-y-2">
-                          <Label>Title</Label>
-                          <Input
-                            value={block.data.text || ""}
-                            onChange={(event) => updateBlockData(block.id, { text: event.target.value })}
-                            placeholder="Add heading text"
-                          />
-                        </div>
-                      ) : null}
-
-                      {blockType === "instruction" ? (
-                        <div className="space-y-2">
-                          <Label>Instruction</Label>
-                          <HomeworkRichTextEditor
-                            value={block.data.text || ""}
-                            onChange={(nextText) => updateBlockData(block.id, { text: nextText })}
-                            placeholder="Add instruction for students..."
-                            minHeight={150}
-                          />
-                        </div>
-                      ) : null}
-
-                      {blockType === "answer" ? (
-                        <div className="space-y-2">
-                          <Label>Answer (optional, teacher only)</Label>
-                          <HomeworkRichTextEditor
-                            value={block.data.text || ""}
-                            onChange={(nextText) =>
-                              updateBlockData(block.id, normalizeAnswerBlockData({ ...(block.data || {}), text: nextText }))}
-                            placeholder="Model answer / marking reference for teacher view."
-                            minHeight={150}
-                            outputFormat="html"
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            This block will not be shown to students in homework process.
-                          </p>
-                        </div>
-                      ) : null}
-
-                      {blockType === "video" ? (
-                        <div className="space-y-3">
-                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          {blockType === "title" ? (
                             <div className="space-y-2">
-                              <Label>Source</Label>
-                              <Select
-                                value={mediaData?.source_type || "link"}
-                                onValueChange={(value) =>
-                                  updateVideoBlock(block.id, (currentData) => ({
-                                    ...currentData,
-                                    source_type: value,
-                                    storage_key: value === "upload" ? currentData.storage_key : "",
-                                  }))}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="link">Link</SelectItem>
-                                  <SelectItem value="upload">Upload</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Media Type</Label>
-                              <Select
-                                value={mediaData?.media_type || "video"}
-                                onValueChange={(value) =>
-                                  updateVideoBlock(block.id, (currentData) => ({
-                                    ...currentData,
-                                    media_type: value,
-                                  }))}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="video">Video</SelectItem>
-                                  <SelectItem value="image">Image</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </div>
-
-                          {(mediaData?.source_type || "link") === "upload" ? (
-                            <div className="space-y-2">
-                              <Label>Upload File</Label>
+                              <Label>Title</Label>
                               <Input
-                                ref={(node) => registerMediaFileInputRef(block.id, node)}
-                                type="file"
-                                accept="image/*,video/*"
-                                onChange={(event) => void handleMediaFileSelected(block.id, event)}
-                                className="hidden"
+                                value={block.data.text || ""}
+                                onChange={(event) => updateBlockData(block.id, { text: event.target.value })}
+                                placeholder="Add heading text"
                               />
-                              <div className="flex flex-wrap items-center gap-2">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  onClick={() => openMediaUploadPicker(block.id)}
-                                  disabled={isMediaUploadLoading}
-                                >
-                                  <Upload className="h-4 w-4" />
-                                  {isMediaUploadLoading
-                                    ? "Uploading..."
-                                    : mediaData?.url
-                                      ? "Replace Media"
-                                      : "Upload Media"}
-                                </Button>
-                                <span className="text-xs text-muted-foreground">Max file size: 50MB</span>
+                            </div>
+                          ) : null}
+
+                          {blockType === "instruction" ? (
+                            <div className="space-y-2">
+                              <Label>Instruction</Label>
+                              <HomeworkRichTextEditor
+                                value={block.data.text || ""}
+                                onChange={(nextText) => updateBlockData(block.id, { text: nextText })}
+                                placeholder="Add instruction for students..."
+                                minHeight={150}
+                              />
+                            </div>
+                          ) : null}
+
+                          {blockType === "answer" ? (
+                            <div className="space-y-2">
+                              <Label>Answer (optional, teacher only)</Label>
+                              <HomeworkRichTextEditor
+                                value={block.data.text || ""}
+                                onChange={(nextText) =>
+                                  updateBlockData(block.id, normalizeAnswerBlockData({ ...(block.data || {}), text: nextText }))}
+                                placeholder="Model answer / marking reference for teacher view."
+                                minHeight={150}
+                                outputFormat="html"
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                This block will not be shown to students in homework process.
+                              </p>
+                            </div>
+                          ) : null}
+
+                          {blockType === "video" ? (
+                            <div className="space-y-3">
+                              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <div className="space-y-2">
+                                  <Label>Source</Label>
+                                  <Select
+                                    value={mediaData?.source_type || "link"}
+                                    onValueChange={(value) =>
+                                      updateVideoBlock(block.id, (currentData) => ({
+                                        ...currentData,
+                                        source_type: value,
+                                        storage_key: value === "upload" ? currentData.storage_key : "",
+                                      }))}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="link">Link</SelectItem>
+                                      <SelectItem value="upload" disabled={objectStorageUnavailable}>
+                                        Upload
+                                      </SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  {objectStorageUnavailable ? (
+                                    <p className="text-xs text-amber-600">
+                                      Upload disabled: object storage is not configured on the server.
+                                    </p>
+                                  ) : null}
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Media Type</Label>
+                                  <Select
+                                    value={mediaData?.media_type || "video"}
+                                    onValueChange={(value) =>
+                                      updateVideoBlock(block.id, (currentData) => ({
+                                        ...currentData,
+                                        media_type: value,
+                                      }))}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="video">Video</SelectItem>
+                                      <SelectItem value="image">Image</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
                               </div>
-                              <p className="text-xs text-muted-foreground">
-                                Uploaded file will be stored in DigitalOcean Spaces.
-                              </p>
-                            </div>
-                          ) : null}
 
-                          <div className="space-y-2">
-                            <Label>Media URL</Label>
-                            <Input
-                              value={mediaData?.url || ""}
-                              onChange={(event) => {
-                                const nextUrl = event.target.value;
-                                const inferredMediaType =
-                                  inferMediaTypeFromUrl(nextUrl) || String(mediaData?.media_type || "").trim();
-                                updateVideoBlock(block.id, (currentData) => ({
-                                  ...currentData,
-                                  url: nextUrl,
-                                  source_type: "link",
-                                  storage_key: "",
-                                  media_type: inferredMediaType || currentData.media_type || "video",
-                                }));
-                              }}
-                              placeholder={
-                                (mediaData?.media_type || "video") === "image"
-                                  ? "https://example.com/image.jpg"
-                                  : "https://youtube.com/..."
-                              }
-                            />
-                            {mediaData?.source_type === "upload" && mediaData?.storage_key ? (
-                              <p className="text-xs text-muted-foreground">
-                                Editing URL manually switches to external link and clears storage key.
-                              </p>
-                            ) : null}
-                          </div>
-
-                          {(() => {
-                            const mediaType = mediaData?.media_type || "video";
-                            const currentUrl = String(mediaData?.url || "").trim();
-                            if (!currentUrl) return null;
-                            if (mediaType === "image") {
-                              return (
-                                <div className="overflow-hidden rounded-md border bg-muted/20 p-2">
-                                  <img
-                                    src={currentUrl}
-                                    alt={`Media preview ${block.id}`}
-                                    className="max-h-80 w-full rounded-md object-contain"
+                              {(mediaData?.source_type || "link") === "upload" ? (
+                                <div className="space-y-2">
+                                  <Label>Upload File</Label>
+                                  <Input
+                                    ref={(node) => registerMediaFileInputRef(block.id, node)}
+                                    type="file"
+                                    accept="image/*,video/*"
+                                    onChange={(event) => void handleMediaFileSelected(block.id, event)}
+                                    className="hidden"
                                   />
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      onClick={() => openMediaUploadPicker(block.id)}
+                                      disabled={isMediaUploadLoading || objectStorageUnavailable}
+                                    >
+                                      <Upload className="h-4 w-4" />
+                                      {isMediaUploadLoading
+                                        ? "Uploading..."
+                                        : mediaData?.url
+                                          ? "Replace Media"
+                                          : "Upload Media"}
+                                    </Button>
+                                    <span className="text-xs text-muted-foreground">Max file size: 50MB</span>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">
+                                    Uploaded file will be stored in DigitalOcean Spaces.
+                                  </p>
                                 </div>
-                              );
-                            }
+                              ) : null}
 
-                            const preview = resolveVideoPreview(currentUrl);
-                            if (preview.kind === "youtube" && preview.youtubeId) {
-                              return (
-                                <div className="overflow-hidden rounded-md border homework-video-lite">
-                                  <LiteYouTubeEmbed
-                                    id={preview.youtubeId}
-                                    title={`Video preview ${block.id}`}
-                                    noCookie
-                                    adNetwork={false}
-                                    poster="maxresdefault"
-                                    params="cc_load_policy=0&iv_load_policy=3&modestbranding=1&rel=0"
-                                    webp
-                                  />
-                                </div>
-                              );
-                            }
-                            if (preview.kind === "vimeo") {
-                              return (
-                                <div className="overflow-hidden rounded-md border">
-                                  <iframe
-                                    src={preview.src}
-                                    title={`Video preview ${block.id}`}
-                                    className="aspect-video w-full"
-                                    allow="autoplay; fullscreen; picture-in-picture"
-                                    allowFullScreen
-                                  />
-                                </div>
-                              );
-                            }
-                            if (preview.kind === "direct") {
-                              return (
-                                <div className="overflow-hidden rounded-md border">
-                                  <video controls className="aspect-video w-full" src={preview.src} />
-                                </div>
-                              );
-                            }
-                            return (
-                              <p className="text-xs text-muted-foreground">
-                                This URL does not support embed preview.{" "}
-                                <a
-                                  href={currentUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-primary underline-offset-4 hover:underline"
-                                >
-                                  Open link
-                                </a>
-                              </p>
-                            );
-                          })()}
-
-                          {mediaData?.url ? (
-                            <div className="flex justify-end">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() =>
-                                  updateVideoBlock(block.id, (currentData) => ({
-                                    ...currentData,
-                                    url: "",
-                                    source_type: "link",
-                                    storage_key: "",
-                                  }))}
-                              >
-                                <X className="h-4 w-4" />
-                                Clear media
-                              </Button>
-                            </div>
-                          ) : null}
-                        </div>
-                      ) : null}
-
-                      {blockType === "dictation" ? (
-                        <div className="space-y-3">
-                          <div className="space-y-2">
-                            <Label>Prompt (optional)</Label>
-                            <Input
-                              value={dictationData?.prompt || ""}
-                              onChange={(event) =>
-                                updateDictationBlock(block.id, {
-                                  ...(dictationData || {}),
-                                  prompt: event.target.value,
-                                })}
-                              placeholder="Example: Listen and type exactly what you hear"
-                            />
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label>Audio (MP3)</Label>
-                            <Input
-                              ref={(node) => registerDictationFileInputRef(block.id, node)}
-                              type="file"
-                              accept="audio/*"
-                              onChange={(event) => void handleDictationAudioFileSelected(block.id, event)}
-                              className="hidden"
-                            />
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => openDictationUploadPicker(block.id)}
-                                disabled={isDictationUploadLoading}
-                              >
-                                <Upload className="h-4 w-4" />
-                                {isDictationUploadLoading
-                                  ? "Uploading..."
-                                  : dictationData?.audio_url
-                                    ? "Replace Audio"
-                                    : "Upload Audio"}
-                              </Button>
-                              <span className="text-xs text-muted-foreground">Max file size: 50MB</span>
-                            </div>
-                            <Input
-                              value={dictationData?.audio_url || ""}
-                              onChange={(event) =>
-                                updateDictationBlock(block.id, {
-                                  ...(dictationData || {}),
-                                  audio_url: event.target.value,
-                                  audio_storage_key: "",
-                                })}
-                              placeholder="https://example.com/dictation.mp3"
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              Editing URL manually clears storage key to avoid deleting external audio.
-                            </p>
-                            {dictationData?.audio_url ? (
                               <div className="space-y-2">
-                                <DictationAudioPlayer
-                                  src={dictationData.audio_url}
-                                  title={dictationData?.prompt || `Dictation ${index + 1}`}
+                                <Label>Media URL</Label>
+                                <Input
+                                  value={mediaData?.url || ""}
+                                  onChange={(event) => {
+                                    const nextUrl = event.target.value;
+                                    const inferredMediaType =
+                                      inferMediaTypeFromUrl(nextUrl) || String(mediaData?.media_type || "").trim();
+                                    updateVideoBlock(block.id, (currentData) => ({
+                                      ...currentData,
+                                      url: nextUrl,
+                                      source_type: "link",
+                                      storage_key: "",
+                                      media_type: inferredMediaType || currentData.media_type || "video",
+                                    }));
+                                  }}
+                                  placeholder={
+                                    (mediaData?.media_type || "video") === "image"
+                                      ? "https://example.com/image.jpg"
+                                      : "https://youtube.com/..."
+                                  }
                                 />
+                                {mediaData?.source_type === "upload" && mediaData?.storage_key ? (
+                                  <p className="text-xs text-muted-foreground">
+                                    Editing URL manually switches to external link and clears storage key.
+                                  </p>
+                                ) : null}
+                              </div>
+
+                              {(() => {
+                                const mediaType = mediaData?.media_type || "video";
+                                const currentUrl = String(mediaData?.url || "").trim();
+                                if (!currentUrl) return null;
+                                if (mediaType === "image") {
+                                  return (
+                                    <div className="overflow-hidden rounded-md border bg-muted/20 p-2">
+                                      <img
+                                        src={currentUrl}
+                                        alt={`Media preview ${block.id}`}
+                                        className="max-h-80 w-full rounded-md object-contain"
+                                      />
+                                    </div>
+                                  );
+                                }
+
+                                const preview = resolveVideoPreview(currentUrl);
+                                if (preview.kind === "youtube" && preview.youtubeId) {
+                                  return (
+                                    <div className="overflow-hidden rounded-md border homework-video-lite">
+                                      <LiteYouTubeEmbed
+                                        id={preview.youtubeId}
+                                        title={`Video preview ${block.id}`}
+                                        noCookie
+                                        adNetwork={false}
+                                        poster="maxresdefault"
+                                        params="cc_load_policy=0&iv_load_policy=3&modestbranding=1&rel=0"
+                                        webp
+                                      />
+                                    </div>
+                                  );
+                                }
+                                if (preview.kind === "vimeo") {
+                                  return (
+                                    <div className="overflow-hidden rounded-md border">
+                                      <iframe
+                                        src={preview.src}
+                                        title={`Video preview ${block.id}`}
+                                        className="aspect-video w-full"
+                                        allow="autoplay; fullscreen; picture-in-picture"
+                                        allowFullScreen
+                                      />
+                                    </div>
+                                  );
+                                }
+                                if (preview.kind === "direct") {
+                                  return (
+                                    <div className="overflow-hidden rounded-md border">
+                                      <video controls className="aspect-video w-full" src={preview.src} />
+                                    </div>
+                                  );
+                                }
+                                return (
+                                  <p className="text-xs text-muted-foreground">
+                                    This URL does not support embed preview.{" "}
+                                    <a
+                                      href={currentUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-primary underline-offset-4 hover:underline"
+                                    >
+                                      Open link
+                                    </a>
+                                  </p>
+                                );
+                              })()}
+
+                              {mediaData?.url ? (
                                 <div className="flex justify-end">
                                   <Button
                                     type="button"
                                     variant="ghost"
                                     size="sm"
                                     onClick={() =>
-                                      updateDictationBlock(block.id, {
-                                        ...(dictationData || {}),
-                                        audio_url: "",
-                                        audio_storage_key: "",
-                                      })}
+                                      updateVideoBlock(block.id, (currentData) => ({
+                                        ...currentData,
+                                        url: "",
+                                        source_type: "link",
+                                        storage_key: "",
+                                      }))}
                                   >
                                     <X className="h-4 w-4" />
-                                    Clear audio
+                                    Clear media
                                   </Button>
                                 </div>
-                              </div>
-                            ) : null}
-                          </div>
+                              ) : null}
+                            </div>
+                          ) : null}
 
-                          <div className="space-y-2">
-                            <Label>Transcript (teacher only)</Label>
-                            <HomeworkRichTextEditor
-                              value={dictationData?.transcript || ""}
-                              onChange={(nextText) =>
-                                updateDictationBlock(block.id, {
-                                  ...(dictationData || {}),
-                                  transcript: nextText,
-                                })}
-                              placeholder="Transcript will be hidden from students."
-                              minHeight={140}
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              Students will only see the audio and submission input.
-                            </p>
-                          </div>
-                        </div>
-                      ) : null}
-
-                      {blockType === "input" ? (
-                        <div className="space-y-3">
-                          <div className="space-y-2">
-                            <Label>Student input type</Label>
-                            <Select
-                              value={resolveInputTypeFromData(block.data)}
-                              onValueChange={(value) =>
-                                updateBlockData(
-                                  block.id,
-                                  normalizeInputBlockData({ ...(block.data || {}), input_type: value }),
-                                )}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {INPUT_TYPE_OPTIONS.map((option) => (
-                                  <SelectItem key={option.value} value={option.value}>
-                                    {option.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          {resolveInputTypeFromData(block.data) === "text" ? (
-                            <div className="grid grid-cols-2 gap-2">
+                          {blockType === "dictation" ? (
+                            <div className="space-y-3">
                               <div className="space-y-2">
-                                <Label>Min words</Label>
+                                <Label>Prompt (optional)</Label>
                                 <Input
-                                  type="number"
-                                  value={block.data.min_words ?? ""}
-                                  onChange={(event) => updateBlockData(block.id, { min_words: event.target.value })}
+                                  value={dictationData?.prompt || ""}
+                                  onChange={(event) =>
+                                    updateDictationBlock(block.id, {
+                                      ...(dictationData || {}),
+                                      prompt: event.target.value,
+                                    })}
+                                  placeholder="Example: Listen and type exactly what you hear"
                                 />
                               </div>
+
                               <div className="space-y-2">
-                                <Label>Max words</Label>
+                                <Label>Audio (MP3)</Label>
                                 <Input
-                                  type="number"
-                                  value={block.data.max_words ?? ""}
-                                  onChange={(event) => updateBlockData(block.id, { max_words: event.target.value })}
+                                  ref={(node) => registerDictationFileInputRef(block.id, node)}
+                                  type="file"
+                                  accept="audio/*"
+                                  onChange={(event) => void handleDictationAudioFileSelected(block.id, event)}
+                                  className="hidden"
                                 />
-                              </div>
-                            </div>
-                          ) : resolveInputTypeFromData(block.data) === "image" ? (
-                            <p className="text-xs text-muted-foreground">
-                              Student will only see image upload input.
-                            </p>
-                          ) : (
-                            <p className="text-xs text-muted-foreground">
-                              Student will record audio directly on the page.
-                            </p>
-                          )}
-                        </div>
-                      ) : null}
-
-                      {blockType === "passage" ? (
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between gap-2">
-                            <Label>Passage Content</Label>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => addQuizBlockForPassage(blockDataId)}
-                              disabled={!blockDataId}
-                            >
-                              <Plus className="h-3.5 w-3.5" />
-                              Add quiz question
-                            </Button>
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Passage Text</Label>
-                            <HomeworkRichTextEditor
-                              value={block?.data?.text || ""}
-                              onChange={(nextText) =>
-                                updateBlockData(
-                                  block.id,
-                                  normalizePassageBlockData({
-                                    ...(block?.data || {}),
-                                    text: nextText,
-                                  }),
-                                )}
-                              placeholder="Type the reading passage here..."
-                              minHeight={240}
-                            />
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            {passageTextPreview
-                              ? `${passageTextPreview.length} characters`
-                              : "Passage is empty."}
-                          </p>
-                        </div>
-                      ) : null}
-
-                      {blockType === "quiz" ? (
-                        <div className="space-y-4">
-                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                            <div className="space-y-2">
-                              <Label>Attach to passage (optional)</Label>
-                              <Select
-                                value={quizParentPassageId || "__standalone__"}
-                                onValueChange={(value) =>
-                                  updateQuizBlock(block.id, {
-                                    parent_passage_block_id: value === "__standalone__" ? "" : value,
-                                  })}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="__standalone__">Standalone quiz</SelectItem>
-                                  {passageBlockOptions.map((option) => (
-                                    <SelectItem key={option.blockId} value={option.blockId}>
-                                      {option.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <p className="text-xs text-muted-foreground">
-                                {quizParentPassageId
-                                  ? "This quiz is treated as a reading question for the selected passage."
-                                  : "This quiz will be shown as a normal standalone quiz block."}
-                              </p>
-                            </div>
-                            <div className="space-y-2">
-                              <Label>Quiz layout</Label>
-                              <Select
-                                value={quizLayout}
-                                onValueChange={(value) => updateQuizBlock(block.id, { layout: value })}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {QUIZ_LAYOUT_OPTIONS.map((option) => (
-                                    <SelectItem key={option.value} value={option.value}>
-                                      {option.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <p className="text-xs text-muted-foreground">
-                                List keeps options in one column. Grid shows options in 2 columns (2x2 with 4 options).
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center justify-between gap-2">
-                            <Label>Questions</Label>
-                            <div className="flex items-center gap-2">
-                              <Button type="button" variant="outline" size="sm" onClick={() => openQuizAiDialog(block.id)}>
-                                Soạn nhanh AI
-                              </Button>
-                              <Button type="button" variant="outline" size="sm" onClick={() => addQuizQuestion(block.id)}>
-                                <Plus className="h-3.5 w-3.5" />
-                                Add question
-                              </Button>
-                            </div>
-                          </div>
-                          {quizQuestions.map((quizQuestion, questionIndex) => {
-                            const questionId = normalizeBlockId(quizQuestion?.id) || `${block.id}-q-${questionIndex}`;
-                            const questionOptions = Array.isArray(quizQuestion?.options) ? quizQuestion.options : [];
-                            return (
-                              <div key={questionId} className="space-y-3 rounded-md border p-3">
-                                <div className="flex items-center justify-between gap-2">
-                                  <p className="text-sm font-medium">Question {questionIndex + 1}</p>
+                                <div className="flex flex-wrap items-center gap-2">
                                   <Button
                                     type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => removeQuizQuestion(block.id, questionId)}
-                                    disabled={quizQuestions.length <= 1}
+                                    variant="outline"
+                                    onClick={() => openDictationUploadPicker(block.id)}
+                                    disabled={isDictationUploadLoading || objectStorageUnavailable}
                                   >
-                                    <Trash2 className="h-4 w-4" />
+                                    <Upload className="h-4 w-4" />
+                                    {isDictationUploadLoading
+                                      ? "Uploading..."
+                                      : dictationData?.audio_url
+                                        ? "Replace Audio"
+                                        : "Upload Audio"}
                                   </Button>
+                                  <span className="text-xs text-muted-foreground">Max file size: 50MB</span>
                                 </div>
-                                <div className="space-y-2">
-                                  <Label>Question Text</Label>
-                                  <HomeworkRichTextEditor
-                                    value={quizQuestion?.question || ""}
-                                    onChange={(nextText) =>
-                                      updateQuizQuestionField(block.id, questionId, {
-                                        question: nextText,
-                                        text: nextText,
-                                      })}
-                                    placeholder="Type your quiz question..."
-                                    minHeight={130}
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  <Label>Allow multiple correct answers</Label>
-                                  <div className="flex items-center gap-2 rounded-md border px-3 py-2">
-                                    <Switch
-                                      checked={Boolean(quizQuestion?.allow_multiple)}
-                                      onCheckedChange={(checked) =>
-                                        updateQuizQuestionAllowMultiple(block.id, questionId, checked)}
-                                    />
-                                    <span className="text-sm text-muted-foreground">
-                                      {quizQuestion?.allow_multiple ? "Multi-select" : "Single-select"}
-                                    </span>
-                                  </div>
-                                </div>
-                                <div className="space-y-2">
-                                  <div className="flex items-center justify-between gap-2">
-                                    <Label>Options</Label>
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => addQuizOption(block.id, questionId)}
-                                    >
-                                      <Plus className="h-3.5 w-3.5" />
-                                      Add option
-                                    </Button>
-                                  </div>
-                                  <div className="space-y-2">
-                                    {questionOptions.map((option, optionIndex) => {
-                                      const optionId = normalizeBlockId(option?.id);
-                                      const isCorrect = (quizQuestion?.correct_option_ids || []).includes(optionId);
-                                      return (
-                                        <div
-                                          key={optionId || `${questionId}-option-${optionIndex}`}
-                                          className="rounded-md border p-2"
-                                        >
-                                          <div className="flex items-start gap-2">
-                                            <Button
-                                              type="button"
-                                              variant={isCorrect ? "default" : "outline"}
-                                              size="sm"
-                                              className="shrink-0"
-                                              onClick={() => toggleQuizCorrectOption(block.id, questionId, optionId)}
-                                            >
-                                              {isCorrect ? "Correct" : "Mark"}
-                                            </Button>
-                                            <Input
-                                              value={option?.text || ""}
-                                              onChange={(event) =>
-                                                updateQuizQuestionOptionText(
-                                                  block.id,
-                                                  questionId,
-                                                  optionId,
-                                                  event.target.value,
-                                                )}
-                                              placeholder={`Option ${optionIndex + 1}`}
-                                            />
-                                            <Button
-                                              type="button"
-                                              variant="ghost"
-                                              size="icon"
-                                              onClick={() => removeQuizOption(block.id, questionId, optionId)}
-                                              disabled={questionOptions.length <= 2}
-                                            >
-                                              <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                          </div>
-                                        </div>
-                                      );
+                                {objectStorageUnavailable ? (
+                                  <p className="text-xs text-amber-600">
+                                    Upload disabled: object storage is not configured on the server.
+                                  </p>
+                                ) : null}
+                                <Input
+                                  value={dictationData?.audio_url || ""}
+                                  onChange={(event) =>
+                                    updateDictationBlock(block.id, {
+                                      ...(dictationData || {}),
+                                      audio_url: event.target.value,
+                                      audio_storage_key: "",
                                     })}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : null}
-
-                      {blockType === "matching" ? (
-                        <div className="space-y-4">
-                          <div className="space-y-2">
-                            <Label>Prompt (optional)</Label>
-                            <Input
-                              value={matchingData?.prompt || ""}
-                              onChange={(event) =>
-                                updateMatchingBlock(block.id, {
-                                  ...(matchingData || {}),
-                                  prompt: event.target.value,
-                                })}
-                              placeholder="Example: Match each term with its definition"
-                            />
-                          </div>
-                          <div className="flex items-center justify-between gap-2">
-                            <Label>Rows</Label>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => addMatchingRow(block.id)}
-                            >
-                              <Plus className="h-3.5 w-3.5" />
-                              Add row
-                            </Button>
-                          </div>
-                          <div className="space-y-2">
-                            {matchingLeftItems.map((leftItem, rowIndex) => {
-                              const rightItem = matchingRightItems[rowIndex] || {};
-                              const leftItemId = normalizeBlockId(leftItem?.id) || `left-${rowIndex + 1}`;
-                              const rightItemId = normalizeBlockId(rightItem?.id) || `right-${rowIndex + 1}`;
-                              const linkedLeftPair = matchingPairByLeftId.get(leftItemId);
-                              const linkedRightPair = matchingPairByRightId.get(rightItemId);
-                              const isSelectedLeft = matchingSelectedLeftId === leftItemId;
-                              const leftColorClass = linkedLeftPair
-                                ? resolveMatchColorClass(linkedLeftPair?.color_key, linkedLeftPair?.__pairIndex || 0)
-                                : "";
-                              const rightColorClass = linkedRightPair
-                                ? resolveMatchColorClass(linkedRightPair?.color_key, linkedRightPair?.__pairIndex || 0)
-                                : "";
-                              const canLinkRight = Boolean(matchingSelectedLeftId) || Boolean(linkedRightPair);
-
-                              return (
-                                <div key={`matching-row-${block.id}-${rowIndex}`} className="rounded-md border p-2">
-                                  <div className="grid grid-cols-1 gap-2 lg:grid-cols-[1fr_1fr_auto]">
-                                    <div className="flex items-start gap-2">
-                                      <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        className={`shrink-0 ${linkedLeftPair ? leftColorClass : isSelectedLeft ? "border-primary bg-primary/10 text-primary" : ""}`}
-                                        onClick={() => handleMatchingLeftCellClick(block.id, leftItemId)}
-                                      >
-                                        {linkedLeftPair ? "Unlink" : isSelectedLeft ? "Selected" : "Select"}
-                                      </Button>
-                                      <Input
-                                        value={leftItem?.text || ""}
-                                        onChange={(event) =>
-                                          updateMatchingItemText(block.id, "left", leftItemId, event.target.value)}
-                                        placeholder={`Left item ${rowIndex + 1}`}
-                                      />
-                                    </div>
-                                    <div className="flex items-start gap-2">
-                                      <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        className={`shrink-0 ${linkedRightPair ? rightColorClass : ""}`}
-                                        onClick={() => handleMatchingRightCellClick(block.id, rightItemId)}
-                                        disabled={!canLinkRight}
-                                      >
-                                        {linkedRightPair ? "Unlink" : matchingSelectedLeftId ? "Link" : "Pick left"}
-                                      </Button>
-                                      <Input
-                                        value={rightItem?.text || ""}
-                                        onChange={(event) =>
-                                          updateMatchingItemText(block.id, "right", rightItemId, event.target.value)}
-                                        placeholder={`Right item ${rowIndex + 1}`}
-                                      />
-                                    </div>
-                                    <div className="flex items-center justify-end">
+                                  placeholder="https://example.com/dictation.mp3"
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                  Editing URL manually clears storage key to avoid deleting external audio.
+                                </p>
+                                {dictationData?.audio_url ? (
+                                  <div className="space-y-2">
+                                    <DictationAudioPlayer
+                                      src={dictationData.audio_url}
+                                      title={dictationData?.prompt || `Dictation ${index + 1}`}
+                                    />
+                                    <div className="flex justify-end">
                                       <Button
                                         type="button"
                                         variant="ghost"
-                                        size="icon"
-                                        onClick={() => removeMatchingRow(block.id, rowIndex)}
-                                        disabled={matchingLeftItems.length <= 1}
+                                        size="sm"
+                                        onClick={() =>
+                                          updateDictationBlock(block.id, {
+                                            ...(dictationData || {}),
+                                            audio_url: "",
+                                            audio_storage_key: "",
+                                          })}
                                       >
-                                        <Trash2 className="h-4 w-4" />
+                                        <X className="h-4 w-4" />
+                                        Clear audio
                                       </Button>
                                     </div>
                                   </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            Click a left item to select it, then click a right item to create a matching pair. Click an
-                            already linked item to remove that link.
-                          </p>
-                        </div>
-                      ) : null}
+                                ) : null}
+                              </div>
 
-                      {blockType === "gapfill" ? (
-                        <div className="space-y-4">
-                          <div className="space-y-2">
-                            <Label>Instruction (optional)</Label>
-                            <Input
-                              value={gapfillData?.prompt || ""}
-                              onChange={(event) =>
-                                updateGapfillBlock(block.id, {
-                                  ...(gapfillData || {}),
-                                  prompt: event.target.value,
-                                })}
-                              placeholder="Example: Fill in the blanks with the correct words"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Gapfilling type</Label>
-                            <Select
-                              value={gapfillData?.mode || GAPFILL_MODE_NUMBERED}
-                              onValueChange={(value) =>
-                                updateGapfillBlock(block.id, {
-                                  ...(gapfillData || {}),
-                                  mode: value,
-                                })}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value={GAPFILL_MODE_NUMBERED}>Numbered Sentences</SelectItem>
-                                <SelectItem value={GAPFILL_MODE_PARAGRAPH}>Paragraph</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          {gapfillData?.mode === GAPFILL_MODE_PARAGRAPH ? (
-                            <div className="space-y-2">
-                              <Label>Paragraph</Label>
-                              <HomeworkRichTextEditor
-                                value={gapfillData?.paragraph_text || ""}
-                                onChange={(nextText) =>
-                                  updateGapfillBlock(block.id, {
-                                    ...(gapfillData || {}),
-                                    paragraph_text: nextText,
-                                  })}
-                                placeholder="Example: The ocean is full of [*fish / cats / dogs] and the water is [blue]."
-                                minHeight={180}
-                                outputFormat="text"
-                              />
+                              <div className="space-y-2">
+                                <Label>Transcript (teacher only)</Label>
+                                <HomeworkRichTextEditor
+                                  value={dictationData?.transcript || ""}
+                                  onChange={(nextText) =>
+                                    updateDictationBlock(block.id, {
+                                      ...(dictationData || {}),
+                                      transcript: nextText,
+                                    })}
+                                  placeholder="Transcript will be hidden from students."
+                                  minHeight={140}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                  Students will only see the audio and submission input.
+                                </p>
+                              </div>
                             </div>
-                          ) : (
+                          ) : null}
+
+                          {blockType === "input" ? (
+                            <div className="space-y-3">
+                              <div className="space-y-2">
+                                <Label>Student input type</Label>
+                                <Select
+                                  value={resolveInputTypeFromData(block.data)}
+                                  onValueChange={(value) =>
+                                    updateBlockData(
+                                      block.id,
+                                      normalizeInputBlockData({ ...(block.data || {}), input_type: value }),
+                                    )}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {INPUT_TYPE_OPTIONS.map((option) => (
+                                      <SelectItem key={option.value} value={option.value}>
+                                        {option.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              {resolveInputTypeFromData(block.data) === "text" ? (
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div className="space-y-2">
+                                    <Label>Min words</Label>
+                                    <Input
+                                      type="number"
+                                      value={block.data.min_words ?? ""}
+                                      onChange={(event) => updateBlockData(block.id, { min_words: event.target.value })}
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label>Max words</Label>
+                                    <Input
+                                      type="number"
+                                      value={block.data.max_words ?? ""}
+                                      onChange={(event) => updateBlockData(block.id, { max_words: event.target.value })}
+                                    />
+                                  </div>
+                                </div>
+                              ) : resolveInputTypeFromData(block.data) === "image" ? (
+                                <p className="text-xs text-muted-foreground">
+                                  Student will only see image upload input.
+                                </p>
+                              ) : (
+                                <p className="text-xs text-muted-foreground">
+                                  Student will record audio directly on the page.
+                                </p>
+                              )}
+                            </div>
+                          ) : null}
+
+                          {blockType === "passage" ? (
                             <div className="space-y-3">
                               <div className="flex items-center justify-between gap-2">
-                                <Label>Sentences</Label>
+                                <Label>Passage Content</Label>
                                 <Button
                                   type="button"
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => addGapfillNumberedItem(block.id)}
+                                  onClick={() => addQuizBlockForPassage(blockDataId)}
+                                  disabled={!blockDataId}
                                 >
                                   <Plus className="h-3.5 w-3.5" />
-                                  Add sentence
+                                  Add quiz question
                                 </Button>
                               </div>
                               <div className="space-y-2">
-                                {(Array.isArray(gapfillData?.numbered_items) ? gapfillData.numbered_items : []).map((item, itemIndex) => (
-                                  <div key={`gapfill-item-${block.id}-${itemIndex}`} className="rounded-md border p-2">
-                                    <div className="flex items-start gap-2">
-                                      <span className="pt-2 text-xs font-medium text-muted-foreground">{itemIndex + 1}.</span>
-                                      <div className="flex-1">
-                                        <HomeworkRichTextEditor
-                                          value={item || ""}
-                                          onChange={(nextText) =>
-                                            updateGapfillNumberedItemText(block.id, itemIndex, nextText)}
-                                          placeholder="Example: The capital of France is [Paris]."
-                                          minHeight={120}
-                                          outputFormat="text"
-                                        />
-                                      </div>
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => removeGapfillNumberedItem(block.id, itemIndex)}
-                                        disabled={(gapfillData?.numbered_items || []).length <= 1}
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </div>
-                                  </div>
-                                ))}
+                                <Label>Passage Text</Label>
+                                <HomeworkRichTextEditor
+                                  value={block?.data?.text || ""}
+                                  onChange={(nextText) =>
+                                    updateBlockData(
+                                      block.id,
+                                      normalizePassageBlockData({
+                                        ...(block?.data || {}),
+                                        text: nextText,
+                                      }),
+                                    )}
+                                  placeholder="Type the reading passage here..."
+                                  minHeight={240}
+                                />
                               </div>
-                            </div>
-                          )}
-
-                          <div className="space-y-2 rounded-md border bg-muted/20 p-3">
-                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                              Detected blanks preview
-                            </p>
-                            {gapfillTemplates.some((template) => parseGapfillTemplate(template).blankCount > 0) ? (
-                              <div className="space-y-3">
-                                {gapfillTemplates.map((template, templateIndex) => {
-                                  const parsed = parseGapfillTemplate(template);
-                                  if (!parsed.blankCount) return null;
-                                  return (
-                                    <div key={`gapfill-preview-${block.id}-${templateIndex}`} className="space-y-2">
-                                      <p className="text-xs text-muted-foreground">
-                                        {gapfillData?.mode === GAPFILL_MODE_NUMBERED ? `Sentence ${templateIndex + 1}` : "Paragraph"}
-                                      </p>
-                                      <div className="flex flex-wrap items-center gap-1 text-sm">
-                                        {parsed.parts.map((part, partIndex) =>
-                                          part.kind === "text" ? (
-                                            <span key={`text-${partIndex}`} className="whitespace-pre-wrap">
-                                              {part.text}
-                                            </span>
-                                          ) : (
-                                            <span
-                                              key={`blank-${partIndex}`}
-                                              className="rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-xs font-medium text-emerald-700"
-                                            >
-                                              [{part.type === "choice" ? (part.correctAnswer || part.options.join(" / ")) : part.correctAnswer}]
-                                            </span>
-                                          ),
-                                        )}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            ) : (
                               <p className="text-xs text-muted-foreground">
-                                Use brackets <span className="font-medium">[ ]</span> for blanks.
-                                For choices use <span className="font-medium">/</span> and mark the correct one with
-                                <span className="font-medium"> *</span>. Example: <span className="font-medium">[*fish / cat / dog]</span>.
+                                {passageTextPreview
+                                  ? `${passageTextPreview.length} characters`
+                                  : "Passage is empty."}
                               </p>
-                            )}
-                          </div>
-                        </div>
-                      ) : null}
-
-                      {blockType === "find_mistake" ? (
-                        <div className="space-y-4">
-                          <div className="space-y-2">
-                            <Label>Instruction (optional)</Label>
-                            <Input
-                              value={findMistakeData?.prompt || ""}
-                              onChange={(event) =>
-                                updateFindMistakeBlock(block.id, {
-                                  ...(findMistakeData || {}),
-                                  prompt: event.target.value,
-                                })}
-                              placeholder="Example: Click the wrong word in each sentence."
-                            />
-                          </div>
-                          <div className="space-y-3">
-                            <div className="flex items-center justify-between gap-2">
-                              <Label>Numbered Sentences</Label>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => addFindMistakeSentence(block.id)}
-                              >
-                                <Plus className="h-3.5 w-3.5" />
-                                Add sentence
-                              </Button>
                             </div>
-                            <div className="space-y-2">
-                              {(Array.isArray(findMistakeData?.numbered_items) ? findMistakeData.numbered_items : []).map((item, itemIndex) => (
-                                <div key={`find-mistake-item-${block.id}-${itemIndex}`} className="rounded-md border p-2">
-                                  <div className="flex items-start gap-2">
-                                    <span className="pt-2 text-xs font-medium text-muted-foreground">{itemIndex + 1}.</span>
-                                    <div className="flex-1">
-                                      <HomeworkRichTextEditor
-                                        value={item || ""}
-                                        onChange={(nextText) =>
-                                          updateFindMistakeSentenceText(block.id, itemIndex, nextText)}
-                                        placeholder="Example: She [*go] to the [school] [yesterday]."
-                                        minHeight={120}
-                                        outputFormat="text"
-                                      />
-                                    </div>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={() => removeFindMistakeSentence(block.id, itemIndex)}
-                                      disabled={(findMistakeData?.numbered_items || []).length <= 1}
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
+                          ) : null}
 
-                          <div className="space-y-2 rounded-md border bg-muted/20 p-3">
-                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                              Detected options preview
-                            </p>
-                            {findMistakeTemplates.some((template) => parseGapfillTemplate(template).blankCount > 0) ? (
-                              <div className="space-y-3">
-                                {findMistakeTemplates.map((template, templateIndex) => {
-                                  const parsed = parseGapfillTemplate(template);
-                                  if (!parsed.blankCount) return null;
-                                  return (
-                                    <div key={`find-mistake-preview-${block.id}-${templateIndex}`} className="space-y-2">
-                                      <p className="text-xs text-muted-foreground">Sentence {templateIndex + 1}</p>
-                                      <div className="flex flex-wrap items-center gap-1 text-sm">
-                                        {parsed.parts.map((part, partIndex) => {
-                                          if (part.kind === "text") {
-                                            return (
-                                              <span key={`find-text-${partIndex}`} className="whitespace-pre-wrap">
-                                                {part.text}
-                                              </span>
-                                            );
-                                          }
-                                          if (part.type === "choice") {
-                                            return (
-                                              <span
-                                                key={`find-blank-${partIndex}`}
-                                                className="inline-flex flex-wrap items-center gap-1 rounded-md border px-1.5 py-0.5"
-                                              >
-                                                {part.options.map((option, optionIndex) => {
-                                                  const isCorrect = part.correctIndex === optionIndex;
-                                                  return (
-                                                    <span
-                                                      key={`find-opt-${partIndex}-${optionIndex}`}
-                                                      className={`rounded px-1 py-0.5 text-xs font-medium ${
-                                                        isCorrect
-                                                          ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
-                                                          : "border border-rose-200 bg-rose-50 text-rose-700"
-                                                      }`}
-                                                    >
-                                                      {option}
-                                                    </span>
-                                                  );
-                                                })}
-                                              </span>
-                                            );
-                                          }
-                                          const isMarkedCorrect = String(part.raw || "").trim().startsWith("*");
-                                          return (
-                                            <span
-                                              key={`find-plain-${partIndex}`}
-                                              className={`rounded-md border px-1.5 py-0.5 text-xs font-medium ${
-                                                isMarkedCorrect
-                                                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                                                  : "border-rose-200 bg-rose-50 text-rose-700"
-                                              }`}
-                                            >
-                                              {part.correctAnswer}
-                                            </span>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            ) : (
-                              <p className="text-xs text-muted-foreground">
-                                Use one token per bracket. Mark the mistake with <span className="font-medium">*</span>.
-                                Example: <span className="font-medium">She [*go] to the [school] [yesterday].</span>
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      ) : null}
-
-                      {blockType === "internal" ? (
-                        <div className="space-y-3">
-                          {(() => {
-                            const currentResourceType = String(block.data.resource_ref_type || "passage");
-                            const currentResourceId = String(block.data.resource_ref_id || "");
-                            const selectedResource = (catalog[currentResourceType] || []).find(
-                              (item) => String(item?._id || "") === currentResourceId,
-                            );
-                            const isPickerOpen = Boolean(internalPickerOpenByBlockId[String(block.id)]);
-                            const shouldShowPicker = !currentResourceId || isPickerOpen;
-
-                            return (
-                              <>
+                          {blockType === "quiz" ? (
+                            <div className="space-y-4">
+                              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                                 <div className="space-y-2">
-                                  <Label>Internal Type</Label>
+                                  <Label>Attach to passage (optional)</Label>
                                   <Select
-                                    value={currentResourceType}
-                                    onValueChange={(value) => {
-                                      updateBlockData(block.id, { resource_ref_type: value, resource_ref_id: "" });
-                                      setInternalPickerOpenByBlockId((prev) => ({
-                                        ...prev,
-                                        [String(block.id)]: true,
-                                      }));
-                                    }}
+                                    value={quizParentPassageId || "__standalone__"}
+                                    onValueChange={(value) =>
+                                      updateQuizBlock(block.id, {
+                                        parent_passage_block_id: value === "__standalone__" ? "" : value,
+                                      })}
                                   >
                                     <SelectTrigger>
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                      <SelectItem value="passage">Passage</SelectItem>
-                                      <SelectItem value="section">Section</SelectItem>
-                                      <SelectItem value="speaking">Speaking</SelectItem>
-                                      <SelectItem value="writing">Writing</SelectItem>
-                                      <SelectItem value="test">Test</SelectItem>
+                                      <SelectItem value="__standalone__">Standalone quiz</SelectItem>
+                                      {passageBlockOptions.map((option) => (
+                                        <SelectItem key={option.blockId} value={option.blockId}>
+                                          {option.label}
+                                        </SelectItem>
+                                      ))}
                                     </SelectContent>
                                   </Select>
+                                  <p className="text-xs text-muted-foreground">
+                                    {quizParentPassageId
+                                      ? "This quiz is treated as a reading question for the selected passage."
+                                      : "This quiz will be shown as a normal standalone quiz block."}
+                                  </p>
                                 </div>
+                                <div className="space-y-2">
+                                  <Label>Quiz layout</Label>
+                                  <Select
+                                    value={quizLayout}
+                                    onValueChange={(value) => updateQuizBlock(block.id, { layout: value })}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {QUIZ_LAYOUT_OPTIONS.map((option) => (
+                                        <SelectItem key={option.value} value={option.value}>
+                                          {option.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <p className="text-xs text-muted-foreground">
+                                    List keeps options in one column. Grid shows options in 2 columns (2x2 with 4 options).
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center justify-between gap-2">
+                                <Label>Questions</Label>
+                                <div className="flex items-center gap-2">
+                                  <Button type="button" variant="outline" size="sm" onClick={() => openQuizAiDialog(block.id)}>
+                                    Soạn nhanh AI
+                                  </Button>
+                                  <Button type="button" variant="outline" size="sm" onClick={() => addQuizQuestion(block.id)}>
+                                    <Plus className="h-3.5 w-3.5" />
+                                    Add question
+                                  </Button>
+                                </div>
+                              </div>
+                              {quizQuestions.map((quizQuestion, questionIndex) => {
+                                const questionId = normalizeBlockId(quizQuestion?.id) || `${block.id}-q-${questionIndex}`;
+                                const questionOptions = Array.isArray(quizQuestion?.options) ? quizQuestion.options : [];
+                                return (
+                                  <div key={questionId} className="space-y-3 rounded-md border p-3">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <p className="text-sm font-medium">Question {questionIndex + 1}</p>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => removeQuizQuestion(block.id, questionId)}
+                                        disabled={quizQuestions.length <= 1}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label>Question Text</Label>
+                                      <HomeworkRichTextEditor
+                                        value={quizQuestion?.question || ""}
+                                        onChange={(nextText) =>
+                                          updateQuizQuestionField(block.id, questionId, {
+                                            question: nextText,
+                                            text: nextText,
+                                          })}
+                                        placeholder="Type your quiz question..."
+                                        minHeight={130}
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label>Allow multiple correct answers</Label>
+                                      <div className="flex items-center gap-2 rounded-md border px-3 py-2">
+                                        <Switch
+                                          checked={Boolean(quizQuestion?.allow_multiple)}
+                                          onCheckedChange={(checked) =>
+                                            updateQuizQuestionAllowMultiple(block.id, questionId, checked)}
+                                        />
+                                        <span className="text-sm text-muted-foreground">
+                                          {quizQuestion?.allow_multiple ? "Multi-select" : "Single-select"}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <Label>Options</Label>
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => addQuizOption(block.id, questionId)}
+                                        >
+                                          <Plus className="h-3.5 w-3.5" />
+                                          Add option
+                                        </Button>
+                                      </div>
+                                      <div className="space-y-2">
+                                        {questionOptions.map((option, optionIndex) => {
+                                          const optionId = normalizeBlockId(option?.id);
+                                          const isCorrect = (quizQuestion?.correct_option_ids || []).includes(optionId);
+                                          return (
+                                            <div
+                                              key={optionId || `${questionId}-option-${optionIndex}`}
+                                              className="rounded-md border p-2"
+                                            >
+                                              <div className="flex items-start gap-2">
+                                                <Button
+                                                  type="button"
+                                                  variant={isCorrect ? "default" : "outline"}
+                                                  size="sm"
+                                                  className="shrink-0"
+                                                  onClick={() => toggleQuizCorrectOption(block.id, questionId, optionId)}
+                                                >
+                                                  {isCorrect ? "Correct" : "Mark"}
+                                                </Button>
+                                                <Input
+                                                  value={option?.text || ""}
+                                                  onChange={(event) =>
+                                                    updateQuizQuestionOptionText(
+                                                      block.id,
+                                                      questionId,
+                                                      optionId,
+                                                      event.target.value,
+                                                    )}
+                                                  placeholder={`Option ${optionIndex + 1}`}
+                                                />
+                                                <Button
+                                                  type="button"
+                                                  variant="ghost"
+                                                  size="icon"
+                                                  onClick={() => removeQuizOption(block.id, questionId, optionId)}
+                                                  disabled={questionOptions.length <= 2}
+                                                >
+                                                  <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : null}
 
-                                {!shouldShowPicker ? (
-                                  <div className="space-y-2 rounded-md border bg-muted/20 p-3">
-                                    <Label>Selected Resource</Label>
-                                    <p className="text-sm font-medium text-foreground">
-                                      {selectedResource?.title || selectedResource?._id || currentResourceId}
-                                    </p>
+                          {blockType === "matching" ? (
+                            <div className="space-y-4">
+                              <div className="space-y-2">
+                                <Label>Prompt (optional)</Label>
+                                <Input
+                                  value={matchingData?.prompt || ""}
+                                  onChange={(event) =>
+                                    updateMatchingBlock(block.id, {
+                                      ...(matchingData || {}),
+                                      prompt: event.target.value,
+                                    })}
+                                  placeholder="Example: Match each term with its definition"
+                                />
+                              </div>
+                              <div className="flex items-center justify-between gap-2">
+                                <Label>Rows</Label>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => addMatchingRow(block.id)}
+                                >
+                                  <Plus className="h-3.5 w-3.5" />
+                                  Add row
+                                </Button>
+                              </div>
+                              <div className="space-y-2">
+                                {matchingLeftItems.map((leftItem, rowIndex) => {
+                                  const rightItem = matchingRightItems[rowIndex] || {};
+                                  const leftItemId = normalizeBlockId(leftItem?.id) || `left-${rowIndex + 1}`;
+                                  const rightItemId = normalizeBlockId(rightItem?.id) || `right-${rowIndex + 1}`;
+                                  const linkedLeftPair = matchingPairByLeftId.get(leftItemId);
+                                  const linkedRightPair = matchingPairByRightId.get(rightItemId);
+                                  const isSelectedLeft = matchingSelectedLeftId === leftItemId;
+                                  const leftColorClass = linkedLeftPair
+                                    ? resolveMatchColorClass(linkedLeftPair?.color_key, linkedLeftPair?.__pairIndex || 0)
+                                    : "";
+                                  const rightColorClass = linkedRightPair
+                                    ? resolveMatchColorClass(linkedRightPair?.color_key, linkedRightPair?.__pairIndex || 0)
+                                    : "";
+                                  const canLinkRight = Boolean(matchingSelectedLeftId) || Boolean(linkedRightPair);
+
+                                  return (
+                                    <div key={`matching-row-${block.id}-${rowIndex}`} className="rounded-md border p-2">
+                                      <div className="grid grid-cols-1 gap-2 lg:grid-cols-[1fr_1fr_auto]">
+                                        <div className="flex items-start gap-2">
+                                          <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            className={`shrink-0 ${linkedLeftPair ? leftColorClass : isSelectedLeft ? "border-primary bg-primary/10 text-primary" : ""}`}
+                                            onClick={() => handleMatchingLeftCellClick(block.id, leftItemId)}
+                                          >
+                                            {linkedLeftPair ? "Unlink" : isSelectedLeft ? "Selected" : "Select"}
+                                          </Button>
+                                          <Input
+                                            value={leftItem?.text || ""}
+                                            onChange={(event) =>
+                                              updateMatchingItemText(block.id, "left", leftItemId, event.target.value)}
+                                            placeholder={`Left item ${rowIndex + 1}`}
+                                          />
+                                        </div>
+                                        <div className="flex items-start gap-2">
+                                          <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            className={`shrink-0 ${linkedRightPair ? rightColorClass : ""}`}
+                                            onClick={() => handleMatchingRightCellClick(block.id, rightItemId)}
+                                            disabled={!canLinkRight}
+                                          >
+                                            {linkedRightPair ? "Unlink" : matchingSelectedLeftId ? "Link" : "Pick left"}
+                                          </Button>
+                                          <Input
+                                            value={rightItem?.text || ""}
+                                            onChange={(event) =>
+                                              updateMatchingItemText(block.id, "right", rightItemId, event.target.value)}
+                                            placeholder={`Right item ${rowIndex + 1}`}
+                                          />
+                                        </div>
+                                        <div className="flex items-center justify-end">
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => removeMatchingRow(block.id, rowIndex)}
+                                            disabled={matchingLeftItems.length <= 1}
+                                          >
+                                            <Trash2 className="h-4 w-4" />
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Click a left item to select it, then click a right item to create a matching pair. Click an
+                                already linked item to remove that link.
+                              </p>
+                            </div>
+                          ) : null}
+
+                          {blockType === "gapfill" ? (
+                            <div className="space-y-4">
+                              <div className="space-y-2">
+                                <Label>Instruction (optional)</Label>
+                                <Input
+                                  value={gapfillData?.prompt || ""}
+                                  onChange={(event) =>
+                                    updateGapfillBlock(block.id, {
+                                      ...(gapfillData || {}),
+                                      prompt: event.target.value,
+                                    })}
+                                  placeholder="Example: Fill in the blanks with the correct words"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Gapfilling type</Label>
+                                <Select
+                                  value={gapfillData?.mode || GAPFILL_MODE_NUMBERED}
+                                  onValueChange={(value) =>
+                                    updateGapfillBlock(block.id, {
+                                      ...(gapfillData || {}),
+                                      mode: value,
+                                    })}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value={GAPFILL_MODE_NUMBERED}>Numbered Sentences</SelectItem>
+                                    <SelectItem value={GAPFILL_MODE_PARAGRAPH}>Paragraph</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
+                              {gapfillData?.mode === GAPFILL_MODE_PARAGRAPH ? (
+                                <div className="space-y-2">
+                                  <Label>Paragraph</Label>
+                                  <HomeworkRichTextEditor
+                                    value={gapfillData?.paragraph_text || ""}
+                                    onChange={(nextText) =>
+                                      updateGapfillBlock(block.id, {
+                                        ...(gapfillData || {}),
+                                        paragraph_text: nextText,
+                                      })}
+                                    placeholder="Example: The ocean is full of [*fish / cats / dogs] and the water is [blue]."
+                                    minHeight={180}
+                                    outputFormat="text"
+                                  />
+                                </div>
+                              ) : (
+                                <div className="space-y-3">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <Label>Sentences</Label>
                                     <Button
                                       type="button"
                                       variant="outline"
                                       size="sm"
-                                      onClick={() =>
-                                        setInternalPickerOpenByBlockId((prev) => ({
-                                          ...prev,
-                                          [String(block.id)]: true,
-                                        }))
-                                      }
+                                      onClick={() => addGapfillNumberedItem(block.id)}
                                     >
-                                      Choose Again
+                                      <Plus className="h-3.5 w-3.5" />
+                                      Add sentence
                                     </Button>
                                   </div>
-                                ) : null}
+                                  <div className="space-y-2">
+                                    {(Array.isArray(gapfillData?.numbered_items) ? gapfillData.numbered_items : []).map((item, itemIndex) => (
+                                      <div key={`gapfill-item-${block.id}-${itemIndex}`} className="rounded-md border p-2">
+                                        <div className="flex items-start gap-2">
+                                          <span className="pt-2 text-xs font-medium text-muted-foreground">{itemIndex + 1}.</span>
+                                          <div className="flex-1">
+                                            <HomeworkRichTextEditor
+                                              value={item || ""}
+                                              onChange={(nextText) =>
+                                                updateGapfillNumberedItemText(block.id, itemIndex, nextText)}
+                                              placeholder="Example: The capital of France is [Paris]."
+                                              minHeight={120}
+                                              outputFormat="text"
+                                            />
+                                          </div>
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => removeGapfillNumberedItem(block.id, itemIndex)}
+                                            disabled={(gapfillData?.numbered_items || []).length <= 1}
+                                          >
+                                            <Trash2 className="h-4 w-4" />
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
 
-                                {shouldShowPicker ? (
+                              <div className="space-y-2 rounded-md border bg-muted/20 p-3">
+                                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                  Detected blanks preview
+                                </p>
+                                {gapfillTemplates.some((template) => parseGapfillTemplate(template).blankCount > 0) ? (
+                                  <div className="space-y-3">
+                                    {gapfillTemplates.map((template, templateIndex) => {
+                                      const parsed = parseGapfillTemplate(template);
+                                      if (!parsed.blankCount) return null;
+                                      return (
+                                        <div key={`gapfill-preview-${block.id}-${templateIndex}`} className="space-y-2">
+                                          <p className="text-xs text-muted-foreground">
+                                            {gapfillData?.mode === GAPFILL_MODE_NUMBERED ? `Sentence ${templateIndex + 1}` : "Paragraph"}
+                                          </p>
+                                          <div className="flex flex-wrap items-center gap-1 text-sm">
+                                            {parsed.parts.map((part, partIndex) =>
+                                              part.kind === "text" ? (
+                                                <span key={`text-${partIndex}`} className="whitespace-pre-wrap">
+                                                  {part.text}
+                                                </span>
+                                              ) : (
+                                                <span
+                                                  key={`blank-${partIndex}`}
+                                                  className="rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-xs font-medium text-emerald-700"
+                                                >
+                                                  [{part.type === "choice" ? (part.correctAnswer || part.options.join(" / ")) : part.correctAnswer}]
+                                                </span>
+                                              ),
+                                            )}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <p className="text-xs text-muted-foreground">
+                                    Use brackets <span className="font-medium">[ ]</span> for blanks.
+                                    For choices use <span className="font-medium">/</span> and mark the correct one with
+                                    <span className="font-medium"> *</span>. Example: <span className="font-medium">[*fish / cat / dog]</span>.
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          ) : null}
+
+                          {blockType === "find_mistake" ? (
+                            <div className="space-y-4">
+                              <div className="space-y-2">
+                                <Label>Instruction (optional)</Label>
+                                <Input
+                                  value={findMistakeData?.prompt || ""}
+                                  onChange={(event) =>
+                                    updateFindMistakeBlock(block.id, {
+                                      ...(findMistakeData || {}),
+                                      prompt: event.target.value,
+                                    })}
+                                  placeholder="Example: Click the wrong word in each sentence."
+                                />
+                              </div>
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between gap-2">
+                                  <Label>Numbered Sentences</Label>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => addFindMistakeSentence(block.id)}
+                                  >
+                                    <Plus className="h-3.5 w-3.5" />
+                                    Add sentence
+                                  </Button>
+                                </div>
+                                <div className="space-y-2">
+                                  {(Array.isArray(findMistakeData?.numbered_items) ? findMistakeData.numbered_items : []).map((item, itemIndex) => (
+                                    <div key={`find-mistake-item-${block.id}-${itemIndex}`} className="rounded-md border p-2">
+                                      <div className="flex items-start gap-2">
+                                        <span className="pt-2 text-xs font-medium text-muted-foreground">{itemIndex + 1}.</span>
+                                        <div className="flex-1">
+                                          <HomeworkRichTextEditor
+                                            value={item || ""}
+                                            onChange={(nextText) =>
+                                              updateFindMistakeSentenceText(block.id, itemIndex, nextText)}
+                                            placeholder="Example: She [*go] to the [school] [yesterday]."
+                                            minHeight={120}
+                                            outputFormat="text"
+                                          />
+                                        </div>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => removeFindMistakeSentence(block.id, itemIndex)}
+                                          disabled={(findMistakeData?.numbered_items || []).length <= 1}
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <div className="space-y-2 rounded-md border bg-muted/20 p-3">
+                                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                  Detected options preview
+                                </p>
+                                {findMistakeTemplates.some((template) => parseGapfillTemplate(template).blankCount > 0) ? (
+                                  <div className="space-y-3">
+                                    {findMistakeTemplates.map((template, templateIndex) => {
+                                      const parsed = parseGapfillTemplate(template);
+                                      if (!parsed.blankCount) return null;
+                                      return (
+                                        <div key={`find-mistake-preview-${block.id}-${templateIndex}`} className="space-y-2">
+                                          <p className="text-xs text-muted-foreground">Sentence {templateIndex + 1}</p>
+                                          <div className="flex flex-wrap items-center gap-1 text-sm">
+                                            {parsed.parts.map((part, partIndex) => {
+                                              if (part.kind === "text") {
+                                                return (
+                                                  <span key={`find-text-${partIndex}`} className="whitespace-pre-wrap">
+                                                    {part.text}
+                                                  </span>
+                                                );
+                                              }
+                                              if (part.type === "choice") {
+                                                return (
+                                                  <span
+                                                    key={`find-blank-${partIndex}`}
+                                                    className="inline-flex flex-wrap items-center gap-1 rounded-md border px-1.5 py-0.5"
+                                                  >
+                                                    {part.options.map((option, optionIndex) => {
+                                                      const isCorrect = part.correctIndex === optionIndex;
+                                                      return (
+                                                        <span
+                                                          key={`find-opt-${partIndex}-${optionIndex}`}
+                                                          className={`rounded px-1 py-0.5 text-xs font-medium ${isCorrect
+                                                              ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                                                              : "border border-rose-200 bg-rose-50 text-rose-700"
+                                                            }`}
+                                                        >
+                                                          {option}
+                                                        </span>
+                                                      );
+                                                    })}
+                                                  </span>
+                                                );
+                                              }
+                                              const isMarkedCorrect = String(part.raw || "").trim().startsWith("*");
+                                              return (
+                                                <span
+                                                  key={`find-plain-${partIndex}`}
+                                                  className={`rounded-md border px-1.5 py-0.5 text-xs font-medium ${isMarkedCorrect
+                                                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                                      : "border-rose-200 bg-rose-50 text-rose-700"
+                                                    }`}
+                                                >
+                                                  {part.correctAnswer}
+                                                </span>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <p className="text-xs text-muted-foreground">
+                                    Use one token per bracket. Mark the mistake with <span className="font-medium">*</span>.
+                                    Example: <span className="font-medium">She [*go] to the [school] [yesterday].</span>
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          ) : null}
+
+                          {blockType === "internal" ? (
+                            <div className="space-y-3">
+                              {(() => {
+                                const currentResourceType = String(block.data.resource_ref_type || "passage");
+                                const currentResourceId = String(block.data.resource_ref_id || "");
+                                const selectedResource = (catalog[currentResourceType] || []).find(
+                                  (item) => String(item?._id || "") === currentResourceId,
+                                );
+                                const isPickerOpen = Boolean(internalPickerOpenByBlockId[String(block.id)]);
+                                const shouldShowPicker = !currentResourceId || isPickerOpen;
+
+                                return (
                                   <>
                                     <div className="space-y-2">
-                                      <Label>Search</Label>
-                                      <Input
-                                        value={searchKeyword}
-                                        onChange={(event) => setSearchKeyword(event.target.value)}
-                                        placeholder="Search by title or id"
-                                      />
+                                      <Label>Internal Type</Label>
+                                      <Select
+                                        value={currentResourceType}
+                                        onValueChange={(value) => {
+                                          updateBlockData(block.id, { resource_ref_type: value, resource_ref_id: "" });
+                                          setInternalPickerOpenByBlockId((prev) => ({
+                                            ...prev,
+                                            [String(block.id)]: true,
+                                          }));
+                                        }}
+                                      >
+                                        <SelectTrigger>
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="passage">Passage</SelectItem>
+                                          <SelectItem value="section">Section</SelectItem>
+                                          <SelectItem value="speaking">Speaking</SelectItem>
+                                          <SelectItem value="writing">Writing</SelectItem>
+                                          <SelectItem value="test">Test</SelectItem>
+                                        </SelectContent>
+                                      </Select>
                                     </div>
-                                    <ScrollArea className="h-56 rounded-md border p-2">
-                                      <div className="space-y-2">
-                                        {(filteredResourcesByType[currentResourceType] || []).map((item) => {
-                                          const selected = currentResourceId === String(item?._id || "");
-                                          return (
-                                            <Button
-                                              key={String(item?._id || "")}
-                                              type="button"
-                                              variant={selected ? "default" : "outline"}
-                                              className="h-auto w-full justify-start py-2 text-left"
-                                              onClick={() => {
-                                                updateBlockData(block.id, { resource_ref_id: item?._id || "" });
-                                                setInternalPickerOpenByBlockId((prev) => ({
-                                                  ...prev,
-                                                  [String(block.id)]: false,
-                                                }));
-                                              }}
-                                            >
-                                              <span className="line-clamp-1">{item?.title || item?._id}</span>
-                                            </Button>
-                                          );
-                                        })}
+
+                                    {!shouldShowPicker ? (
+                                      <div className="space-y-2 rounded-md border bg-muted/20 p-3">
+                                        <Label>Selected Resource</Label>
+                                        <p className="text-sm font-medium text-foreground">
+                                          {selectedResource?.title || selectedResource?._id || currentResourceId}
+                                        </p>
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() =>
+                                            setInternalPickerOpenByBlockId((prev) => ({
+                                              ...prev,
+                                              [String(block.id)]: true,
+                                            }))
+                                          }
+                                        >
+                                          Choose Again
+                                        </Button>
                                       </div>
-                                    </ScrollArea>
+                                    ) : null}
+
+                                    {shouldShowPicker ? (
+                                      <>
+                                        <div className="space-y-2">
+                                          <Label>Search</Label>
+                                          <Input
+                                            value={searchKeyword}
+                                            onChange={(event) => setSearchKeyword(event.target.value)}
+                                            placeholder="Search by title or id"
+                                          />
+                                        </div>
+                                        <ScrollArea className="h-56 rounded-md border p-2">
+                                          <div className="space-y-2">
+                                            {(filteredResourcesByType[currentResourceType] || []).map((item) => {
+                                              const selected = currentResourceId === String(item?._id || "");
+                                              return (
+                                                <Button
+                                                  key={String(item?._id || "")}
+                                                  type="button"
+                                                  variant={selected ? "default" : "outline"}
+                                                  className="h-auto w-full justify-start py-2 text-left"
+                                                  onClick={() => {
+                                                    updateBlockData(block.id, { resource_ref_id: item?._id || "" });
+                                                    setInternalPickerOpenByBlockId((prev) => ({
+                                                      ...prev,
+                                                      [String(block.id)]: false,
+                                                    }));
+                                                  }}
+                                                >
+                                                  <span className="line-clamp-1">{item?.title || item?._id}</span>
+                                                </Button>
+                                              );
+                                            })}
+                                          </div>
+                                        </ScrollArea>
+                                      </>
+                                    ) : null}
                                   </>
-                                ) : null}
-                              </>
-                            );
-                          })()}
-                        </div>
-                      ) : null}
+                                );
+                              })()}
+                            </div>
+                          ) : null}
                         </>
                       ) : null}
                     </div>

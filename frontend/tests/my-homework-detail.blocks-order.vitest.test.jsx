@@ -1,5 +1,5 @@
 import React from "react";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import MyHomeworkDetailPage from "../src/features/homework/pages/MyHomeworkDetailPage.jsx";
@@ -11,6 +11,7 @@ const { mockApi, mockShowNotification } = vi.hoisted(() => ({
     homeworkGetMyAssignmentById: vi.fn(),
     homeworkGetAssignmentById: vi.fn(),
     homeworkSubmitTask: vi.fn(),
+    homeworkLaunchTaskTracking: vi.fn(),
   },
   mockShowNotification: vi.fn(),
 }));
@@ -66,6 +67,7 @@ describe("MyHomework lesson routing and block rendering", () => {
 
   afterEach(() => {
     cleanup();
+    vi.restoreAllMocks();
   });
 
   it("navigates from assignment page to a lesson page and renders only selected lesson content", async () => {
@@ -84,10 +86,10 @@ describe("MyHomework lesson routing and block rendering", () => {
       ]),
     );
 
-    renderHomeworkRoutes(["/homework/my/assignment-1"]);
+    renderHomeworkRoutes(["/student-ielts/homework/assignment-1"]);
 
     expect(await screen.findByText("Lesson One")).toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole("button", { name: "Open Lesson" })[0]);
+    fireEvent.click(screen.getByText("Lesson One").closest(".homework-task-card"));
 
     expect(await screen.findByText("Lesson One Block")).toBeInTheDocument();
     expect(screen.queryByText("Lesson Two Block")).not.toBeInTheDocument();
@@ -104,12 +106,12 @@ describe("MyHomework lesson routing and block rendering", () => {
       ]),
     );
 
-    renderHomeworkRoutes(["/homework/my/assignment-1/lessons/task-1"]);
+    renderHomeworkRoutes(["/student-ielts/homework/assignment-1/lessons/task-1"]);
 
-    const monthLink = await screen.findByRole("link", { name: "Month" });
-    fireEvent.click(monthLink);
+    const backButton = await screen.findByRole("button", { name: "Back" });
+    fireEvent.click(backButton);
 
-    expect(await screen.findByText("Lessons")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Lessons" })).toBeInTheDocument();
   });
 
   it("shows friendly not found state for invalid lesson id", async () => {
@@ -123,11 +125,11 @@ describe("MyHomework lesson routing and block rendering", () => {
       ]),
     );
 
-    renderHomeworkRoutes(["/homework/my/assignment-1/lessons/invalid-lesson"]);
+    renderHomeworkRoutes(["/student-ielts/homework/assignment-1/lessons/invalid-lesson"]);
 
     expect(await screen.findByText("Lesson not found.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Back to Month" }));
-    expect(await screen.findByText("Lessons")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Lessons" })).toBeInTheDocument();
   });
 
   it("renders [video, title] in exact order", async () => {
@@ -144,7 +146,7 @@ describe("MyHomework lesson routing and block rendering", () => {
       ]),
     );
 
-    renderHomeworkRoutes(["/homework/my/assignment-1/lessons/task-1"]);
+    renderHomeworkRoutes(["/student-ielts/homework/assignment-1/lessons/task-1"]);
 
     expect(await screen.findByText("Title After Video")).toBeInTheDocument();
     expect(getBlockOrderForTask()).toEqual(["video", "title"]);
@@ -164,7 +166,7 @@ describe("MyHomework lesson routing and block rendering", () => {
       ]),
     );
 
-    renderHomeworkRoutes(["/homework/my/assignment-1/lessons/task-1"]);
+    renderHomeworkRoutes(["/student-ielts/homework/assignment-1/lessons/task-1"]);
 
     expect(await screen.findByText("Title Before Video")).toBeInTheDocument();
     expect(getBlockOrderForTask()).toEqual(["title", "video"]);
@@ -184,7 +186,7 @@ describe("MyHomework lesson routing and block rendering", () => {
       ]),
     );
 
-    renderHomeworkRoutes(["/homework/my/assignment-1/lessons/task-1"]);
+    renderHomeworkRoutes(["/student-ielts/homework/assignment-1/lessons/task-1"]);
 
     expect(await screen.findByText("Known Title Block")).toBeInTheDocument();
     expect(getBlockOrderForTask()).toEqual(["title"]);
@@ -226,7 +228,7 @@ describe("MyHomework lesson routing and block rendering", () => {
       ]),
     );
 
-    renderHomeworkRoutes(["/homework/my/assignment-1/lessons/task-1"]);
+    renderHomeworkRoutes(["/student-ielts/homework/assignment-1/lessons/task-1"]);
 
     expect(await screen.findByText("Question One?")).toBeInTheDocument();
     expect(screen.getByText("Question Two?")).toBeInTheDocument();
@@ -258,7 +260,7 @@ describe("MyHomework lesson routing and block rendering", () => {
       ]),
     );
 
-    renderHomeworkRoutes(["/homework/my/assignment-1/lessons/task-1"]);
+    renderHomeworkRoutes(["/student-ielts/homework/assignment-1/lessons/task-1"]);
 
     expect(await screen.findByText("Legacy question?")).toBeInTheDocument();
     expect(screen.getByText("Legacy Option 1")).toBeInTheDocument();
@@ -285,9 +287,9 @@ describe("MyHomework lesson routing and block rendering", () => {
       ]),
     );
 
-    renderHomeworkRoutes(["/homework/my/assignment-1/lessons/task-1"]);
+    renderHomeworkRoutes(["/student-ielts/homework/assignment-1/lessons/task-1"]);
 
-    expect(await screen.findByText("Dictation")).toBeInTheDocument();
+    expect((await screen.findAllByText("Listen and write the sentence.")).length).toBeGreaterThan(0);
     expect(screen.queryByText("Hidden transcript text should not appear")).not.toBeInTheDocument();
     expect(getBlockOrderForTask()).toEqual(["dictation"]);
   });
@@ -315,9 +317,126 @@ describe("MyHomework lesson routing and block rendering", () => {
       ]),
     );
 
-    renderHomeworkRoutes(["/homework/my/assignment-1/lessons/task-1"]);
+    renderHomeworkRoutes(["/student-ielts/homework/assignment-1/lessons/task-1"]);
 
-    expect(await screen.findByText("Dictation")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("Type your answer here...")).toBeInTheDocument();
+    expect((await screen.findAllByText("Type what you hear.")).length).toBeGreaterThan(0);
+    expect(screen.getByPlaceholderText(/Type your answer here/i)).toBeInTheDocument();
+  });
+
+  it("scopes launch loading state to the clicked internal block only", async () => {
+    mockApi.homeworkGetMyAssignmentById.mockResolvedValue(
+      buildAssignmentResponse([
+        {
+          _id: "task-1",
+          title: "Task 1",
+          content_blocks: [
+            {
+              type: "internal",
+              order: 0,
+              data: {
+                block_id: "slot-a",
+                resource_slot_key: "slot:a",
+                resource_ref_type: "test",
+                resource_ref_id: "test-a",
+              },
+            },
+            {
+              type: "internal",
+              order: 1,
+              data: {
+                block_id: "slot-b",
+                resource_slot_key: "slot:b",
+                resource_ref_type: "test",
+                resource_ref_id: "test-b",
+              },
+            },
+          ],
+        },
+      ]),
+    );
+
+    let resolveLaunch = null;
+    mockApi.homeworkLaunchTaskTracking.mockImplementation(
+      () => new Promise((resolve) => {
+        resolveLaunch = resolve;
+      }),
+    );
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+
+    renderHomeworkRoutes(["/student-ielts/homework/assignment-1/lessons/task-1"]);
+
+    const launchButtons = await screen.findAllByRole("button", { name: "Launch Resource" });
+    expect(launchButtons).toHaveLength(2);
+
+    fireEvent.click(launchButtons[0]);
+
+    expect(await screen.findByRole("button", { name: "Launching..." })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Launch Resource" })).toHaveLength(1);
+
+    resolveLaunch?.({
+      data: {
+        launch_url: "https://example.com/test-a",
+      },
+    });
+
+    await waitFor(() => {
+      expect(openSpy).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(screen.getAllByRole("button", { name: "Launch Resource" })).toHaveLength(2);
+    });
+  });
+
+  it("keeps invalid internal block isolated while valid block launches", async () => {
+    mockApi.homeworkGetMyAssignmentById.mockResolvedValue(
+      buildAssignmentResponse([
+        {
+          _id: "task-1",
+          title: "Task 1",
+          content_blocks: [
+            {
+              type: "internal",
+              order: 0,
+              data: {
+                block_id: "slot-invalid",
+                resource_slot_key: "slot:invalid",
+                resource_ref_type: "test",
+              },
+            },
+            {
+              type: "internal",
+              order: 1,
+              data: {
+                block_id: "slot-valid",
+                resource_slot_key: "slot:valid",
+                resource_ref_type: "test",
+                resource_ref_id: "test-valid",
+              },
+            },
+          ],
+        },
+      ]),
+    );
+
+    mockApi.homeworkLaunchTaskTracking.mockResolvedValue({
+      data: {
+        launch_url: "https://example.com/test-valid",
+      },
+    });
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+
+    renderHomeworkRoutes(["/student-ielts/homework/assignment-1/lessons/task-1"]);
+
+    const launchButtons = await screen.findAllByRole("button", { name: "Launch Resource" });
+    expect(launchButtons).toHaveLength(2);
+    expect(launchButtons[0]).toBeDisabled();
+    expect(launchButtons[1]).not.toBeDisabled();
+
+    fireEvent.click(launchButtons[1]);
+
+    await waitFor(() => {
+      expect(mockApi.homeworkLaunchTaskTracking).toHaveBeenCalledTimes(1);
+      expect(openSpy).toHaveBeenCalledTimes(1);
+    });
   });
 });

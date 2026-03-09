@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
-import '../pages/Manage.css';
+import '../styles/Manage.css';
 
 const manageRoutePreloaders = {
   '/admin/manage/passages': () => import('../pages/ManagePassagesSinglePage'),
@@ -8,7 +8,7 @@ const manageRoutePreloaders = {
   '/admin/manage/writings': () => import('../pages/ManageWritingsSinglePage'),
   '/admin/manage/speaking': () => import('../pages/ManageSpeakingSinglePage'),
   '/admin/manage/tests': () => import('../pages/ManageTestsSinglePage'),
-  '/admin/manage/skill-modules': () => import('../pages/AddSkillModules'),
+  '/admin/manage/skill-modules': () => import('./AddSkillModules'),
 };
 
 const preloadedManageRoutes = new Set();

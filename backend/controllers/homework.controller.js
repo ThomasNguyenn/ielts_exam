@@ -1240,6 +1240,12 @@ const resolveScoreSnapshot = (meta = null) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const toFiniteNumberOrNull = (value) => {
+  if (value === undefined || value === null || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 const mapSubmissionToResponse = (submission = {}) => ({
   _id: submission._id,
   assignment_id: submission.assignment_id,
@@ -1269,28 +1275,290 @@ const parseScoreOrNull = (value) => {
   return Math.round(parsed * 10) / 10;
 };
 
+const isSubmittedHomeworkStatus = (status) => {
+  const normalized = String(status || "").trim().toLowerCase();
+  return normalized === "submitted" || normalized === "graded";
+};
+
+const buildInternalSlotKey = ({ blockId = "", resourceRefType = "", resourceRefId = "" } = {}) => {
+  const normalizedBlockId = String(blockId || "").trim();
+  if (normalizedBlockId) return `block:${normalizedBlockId}`;
+  const normalizedType = String(resourceRefType || "").trim().toLowerCase();
+  const normalizedRefId = String(resourceRefId || "").trim();
+  if (!normalizedType || !normalizedRefId) return "";
+  return `ref:${normalizedType}:${normalizedRefId}`;
+};
+
+const collectInternalResourceSlotsForTask = (task = {}) => {
+  const slots = [];
+  const blockRefKeys = new Set();
+
+  const pushSlot = ({
+    resourceRefType,
+    resourceRefId,
+    blockId = "",
+    resourceSlotKey = "",
+    slotIndex = 0,
+  } = {}) => {
+    const normalizedType = String(resourceRefType || "").trim().toLowerCase();
+    const normalizedRefId = String(resourceRefId || "").trim();
+    if (!normalizedType || !normalizedRefId) return;
+    const normalizedBlockId = String(blockId || "").trim();
+    // Internal blocks are independent completion units. Always keep one slot per block.
+    const blockIdForKey = normalizedBlockId || `internal-${slotIndex + 1}`;
+    const configuredSlotKey = String(resourceSlotKey || "").trim();
+    const slotKey = configuredSlotKey || buildInternalSlotKey({
+      blockId: blockIdForKey,
+      resourceRefType: normalizedType,
+      resourceRefId: normalizedRefId,
+    });
+    if (!slotKey) return;
+    slots.push({
+      resource_slot_key: slots.some((slot) => slot.resource_slot_key === slotKey)
+        ? `${slotKey}:${slotIndex}`
+        : slotKey,
+      resource_block_id: blockIdForKey,
+      resource_ref_type: normalizedType,
+      resource_ref_id: normalizedRefId,
+    });
+  };
+
+  const contentBlocks = Array.isArray(task?.content_blocks) ? task.content_blocks : [];
+  contentBlocks.forEach((block, blockIndex) => {
+    if (String(block?.type || "").trim().toLowerCase() !== "internal") return;
+    const blockData = block?.data && typeof block.data === "object" ? block.data : {};
+    const resourceRefType = String(blockData?.resource_ref_type || "").trim().toLowerCase();
+    const resourceRefId = String(blockData?.resource_ref_id || "").trim();
+    if (!resourceRefType || !resourceRefId) return;
+    blockRefKeys.add(`${resourceRefType}:${resourceRefId}`);
+    pushSlot({
+      resourceRefType,
+      resourceRefId,
+      blockId: String(blockData?.block_id || "").trim(),
+      resourceSlotKey: String(blockData?.resource_slot_key || "").trim(),
+      slotIndex: blockIndex,
+    });
+  });
+
+  if (String(task?.resource_mode || "").trim().toLowerCase() === "internal") {
+    const rootType = String(task?.resource_ref_type || "").trim().toLowerCase();
+    const rootRefId = String(task?.resource_ref_id || "").trim();
+    const rootRefKey = `${rootType}:${rootRefId}`;
+    if (rootType && rootRefId && !blockRefKeys.has(rootRefKey)) {
+      pushSlot({
+        resourceRefType: rootType,
+        resourceRefId: rootRefId,
+        slotIndex: contentBlocks.length,
+      });
+    }
+  }
+
+  return slots;
+};
+
+const parseInternalCompletionRowsFromMeta = (meta = {}) => {
+  const normalizedMeta = meta && typeof meta === "object" && !Array.isArray(meta) ? meta : {};
+  const rows = Array.isArray(normalizedMeta.internal_content_completions)
+    ? normalizedMeta.internal_content_completions
+    : [];
+  const normalizedRows = rows
+    .map((row) => {
+      const resourceRefType = String(row?.resource_ref_type || "").trim().toLowerCase();
+      const resourceRefId = String(row?.resource_ref_id || "").trim();
+      const resourceBlockId = String(row?.resource_block_id || "").trim();
+      const resourceSlotKey = String(row?.resource_slot_key || "").trim()
+        || buildInternalSlotKey({
+          blockId: resourceBlockId,
+          resourceRefType,
+          resourceRefId,
+        });
+      if (!resourceSlotKey && (!resourceRefType || !resourceRefId)) return null;
+      return {
+        resource_slot_key: resourceSlotKey,
+        resource_block_id: resourceBlockId,
+        resource_ref_type: resourceRefType,
+        resource_ref_id: resourceRefId,
+        submitted_at: row?.submitted_at || null,
+        linked_test_attempt_id: String(row?.linked_test_attempt_id || "").trim(),
+        score_snapshot: toFiniteNumberOrNull(row?.score_snapshot),
+      };
+    })
+    .filter(Boolean);
+
+  // Merge repeated rows for the same slot identity.
+  const rowMap = new Map();
+  normalizedRows.forEach((row) => {
+    const key = String(row?.resource_slot_key || "").trim()
+      || buildInternalSlotKey({
+        blockId: String(row?.resource_block_id || "").trim(),
+        resourceRefType: String(row?.resource_ref_type || "").trim().toLowerCase(),
+        resourceRefId: String(row?.resource_ref_id || "").trim(),
+      });
+    if (!key) return;
+    const current = rowMap.get(key);
+    if (!current) {
+      rowMap.set(key, {
+        ...row,
+        resource_slot_key: key,
+      });
+      return;
+    }
+    const currentTs = new Date(current?.submitted_at || 0).getTime() || 0;
+    const nextTs = new Date(row?.submitted_at || 0).getTime() || 0;
+    if (nextTs >= currentTs) {
+      rowMap.set(key, {
+        ...current,
+        ...row,
+        resource_slot_key: key,
+      });
+    }
+  });
+
+  return Array.from(rowMap.values());
+};
+
+const buildInternalSubmissionItemsForTask = ({ task = {}, submission = null } = {}) => {
+  const slots = collectInternalResourceSlotsForTask(task);
+  if (!slots.length) return [];
+  const completionRows = parseInternalCompletionRowsFromMeta(submission?.meta);
+
+  return slots.map((slot) => {
+    const slotKey = String(slot?.resource_slot_key || "").trim();
+    const slotBlockId = String(slot?.resource_block_id || "").trim();
+    const slotResourceType = String(slot?.resource_ref_type || "").trim().toLowerCase();
+    const slotResourceRefId = String(slot?.resource_ref_id || "").trim();
+    const matchedCompletion = completionRows.find((row) => {
+      if (slotKey && String(row?.resource_slot_key || "").trim() === slotKey) return true;
+      if (
+        slotBlockId
+        && String(row?.resource_block_id || "").trim()
+        && String(row?.resource_block_id || "").trim() === slotBlockId
+      ) {
+        return true;
+      }
+      return (
+        slotResourceType
+        && slotResourceRefId
+        && String(row?.resource_ref_type || "").trim().toLowerCase() === slotResourceType
+        && String(row?.resource_ref_id || "").trim() === slotResourceRefId
+      );
+    });
+
+    const completedAt = matchedCompletion?.submitted_at || null;
+    return {
+      slot_key: slotKey,
+      resource_block_id: slotBlockId,
+      resource_ref_type: slotResourceType,
+      resource_ref_id: slotResourceRefId,
+      status: completedAt ? "completed" : "not_started",
+      completed_at: completedAt,
+      linked_test_attempt_id: String(matchedCompletion?.linked_test_attempt_id || "").trim() || null,
+      score_snapshot: toFiniteNumberOrNull(matchedCompletion?.score_snapshot),
+    };
+  });
+};
+
+const resolveCompletedInternalSlotKeysForTask = ({ task = {}, submission = null } = {}) => {
+  const slots = collectInternalResourceSlotsForTask(task);
+  const completed = new Set();
+  if (!submission || slots.length === 0) return { slots, completed };
+
+  const completionRows = parseInternalCompletionRowsFromMeta(submission?.meta);
+  completionRows.forEach((row) => {
+    const matchedSlot = slots.find((slot) => {
+      if (row.resource_slot_key && slot.resource_slot_key === row.resource_slot_key) return true;
+      if (row.resource_block_id && slot.resource_block_id && row.resource_block_id === slot.resource_block_id) {
+        return true;
+      }
+      return (
+        row.resource_ref_type
+        && row.resource_ref_id
+        && row.resource_ref_type === slot.resource_ref_type
+        && row.resource_ref_id === slot.resource_ref_id
+      );
+    });
+    if (matchedSlot?.resource_slot_key) {
+      completed.add(matchedSlot.resource_slot_key);
+    }
+  });
+
+  const legacyResourceType = String(submission?.meta?.resource_ref_type || "").trim().toLowerCase();
+  const legacyResourceId = String(submission?.meta?.resource_ref_id || "").trim();
+  if (legacyResourceType && legacyResourceId) {
+    const matchedLegacySlot = slots.find(
+      (slot) =>
+        slot.resource_ref_type === legacyResourceType
+        && slot.resource_ref_id === legacyResourceId,
+    );
+    if (matchedLegacySlot?.resource_slot_key) {
+      completed.add(matchedLegacySlot.resource_slot_key);
+    }
+  }
+
+  if (completed.size === 0 && isSubmittedHomeworkStatus(submission?.status)) {
+    if (slots.length === 1) {
+      completed.add(slots[0].resource_slot_key);
+    } else if (slots.length > 1) {
+      // Legacy fallback for historical submissions without slot-level metadata.
+      completed.add(slots[0].resource_slot_key);
+    }
+  }
+
+  return { slots, completed };
+};
+
+const resolveTaskProgressUnits = ({ task = {}, submission = null } = {}) => {
+  const isInternalTask = String(task?.resource_mode || "").trim().toLowerCase() === "internal";
+  const { slots, completed } = resolveCompletedInternalSlotKeysForTask({ task, submission });
+  const hasMultiInternalSlots = isInternalTask && slots.length > 1;
+
+  if (hasMultiInternalSlots) {
+    const completedUnits = completed.size;
+    return {
+      totalUnits: slots.length,
+      completedUnits,
+      gradedUnits: String(submission?.status || "").trim().toLowerCase() === "graded" ? completedUnits : 0,
+    };
+  }
+
+  const completedUnits = isSubmittedHomeworkStatus(submission?.status) ? 1 : 0;
+  return {
+    totalUnits: 1,
+    completedUnits,
+    gradedUnits: String(submission?.status || "").trim().toLowerCase() === "graded" ? 1 : 0,
+  };
+};
+
 const mapAssignmentForStudent = (assignment = {}, submissions = []) => {
   const mappedAssignment = mapAssignmentForResponse(assignment, { forStudent: true });
   const tasks = Array.isArray(mappedAssignment.tasks) ? mappedAssignment.tasks : [];
-  const visibleTaskIdSet = new Set(tasks.map((task) => String(task?._id || "")));
-  const submissionTaskSet = new Set(
-    submissions
-      .map((submission) => String(submission.task_id || ""))
-      .filter((taskId) => visibleTaskIdSet.has(taskId)),
-  );
-  const gradedCount = submissions.filter(
-    (submission) =>
-      submission.status === "graded" && visibleTaskIdSet.has(String(submission?.task_id || "")),
-  ).length;
-  const submittedCount = submissionTaskSet.size;
+  const submissionByTaskId = new Map();
+  submissions.forEach((submission) => {
+    const taskId = String(submission?.task_id || "");
+    if (!taskId) return;
+    submissionByTaskId.set(taskId, submission);
+  });
+
+  let totalUnits = 0;
+  let submittedUnits = 0;
+  let gradedUnits = 0;
+  tasks.forEach((task) => {
+    const taskId = String(task?._id || "");
+    const submission = submissionByTaskId.get(taskId) || null;
+    const { totalUnits: taskTotal, completedUnits, gradedUnits: taskGraded } =
+      resolveTaskProgressUnits({ task, submission });
+    totalUnits += taskTotal;
+    submittedUnits += completedUnits;
+    gradedUnits += taskGraded;
+  });
 
   return {
     ...mappedAssignment,
     progress: {
-      submitted_tasks: submittedCount,
-      total_tasks: tasks.length,
-      graded_tasks: gradedCount,
-      pending_tasks: Math.max(0, tasks.length - submittedCount),
+      submitted_tasks: submittedUnits,
+      total_tasks: totalUnits,
+      graded_tasks: gradedUnits,
+      pending_tasks: Math.max(0, totalUnits - submittedUnits),
     },
   };
 };
@@ -2248,7 +2516,64 @@ export const launchMyHomeworkTaskTracking = async (req, res) => {
         message: "Launch tracking is only available for internal resources",
       });
     }
-    if (!task.resource_ref_type || !task.resource_ref_id) {
+
+    const requestedResourceRefType = String(req.body?.resource_ref_type || "").trim().toLowerCase();
+    const requestedResourceRefId = String(req.body?.resource_ref_id || "").trim();
+    const requestedResourceBlockId = String(req.body?.resource_block_id || "").trim();
+    const requestedResourceSlotKey = String(req.body?.resource_slot_key || "").trim();
+    const internalSlots = collectInternalResourceSlotsForTask(task);
+    const isMultiInternalTask = internalSlots.length > 1;
+
+    let selectedSlot = null;
+    if (requestedResourceSlotKey) {
+      selectedSlot = internalSlots.find(
+        (slot) => String(slot?.resource_slot_key || "").trim() === requestedResourceSlotKey,
+      );
+    }
+    if (!selectedSlot && requestedResourceBlockId) {
+      selectedSlot = internalSlots.find(
+        (slot) => String(slot?.resource_block_id || "").trim() === requestedResourceBlockId,
+      );
+    }
+    if (!selectedSlot && requestedResourceRefType && requestedResourceRefId) {
+      const matchedByRef = internalSlots.filter(
+        (slot) =>
+          String(slot?.resource_ref_type || "").trim().toLowerCase() === requestedResourceRefType
+          && String(slot?.resource_ref_id || "").trim() === requestedResourceRefId,
+      );
+      if (matchedByRef.length === 1) {
+        selectedSlot = matchedByRef[0];
+      } else if (matchedByRef.length > 1) {
+        return sendControllerError(req, res, {
+          statusCode: 400,
+          message: "Ambiguous internal slot. Use resource_slot_key or resource_block_id.",
+        });
+      }
+    }
+    if (!selectedSlot && !isMultiInternalTask && internalSlots.length > 0) {
+      selectedSlot = internalSlots[0];
+    }
+    if (isMultiInternalTask && !selectedSlot) {
+      return sendControllerError(req, res, {
+        statusCode: 400,
+        message: "resource_slot_key (or resource_block_id) is required for multi-internal launch.",
+      });
+    }
+
+    const selectedResourceRefType = String(
+      selectedSlot?.resource_ref_type || (!isMultiInternalTask ? task.resource_ref_type : "") || "",
+    ).trim();
+    const selectedResourceRefId = String(
+      selectedSlot?.resource_ref_id || (!isMultiInternalTask ? task.resource_ref_id : "") || "",
+    ).trim();
+    const selectedResourceBlockId = String(
+      selectedSlot?.resource_block_id || requestedResourceBlockId || "",
+    ).trim();
+    const selectedResourceSlotKey = String(
+      selectedSlot?.resource_slot_key || requestedResourceSlotKey || "",
+    ).trim();
+
+    if (!selectedResourceRefType || !selectedResourceRefId) {
       return sendControllerError(req, res, {
         statusCode: 400,
         message: "Task internal resource is not configured",
@@ -2259,15 +2584,17 @@ export const launchMyHomeworkTaskTracking = async (req, res) => {
       studentId: req.user.userId,
       assignmentId,
       taskId,
-      resourceRefType: task.resource_ref_type,
-      resourceRefId: task.resource_ref_id,
+      resourceRefType: selectedResourceRefType,
+      resourceRefId: selectedResourceRefId,
+      resourceBlockId: selectedResourceBlockId,
+      resourceSlotKey: selectedResourceSlotKey,
       nonce: req.body?.event_id,
     });
 
     const trackingResult = await trackHomeworkActivityOpen({
       studentId: req.user.userId,
-      resourceRefType: task.resource_ref_type,
-      resourceRefId: task.resource_ref_id,
+      resourceRefType: selectedResourceRefType,
+      resourceRefId: selectedResourceRefId,
       hwctx,
       eventId: req.body?.event_id,
       tabSessionId: req.body?.tab_session_id,
@@ -2278,8 +2605,8 @@ export const launchMyHomeworkTaskTracking = async (req, res) => {
     });
 
     const launchUrl = resolveHomeworkLaunchUrl({
-      resourceRefType: task.resource_ref_type,
-      resourceRefId: task.resource_ref_id,
+      resourceRefType: selectedResourceRefType,
+      resourceRefId: selectedResourceRefId,
       hwctx,
     });
 
@@ -2289,6 +2616,7 @@ export const launchMyHomeworkTaskTracking = async (req, res) => {
         launch_url: launchUrl,
         student_assignment_status: trackingResult?.status || "opened",
         tracked: Boolean(trackingResult?.tracked),
+        resource_slot_key: selectedResourceSlotKey || null,
       },
     });
   } catch (error) {
@@ -2638,22 +2966,41 @@ export const getHomeworkAssignmentDashboard = async (req, res) => {
 
     const effectiveSections = getEffectivePublishedSections(assignment);
     const tasks = flattenSectionsToTasks(effectiveSections);
-    const taskSummary = tasks.map((task) => {
-      const taskIdKey = String(task._id || "");
-      const submittedStudentSet = new Set(
-        submissions
-          .filter((submission) => String(submission.task_id || "") === taskIdKey)
-          .filter((submission) => targetScopedStudentIdSet.has(String(submission.student_id || "")))
-          .map((submission) => String(submission.student_id || "")),
-      );
-      const submitted = submittedStudentSet.size;
-      const notSubmitted = Math.max(0, targetScopedStudents.length - submitted);
+    const taskGroups = tasks.map((task) => {
+      const taskId = String(task?._id || "");
+      const title = String(task?.title || task?.type || "Task").trim() || "Task";
+      const dueDate = task?.due_date || assignment?.due_date || null;
+      const order = Number.isFinite(Number(task?.order)) ? Number(task.order) : 0;
+      const isInternalTask = String(task?.resource_mode || "").trim().toLowerCase() === "internal";
+      const internalSlotsRaw = isInternalTask ? collectInternalResourceSlotsForTask(task) : [];
+      const internalSlots = internalSlotsRaw
+        .map((slot, slotIndex) => {
+          const resourceRefType = String(slot?.resource_ref_type || "").trim().toLowerCase();
+          const resourceRefId = String(slot?.resource_ref_id || "").trim();
+          const resourceBlockId = String(slot?.resource_block_id || "").trim();
+          const slotKey =
+            String(slot?.resource_slot_key || "").trim()
+            || buildInternalSlotKey({
+              blockId: resourceBlockId || `internal-${slotIndex + 1}`,
+              resourceRefType,
+              resourceRefId,
+            });
+          return {
+            slot_key: slotKey,
+            resource_block_id: resourceBlockId,
+            resource_ref_type: resourceRefType,
+            resource_ref_id: resourceRefId,
+          };
+        })
+        .filter((slot) => slot.slot_key && slot.resource_ref_type && slot.resource_ref_id);
+
       return {
-        task_id: task._id,
-        title: task.title || task.type || "Task",
-        order: task.order || 0,
-        submitted,
-        not_submitted: notSubmitted,
+        task_id: taskId,
+        title,
+        order,
+        due_date: dueDate,
+        is_multi_internal: internalSlots.length > 1,
+        internal_slots: internalSlots,
       };
     });
 
@@ -2662,29 +3009,133 @@ export const getHomeworkAssignmentDashboard = async (req, res) => {
       submissionMap.set(`${String(submission.student_id || "")}:${String(submission.task_id || "")}`, submission);
     });
 
+    const resolveTaskGroupState = ({ studentId, taskGroup }) => {
+      const key = `${String(studentId || "")}:${String(taskGroup?.task_id || "")}`;
+      const submission = submissionMap.get(key) || null;
+      const submissionId = submission?._id ? String(submission._id) : null;
+      const groupId = submissionId
+        ? `submission:${submissionId}`
+        : `virtual:${String(assignment?._id || "")}:${String(studentId || "")}:${String(taskGroup?.task_id || "")}`;
+      const groupSubmittedAt = submission?.submitted_at || null;
+
+      if (!taskGroup?.is_multi_internal) {
+        const doneCount = submission && isSubmittedHomeworkStatus(submission?.status) ? 1 : 0;
+        return {
+          group_id: groupId,
+          submission_id: submissionId,
+          task_id: taskGroup?.task_id,
+          task_title: taskGroup?.title || "Task",
+          task_due_date: taskGroup?.due_date || null,
+          status: doneCount <= 0 ? "not_started" : "completed",
+          done_count: doneCount,
+          total_count: 1,
+          submitted_at: groupSubmittedAt,
+          graded_at: submission?.graded_at || null,
+          score: doneCount > 0 ? (submission?.score ?? null) : null,
+          internal_items: [],
+        };
+      }
+
+      const completionRows = parseInternalCompletionRowsFromMeta(submission?.meta);
+      const internalItems = (Array.isArray(taskGroup?.internal_slots) ? taskGroup.internal_slots : []).map((slot) => {
+        const slotKey = String(slot?.slot_key || "").trim();
+        const matchedCompletion = completionRows.find((row) => {
+          if (String(row?.resource_slot_key || "").trim() === slotKey) return true;
+          if (
+            String(row?.resource_block_id || "").trim()
+            && String(slot?.resource_block_id || "").trim()
+            && String(row.resource_block_id).trim() === String(slot.resource_block_id).trim()
+          ) {
+            return true;
+          }
+          return (
+            String(row?.resource_ref_type || "").trim().toLowerCase() === String(slot?.resource_ref_type || "")
+            && String(row?.resource_ref_id || "").trim() === String(slot?.resource_ref_id || "")
+          );
+        });
+        const completedAt = matchedCompletion?.submitted_at || null;
+        return {
+          slot_key: slotKey,
+          resource_block_id: String(slot?.resource_block_id || ""),
+          resource_ref_type: String(slot?.resource_ref_type || ""),
+          resource_ref_id: String(slot?.resource_ref_id || ""),
+          status: completedAt ? "completed" : "not_started",
+          completed_at: completedAt,
+        };
+      });
+
+      const totalCount = internalItems.length;
+      const doneCount = internalItems.filter((item) => item.status === "completed").length;
+      const status = doneCount <= 0 ? "not_started" : doneCount >= totalCount ? "completed" : "in_progress";
+
+      return {
+        group_id: groupId,
+        submission_id: submissionId,
+        task_id: taskGroup?.task_id,
+        task_title: taskGroup?.title || "Task",
+        task_due_date: taskGroup?.due_date || null,
+        status,
+        done_count: doneCount,
+        total_count: totalCount,
+        submitted_at: groupSubmittedAt,
+        graded_at: submission?.graded_at || null,
+        score: submission?.score ?? null,
+        internal_items: internalItems,
+      };
+    };
+
+    const taskSummary = taskGroups.map((taskGroup) => {
+      let submitted = 0;
+      targetScopedStudents.forEach((student) => {
+        const groupState = resolveTaskGroupState({
+          studentId: String(student?._id || ""),
+          taskGroup,
+        });
+        if (Number(groupState?.done_count || 0) > 0) submitted += 1;
+      });
+      return {
+        task_id: taskGroup.task_id,
+        task_slot_id: `task:${String(taskGroup.task_id || "")}`,
+        title: taskGroup.title,
+        order: taskGroup.order || 0,
+        submitted,
+        not_submitted: Math.max(0, targetScopedStudents.length - submitted),
+      };
+    });
+
     const students = scopedStudents.map((student) => ({
       _id: student._id,
       name: student.name,
       email: student.email,
       homeroom_teacher_id: student.homeroom_teacher_id || null,
-      tasks: tasks.map((task) => {
-        const key = `${String(student._id || "")}:${String(task._id || "")}`;
-        const submission = submissionMap.get(key);
+      tasks: taskGroups.map((taskGroup) => {
+        const groupState = resolveTaskGroupState({
+          studentId: String(student?._id || ""),
+          taskGroup,
+        });
         return {
-          task_id: task._id,
-          submission_id: submission?._id || null,
-          submitted: Boolean(submission),
-          status: submission?.status || "not_submitted",
-          score: submission?.score ?? null,
-          graded_at: submission?.graded_at || null,
-          submitted_at: submission?.submitted_at || null,
+          task_id: groupState.task_id,
+          task_slot_id: `task:${String(groupState.task_id || "")}`,
+          task_title: groupState.task_title,
+          task_due_date: groupState.task_due_date,
+          submission_id: groupState.submission_id,
+          homework_submission_id: groupState.submission_id,
+          group_id: groupState.group_id,
+          submitted: Number(groupState.done_count || 0) > 0,
+          status: groupState.status,
+          score: groupState.score,
+          graded_at: groupState.graded_at,
+          submitted_at: groupState.submitted_at,
+          done_count: groupState.done_count,
+          total_count: groupState.total_count,
+          internal_items: groupState.internal_items,
         };
       }),
     }));
 
     const submittedTotal = taskSummary.reduce((sum, item) => sum + Number(item.submitted || 0), 0);
-    const totalSlots = targetScopedStudents.length * tasks.length;
-    const notSubmittedTotal = Math.max(0, totalSlots - submittedTotal);
+    const totalGroups = targetScopedStudents.length * taskGroups.length;
+    const notSubmittedTotal = Math.max(0, totalGroups - submittedTotal);
 
     return res.status(200).json({
       success: true,
@@ -2698,7 +3149,7 @@ export const getHomeworkAssignmentDashboard = async (req, res) => {
           students_in_target: targetStudents.length,
           students_in_scope: targetScopedStudents.length,
           students_with_submissions: scopedStudents.length,
-          tasks_total: tasks.length,
+          tasks_total: taskGroups.length,
           submitted_total: submittedTotal,
           not_submitted_total: notSubmittedTotal,
         },
@@ -2869,6 +3320,48 @@ export const getHomeworkSubmissionById = async (req, res) => {
     const subResponse = mapSubmissionToResponse(submission);
     let testTitle = null;
     let ieltsBand = null;
+    let internalItems = [];
+
+    if (task) {
+      const baseInternalItems = buildInternalSubmissionItemsForTask({ task, submission });
+      if (baseInternalItems.length > 0) {
+        const testRefIds = Array.from(new Set(
+          baseInternalItems
+            .filter((item) => String(item?.resource_ref_type || "").trim().toLowerCase() === "test")
+            .map((item) => String(item?.resource_ref_id || "").trim())
+            .filter((id) => mongoose.Types.ObjectId.isValid(id)),
+        ));
+        const testMap = new Map();
+        if (testRefIds.length > 0) {
+          const tests = await Test.find({
+            _id: { $in: testRefIds.map((id) => new mongoose.Types.ObjectId(id)) },
+          })
+            .select("_id title type")
+            .lean();
+          tests.forEach((test) => {
+            testMap.set(String(test?._id || ""), test);
+          });
+        }
+
+        internalItems = baseInternalItems.map((item) => {
+          const normalizedRefType = String(item?.resource_ref_type || "").trim().toLowerCase();
+          const normalizedRefId = String(item?.resource_ref_id || "").trim();
+          const testInfo = normalizedRefType === "test" ? (testMap.get(normalizedRefId) || null) : null;
+          const itemScore = toFiniteNumberOrNull(item?.score_snapshot);
+          const normalizedTestType = String(testInfo?.type || "").trim().toLowerCase();
+          const itemBand = itemScore !== null && ["reading", "listening"].includes(normalizedTestType)
+            ? calculateIELTSBand(itemScore, normalizedTestType)
+            : null;
+          return {
+            ...item,
+            score_snapshot: itemScore,
+            test_title: testInfo?.title || null,
+            test_type: testInfo?.type || null,
+            ielts_band: itemBand,
+          };
+        });
+      }
+    }
 
     if (task && task.resource_mode === "internal" && task.resource_ref_type === "test" && task.resource_ref_id) {
       const test = await Test.findById(task.resource_ref_id).select("title type").lean();
@@ -2879,6 +3372,12 @@ export const getHomeworkSubmissionById = async (req, res) => {
         }
       }
     }
+    if (!testTitle) {
+      testTitle = String(internalItems.find((item) => String(item?.test_title || "").trim())?.test_title || "").trim() || null;
+    }
+    if (!ieltsBand) {
+      ieltsBand = internalItems.find((item) => item?.ielts_band !== null && item?.ielts_band !== undefined)?.ielts_band || null;
+    }
 
     return res.status(200).json({
       success: true,
@@ -2887,6 +3386,7 @@ export const getHomeworkSubmissionById = async (req, res) => {
         assignment: mappedAssignment,
         task,
         student,
+        internal_items: internalItems,
         test_title: testTitle,
         ielts_band: ieltsBand,
       },

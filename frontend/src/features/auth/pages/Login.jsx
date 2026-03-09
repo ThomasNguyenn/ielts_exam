@@ -4,7 +4,7 @@ import { GalleryVerticalEnd } from "lucide-react"
 
 import { api } from "@/shared/api/client"
 import { getDefaultRouteForUser, requiresFirstLoginSetup } from "@/app/roleRouting"
-import { LoginForm } from "@/components/login-form"
+import { LoginForm } from "@/features/auth/components/login-form"
 
 export default function LoginPage() {
   const navigate = useNavigate()

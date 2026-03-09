@@ -6,32 +6,71 @@
   <component name="ChangeListManager">
     <list default="true" id="b588cd8d-9883-4ae9-b90e-a4650d93adc1" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/controllers/evaluation.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/controllers/evaluation.controller.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/controllers/homework.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/controllers/homework.controller.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/models/MonthlyAssignmentSubmission.model.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/models/MonthlyAssignmentSubmission.model.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/backend/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/routes/homework.route.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/routes/homework.route.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/services/testSubmission.service.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/services/testSubmission.service.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/controllers/passage.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/controllers/passage.controller.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/controllers/section.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/controllers/section.controller.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/controllers/writing.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/controllers/writing.controller.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/routes/passage.route.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/routes/passage.route.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/routes/section.route.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/routes/section.route.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/server.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/server.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/services/homeworkTrackingBridge.service.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/services/homeworkTrackingBridge.service.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/tests/routes/homework.responseCache.integration.test.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/tests/routes/homework.responseCache.integration.test.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/app/App.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/app/App.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/app/roleRouting.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/app/roleRouting.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/nav-user.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/nav-user.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/auth/pages/ForgotPassword.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/auth/pages/ForgotPassword.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/app/activeUIRole.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/app/activeUIRole.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/login-form.jsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/signup-form.jsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/components/ManageLayout.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/components/ManageLayout.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/AddEditPassage.jsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/AddSection.jsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/AddSkillModules.jsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/AddSpeaking.jsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/AddTest.jsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/AddWriting.jsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/AdminPeopleWorkspace.css" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/GradingDashboard.css" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/GradingDashboard.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/GradingDashboard.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/GradingInterface.css" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/GradingInterface.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/GradingInterface.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/HomeroomStudentsPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/HomeroomStudentsPage.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/HomeworkProgressDetailPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/HomeworkProgressDetailPage.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/HomeworkProgressPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/HomeworkProgressPage.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/HomeworkProgressSubmissionDetailPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/HomeworkProgressSubmissionDetailPage.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/Manage.css" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/ManageInvitations.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/ManageInvitations.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/ManagePassagesSinglePage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/ManagePassagesSinglePage.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/ManageSectionsSinglePage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/ManageSectionsSinglePage.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/ManageSpeakingSinglePage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/ManageSpeakingSinglePage.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/ManageTestsSinglePage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/ManageTestsSinglePage.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/ManageUsers.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/ManageUsers.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/ManageWritingsSinglePage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/ManageWritingsSinglePage.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/QuestionGroup.jsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/StaffDashboardPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/StaffDashboardPage.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/StudentRequests.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/StudentRequests.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/homeworkProgress.data.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/manageQuestionInputUtils.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/questionGroupConfig.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/staffDashboard.mock.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/status-badge.jsx" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/features/auth/pages/Login.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/auth/pages/Login.jsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/features/auth/pages/Register.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/auth/pages/Register.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/auth/pages/ResetPassword.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/auth/pages/ResetPassword.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/auth/pages/VerifyEmail.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/auth/pages/VerifyEmail.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/auth/pages/VerifyEmailChange.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/auth/pages/VerifyEmailChange.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/evaluation/pages/EvaluationPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/evaluation/pages/EvaluationPage.jsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/features/homework/components/HomeworkRichTextEditor.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/homework/components/HomeworkRichTextEditor.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/homework/pages/Homework.css" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/homework/pages/Homework.css" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/features/homework/pages/HomeworkLessonEditorPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/homework/pages/HomeworkLessonEditorPage.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/homework/pages/MyHomeworkDetailPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/homework/pages/MyHomeworkDetailPage.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/homework/pages/HomeworkSubmissionGradePage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/homework/pages/HomeworkSubmissionGradePage.jsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/features/homework/pages/MyHomeworkLessonPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/homework/pages/MyHomeworkLessonPage.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/homework/pages/MyHomeworkMonthPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/homework/pages/MyHomeworkMonthPage.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/layouts/AdminLayout.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/layouts/AdminLayout.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/layouts/StudentACALayout.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/layouts/StudentACALayout.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/shared/components/Layout.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/shared/components/Layout.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/tests/components/exam/StepContent.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/tests/components/exam/StepContent.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/tests/components/review-mode/ReviewExamLayout.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/tests/components/review-mode/ReviewExamLayout.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/tests/pages/Exam.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/tests/pages/Exam.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/tests/pages/TestList.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/tests/pages/TestList.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/shared/api/client.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/shared/api/client.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/tests/app-routing.vitest.test.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/tests/app-routing.vitest.test.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/tests/learn-module-detail.vitest.test.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/tests/learn-module-detail.vitest.test.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/tests/manage-question-input-utils.vitest.test.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/tests/manage-question-input-utils.vitest.test.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/tests/my-homework-detail.blocks-order.vitest.test.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/tests/my-homework-detail.blocks-order.vitest.test.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/tests/practice-list.vitest.test.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/tests/practice-list.vitest.test.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/tests/question-group.range-generator.vitest.test.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/tests/question-group.range-generator.vitest.test.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/tests/speaking-list.vitest.test.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/tests/speaking-list.vitest.test.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/tests/step-content.matching-use-once.vitest.test.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/tests/step-content.matching-use-once.vitest.test.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/tests/test-list.vitest.test.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/tests/test-list.vitest.test.jsx" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -39,7 +78,7 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="511" />
+    <option name="cachedIndexableFilesCount" value="579" />
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -62,29 +101,29 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "RunOnceActivity.MCP Project settings loaded": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
-    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
-    "git-widget-placeholder": "main",
-    "ignore.virus.scanning.warn.message": "true",
-    "junie.onboarding.icon.badge.shown": "true",
-    "kotlin-language-version-configured": "true",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "settings.editor.selected.configurable": "ml.llm.AcpAgentsConfigurable",
-    "to.speed.mode.migration.done": "true",
-    "ts.external.directory.path": "C:\\Program Files\\JetBrains\\IntelliJ IDEA 2025.3.2\\plugins\\javascript-plugin\\jsLanguageServicesImpl\\external",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.MCP Project settings loaded&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;ml.llm.agents.accounts&quot;,
+    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
+    &quot;ts.external.directory.path&quot;: &quot;C:\\Program Files\\JetBrains\\IntelliJ IDEA 2025.3.2\\plugins\\javascript-plugin\\jsLanguageServicesImpl\\external&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
@@ -102,6 +141,8 @@
       <updated>1771243931295</updated>
       <workItem from="1771243941489" duration="1347000" />
       <workItem from="1772640603973" duration="32155000" />
+      <workItem from="1772986945645" duration="1397000" />
+      <workItem from="1772988379523" duration="2462000" />
     </task>
     <servers />
   </component>

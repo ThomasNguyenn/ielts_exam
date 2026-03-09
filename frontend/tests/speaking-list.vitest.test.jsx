@@ -146,7 +146,7 @@ describe('SpeakingList page', () => {
     renderPage();
 
     const cta = (await screen.findAllByRole('link', { name: /Practice with AI/i }))[0];
-    expect(cta).toHaveAttribute('href', '/practice/speaking/s-1');
+    expect(cta).toHaveAttribute('href', '/student-ielts/speaking/s-1');
   });
 
   it('renders card cover from backend image_url instead of hardcoded image list', async () => {

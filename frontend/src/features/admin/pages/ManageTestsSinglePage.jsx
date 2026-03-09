@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/table';
 
 const ITEMS_PER_PAGE = 6;
-const AddTest = lazy(() => import('./AddTest'));
+const AddTest = lazy(() => import('../components/AddTest'));
 
 const formatDate = (value) => {
   if (!value) return '-';
@@ -64,7 +64,7 @@ export default function ManageTestsSinglePage() {
     isOpen: false,
     title: '',
     message: '',
-    onConfirm: () => {},
+    onConfirm: () => { },
     isDanger: false,
   });
 
@@ -99,10 +99,10 @@ export default function ManageTestsSinglePage() {
     const matched = !query
       ? tests
       : tests.filter((item) =>
-      String(item.title || '').toLowerCase().includes(query) ||
-      String(item._id || '').toLowerCase().includes(query) ||
-      String(item.category || '').toLowerCase().includes(query)
-    );
+        String(item.title || '').toLowerCase().includes(query) ||
+        String(item._id || '').toLowerCase().includes(query) ||
+        String(item.category || '').toLowerCase().includes(query)
+      );
     return [...matched].sort((a, b) => getSortTimestamp(b) - getSortTimestamp(a));
   }, [tests, searchQuery]);
 

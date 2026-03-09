@@ -1,6 +1,8 @@
 import dotenv from "dotenv";
 import http from "http";
 import mongoose from "mongoose";
+import path from "path";
+import { fileURLToPath } from "url";
 import { connectDB } from "./config/db.js";
 import { validateEnvironment } from "./config/env.validation.js";
 import { closeRateLimitRedisConnection } from "./middleware/rateLimit.middleware.js";
@@ -8,7 +10,9 @@ import { closeResponseCacheRedisConnection } from "./services/responseCache.redi
 import { closeInvitationTokenRedisConnection } from "./services/invitationToken.redis.js";
 import { attachWritingLiveWebSocketServer, closeWritingLiveResources } from "./services/writingLiveRoom.service.js";
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.join(__dirname, ".env") });
 validateEnvironment();
 const PORT = Number(process.env.PORT || 5000);
 

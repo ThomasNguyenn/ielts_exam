@@ -14,6 +14,12 @@ const fixedYesNoOptions = [
   { label: 'C', text: 'NOT GIVEN' },
 ];
 
+function normalizeGroupType(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (raw === 'matching_info') return 'matching_information';
+  return raw;
+}
+
 function normalizeValue(value) {
   return String(value ?? '').trim().replace(/\s+/g, ' ').toUpperCase().replace(/[.,]+$/, '');
 }
@@ -101,7 +107,8 @@ export default function ReviewExamLayout({
   listeningAudioUrl,
   onListeningAudioEnded,
   isSingleMode,
-  onBackToResult
+  onBackToResult,
+  strikethroughNamespace = 'global',
 }) {
   const reviewLookup = useMemo(
     () =>
@@ -130,8 +137,9 @@ export default function ReviewExamLayout({
         const isForceRadio = groupLayout === 'radio';
         const isForceCheckbox = groupLayout === 'checkbox';
         const qs = group.questions || [];
+        const groupType = normalizeGroupType(group?.type);
         const isMulti =
-          (group.type === 'mult_choice' || group.type === 'mult_choice_multi') &&
+          (groupType === 'mult_choice' || groupType === 'mult_choice_multi') &&
           (isForceCheckbox || (!isForceRadio && qs.length > 1));
 
         qs.forEach((q) => {
@@ -241,6 +249,7 @@ export default function ReviewExamLayout({
           onListeningAudioEnded={onListeningAudioEnded}
           reviewMode
           reviewLookup={reviewLookup}
+          strikethroughNamespace={strikethroughNamespace}
         />
       </form>
 
@@ -272,16 +281,19 @@ export default function ReviewExamLayout({
         <div className="exam-footer-right">
           {!isSingleMode && (
             <div className="footer-step-nav">
-              {steps.map((item, index) => (
+              {steps.map((item, index) => {
+                const stepKey = `${item?.type || 'step'}-${item?.startSlotIndex}-${item?.endSlotIndex}-${item?.label || index}`;
+                return (
                 <button
-                  key={`review-step-${index}`}
+                  key={stepKey}
                   type="button"
                   className={`footer-step-btn ${index === currentStep ? 'active' : ''}`}
                   onClick={() => setCurrentStep(index)}
                 >
                   {item.label.replace('Passage ', 'Part ')}
                 </button>
-              ))}
+                );
+              })}
             </div>
           )}
 

@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/table';
 
 const ITEMS_PER_PAGE = 6;
-const AddSection = lazy(() => import('./AddSection'));
+const AddSection = lazy(() => import('../components/AddSection'));
 
 const formatDate = (value) => {
   if (!value) return '-';
@@ -53,7 +53,7 @@ export default function ManageSectionsSinglePage() {
     isOpen: false,
     title: '',
     message: '',
-    onConfirm: () => {},
+    onConfirm: () => { },
     isDanger: false,
   });
 

@@ -109,6 +109,16 @@ const renderMediaBlock = ({ taskTitle, taskIndex, url, mediaType = "video" }) =>
 const resolveTaskBlockId = (block = {}) =>
   String(block?.data?.block_id || block?.id || block?.clientId || block?._id || "").trim();
 const normalizeBlockId = (value) => String(value || "").trim();
+const resolveInternalBlockData = (block = {}) =>
+  block?.data && typeof block.data === "object" && !Array.isArray(block.data) ? block.data : {};
+const resolveInternalSlotKeyFromBlock = (block = {}, fallbackIndex = 0) => {
+  const data = resolveInternalBlockData(block);
+  const configured = String(data?.resource_slot_key || "").trim();
+  if (configured) return configured;
+  const blockId = resolveTaskBlockId(block);
+  if (blockId) return `block:${blockId}`;
+  return `block:internal-${fallbackIndex + 1}`;
+};
 
 const resolveQuizParentPassageBlockId = (block = {}) =>
   String(block?.data?.parent_passage_block_id || "").trim();
@@ -943,8 +953,9 @@ const TASK_BLOCK_RENDERERS = {
     return renderMediaBlock({ taskTitle: task?.title, taskIndex, url, mediaType });
   },
   internal: ({ block, task }) => {
-    const resourceRefType = String(block?.data?.resource_ref_type || task?.resource_ref_type || "").trim();
-    const resourceRefId = String(block?.data?.resource_ref_id || task?.resource_ref_id || "").trim();
+    const resourceRefType = String(block?.resourceRefType || "").trim();
+    const resourceRefId = String(block?.resourceRefId || "").trim();
+    const resourceSlotKey = String(block?.resourceSlotKey || "").trim();
     const onLaunchInternal = typeof block?.onLaunchInternal === "function" ? block.onLaunchInternal : null;
     const canLaunchInternal = Boolean(block?.canLaunchInternal);
     const isLaunchingInternal = Boolean(block?.isLaunchingInternal);
@@ -954,13 +965,16 @@ const TASK_BLOCK_RENDERERS = {
         <p className="homework-item-meta">
           Internal {resourceRefType || "content"}: {resourceRefId || "--"}
         </p>
+        {!resourceRefType || !resourceRefId || !resourceSlotKey ? (
+          <p className="homework-danger">This internal block is missing launch configuration.</p>
+        ) : null}
         <Button
           type="button"
           size="sm"
           variant="outline"
           className="homework-internal-launch-btn"
           onClick={() => onLaunchInternal?.({ block, task })}
-          disabled={!onLaunchInternal || !canLaunchInternal || !resourceRefId || isLaunchingInternal}
+          disabled={!onLaunchInternal || !canLaunchInternal || !resourceRefId || !resourceSlotKey || isLaunchingInternal}
         >
           {isLaunchingInternal ? "Launching..." : "Launch Resource"}
         </Button>
@@ -1100,7 +1114,7 @@ export default function MyHomeworkLessonPage() {
   const [gapfillSelections, setGapfillSelections] = useState({});
   const [quizSelections, setQuizSelections] = useState({});
   const [matchingSelections, setMatchingSelections] = useState({});
-  const [launchingTaskId, setLaunchingTaskId] = useState("");
+  const [launchingScopeKeys, setLaunchingScopeKeys] = useState({});
   const recordersRef = useRef(new Map());
   const streamsRef = useRef(new Map());
   const chunksRef = useRef(new Map());
@@ -1543,19 +1557,30 @@ export default function MyHomeworkLessonPage() {
   const handleLaunchInternalResource = async ({ block, task }) => {
     if (!assignmentId || !selectedTaskId) return;
 
-    const resourceRefType = String(block?.data?.resource_ref_type || task?.resource_ref_type || "").trim();
-    const resourceRefId = String(block?.data?.resource_ref_id || task?.resource_ref_id || "").trim();
-    if (!resourceRefType || !resourceRefId) {
+    const resourceRefType = String(block?.resourceRefType || "").trim();
+    const resourceRefId = String(block?.resourceRefId || "").trim();
+    const resourceBlockId = String(block?.resourceBlockId || "").trim();
+    const resourceSlotKey = String(block?.resourceSlotKey || "").trim();
+    const launchScopeKey = String(block?.launchScopeKey || `${selectedTaskId}:${resourceSlotKey}`).trim();
+    if (!resourceRefType || !resourceRefId || !resourceSlotKey) {
       showNotification("Internal resource is not configured.", "error");
       return;
     }
+    if (launchScopeKey && launchingScopeKeys?.[launchScopeKey]) return;
 
-    setLaunchingTaskId(selectedTaskId);
+    setLaunchingScopeKeys((prev) => ({
+      ...prev,
+      [launchScopeKey]: true,
+    }));
     try {
       const result = await api.homeworkLaunchTaskTracking(assignmentId, selectedTaskId, {
         event_id: createClientEventId(),
         tab_session_id: getHomeworkTabSessionId(),
         client_ts: new Date().toISOString(),
+        resource_ref_type: resourceRefType,
+        resource_ref_id: resourceRefId,
+        resource_slot_key: resourceSlotKey,
+        resource_block_id: resourceBlockId,
       });
       const launchUrl = String(result?.data?.launch_url || "").trim();
       if (!launchUrl) {
@@ -1565,7 +1590,11 @@ export default function MyHomeworkLessonPage() {
     } catch (error) {
       showNotification(error?.message || "Cannot launch internal resource.", "error");
     } finally {
-      setLaunchingTaskId("");
+      setLaunchingScopeKeys((prev) => {
+        const next = { ...prev };
+        delete next[launchScopeKey];
+        return next;
+      });
     }
   };
 
@@ -1621,6 +1650,9 @@ export default function MyHomeworkLessonPage() {
   const taskBlocks = selectedTask ? getRenderableTaskBlocks(selectedTask) : [];
   const dictationBlocks = taskBlocks.filter((block) => normalizeTaskBlockType(block?.type) === "dictation");
   const hasDictationBlock = dictationBlocks.length > 0;
+  const primaryDictationBlockIndex = taskBlocks.findIndex(
+    (block) => normalizeTaskBlockType(block?.type) === "dictation",
+  );
   const primaryDictationBlockId = hasDictationBlock ? resolveTaskBlockId(dictationBlocks[0]) : "";
   const shouldUseDictationTranscript = hasTextInput && hasDictationBlock;
   const textAnswerPlaceholder =
@@ -1722,12 +1754,47 @@ export default function MyHomeworkLessonPage() {
                     const renderBlock = TASK_BLOCK_RENDERERS[blockType];
                     if (!renderBlock) return null;
                     const currentBlockId = resolveTaskBlockId(block) || `task-block-${blockIndex + 1}`;
+                    const internalBlockData =
+                      blockType === "internal"
+                        ? resolveInternalBlockData(block)
+                        : {};
+                    const internalResourceRefType =
+                      blockType === "internal"
+                        ? String(internalBlockData?.resource_ref_type || "").trim()
+                        : "";
+                    const internalResourceRefId =
+                      blockType === "internal"
+                        ? String(internalBlockData?.resource_ref_id || "").trim()
+                        : "";
+                    const internalResourceBlockId =
+                      blockType === "internal"
+                        ? String(resolveTaskBlockId(block) || internalBlockData?.block_id || "").trim()
+                        : "";
+                    const internalResourceSlotKey =
+                      blockType === "internal"
+                        ? resolveInternalSlotKeyFromBlock(block, blockIndex)
+                        : "";
+                    const internalLaunchScopeKey =
+                      blockType === "internal"
+                        ? `${selectedTaskId}:${internalResourceSlotKey}`
+                        : "";
+                    const hasInternalConfig =
+                      blockType === "internal"
+                      && Boolean(internalResourceRefType && internalResourceRefId && internalResourceSlotKey);
                     const content = renderBlock({
                       block: {
                         ...block,
                         onLaunchInternal: handleLaunchInternalResource,
-                        canLaunchInternal: !isPreviewMode && canAccessPage,
-                        isLaunchingInternal: launchingTaskId === selectedTaskId,
+                        canLaunchInternal: !isPreviewMode && canAccessPage && (blockType !== "internal" || hasInternalConfig),
+                        isLaunchingInternal:
+                          blockType === "internal"
+                            ? Boolean(launchingScopeKeys?.[internalLaunchScopeKey])
+                            : false,
+                        resourceRefType: internalResourceRefType,
+                        resourceRefId: internalResourceRefId,
+                        resourceBlockId: internalResourceBlockId,
+                        resourceSlotKey: internalResourceSlotKey,
+                        launchScopeKey: internalLaunchScopeKey,
                       },
                       task: selectedTask,
                       taskIndex: selectedTaskIndex >= 0 ? selectedTaskIndex : 0,
@@ -1751,7 +1818,12 @@ export default function MyHomeworkLessonPage() {
                       onClearTextAnswer: () => updateDraft(selectedTaskId, { text_answer: "" }),
                       isDictationDisabled: !canInteract,
                       showDictationTranscriptInput:
-                        shouldUseDictationTranscript && currentBlockId === primaryDictationBlockId,
+                        shouldUseDictationTranscript
+                        && (
+                          primaryDictationBlockId
+                            ? currentBlockId === primaryDictationBlockId
+                            : blockIndex === primaryDictationBlockIndex
+                        ),
                       dictationTextPlaceholder: textAnswerPlaceholder,
                       minWords: selectedTask?.min_words,
                       maxWords: selectedTask?.max_words,

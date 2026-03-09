@@ -4,7 +4,7 @@ import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
 import ConfirmationModal from '@/shared/components/ConfirmationModal';
 import PaginationControls from '@/shared/components/PaginationControls';
-import './AdminPeopleWorkspace.css';
+import '../styles/AdminPeopleWorkspace.css';
 
 const STATUS_CONFIG = {
   pending: { label: 'Pending', className: 'admin-people-chip admin-people-chip--pending' },
@@ -46,7 +46,7 @@ export default function ManageInvitations() {
     isOpen: false,
     title: '',
     message: '',
-    onConfirm: () => {},
+    onConfirm: () => { },
     isDanger: true,
   });
 

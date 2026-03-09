@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
-import Link from "@tiptap/extension-link";
 import { Bold, Heading2, Italic, Link2, List, Unlink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -67,11 +66,11 @@ export default function HomeworkRichTextEditor({
     () => [
       StarterKit.configure({
         heading: { levels: [2] },
-      }),
-      Link.configure({
-        openOnClick: false,
-        autolink: true,
-        protocols: ["http", "https", "mailto"],
+        link: {
+          openOnClick: false,
+          autolink: true,
+          protocols: ["http", "https", "mailto"],
+        },
       }),
       Placeholder.configure({
         placeholder,

@@ -92,6 +92,7 @@ const homeworkControllerMocks = vi.hoisted(() => ({
   patchHomeworkAssignmentOutline: vi.fn((_req, res) => res.status(200).json({ success: true })),
   getHomeworkAssignmentLessonById: vi.fn((_req, res) => res.status(200).json({ success: true })),
   patchHomeworkAssignmentLessonById: vi.fn((_req, res) => res.status(200).json({ success: true })),
+  generateHomeworkQuizBlockByAI: vi.fn((_req, res) => res.status(200).json({ success: true })),
   updateHomeworkAssignmentStatus: vi.fn((_req, res) => res.status(200).json({ success: true })),
   deleteHomeworkAssignment: vi.fn((_req, res) => res.status(200).json({ success: true })),
   uploadHomeworkAssignmentResource: vi.fn((_req, res) => res.status(200).json({ success: true })),

@@ -137,7 +137,7 @@ describe('PracticeList page', () => {
     renderPage();
 
     const cta = (await screen.findAllByRole('link', { name: /Practice with AI/i }))[0];
-    expect(cta).toHaveAttribute('href', '/practice/w-1');
+    expect(cta).toHaveAttribute('href', '/student-ielts/practice/w-1');
   });
 
   it('renders card cover from backend image_url', async () => {

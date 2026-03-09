@@ -93,29 +93,38 @@ export default function Exam() {
   const trackingStartedSentRef = useRef(false);
   const trackingSaveSeqRef = useRef(0);
   const trackingTabSessionIdRef = useRef('');
+  const trackingTabSessionScopeRef = useRef('');
   const trackingAnswerQueueRef = useRef(new Map());
   const trackingAnswerTimerRef = useRef(null);
   const trackingHeartbeatTimerRef = useRef(null);
+  const trackingFlushInFlightRef = useRef(false);
+  const examRequestSeqRef = useRef(0);
 
   const location = useLocation();
   const navigate = useNavigate();
   const searchParams = new URLSearchParams(location.search);
   const hwctx = searchParams.get('hwctx') || '';
   const standaloneTypeFromQuery = searchParams.get('standalone');
-  // Determine single mode based on params. 
+  const modeParam = searchParams.get('mode') ?? 'full';
+  const partParam = searchParams.get('part');
+  const examMode = modeParam === 'single' && partParam !== null ? 'single' : 'full';
+  const examPart = partParam ?? 'full';
+  // Determine single mode based on params.
   // We strictly require 'part' param to be present for Single Mode to avoid "Full Test bug" where mode=single is always present.
-  const isSingleMode = searchParams.get('mode') === 'single' && searchParams.get('part') !== null;
+  const isSingleMode = examMode === 'single';
+  const singleModeSearch = useMemo(() => {
+    if (partParam === null) return '';
+    const params = new URLSearchParams();
+    params.set('part', partParam);
+    return `?${params.toString()}`;
+  }, [partParam]);
   const isStandaloneExam =
     Boolean(exam?.is_standalone) ||
     standaloneTypeFromQuery === 'reading' ||
     standaloneTypeFromQuery === 'listening' ||
     standaloneTypeFromQuery === 'writing';
   const exitTestPath = isStandaloneExam ? '/student-ielts/tests' : `/student-ielts/tests/${id}`;
-  const draftKey = useMemo(() => {
-    const part = searchParams.get('part') ?? 'full';
-    const mode = searchParams.get('mode') ?? 'full';
-    return `exam-draft:${id}:${mode}:${part}`;
-  }, [id, location.search]);
+  const draftKey = useMemo(() => `exam-draft:${id}:${examMode}:${examPart}`, [id, examMode, examPart]);
   const shouldPersistExamDraft = Boolean(exam?.is_real_test) && !isSingleMode;
   const shouldTrackHomeworkActivity = Boolean(String(hwctx || '').trim());
   const trackedResourceRefType = useMemo(() => {
@@ -136,9 +145,12 @@ export default function Exam() {
   }, []);
 
   const getTrackingTabSessionId = useCallback(() => {
-    if (trackingTabSessionIdRef.current) return trackingTabSessionIdRef.current;
     if (typeof window === 'undefined') return '';
     const storageKey = `exam-tab-session:${id}`;
+    if (trackingTabSessionScopeRef.current === storageKey && trackingTabSessionIdRef.current) {
+      return trackingTabSessionIdRef.current;
+    }
+    trackingTabSessionScopeRef.current = storageKey;
     const existing = window.sessionStorage.getItem(storageKey);
     if (existing) {
       trackingTabSessionIdRef.current = existing;
@@ -201,10 +213,21 @@ export default function Exam() {
   }, [listeningResumeNotice]);
 
   useEffect(() => {
-    if (!id) return;
+    if (!id) return undefined;
+    const requestSeq = ++examRequestSeqRef.current;
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    let cancelled = false;
+    setSubmitted(null);
+    setMode('test');
+    setSubmitError(null);
+    setShowSubmitConfirm(false);
+    setShowScoreChoice(false);
+    setLoading(true);
     trackingOpenSentRef.current = false;
     trackingStartedSentRef.current = false;
     trackingSaveSeqRef.current = 0;
+    trackingTabSessionIdRef.current = '';
+    trackingTabSessionScopeRef.current = '';
     trackingAnswerQueueRef.current.clear();
     if (trackingAnswerTimerRef.current) {
       window.clearTimeout(trackingAnswerTimerRef.current);
@@ -214,9 +237,11 @@ export default function Exam() {
       window.clearInterval(trackingHeartbeatTimerRef.current);
       trackingHeartbeatTimerRef.current = null;
     }
+    trackingFlushInFlightRef.current = false;
     api
-      .getExam(id)
+      .getExam(id, controller ? { signal: controller.signal } : {})
       .then((res) => {
+        if (cancelled || requestSeq !== examRequestSeqRef.current) return;
         const examData = res.data;
         setExam(examData);
         setLoadError(null);
@@ -245,7 +270,7 @@ export default function Exam() {
         setListeningResumeNotice('');
 
         const duration = examData.duration || 60;
-        const initialStepIndex = isSingleMode ? resolveRequestedStepIndex(location.search, steps) : 0;
+        const initialStepIndex = isSingleMode ? resolveRequestedStepIndex(singleModeSearch, steps) : 0;
         const singleModeDuration = isSingleMode
           ? resolveSingleModeDurationMinutes(steps[initialStepIndex])
           : null;
@@ -334,25 +359,40 @@ export default function Exam() {
             }
           }
         } catch {
+          try {
+            localStorage.removeItem(draftKey);
+          } catch {
+            // Ignore storage errors.
+          }
           setTimeRemaining(defaultTimeRemaining);
         }
 
         if (!restoredFromDraft) {
-          if (isSingleMode) {
-            const safeStep = resolveRequestedStepIndex(location.search, steps);
-            setCurrentStep(safeStep);
-          }
+          setCurrentStep(initialStepIndex);
           setStartTime(Date.now());
         }
 
         setTimeWarning(false);
         autoSubmitTriggeredRef.current = false;
         submitInFlightRef.current = false;
-        setMode('test');
       })
-      .catch((err) => setLoadError(err.message))
-      .finally(() => setLoading(false));
-  }, [id, location.search, draftKey, isSingleMode]);
+      .catch((err) => {
+        if (cancelled || requestSeq !== examRequestSeqRef.current) return;
+        if (err?.name === 'AbortError') return;
+        setLoadError(err.message);
+      })
+      .finally(() => {
+        if (cancelled || requestSeq !== examRequestSeqRef.current) return;
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+      if (controller) {
+        controller.abort();
+      }
+    };
+  }, [id, examMode, examPart, draftKey, singleModeSearch]);
 
   const ensureTrackingStarted = useCallback(() => {
     if (!shouldTrackHomeworkActivity || !id || !exam || submitted) return;
@@ -368,7 +408,7 @@ export default function Exam() {
     });
   }, [shouldTrackHomeworkActivity, id, exam, submitted, buildTrackingPayload]);
 
-  const flushTrackingAnswerQueue = useCallback(() => {
+  const flushTrackingAnswerQueue = useCallback(function flushTrackingAnswerQueueImpl() {
     if (!shouldTrackHomeworkActivity || !id || !exam || submitted) return;
     if (trackingAnswerTimerRef.current) {
       window.clearTimeout(trackingAnswerTimerRef.current);
@@ -377,22 +417,49 @@ export default function Exam() {
 
     const queue = trackingAnswerQueueRef.current;
     if (!(queue instanceof Map) || queue.size === 0) return;
-    const updates = Array.from(queue.entries()).map(([questionKey, answerValue]) => ({
+    if (trackingFlushInFlightRef.current) {
+      trackingAnswerTimerRef.current = window.setTimeout(() => {
+        flushTrackingAnswerQueueImpl();
+      }, TRACKING_ANSWER_DEBOUNCE_MS);
+      return;
+    }
+
+    const snapshotEntries = Array.from(queue.entries());
+    const updates = snapshotEntries.map(([questionKey, answerValue]) => ({
       question_key: questionKey,
       answer_value: answerValue,
     }));
-    queue.clear();
-    trackingSaveSeqRef.current += 1;
+    if (updates.length === 0) return;
+
+    trackingFlushInFlightRef.current = true;
+    const currentSaveSeq = trackingSaveSeqRef.current + 1;
+    trackingSaveSeqRef.current = currentSaveSeq;
 
     api.trackTestActivityAnswer(
       id,
       buildTrackingPayload({
         source: 'tests_exam_answer',
-        save_seq: trackingSaveSeqRef.current,
+        save_seq: currentSaveSeq,
         updates,
       }),
-    ).catch(() => {
-      // Ignore tracking failures to keep exam flow uninterrupted.
+    ).then(() => {
+      snapshotEntries.forEach(([questionKey, answerValue]) => {
+        if (queue.get(questionKey) === answerValue) {
+          queue.delete(questionKey);
+        }
+      });
+    }).catch(() => {
+      // Keep queue for retry on next debounce/submit cycle.
+    }).finally(() => {
+      trackingFlushInFlightRef.current = false;
+      if (queue.size > 0) {
+        if (trackingAnswerTimerRef.current) {
+          window.clearTimeout(trackingAnswerTimerRef.current);
+        }
+        trackingAnswerTimerRef.current = window.setTimeout(() => {
+          flushTrackingAnswerQueueImpl();
+        }, TRACKING_ANSWER_DEBOUNCE_MS);
+      }
     });
   }, [shouldTrackHomeworkActivity, id, exam, submitted, buildTrackingPayload]);
 
@@ -582,7 +649,6 @@ export default function Exam() {
     if (!shouldTrackHomeworkActivity || !exam || loading || submitted) return undefined;
 
     const handleTrackingBeforeUnload = () => {
-      flushTrackingAnswerQueue();
       api.trackTestActivityHeartbeat(
         id,
         buildTrackingPayload({
@@ -594,6 +660,10 @@ export default function Exam() {
             ? document.hasFocus()
             : null,
         }),
+        {
+          keepalive: true,
+          skipAuthRefresh: true,
+        },
       ).catch(() => {
         // Ignore tracking failures to keep exam flow uninterrupted.
       });
@@ -603,7 +673,7 @@ export default function Exam() {
     return () => {
       window.removeEventListener('beforeunload', handleTrackingBeforeUnload);
     };
-  }, [shouldTrackHomeworkActivity, exam, loading, submitted, id, buildTrackingPayload, flushTrackingAnswerQueue]);
+  }, [shouldTrackHomeworkActivity, exam, loading, submitted, id, buildTrackingPayload]);
 
   const performSubmit = (returnOnly = false) => {
     if (submitLoading || submitted || submitInFlightRef.current) return Promise.resolve(null);
@@ -617,15 +687,33 @@ export default function Exam() {
     setSubmitError(null);
     setShowSubmitConfirm(false);
     setShowScoreChoice(false);
+    const currentSingleStep = steps[currentStep];
     const now = Date.now();
-    const timeTaken = startTime ? now - startTime : (exam.duration || 60) * 60 * 1000;
+    const resolvedDurationMinutes = isSingleMode
+      ? resolveSingleModeDurationMinutes(currentSingleStep)
+      : Number(exam?.duration || 60);
+    const safeDurationMinutes = Number.isFinite(resolvedDurationMinutes) && resolvedDurationMinutes > 0
+      ? resolvedDurationMinutes
+      : 60;
+    const durationSec = Math.max(0, Math.floor(safeDurationMinutes * 60));
+    const timeRemainingSec = typeof timeRemaining === 'number' && Number.isFinite(timeRemaining)
+      ? Math.max(0, Math.min(durationSec, Math.floor(timeRemaining)))
+      : null;
+    const elapsedMsFromTimer = timeRemainingSec === null
+      ? null
+      : Math.max(0, (durationSec - timeRemainingSec) * 1000);
+    const fallbackTimeTaken = startTime ? Math.max(0, now - startTime) : durationSec * 1000;
+    const timeTaken = elapsedMsFromTimer ?? fallbackTimeTaken;
 
-    // Clear all strikethrough localStorage entries for this exam
-    Object.keys(localStorage).forEach(key => {
-      if (key.startsWith('strikethrough_q-')) {
-        localStorage.removeItem(key);
-      }
-    });
+    // Clear strikethrough localStorage entries only for this exam.
+    if (typeof window !== 'undefined') {
+      const strikePrefix = `strikethrough_${String(id || '').trim() || 'unknown'}_`;
+      Object.keys(window.localStorage).forEach((key) => {
+        if (key.startsWith(strikePrefix)) {
+          window.localStorage.removeItem(key);
+        }
+      });
+    }
 
     // Extract student highlights from passage states
     const studentHighlights = [];
@@ -676,17 +764,18 @@ export default function Exam() {
         let resultData = payload;
 
         // If single mode, recalculate score based only on current part
+        const start = Math.max(0, Number(currentSingleStep?.startSlotIndex));
+        const end = Math.max(start, Number(currentSingleStep?.endSlotIndex));
         if (
           isSingleMode
-          && steps[currentStep]
+          && currentSingleStep
           && Array.isArray(payload.question_review)
-          && payload.question_review.length > steps[currentStep].endSlotIndex
+          && Number.isFinite(start)
+          && Number.isFinite(end)
+          && start < end
+          && payload.question_review.length >= end
         ) {
-          const step = steps[currentStep];
-          const start = step.startSlotIndex;
-          const end = step.endSlotIndex;
-
-          const partReview = payload.question_review.filter((_, idx) => idx >= start && idx < end);
+          const partReview = payload.question_review.slice(start, end);
 
           let partScore = 0;
           let partTotal = 0;
@@ -840,8 +929,13 @@ export default function Exam() {
     };
   }, [listeningAudioIndex]);
 
-  const listeningAudioUrl = listeningAudioQueue[listeningAudioIndex] || null;
   const step = steps[currentStep];
+  const listeningAudioUrl = useMemo(() => {
+    if (isSingleMode && step?.type === 'listening') {
+      return step?.item?.audio_url || exam?.full_audio || null;
+    }
+    return listeningAudioQueue[listeningAudioIndex] || null;
+  }, [isSingleMode, step, exam, listeningAudioQueue, listeningAudioIndex]);
   const isFirst = currentStep === 0;
   const isLast = currentStep === steps.length - 1;
   const isWriting = step && step.type === 'writing';
@@ -997,12 +1091,18 @@ export default function Exam() {
 
   if (submitted) {
     const { score, total, wrong, writingCount, isSingleMode: submittedSingleMode } = submitted;
-    const wrongCount = wrong ?? (total - score);
-    const correctPct = total ? (score / total) * 100 : 0;
+    const safeTotal = Number.isFinite(Number(total)) ? Math.max(0, Number(total)) : 0;
+    const rawSafeScore = Number.isFinite(Number(score)) ? Math.max(0, Number(score)) : 0;
+    const safeScore = safeTotal > 0 ? Math.min(rawSafeScore, safeTotal) : rawSafeScore;
+    const rawSafeWrong = Number.isFinite(Number(wrong)) ? Math.max(0, Number(wrong)) : Math.max(0, safeTotal - safeScore);
+    const wrongCount = safeTotal > 0 ? Math.min(rawSafeWrong, Math.max(0, safeTotal - safeScore)) : rawSafeWrong;
+    const skippedCount = safeTotal > 0 ? Math.max(0, safeTotal - safeScore - wrongCount) : 0;
+    const safeWritingCount = Number.isFinite(Number(writingCount)) ? Math.max(0, Number(writingCount)) : 0;
+    const correctPct = safeTotal ? (safeScore / safeTotal) * 100 : 0;
 
     const examType = exam.type || 'reading';
     const showBandScore = !submittedSingleMode && examType !== 'writing';
-    const bandScore = showBandScore ? calculateIELTSBand(score, examType) : null;
+    const bandScore = showBandScore ? calculateIELTSBand(safeScore, examType) : null;
     const timeTaken = getTimeTaken();
 
     const typeToLabel = (type) => (
@@ -1031,7 +1131,7 @@ export default function Exam() {
       return { ...q, typeLabel };
     });
 
-    const wrongPct = total ? (wrongCount / total) * 100 : 0;
+    const wrongPct = safeTotal ? (wrongCount / safeTotal) * 100 : 0;
     if (mode === 'review') {
       return (
         <ReviewExamLayout
@@ -1047,6 +1147,7 @@ export default function Exam() {
           listeningAudioUrl={listeningAudioUrl}
           onListeningAudioEnded={handleListeningAudioEnded}
           isSingleMode={isSingleMode}
+          strikethroughNamespace={id}
           onBackToResult={() => setMode('test')}
         />
       );
@@ -1065,7 +1166,7 @@ export default function Exam() {
                 <div className="band-score-value">{bandScore}</div>
               </div>
             )}
-            {!showBandScore && writingCount > 0 && (
+            {!showBandScore && safeWritingCount > 0 && (
               <div className="band-score-card" style={{ background: '#4e6a97' }}>
                 <div className="band-score-label">Practice Mode</div>
                 <div className="band-score-value" style={{ fontSize: '2rem' }}>Writing Tasks</div>
@@ -1092,7 +1193,7 @@ export default function Exam() {
                   }}
                 >
                   <div className="doughnut-inner">
-                    <span className="doughnut-score">{score}/{total}</span>
+                    <span className="doughnut-score">{safeScore}/{safeTotal}</span>
                     <span className="doughnut-subtext">{'c\u00E2u \u0111\u00FAng'}</span>
                   </div>
                 </div>
@@ -1102,7 +1203,7 @@ export default function Exam() {
                 <div className="legend-item">
                   <span className="dot dot-correct"></span>
                   <span className="label">{'\u0110\u00FAng:'}</span>
-                  <span className="value">{score} {'\u0063\u00E2u'}</span>
+                  <span className="value">{safeScore} {'\u0063\u00E2u'}</span>
                 </div>
                 <div className="legend-item">
                   <span className="dot dot-wrong"></span>
@@ -1112,7 +1213,7 @@ export default function Exam() {
                 <div className="legend-item">
                   <span className="dot dot-skipped"></span>
                   <span className="label">{'B\u1ECF qua:'}</span>
-                  <span className="value">{total - score - wrongCount} {'\u0063\u00E2u'}</span>
+                  <span className="value">{skippedCount} {'\u0063\u00E2u'}</span>
                 </div>
               </div>
             </div>
@@ -1135,7 +1236,7 @@ export default function Exam() {
         </div>
 
         <div className="feedback-dashed-container">
-          {!showBandScore && writingCount > 0 && (
+          {!showBandScore && safeWritingCount > 0 && (
             <p style={{ padding: '1rem', margin: 0, textAlign: 'center', color: '#059669', fontWeight: 'bold' }}>
               Your writing tasks have been submitted successfully.
             </p>
@@ -1155,8 +1256,8 @@ export default function Exam() {
               </tr>
             </thead>
             <tbody>
-              {Object.entries(resultsByType).map(([label, stats], idx) => (
-                <tr key={idx}>
+              {Object.entries(resultsByType).map(([label, stats]) => (
+                <tr key={`result-${label}`}>
                   <td>{label}</td>
                   <td>{stats.total}</td>
                   <td className="td-correct">{stats.correct}</td>
@@ -1301,6 +1402,7 @@ export default function Exam() {
             onListeningAudioTimeUpdate={handleListeningAudioTimeUpdate}
             useMobileReadingDrawer={useMobileReadingDrawer}
             isMobileViewport={isViewport860}
+            strikethroughNamespace={id}
           />
         )}
       </form>
@@ -1402,16 +1504,19 @@ export default function Exam() {
         <div className="exam-footer-right">
           {!isSingleMode && hasSteps && (
             <div className="footer-step-nav">
-              {steps.map((s, i) => (
+              {steps.map((s, i) => {
+                const stepKey = `${s.type}-${s.startSlotIndex}-${s.endSlotIndex}-${s.label}`;
+                return (
                 <button
-                  key={i}
+                  key={stepKey || `step-${i}`}
                   type="button"
                   className={`footer-step-btn ${i === currentStep ? 'active' : ''}`}
                   onClick={() => setCurrentStep(i)}
                 >
                   {s.label.replace('Passage ', 'Part ')}
                 </button>
-              ))}
+                );
+              })}
             </div>
           )}
 

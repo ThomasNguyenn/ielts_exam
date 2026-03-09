@@ -20,6 +20,41 @@ import {
 } from '@/components/ui/drawer';
 
 const IELTSAudioPlayer = lazy(() => import('@/shared/components/IELTSAudioPlayer'));
+const MATCHING_GROUP_TYPES = new Set([
+  'matching_headings',
+  'matching_features',
+  'matching_information',
+  'matching_sentence_endings',
+  'matching',
+]);
+
+function safeIdentity(value, fallback) {
+  const token = String(value ?? '').trim();
+  if (!token) return String(fallback ?? '');
+  const lowered = token.toLowerCase();
+  if (lowered === 'undefined' || lowered === 'null') return String(fallback ?? '');
+  return token;
+}
+
+function readStrikeSet(key) {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const raw = window.localStorage.getItem(key);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? new Set(parsed) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function writeStrikeSet(key, values) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify(values));
+  } catch {
+    // ignore storage write errors
+  }
+}
 
 function getMatchingOptionToken(option = {}) {
   const idToken = String(option?.id ?? '').trim();
@@ -48,14 +83,17 @@ function QuestionInput({
   isListening = false,
   reviewMode = false,
   useMatchingDropdown = false,
+  strikethroughNamespace = 'global',
 }) {
   const id = `q-${index}`;
+  const questionToken = safeIdentity(slot?.q_number, `idx-${index}`);
+  const namespace = safeIdentity(strikethroughNamespace, 'global');
+  const strikeKey = `strikethrough_${namespace}_${questionToken}`;
   const [matchingDragOver, setMatchingDragOver] = useState(false);
-  const [strikethroughOptions, setStrikethroughOptions] = useState(() => {
-    // Load from localStorage if available
-    const saved = localStorage.getItem(`strikethrough_${id}`);
-    return saved ? new Set(JSON.parse(saved)) : new Set();
-  });
+  const [strikethroughOptions, setStrikethroughOptions] = useState(() => readStrikeSet(strikeKey));
+  useEffect(() => {
+    setStrikethroughOptions(readStrikeSet(strikeKey));
+  }, [strikeKey]);
 
   // 1. Định nghĩa logic chung (Binding dữ liệu)
   const common = {
@@ -79,7 +117,7 @@ function QuestionInput({
         next.add(optionLabel);
       }
       // Save to localStorage specifically for this question
-      localStorage.setItem(`strikethrough_${id}`, JSON.stringify([...next]));
+      writeStrikeSet(strikeKey, [...next]);
       return next;
     });
   };
@@ -168,9 +206,10 @@ function QuestionInput({
     slot.type === 'matching_features' ||
     slot.type === 'matching_information' ||
     slot.type === 'matching_info' ||
+    slot.type === 'matching_sentence_endings' ||
     slot.type === 'matching'
   ) {
-    const options = slot.headings || [];
+    const options = (slot.headings && slot.headings.length > 0) ? slot.headings : (slot.options || []);
     const normalizedValue = normalizeReviewText(value);
     const selectedById = normalizedValue
       ? options.find((option) => normalizeReviewText(option?.id) === normalizedValue)
@@ -555,12 +594,14 @@ function ReadingStepLayout({
   questionsBlock,
   reviewMode = false,
   useMobileReadingDrawer = false,
+  strikethroughNamespace = 'global',
 }) {
   const useDropdownForDragDrop = Boolean(useMobileReadingDrawer);
   // Identify valid matching question placeholders in passage text.
   const matchingQuestionNumbers = new Set();
   (item.question_groups || []).forEach((g) => {
-    if (g.type === 'matching_headings' || g.type === 'matching_information' || g.type === 'matching_info' || g.type === 'matching') {
+    const groupType = normalizeStepGroupType(g?.type);
+    if (MATCHING_GROUP_TYPES.has(groupType)) {
       g.questions.forEach((q) => matchingQuestionNumbers.add(String(q.q_number)));
     }
   });
@@ -731,9 +772,9 @@ function ReadingStepLayout({
                 <span style={{ fontSize: '0.8rem', fontWeight: 'bold', marginRight: '4px', color: '#666' }}>{qNum}</span>
                 <QuestionInput
                   slot={{
-                    type: 'matching_headings',
+                    type: targetGroup.type || 'matching_headings',
                     ...targetQuestion,
-                    headings: targetGroup.headings,
+                    headings: (targetGroup.headings && targetGroup.headings.length > 0) ? targetGroup.headings : (targetGroup.options || []),
                     correct_answer: targetQuestion.correct_answer
                   }}
                   value={currentValue}
@@ -753,6 +794,7 @@ function ReadingStepLayout({
                   isListening={isListening}
                   reviewMode={reviewMode}
                   useMatchingDropdown={useDropdownForDragDrop}
+                  strikethroughNamespace={strikethroughNamespace}
                 />
               </div>,
               node
@@ -860,9 +902,9 @@ function ReadingStepLayout({
                 <span style={{ fontSize: '0.8rem', fontWeight: 'bold', marginRight: '4px', color: '#666' }}>{qNum}</span>
                 <QuestionInput
                   slot={{
-                    type: 'matching_headings',
+                    type: targetGroup.type || 'matching_headings',
                     ...targetQuestion,
-                    headings: targetGroup.headings,
+                    headings: (targetGroup.headings && targetGroup.headings.length > 0) ? targetGroup.headings : (targetGroup.options || []),
                     correct_answer: targetQuestion.correct_answer
                   }}
                   value={currentValue}
@@ -882,6 +924,7 @@ function ReadingStepLayout({
                   isListening={isListening}
                   reviewMode={reviewMode}
                   useMatchingDropdown={useDropdownForDragDrop}
+                  strikethroughNamespace={strikethroughNamespace}
                 />
               </div>,
               node
@@ -914,6 +957,42 @@ function normalizeMatchingGroupType(value = '') {
   if (raw === 'matching_info') return 'matching_information';
   if (raw === 'matching_heading') return 'matching_headings';
   return raw;
+}
+
+function normalizeStepGroupType(value = '') {
+  return normalizeMatchingGroupType(value);
+}
+
+function resolveMatchingCanonicalToken(group = {}, rawValue = '') {
+  const raw = String(rawValue ?? '').trim();
+  if (!raw) return '';
+  const options = (group?.headings?.length ? group.headings : (group?.options || []));
+  const normalizedRaw = normalizeReviewText(raw);
+  const found = (Array.isArray(options) ? options : []).find((option) =>
+    [getMatchingOptionToken(option), option?.id, option?.label, option?.text]
+      .some((candidate) => normalizeReviewText(candidate) === normalizedRaw)
+  );
+  return found ? getMatchingOptionToken(found) : raw;
+}
+
+function getMultiSelectOptionToken(option = {}, optionIndex = 0) {
+  const idToken = String(option?.id || '').trim();
+  if (idToken) return idToken;
+  const labelToken = String(option?.label || '').trim();
+  if (labelToken) return labelToken;
+  return `opt-${optionIndex + 1}`;
+}
+
+function resolveMultiSelectCanonicalToken(options = [], answer = '') {
+  const raw = String(answer || '').trim();
+  if (!raw) return '';
+  const normalizedRaw = normalizeReviewText(raw);
+  const found = (Array.isArray(options) ? options : []).find((option, optionIndex) =>
+    [getMultiSelectOptionToken(option, optionIndex), option?.id, option?.label, option?.text]
+      .some((candidate) => normalizeReviewText(candidate) === normalizedRaw)
+  );
+  if (!found) return raw;
+  return getMultiSelectOptionToken(found, options.indexOf(found));
 }
 
 function parseMatchingUseOnceFlag(value) {
@@ -960,36 +1039,30 @@ function setMatchingAnswerWithSingleUse({
   answers,
   setAnswer,
 }) {
-  const nextToken = String(nextValue ?? '').trim();
+  const canonicalNextToken = resolveMatchingCanonicalToken(group, nextValue);
   const shouldEnforceSingleUse = shouldUseMatchingOptionOnce(group);
-  console.log('matching debug', {
-    type: group?.type,
-    use_once: group?.use_once,
-    shouldUse: shouldEnforceSingleUse,
-  });
 
   if (
     !shouldEnforceSingleUse ||
-    !nextToken ||
+    !canonicalNextToken ||
     !Array.isArray(answers) ||
     !Number.isFinite(groupStartIndex) ||
     !Number.isFinite(questionCount) ||
     questionCount <= 0
   ) {
-    setAnswer(targetIndex, nextValue);
+    setAnswer(targetIndex, canonicalNextToken || '');
     return;
   }
 
-  const normalizedNextToken = normalizeReviewText(nextToken);
   for (let offset = 0; offset < questionCount; offset += 1) {
     const questionIndex = groupStartIndex + offset;
     if (questionIndex === targetIndex) continue;
-    if (normalizeReviewText(answers[questionIndex]) === normalizedNextToken) {
+    if (resolveMatchingCanonicalToken(group, answers[questionIndex]) === canonicalNextToken) {
       setAnswer(questionIndex, '');
     }
   }
 
-  setAnswer(targetIndex, nextValue);
+  setAnswer(targetIndex, canonicalNextToken || '');
 }
 
 function formatReviewAnswer(value) {
@@ -1190,10 +1263,12 @@ function StepContent({
   reviewLookup = {},
   useMobileReadingDrawer = false,
   isMobileViewport = false,
+  strikethroughNamespace = 'global',
 }) {
   const { item, startSlotIndex, type } = step;
   const isReading = type === 'reading';
   const isListening = type === 'listening';
+  const itemIdSafe = safeIdentity(item?._id, `${type}-${startSlotIndex}`);
   const audioUrl = isListening ? (listeningAudioUrl || item.audio_url || null) : item.audio_url;
   const hasAudio = isListening && Boolean(audioUrl);
   const useDropdownForDragDrop = Boolean(isMobileViewport);
@@ -1203,7 +1278,9 @@ function StepContent({
   const [activeReviewQuestionNumber, setActiveReviewQuestionNumber] = useState(null);
 
   // Use persisted HTML if available, otherwise original content
-  const contentHtml = (passageStates && passageStates[item._id]) || (item.content || '').replace(/\n/g, '<br />');
+  const contentHtml =
+    (passageStates && (passageStates[itemIdSafe] || passageStates[item?._id])) ||
+    (item.content || '').replace(/\n/g, '<br />');
   const transcriptHtml = String(item?.transcript || '').replace(/\n/g, '<br />');
   const hasReviewTranscript = reviewMode && isListening && String(item?.transcript || '').trim().length > 0;
   const activeReviewReference = useMemo(() => {
@@ -1248,17 +1325,16 @@ function StepContent({
   const questionsBlock = (
     <div className="exam-step-questions">
       {(item.question_groups || []).map((group, groupIdx) => {
+        const groupType = normalizeStepGroupType(group?.type);
+        const groupIdSafe = safeIdentity(group?._id, `g-${groupIdx}`);
+        const instructionKey = `group_inst_${itemIdSafe}_${groupIdSafe}`;
+        const legacyInstructionKey = `group_inst_${item?._id}_${groupIdx}`;
         // Check for special group types
-        const isMatching =
-          group.type === 'matching_headings' ||
-          group.type === 'matching_features' ||
-          group.type === 'matching_information' ||
-          group.type === 'matching_info' ||
-          group.type === 'matching';
-        const isSummary = group.type === 'summary_completion';
-        const isGapLike = group.type === 'gap_fill' || group.type === 'note_completion';
-        const isFlowOrPlan = group.type === 'flow_chart_completion' || group.type === 'plan_map_diagram';
-        const isDiagramLabel = group.type === 'diagram_label_completion';
+        const isMatching = MATCHING_GROUP_TYPES.has(groupType);
+        const isSummary = groupType === 'summary_completion';
+        const isGapLike = groupType === 'gap_fill' || groupType === 'note_completion';
+        const isFlowOrPlan = groupType === 'flow_chart_completion' || groupType === 'plan_map_diagram';
+        const isDiagramLabel = groupType === 'diagram_label_completion';
         const summaryOptions = isSummary ? getNormalizedSummaryOptions(group.options || []) : [];
         const hasSummaryOptions = summaryOptions.length > 0;
         const shouldStyleMatchingOptionAsUsed = isMatching && shouldUseMatchingOptionOnce(group);
@@ -1270,25 +1346,31 @@ function StepContent({
         const selectedTokens = new Set();
         for (let offset = 0; offset < groupQuestionCount; offset += 1) {
           const rawAnswer = String(answers[groupStartIndex + offset] ?? '').trim();
-          if (rawAnswer) selectedTokens.add(normalizeReviewText(rawAnswer));
+          const canonicalAnswer = isMatching
+            ? resolveMatchingCanonicalToken(group, rawAnswer)
+            : rawAnswer;
+          if (canonicalAnswer) selectedTokens.add(normalizeReviewText(canonicalAnswer));
         }
 
         return (
-          <div key={group.type + slotIndex + groupIdx} className={`exam-group ${group.type === 'summary_completion' ? 'summary-completion' : ''}`}>
+          <div
+            key={`group-${itemIdSafe}-${groupType}-${groupIdSafe}-${slotIndex}`}
+            className={`exam-group ${isSummary ? 'summary-completion' : ''}`}
+          >
             {/* Instructions */}
             {group.instructions && (
               (isReading || isListening) ? (
                 <div
                   className="exam-instructions"
                   dangerouslySetInnerHTML={toSanitizedInnerHtml(
-                    (passageStates && passageStates[`group_inst_${item._id}_${groupIdx}`]) || group.instructions,
+                    (passageStates && (passageStates[instructionKey] || passageStates[legacyInstructionKey])) || group.instructions,
                   )}
                 />
               ) : (
                 <HighlightableContent
-                  id={`group_inst_${item._id}_${groupIdx}`}
-                  htmlContent={(passageStates && passageStates[`group_inst_${item._id}_${groupIdx}`]) || group.instructions}
-                  onUpdateHtml={(html) => handleHtmlUpdate(`group_inst_${item._id}_${groupIdx}`, html)}
+                  id={instructionKey}
+                  htmlContent={(passageStates && (passageStates[instructionKey] || passageStates[legacyInstructionKey])) || group.instructions}
+                  onUpdateHtml={(html) => handleHtmlUpdate(instructionKey, html)}
                   className="exam-instructions"
                   tagName="div"
                 />
@@ -1360,7 +1442,7 @@ function StepContent({
             {/* Questions Rendering (Summary Text or Standard List) */}
             {(() => {
               // --- LISTENING MAP GRID RENDERER ---
-              if (group.type === 'listening_map') {
+              if (groupType === 'listening_map') {
                 const currentGroupStartIndex = slotIndex;
                 slotIndex += group.questions.length;
                 return (
@@ -1412,6 +1494,7 @@ function StepContent({
                               isListening={isListening}
                               reviewMode={reviewMode}
                               useMatchingDropdown={useDropdownForDragDrop}
+                              strikethroughNamespace={strikethroughNamespace}
                             />
                           </div>
                         );
@@ -1505,7 +1588,12 @@ function StepContent({
                 // We advance slotIndex for all questions in this group
                 const currentGroupStartIndex = slotIndex;
                 slotIndex += group.questions.length;
-                const rawGroupText = (passageStates && passageStates[`group_text_${item._id}_${groupIdx}`]) || group.text || '';
+                const groupTextKey = `group_text_${itemIdSafe}_${groupIdSafe}`;
+                const legacyGroupTextKey = `group_text_${item?._id}_${groupIdx}`;
+                const rawGroupText =
+                  (passageStates && (passageStates[groupTextKey] || passageStates[legacyGroupTextKey]))
+                  || group.text
+                  || '';
                 const groupTextHtml = getGroupTextHtml(rawGroupText);
                 const getQuestionNumberBySlotIndex = (slotIdx) => {
                   if (!Number.isInteger(slotIdx)) return null;
@@ -1636,9 +1724,9 @@ function StepContent({
                                 }
                               }
                               // Fallback: If number found but no matching question
-                              return <span key={i} style={{ color: 'red', fontWeight: 'bold' }}>[Q{qNum}?]</span>;
+                              return <span key={`missing-q-${qNum}-${i}`} style={{ color: 'red', fontWeight: 'bold' }}>[Q{qNum}?]</span>;
                             }
-                            return <span key={i}>{part}</span>;
+                            return <span key={`text-part-${i}-${part}`}>{part}</span>;
                           })}
                         </>
                       );
@@ -1651,7 +1739,7 @@ function StepContent({
                     <div className="exam-summary-text">
                       {groupTextHtml ? (
                         <HighlightableWrapper
-                          onUpdateHtml={(html) => handleHtmlUpdate(`group_text_${item._id}_${groupIdx}`, html)}
+                          onUpdateHtml={(html) => handleHtmlUpdate(groupTextKey, html)}
                           tagName="div"
                           serializeHtmlForUpdate={serializeGroupTextForPersistence}
                         >
@@ -1677,7 +1765,7 @@ function StepContent({
               const isForceCheckbox = group.group_layout === 'checkbox';
               const isAutoMulti = (group.questions || []).length > 1;
 
-              if ((group.type === 'mult_choice' || group.type === 'mult_choice_multi') && (isForceCheckbox || (!isForceRadio && isAutoMulti))) {
+              if ((groupType === 'mult_choice' || groupType === 'mult_choice_multi') && (isForceCheckbox || (!isForceRadio && isAutoMulti))) {
                 const currentGroupStartIndex = slotIndex;
                 slotIndex += group.questions.length; // Advance slot index for all questions in this group
 
@@ -1695,24 +1783,26 @@ function StepContent({
 
                 // Collect current answers for this group
                 const currentAnswers = [];
-                for (let i = 0; i < maxSelect; i++) {
-                  if (answers[currentGroupStartIndex + i]) currentAnswers.push(answers[currentGroupStartIndex + i]);
+                for (let i = 0; i < maxSelect; i += 1) {
+                  const canonicalAnswer = resolveMultiSelectCanonicalToken(options, answers[currentGroupStartIndex + i]);
+                  if (canonicalAnswer) currentAnswers.push(canonicalAnswer);
                 }
 
-                const handleMultiChange = (optText, isChecked) => {
+                const handleMultiChange = (optionToken, isChecked) => {
                   if (reviewMode) return;
                   let newSelection = [...currentAnswers];
                   if (isChecked) {
+                    if (newSelection.includes(optionToken)) return;
                     if (newSelection.length < maxSelect) {
-                      newSelection.push(optText);
+                      newSelection.push(optionToken);
                     } else {
                       // Optional: Auto-replace the last one or separate warning? 
                       // For now, let's just replace the last one to be user friendly
                       newSelection.pop();
-                      newSelection.push(optText);
+                      newSelection.push(optionToken);
                     }
                   } else {
-                    newSelection = newSelection.filter(a => a !== optText);
+                    newSelection = newSelection.filter((token) => token !== optionToken);
                   }
 
                   // Sort alphabetically for consistency if needed, but primarily just fill slots
@@ -1747,19 +1837,16 @@ function StepContent({
                       <div className="text-sm text-gray-500 italic">Choose {maxSelect} letters, A-{String.fromCharCode(65 + options.length - 1)}.</div>
                     </div>
                     <div className="exam-options">
-                      {options.map((opt) => {
-                        const optKey = `opt_${item._id}_${groupIdx}_${opt.label}`;
-                        const isChecked = currentAnswers.some(ans =>
-                          normalizeReviewText(ans) === normalizeReviewText(opt.text) ||
-                          normalizeReviewText(ans) === normalizeReviewText(opt.label) ||
-                          normalizeReviewText(ans) === normalizeReviewText(opt.id)
-                        );
+                      {options.map((opt, optionIndex) => {
+                        const optionToken = getMultiSelectOptionToken(opt, optionIndex);
+                        const optKey = `opt_${itemIdSafe}_${groupIdx}_${optionToken}`;
+                        const isChecked = currentAnswers.some((token) => token === optionToken);
                         return (
-                          <label key={opt.label} className={`exam-option-label ${isChecked ? 'selected-multi' : ''}`}>
+                          <label key={`${optionToken}-${optionIndex}`} className={`exam-option-label ${isChecked ? 'selected-multi' : ''}`}>
                             <input
                               type="checkbox"
                               checked={isChecked}
-                              onChange={(e) => !reviewMode && handleMultiChange(opt.text, e.target.checked)}
+                              onChange={(e) => !reviewMode && handleMultiChange(optionToken, e.target.checked)}
                               disabled={reviewMode}
                               style={{ width: '1.25rem', height: '1.25rem', marginRight: '1rem' }}
                             />
@@ -1807,7 +1894,7 @@ function StepContent({
                         return (
                           <>
                             {parts.map((part, i) => (
-                              <span key={i}>
+                              <span key={`gap-part-${currentIndex}-${i}-${part}`}>
                                 {part}
                                 {i < parts.length - 1 && (
                                   <span className="inline-input-wrapper">
@@ -1822,6 +1909,7 @@ function StepContent({
                                       isListening={isListening}
                                       reviewMode={reviewMode}
                                       useMatchingDropdown={useDropdownForDragDrop}
+                                      strikethroughNamespace={strikethroughNamespace}
                                     />
                                   </span>
                                 )}
@@ -1854,13 +1942,16 @@ function StepContent({
                     return null; // Skip rendering if embedded
                   }
 
-                  const qKey = `qtext_${item._id}_${q.q_number}`;
+                  const qNumSafe = safeIdentity(q?.q_number, `qidx-${qIndex}`);
+                  const qIdSafe = safeIdentity(q?._id, `q-${qIndex}`);
+                  const qKey = `qtext_${itemIdSafe}_${qNumSafe}_${qIdSafe}`;
+                  const legacyQKey = `qtext_${item?._id}_${q.q_number}`;
                   return (
                     <div key={currentIndex} className="matching-question-row">
                       <div className="matching-question-text">
                         <HighlightableContent
                           id={qKey}
-                          htmlContent={(passageStates && passageStates[qKey]) || (q.text || '').replace(/\n/g, '<br />')}
+                          htmlContent={(passageStates && (passageStates[qKey] || passageStates[legacyQKey])) || (q.text || '').replace(/\n/g, '<br />')}
                           onUpdateHtml={(html) => handleHtmlUpdate(qKey, html)}
                           tagName="span"
                         />
@@ -1886,6 +1977,7 @@ function StepContent({
                         isListening={isListening}
                         reviewMode={reviewMode}
                         useMatchingDropdown={useDropdownForDragDrop}
+                        strikethroughNamespace={strikethroughNamespace}
                       />
                     </div>
                   );
@@ -1893,14 +1985,17 @@ function StepContent({
 
                 // --- OTHER QUESTION TYPES ---
                 else {
-                  const qKey = `qtext_${item._id}_${q.q_number}`;
+                  const qNumSafe = safeIdentity(q?.q_number, `qidx-${qIndex}`);
+                  const qIdSafe = safeIdentity(q?._id, `q-${qIndex}`);
+                  const qKey = `qtext_${itemIdSafe}_${qNumSafe}_${qIdSafe}`;
+                  const legacyQKey = `qtext_${item?._id}_${q.q_number}`;
                   return (
                     <div key={currentIndex} className="exam-question mb-4">
                       <label className="exam-question-label" style={{ display: 'block', marginBottom: '8px' }}>
                         <strong style={{ marginRight: '5px' }}>Q{q.q_number}.</strong>
                         <HighlightableContent
                           id={qKey}
-                          htmlContent={(passageStates && passageStates[qKey]) || (q.text || '').replace(/\n/g, '<br />')}
+                          htmlContent={(passageStates && (passageStates[qKey] || passageStates[legacyQKey])) || (q.text || '').replace(/\n/g, '<br />')}
                           onUpdateHtml={(html) => handleHtmlUpdate(qKey, html)}
                           tagName="span"
                           style={{ display: 'inline' }}
@@ -1917,6 +2012,7 @@ function StepContent({
                         isListening={isListening}
                         reviewMode={reviewMode}
                         useMatchingDropdown={useDropdownForDragDrop}
+                        strikethroughNamespace={strikethroughNamespace}
                       />
                     </div>
                   );
@@ -1933,7 +2029,7 @@ function StepContent({
                   const isAutoMulti = (group.questions || []).length > 1;
                   const isForceRadio = group.group_layout === 'radio';
                   const isForceCheckbox = group.group_layout === 'checkbox';
-                  const isMultiSelectGroup = (group.type === 'mult_choice' || group.type === 'mult_choice_multi') && (isForceCheckbox || (!isForceRadio && isAutoMulti));
+                  const isMultiSelectGroup = (groupType === 'mult_choice' || groupType === 'mult_choice_multi') && (isForceCheckbox || (!isForceRadio && isAutoMulti));
 
                   if (!reviewItem) return null;
                   const optionPool = isSummary
@@ -2086,8 +2182,8 @@ function StepContent({
           {item.content && (
             <HighlightableContent
               htmlContent={contentHtml}
-              onUpdateHtml={(html) => handleHtmlUpdate(item._id, html)}
-              id={item._id}
+              onUpdateHtml={(html) => handleHtmlUpdate(itemIdSafe, html)}
+              id={itemIdSafe}
             />
           )}
           <div className="listening-questions-centered">
@@ -2113,6 +2209,7 @@ function StepContent({
         questionsBlock={questionsBlock}
         reviewMode={reviewMode}
         useMobileReadingDrawer={useMobileReadingDrawer}
+        strikethroughNamespace={strikethroughNamespace}
       />
     );
   }
