@@ -113,6 +113,12 @@ function EventBadge({ status }) {
   );
 }
 
+const resolveSubmissionGradePath = (event = {}) => {
+  const submissionId = String(event?.submissionId || '').trim();
+  if (!submissionId) return '/homework';
+  return `/homework/submissions/${encodeURIComponent(submissionId)}`;
+};
+
 export default function StaffDashboardPage() {
   const navigate = useNavigate();
   const user = api.getUser();
@@ -414,7 +420,7 @@ export default function StaffDashboardPage() {
                       key={event.id}
                       type="button"
                       className="flex w-full items-center gap-3 px-5 py-3.5 text-left transition-colors hover:bg-muted/40"
-                      onClick={() => navigate('/homework')}
+                      onClick={() => navigate(resolveSubmissionGradePath(event))}
                     >
                       <Avatar className="h-10 w-10">
                         <AvatarFallback className={`text-xs font-semibold ${toneByName(event.studentName)}`}>

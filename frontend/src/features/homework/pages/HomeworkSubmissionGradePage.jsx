@@ -14,10 +14,11 @@ import { toSanitizedInnerHtml } from "@/shared/utils/safeHtml";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { X } from "lucide-react";
+import { ChevronsUpDown, X } from "lucide-react";
 
 
 const HTML_TAG_PATTERN = /<\/?[a-z][\s\S]*>/i;
@@ -63,6 +64,40 @@ const normalizeObjectiveAnswerEntries = (entries = [], keyField, valueField) => 
   return Array.from(entryMap.values());
 };
 
+const normalizeMatchingObjectiveAnswerEntries = (entries = []) => {
+  const blockMap = new Map();
+  (Array.isArray(entries) ? entries : []).forEach((entry) => {
+    const blockKey = String(
+      entry?.block_key || entry?.blockKey || entry?.block_id || entry?.blockId || entry?.key || "",
+    ).trim();
+    if (!blockKey) return;
+
+    const rawPairs = Array.isArray(entry?.matches)
+      ? entry.matches
+      : Array.isArray(entry?.pairs)
+        ? entry.pairs
+        : [];
+    const candidatePairs = rawPairs.length ? rawPairs : [entry];
+    const pairMap = new Map();
+    candidatePairs.forEach((pair) => {
+      const leftId = String(pair?.left_id || pair?.leftId || pair?.from || "").trim();
+      const rightId = String(pair?.right_id || pair?.rightId || pair?.to || "").trim();
+      if (!leftId || !rightId) return;
+      pairMap.set(`${leftId}:${rightId}`, {
+        left_id: leftId,
+        right_id: rightId,
+      });
+    });
+
+    if (pairMap.size === 0) return;
+    blockMap.set(blockKey, {
+      block_key: blockKey,
+      matches: Array.from(pairMap.values()),
+    });
+  });
+  return Array.from(blockMap.values());
+};
+
 const normalizeObjectiveAnswersFromMeta = (meta = {}) => {
   const normalizedMeta = toPlainObject(meta);
   const objectiveAnswers = parseJsonObjectSafely(normalizedMeta.objective_answers);
@@ -73,6 +108,11 @@ const normalizeObjectiveAnswersFromMeta = (meta = {}) => {
       : [];
   const rawGapfill = Array.isArray(objectiveAnswers.gapfill) ? objectiveAnswers.gapfill : [];
   const rawFindMistake = Array.isArray(objectiveAnswers.find_mistake) ? objectiveAnswers.find_mistake : [];
+  const rawMatching = Array.isArray(objectiveAnswers.matching)
+    ? objectiveAnswers.matching
+    : Array.isArray(normalizedMeta.matching_answers)
+      ? normalizedMeta.matching_answers
+      : [];
 
   return {
     quiz: normalizeObjectiveAnswerEntries(
@@ -101,6 +141,7 @@ const normalizeObjectiveAnswersFromMeta = (meta = {}) => {
       "line_key",
       "token_key",
     ),
+    matching: normalizeMatchingObjectiveAnswerEntries(rawMatching),
   };
 };
 
@@ -110,6 +151,15 @@ const toSelectionMap = (entries = [], keyField, valueField) =>
     const value = String(entry?.[valueField] || "").trim();
     if (!key || !value) return acc;
     acc[key] = value;
+    return acc;
+  }, {});
+
+const toMatchingSelectionMap = (entries = []) =>
+  (Array.isArray(entries) ? entries : []).reduce((acc, entry) => {
+    const blockKey = String(entry?.block_key || "").trim();
+    const matches = Array.isArray(entry?.matches) ? entry.matches : [];
+    if (!blockKey || matches.length === 0) return acc;
+    acc[blockKey] = matches;
     return acc;
   }, {});
 
@@ -371,6 +421,7 @@ export default function HomeworkSubmissionGradePage() {
   const [score, setScore] = useState("");
   const [feedback, setFeedback] = useState("");
   const [selectedImage, setSelectedImage] = useState(null);
+  const [isLessonPromptOpen, setIsLessonPromptOpen] = useState(false);
 
 
   const loadSubmission = async () => {
@@ -391,6 +442,10 @@ export default function HomeworkSubmissionGradePage() {
 
   useEffect(() => {
     void loadSubmission();
+  }, [submissionId]);
+
+  useEffect(() => {
+    setIsLessonPromptOpen(false);
   }, [submissionId]);
 
   const handleSave = async () => {
@@ -452,6 +507,7 @@ export default function HomeworkSubmissionGradePage() {
       quizByQuestionKey: toSelectionMap(objectiveAnswers?.quiz, "question_key", "selected_option_id"),
       gapfillByBlankKey: toSelectionMap(objectiveAnswers?.gapfill, "blank_key", "value"),
       findMistakeByLineKey: toSelectionMap(objectiveAnswers?.find_mistake, "line_key", "token_key"),
+      matchingByBlockKey: toMatchingSelectionMap(objectiveAnswers?.matching),
     }),
     [objectiveAnswers],
   );
@@ -460,7 +516,7 @@ export default function HomeworkSubmissionGradePage() {
     () =>
       promptBlocks.filter((block) => {
         const blockType = normalizeBlockType(block?.type);
-        return blockType === "quiz" || blockType === "gapfill" || blockType === "find_mistake";
+        return blockType === "quiz" || blockType === "gapfill" || blockType === "find_mistake" || blockType === "matching";
       }),
     [promptBlocks],
   );
@@ -468,7 +524,8 @@ export default function HomeworkSubmissionGradePage() {
   const hasObjectiveSubmissionContent = Boolean(
     (objectiveAnswers?.quiz || []).length
     || (objectiveAnswers?.gapfill || []).length
-    || (objectiveAnswers?.find_mistake || []).length,
+    || (objectiveAnswers?.find_mistake || []).length
+    || (objectiveAnswers?.matching || []).length
   );
 
   const canPlayAudio = useMemo(() => Boolean(submission?.audio_item?.url), [submission?.audio_item?.url]);
@@ -556,21 +613,31 @@ export default function HomeworkSubmissionGradePage() {
             <CardContent className="space-y-4">
               {promptBlocks.length > 0 ? (
                 <Card className="border-border/70 shadow-none">
-                  <CardHeader>
-                    <CardTitle className="text-base">Lesson Prompt</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {promptBlocks.map((block, index) => {
-                      const rendered = renderPromptBlock(block, index, { testTitle: payload?.test_title });
+                  <Collapsible open={isLessonPromptOpen} onOpenChange={setIsLessonPromptOpen}>
+                    <CardHeader className="flex flex-row items-start justify-between gap-3">
+                      <CardTitle className="text-base">Lesson Prompt</CardTitle>
+                      <CollapsibleTrigger asChild>
+                        <Button type="button" variant="outline" size="sm" className="shrink-0">
+                          {isLessonPromptOpen ? "Collapse" : "Expand"}
+                          <ChevronsUpDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </CollapsibleTrigger>
+                    </CardHeader>
+                    <CollapsibleContent>
+                      <CardContent className="space-y-3 pt-0">
+                        {promptBlocks.map((block, index) => {
+                          const rendered = renderPromptBlock(block, index, { testTitle: payload?.test_title });
 
-                      if (!rendered) return null;
-                      return (
-                        <div key={`prompt-${String(block?.data?.block_id || index)}`} className="rounded-md border p-3">
-                          {rendered}
-                        </div>
-                      );
-                    })}
-                  </CardContent>
+                          if (!rendered) return null;
+                          return (
+                            <div key={`prompt-${String(block?.data?.block_id || index)}`} className="rounded-md border p-3">
+                              {rendered}
+                            </div>
+                          );
+                        })}
+                      </CardContent>
+                    </CollapsibleContent>
+                  </Collapsible>
                 </Card>
               ) : null}
 
@@ -743,7 +810,7 @@ export default function HomeworkSubmissionGradePage() {
                     <Card className="border-border/70 shadow-none">
                       <CardHeader>
                         <CardTitle className="text-base">Objective Answers</CardTitle>
-                        <CardDescription>Student selections from Quiz, Gap Filling, and Find Mistake blocks.</CardDescription>
+                        <CardDescription>Student selections from Quiz, Gap Filling, Find Mistake, and Table Matching blocks.</CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-3">
                         {objectiveBlocks.length > 0 ? (
@@ -834,6 +901,68 @@ export default function HomeworkSubmissionGradePage() {
                                       );
                                     })}
                                   </div>
+                                </div>
+                              );
+                            }
+
+                            if (blockType === "matching") {
+                              const blockData =
+                                block?.data && typeof block.data === "object" && !Array.isArray(block.data)
+                                  ? block.data
+                                  : {};
+                              const leftItems = (Array.isArray(blockData.left_items) ? blockData.left_items : [])
+                                .map((item, itemIndex) => ({
+                                  id: String(item?.id || "").trim() || `left-${itemIndex + 1}`,
+                                  text: String(item?.text || "").trim() || `Left item ${itemIndex + 1}`,
+                                }));
+                              const rightItems = (Array.isArray(blockData.right_items) ? blockData.right_items : [])
+                                .map((item, itemIndex) => ({
+                                  id: String(item?.id || "").trim() || `right-${itemIndex + 1}`,
+                                  text: String(item?.text || "").trim() || `Right item ${itemIndex + 1}`,
+                                }));
+                              const normalizedBlockId = blockId || `matching-${blockIndex + 1}`;
+                              const directMatches = objectiveAnswerMaps.matchingByBlockKey?.[normalizedBlockId];
+                              const fallbackSingleBlockMatch =
+                                !directMatches
+                                && objectiveBlocks.filter((candidate) => normalizeBlockType(candidate?.type) === "matching").length === 1
+                                && (objectiveAnswers?.matching || []).length === 1
+                                  ? (objectiveAnswers?.matching || [])[0]?.matches
+                                  : [];
+                              const selectedMatches = Array.isArray(directMatches)
+                                ? directMatches
+                                : Array.isArray(fallbackSingleBlockMatch)
+                                  ? fallbackSingleBlockMatch
+                                  : [];
+
+                              const leftItemMap = new Map(leftItems.map((item) => [String(item.id), item.text]));
+                              const rightItemMap = new Map(rightItems.map((item) => [String(item.id), item.text]));
+
+                              return (
+                                <div key={`obj-matching-${normalizedBlockId}`} className="rounded-md border p-3">
+                                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Table Matching</p>
+                                  {String(blockData?.prompt || "").trim() ? (
+                                    <p className="mt-1 text-sm text-foreground/80">{String(blockData.prompt || "").trim()}</p>
+                                  ) : null}
+                                  {selectedMatches.length > 0 ? (
+                                    <div className="mt-2 space-y-2">
+                                      {selectedMatches.map((pair, pairIndex) => {
+                                        const leftId = String(pair?.left_id || "").trim();
+                                        const rightId = String(pair?.right_id || "").trim();
+                                        const leftText = leftItemMap.get(leftId) || leftId || "--";
+                                        const rightText = rightItemMap.get(rightId) || rightId || "--";
+                                        return (
+                                          <div key={`obj-matching-pair-${normalizedBlockId}-${pairIndex}`} className="rounded border p-2">
+                                            <p className="text-sm text-foreground/80">
+                                              Pair {pairIndex + 1}: <span className="font-medium">{leftText}</span>{" -> "}
+                                              <span className="font-medium">{rightText}</span>
+                                            </p>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  ) : (
+                                    <p className="mt-2 text-sm text-muted-foreground">Student chua chon cap matching.</p>
+                                  )}
                                 </div>
                               );
                             }

@@ -556,12 +556,16 @@ export const loadStaffDashboardData = async ({ rangeDays = 7, scope = 'homeroom'
       let pendingReviewUnitsInRange = 0;
       let missingGroups = 0;
       let latestSubmittedAt = null;
+      let latestSubmissionId = '';
+      const submittedUnitsByDay = new Map();
 
       tasks.forEach((task) => {
         const metrics = resolveTaskGroupMetrics(task);
         const submittedAtTs = toTimestamp(task?.submitted_at);
         const submittedAtDay = toIsoDay(task?.submitted_at);
         const submittedInRange = submittedAtTs !== null && submittedAtDay && daySet.has(submittedAtDay);
+        const submissionIdRaw = task?.submission_id || task?.homework_submission_id || '';
+        const submissionId = String(submissionIdRaw || '').trim();
         const taskDueDay = toIsoDay(task?.task_due_date) || dueDay;
         const isPastDue = taskDueDay ? taskDueDay <= TODAY : true;
 
@@ -571,6 +575,8 @@ export const loadStaffDashboardData = async ({ rangeDays = 7, scope = 'homeroom'
         if (submittedInRange) {
           totalUnitsInRange += metrics.doneCount;
           doneUnitsInRange += metrics.doneCount;
+          const currentSubmittedUnits = Number(submittedUnitsByDay.get(submittedAtDay) || 0);
+          submittedUnitsByDay.set(submittedAtDay, currentSubmittedUnits + metrics.doneCount);
         }
         if (metrics.isStarted && !metrics.isGraded) {
           pendingReviewUnits += metrics.doneCount;
@@ -581,6 +587,9 @@ export const loadStaffDashboardData = async ({ rangeDays = 7, scope = 'homeroom'
         if (submittedInRange) {
           if (!latestSubmittedAt || submittedAtTs > latestSubmittedAt) {
             latestSubmittedAt = submittedAtTs;
+            latestSubmissionId = submissionId;
+          } else if (submittedAtTs === latestSubmittedAt && !latestSubmissionId && submissionId) {
+            latestSubmissionId = submissionId;
           }
         }
       });
@@ -622,6 +631,14 @@ export const loadStaffDashboardData = async ({ rangeDays = 7, scope = 'homeroom'
           dayBucket.submitted += effectiveDoneUnits;
           dayBucket.total += effectiveTotalUnits;
         }
+      } else if (submittedUnitsByDay.size > 0) {
+        submittedUnitsByDay.forEach((submittedUnits, dayKey) => {
+          const dayBucket = dayTotals.get(dayKey);
+          if (!dayBucket) return;
+          const normalizedSubmittedUnits = Number(submittedUnits || 0);
+          dayBucket.submitted += normalizedSubmittedUnits;
+          dayBucket.total += normalizedSubmittedUnits;
+        });
       }
 
       totalSubmitted += effectiveDoneUnits;
@@ -630,10 +647,11 @@ export const loadStaffDashboardData = async ({ rangeDays = 7, scope = 'homeroom'
 
       if (latestSubmittedAt !== null) {
         eventRows.push({
-          id: `${assignmentId}-${studentId}-${latestSubmittedAt}`,
+          id: latestSubmissionId || `${assignmentId}-${studentId}-${latestSubmittedAt}`,
           studentName: targetStudent.name,
           assignmentName: assignmentTitle || 'Untitled assignment',
           submittedAtTs: latestSubmittedAt,
+          submissionId: latestSubmissionId || null,
           status: assignmentDueTs !== null && latestSubmittedAt > assignmentDueTs ? 'Late' : 'Submitted',
         });
       }
@@ -696,6 +714,7 @@ export const loadStaffDashboardData = async ({ rangeDays = 7, scope = 'homeroom'
       status: event.status,
       assignmentName: event.assignmentName,
       timeAgo: formatTimeAgo(event.submittedAtTs),
+      submissionId: event.submissionId || null,
     }));
 
   const completionRate = totalSlots > 0

@@ -289,6 +289,7 @@ export default function Layout() {
   const isProfilePage = pathname.startsWith('/student-ielts/profile');
   const isAnalyticsPage = pathname.startsWith('/student-ielts/analytics');
   const isAchievementsPage = pathname.startsWith('/student-ielts/achievements');
+  const isHomeworkLessonPage = /^\/student-(ielts|aca)\/homework\/[^/]+\/lessons\/[^/]+$/.test(pathname);
 
   const coreItems = useMemo(
     () => NAV_SCHEMA.core.filter((item) => isItemVisible(item, user) && (item.key !== 'home' || !user)),
@@ -358,7 +359,7 @@ export default function Layout() {
           <div className="nav-container" ref={navContainerRef}>
             <div className="nav-mobile-head">
               <NavLink to="/" className="nav-mobile-brand" onClick={closeAllMenus}>
-                <span className="nav-brand-text">IELTS MASTER</span>
+                <span className="nav-brand-text">IELTS Hub</span>
               </NavLink>
               <button
                 type="button"
@@ -554,7 +555,7 @@ export default function Layout() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <main className={`layout-main ${isExamPage ? 'layout-main--fullscreen' : ''} ${isPracticePage || isTestDetailPage || isTestHistoryPage ? 'layout-main--wide' : ''} ${isTestResultPage ? 'layout-main--test-result' : ''} ${isResultAiPage ? 'layout-main--result-ai' : ''} ${isManagePage ? 'layout-main--manage' : ''} ${isGradingPage ? 'layout-main--grading' : ''} ${pathname === '/' ? 'layout-main--home' : ''} ${isProfilePage ? 'layout-main--profile' : ''} ${isAnalyticsPage ? 'layout-main--analytics' : ''} ${isAchievementsPage ? 'layout-main--achievements' : ''} ${isWritingLivePage ? 'layout-main--writing-live' : ''}`}>
+      <main className={`layout-main ${isExamPage ? 'layout-main--fullscreen' : ''} ${isPracticePage || isTestDetailPage || isTestHistoryPage ? 'layout-main--wide' : ''} ${isTestResultPage ? 'layout-main--test-result' : ''} ${isResultAiPage ? 'layout-main--result-ai' : ''} ${isManagePage ? 'layout-main--manage' : ''} ${isGradingPage ? 'layout-main--grading' : ''} ${pathname === '/' ? 'layout-main--home' : ''} ${isProfilePage ? 'layout-main--profile' : ''} ${isAnalyticsPage ? 'layout-main--analytics' : ''} ${isAchievementsPage ? 'layout-main--achievements' : ''} ${isWritingLivePage ? 'layout-main--writing-live' : ''} ${isHomeworkLessonPage ? 'layout-main--homework-lesson' : ''}`}>
         <Outlet />
       </main>
     </div>

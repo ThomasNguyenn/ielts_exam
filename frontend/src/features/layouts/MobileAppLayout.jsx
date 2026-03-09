@@ -17,7 +17,7 @@ const ACA_BASE = '/student-aca';
 
 const MOBILE_LAYOUTS = {
   ielts: {
-    brand: 'IELTS MASTER',
+    brand: 'IELTS Hub',
     subnavTabKey: 'ielts',
     tabs: [
       {

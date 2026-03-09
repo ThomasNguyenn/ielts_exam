@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { RotateCcw, Save, X, Plus } from "lucide-react";
+import { Plus, RotateCcw, Save, Search, X } from "lucide-react";
 import { api } from "@/shared/api/client";
 import { useNotification } from "@/shared/context/NotificationContext";
 import {
@@ -28,7 +28,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Search } from "lucide-react";
 
 
 const createEmptyForm = () => ({
@@ -51,6 +50,7 @@ export default function HomeworkGroupsPage() {
   const [groupToArchive, setGroupToArchive] = useState(null);
   const [error, setError] = useState("");
   const [studentSearch, setStudentSearch] = useState("");
+  const [currentMemberSearch, setCurrentMemberSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [knownStudentsMap, setKnownStudentsMap] = useState({});
   const [form, setForm] = useState(createEmptyForm);
@@ -169,6 +169,29 @@ export default function HomeworkGroupsPage() {
 
   // Instead of filteredStudents, we just use the API result `students`
   const filteredStudents = students;
+  const currentMembers = useMemo(
+    () =>
+      (Array.isArray(form.student_ids) ? form.student_ids : [])
+        .map((rawId) => {
+          const id = String(rawId || "");
+          const studentObj = knownStudentsMap[id];
+          return {
+            id,
+            name: String(studentObj?.name || "Unknown"),
+            email: String(studentObj?.email || id),
+          };
+        })
+        .filter((member) => member.id),
+    [form.student_ids, knownStudentsMap],
+  );
+  const normalizedCurrentMemberSearch = normalizeLookupValue(currentMemberSearch);
+  const visibleCurrentMembers = useMemo(() => {
+    if (!normalizedCurrentMemberSearch) return currentMembers;
+    return currentMembers.filter((member) =>
+      [member.name, member.email, member.id]
+        .some((value) => normalizeLookupValue(value).includes(normalizedCurrentMemberSearch)),
+    );
+  }, [currentMembers, normalizedCurrentMemberSearch]);
 
   const isEditing = Boolean(form._id);
   const updateForm = (patch) => setForm((prev) => ({ ...prev, ...patch }));
@@ -186,7 +209,10 @@ export default function HomeworkGroupsPage() {
     });
   };
 
-  const resetForm = () => setForm(createEmptyForm());
+  const resetForm = () => {
+    setForm(createEmptyForm());
+    setCurrentMemberSearch("");
+  };
 
   const handleSave = async () => {
     if (!String(form.name || "").trim()) {
@@ -257,6 +283,7 @@ export default function HomeworkGroupsPage() {
       level_label: group?.level_label || "",
       student_ids: parsedIds,
     });
+    setCurrentMemberSearch("");
   };
 
   return (
@@ -317,17 +344,26 @@ export default function HomeworkGroupsPage() {
               <div className="space-y-4 rounded-md border p-4 bg-muted/10">
                 <div className="space-y-2">
                   <Label>Current Members ({form.student_ids.length})</Label>
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="current-member-search"
+                      value={currentMemberSearch}
+                      onChange={(event) => setCurrentMemberSearch(event.target.value)}
+                      placeholder="Search current members..."
+                      className="pl-9"
+                    />
+                  </div>
                   <ScrollArea className="h-40 rounded-md border bg-background p-2">
                     <div className="space-y-2">
-                      {form.student_ids.map((id) => {
-                        const studentObj = knownStudentsMap[id];
+                      {visibleCurrentMembers.map((member) => {
                         return (
-                          <div key={`current-${id}`} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm shadow-sm">
+                          <div key={`current-${member.id}`} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm shadow-sm">
                             <div className="flex flex-col">
-                              <span className="font-medium">{studentObj?.name || "Unknown"}</span>
-                              <span className="text-xs text-muted-foreground">{studentObj?.email || id}</span>
+                              <span className="font-medium">{member.name}</span>
+                              <span className="text-xs text-muted-foreground">{member.email}</span>
                             </div>
-                            <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => toggleStudent(id)}>
+                            <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => toggleStudent(member.id)}>
                               <X className="h-4 w-4" />
                             </Button>
                           </div>
@@ -335,6 +371,9 @@ export default function HomeworkGroupsPage() {
                       })}
                       {form.student_ids.length === 0 && (
                         <p className="text-sm text-muted-foreground pt-2 text-center">No students added yet.</p>
+                      )}
+                      {form.student_ids.length > 0 && visibleCurrentMembers.length === 0 && (
+                        <p className="text-sm text-muted-foreground pt-2 text-center">No current members match your search.</p>
                       )}
                     </div>
                   </ScrollArea>

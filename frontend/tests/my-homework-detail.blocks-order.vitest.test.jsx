@@ -439,4 +439,176 @@ describe("MyHomework lesson routing and block rendering", () => {
       expect(openSpy).toHaveBeenCalledTimes(1);
     });
   });
+
+  it("renders mission checklist/resources from task data and opens passage resource by scrolling", async () => {
+    mockApi.homeworkGetMyAssignmentById.mockResolvedValue(
+      buildAssignmentResponse([
+        {
+          _id: "task-1",
+          title: "Reading Mission",
+          instruction: "- Note key words\n- Finish all resources\n- Upload your work",
+          content_blocks: [
+            { type: "passage", order: 0, data: { block_id: "p-1", text: "Passage body" } },
+            { type: "video", order: 1, data: { block_id: "v-1", url: "https://cdn.example.com/lesson-video.mp4" } },
+            {
+              type: "internal",
+              order: 2,
+              data: {
+                block_id: "i-1",
+                resource_slot_key: "slot:i-1",
+                resource_ref_type: "passage",
+                resource_ref_id: "internal-1",
+              },
+            },
+          ],
+        },
+      ]),
+    );
+
+    const existingDescriptor = Object.getOwnPropertyDescriptor(Element.prototype, "scrollIntoView");
+    const scrollSpy = vi.fn();
+    Object.defineProperty(Element.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollSpy,
+    });
+
+    renderHomeworkRoutes(["/student-ielts/homework/assignment-1/lessons/task-1"]);
+
+    expect(await screen.findByText("Note key words")).toBeInTheDocument();
+    expect(screen.getByText("Finish all resources")).toBeInTheDocument();
+    expect(screen.getByText("Upload your work")).toBeInTheDocument();
+    const missionButtons = screen.getAllByRole("button", { name: /^M/i });
+    expect(missionButtons.length).toBeGreaterThanOrEqual(2);
+
+    fireEvent.click(missionButtons[0]);
+    expect(scrollSpy).toHaveBeenCalledTimes(1);
+
+    if (existingDescriptor) {
+      Object.defineProperty(Element.prototype, "scrollIntoView", existingDescriptor);
+    } else {
+      delete Element.prototype.scrollIntoView;
+    }
+  });
+
+  it("uses shadcn form controls in redesigned lesson blocks and submission panel", async () => {
+    mockApi.homeworkGetMyAssignmentById.mockResolvedValue(
+      buildAssignmentResponse([
+        {
+          _id: "task-1",
+          title: "Task 1",
+          requires_text: true,
+          content_blocks: [
+            {
+              type: "gapfill",
+              order: 0,
+              data: {
+                mode: "numbered",
+                prompt: "Complete the sentence",
+                numbered_items: ["I [*am/is] happy with [result]."],
+              },
+            },
+          ],
+        },
+      ]),
+    );
+
+    renderHomeworkRoutes(["/student-ielts/homework/assignment-1/lessons/task-1"]);
+
+    expect((await screen.findAllByText("Complete the sentence")).length).toBeGreaterThan(0);
+    expect(screen.getByRole("combobox")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Blank 2")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Type your answer here/i)).toBeInTheDocument();
+  });
+
+  it("disables submit and internal launch in preview mode", async () => {
+    mockApi.getUser.mockReturnValue({ role: "teacher", _id: "teacher-1" });
+    mockApi.homeworkGetAssignmentById.mockResolvedValue({
+      data: {
+        _id: "assignment-1",
+        title: "Preview Assignment",
+        due_date: "2026-12-31T00:00:00.000Z",
+        sections: [
+          {
+            _id: "section-1",
+            is_published: true,
+            lessons: [
+              {
+                _id: "task-1",
+                is_published: true,
+                title: "Preview Task",
+                content_blocks: [
+                  {
+                    type: "internal",
+                    order: 0,
+                    data: {
+                      block_id: "slot-1",
+                      resource_slot_key: "slot:1",
+                      resource_ref_type: "test",
+                      resource_ref_id: "preview-resource",
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    renderHomeworkRoutes(["/student-ielts/homework/assignment-1/lessons/task-1?preview=1"]);
+
+    const previewSubmit = await screen.findByRole("button", { name: "Preview only" });
+    expect(previewSubmit).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Launch Resource" })).toBeDisabled();
+  });
+
+  it("submits objective answers payload without regression", async () => {
+    mockApi.homeworkSubmitTask.mockResolvedValue({ ok: true });
+    mockApi.homeworkGetMyAssignmentById.mockResolvedValue(
+      buildAssignmentResponse([
+        {
+          _id: "task-1",
+          title: "Task 1",
+          requires_text: true,
+          content_blocks: [
+            {
+              type: "quiz",
+              order: 0,
+              data: {
+                questions: [
+                  {
+                    id: "q-1",
+                    question: "Question One?",
+                    options: [
+                      { id: "o-1", text: "Option A1" },
+                      { id: "o-2", text: "Option B1" },
+                    ],
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ]),
+    );
+
+    renderHomeworkRoutes(["/student-ielts/homework/assignment-1/lessons/task-1"]);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Option A1/i }));
+    fireEvent.change(screen.getByPlaceholderText(/Type your answer here/i), {
+      target: { value: "My final answer" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Submit Task" }));
+
+    await waitFor(() => {
+      expect(mockApi.homeworkSubmitTask).toHaveBeenCalledTimes(1);
+    });
+
+    const submittedFormData = mockApi.homeworkSubmitTask.mock.calls[0][2];
+    expect(submittedFormData.get("text_answer")).toBe("My final answer");
+    const objectiveAnswers = JSON.parse(submittedFormData.get("objective_answers"));
+    expect(objectiveAnswers.quiz).toHaveLength(1);
+    expect(objectiveAnswers.quiz[0].selected_option_id).toBe("o-1");
+  });
 });

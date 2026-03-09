@@ -324,3 +324,8 @@ a {
   margin: 0 !important;
   width: 100%;
 }
+
+.layout-main--homework-lesson {
+  max-width: none !important;
+  width: 100%;
+}

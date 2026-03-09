@@ -221,7 +221,7 @@ export default function Home() {
       <section id="benefits" className="home-section home-benefits" ref={benefitsRef}>
         <div className="home-container home-benefits-grid home-reveal">
           <div>
-            <div className="home-chip home-chip--light">Tại sao chọn IELTS Pro</div>
+            <div className="home-chip home-chip--light">Tại sao chọn IELTS Hub</div>
             <h2>
               Tất cả những gì bạn cần để
               <span>Thành công</span>
@@ -286,7 +286,7 @@ export default function Home() {
       <footer className="home-footer">
         <div className="home-container home-footer-grid">
           <div>
-            <h3>IELTS<span>Pro</span></h3>
+            <h3>IELTS<span>Hub</span></h3>
             <p>Nền tảng luyện thi IELTS toàn diện với AI cho học viên trên toàn cầu.</p>
           </div>
           <div>
@@ -312,7 +312,7 @@ export default function Home() {
           </div>
         </div>
         <div className="home-container home-footer-bottom">
-          <span>© 2026 IELTS Pro. All rights reserved.</span>
+          <span>© 2026 IELTS Hub. All rights reserved.</span>
         </div>
       </footer>
     </div>
