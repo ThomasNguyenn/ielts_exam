@@ -1554,6 +1554,32 @@ export default function MyHomeworkLessonPage() {
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
+  const shouldOpenLaunchInSameTab = () => {
+    if (typeof window === "undefined") return true;
+    const hasMatchMedia = typeof window.matchMedia === "function";
+    const isNarrowViewport = hasMatchMedia
+      ? window.matchMedia("(max-width: 1024px)").matches
+      : false;
+    const userAgent = String(window.navigator?.userAgent || "");
+    const isMobileUserAgent = /android|iphone|ipad|ipod|mobile/i.test(userAgent);
+    return isNarrowViewport || isMobileUserAgent;
+  };
+
+  const openInternalLaunchUrl = (launchUrl) => {
+    const normalizedUrl = String(launchUrl || "").trim();
+    if (!normalizedUrl) return;
+
+    if (shouldOpenLaunchInSameTab()) {
+      window.location.assign(normalizedUrl);
+      return;
+    }
+
+    const popup = window.open(normalizedUrl, "_blank", "noopener");
+    if (!popup) {
+      window.location.assign(normalizedUrl);
+    }
+  };
+
   const handleLaunchInternalResource = async ({ block, task }) => {
     if (!assignmentId || !selectedTaskId) return;
 
@@ -1586,7 +1612,7 @@ export default function MyHomeworkLessonPage() {
       if (!launchUrl) {
         throw new Error("Launch URL is unavailable");
       }
-      window.open(launchUrl, "_blank", "noopener,noreferrer");
+      openInternalLaunchUrl(launchUrl);
     } catch (error) {
       showNotification(error?.message || "Cannot launch internal resource.", "error");
     } finally {
