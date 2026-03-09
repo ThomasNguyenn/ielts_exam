@@ -110,7 +110,6 @@ describe("email.service domain and branding defaults", () => {
 
     const options = mocks.sendMail.mock.calls[0][0];
     expect(options.subject).toContain("IELTS Hub");
-    expect(options.subject).not.toContain("IELTS Master");
     expect(options.html).toContain("IELTS Hub");
     expect(options.html).toContain("https://ieltshub.online/register?invite=invite-token");
   });

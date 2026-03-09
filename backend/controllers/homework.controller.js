@@ -79,6 +79,13 @@ const normalizeObjectiveAnswersPayload = (value) => {
   const rawQuiz = Array.isArray(parsed.quiz) ? parsed.quiz : Array.isArray(parsed.quiz_answers) ? parsed.quiz_answers : [];
   const rawGapfill = Array.isArray(parsed.gapfill) ? parsed.gapfill : [];
   const rawFindMistake = Array.isArray(parsed.find_mistake) ? parsed.find_mistake : [];
+  const rawMatching = Array.isArray(parsed.matching)
+    ? parsed.matching
+    : Array.isArray(parsed.matching_answers)
+      ? parsed.matching_answers
+      : Array.isArray(parsed.table_matching)
+        ? parsed.table_matching
+        : [];
 
   const quizMap = new Map();
   rawQuiz.forEach((entry) => {
@@ -115,10 +122,45 @@ const normalizeObjectiveAnswersPayload = (value) => {
     });
   });
 
+  const matchingMap = new Map();
+  rawMatching.forEach((entry) => {
+    const blockKey = normalizeOptionalString(
+      entry?.block_key ?? entry?.blockKey ?? entry?.block_id ?? entry?.blockId ?? entry?.key,
+    ) || "";
+    if (!blockKey) return;
+
+    const rawPairs = Array.isArray(entry?.matches)
+      ? entry.matches
+      : Array.isArray(entry?.pairs)
+        ? entry.pairs
+        : [];
+    const candidatePairs = rawPairs.length > 0
+      ? rawPairs
+      : [entry];
+    const pairMap = new Map();
+
+    candidatePairs.forEach((pair) => {
+      const leftId = normalizeOptionalString(pair?.left_id ?? pair?.leftId ?? pair?.from) || "";
+      const rightId = normalizeOptionalString(pair?.right_id ?? pair?.rightId ?? pair?.to) || "";
+      if (!leftId || !rightId) return;
+      pairMap.set(`${leftId}:${rightId}`, {
+        left_id: leftId,
+        right_id: rightId,
+      });
+    });
+
+    if (pairMap.size === 0) return;
+    matchingMap.set(blockKey, {
+      block_key: blockKey,
+      matches: Array.from(pairMap.values()),
+    });
+  });
+
   return {
     quiz: Array.from(quizMap.values()),
     gapfill: Array.from(gapfillMap.values()),
     find_mistake: Array.from(findMistakeMap.values()),
+    matching: Array.from(matchingMap.values()),
   };
 };
 
@@ -127,7 +169,8 @@ const hasObjectiveAnswersPayload = (value = {}) => {
   return Boolean(
     normalized.quiz.length > 0
     || normalized.gapfill.length > 0
-    || normalized.find_mistake.length > 0,
+    || normalized.find_mistake.length > 0
+    || normalized.matching.length > 0
   );
 };
 
