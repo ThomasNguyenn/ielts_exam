@@ -7,9 +7,9 @@ const OVERALL_STATUS_STYLES = {
 };
 
 const toOverallStatusLabel = (status) => {
-  if (status === 'on_track') return 'On track';
-  if (status === 'in_review') return 'In review';
-  return 'Needs attention';
+  if (status === 'on_track') return 'Đã nhận xét';
+  if (status === 'in_review') return 'Cần Nhận Xét';
+  return 'Cần Chú Ý';
 };
 
 export function StatusBadge({ status }) {
@@ -22,19 +22,29 @@ export function StatusBadge({ status }) {
   );
 }
 
-export function DailyProgressBadge({ missing }) {
+export function DailyProgressBadge({ missing, pending = 0 }) {
   const safeMissing = Number.isFinite(Number(missing)) ? Number(missing) : 0;
-  if (safeMissing <= 0) {
+  const safePending = Number.isFinite(Number(pending)) ? Number(pending) : 0;
+
+  if (safeMissing > 0) {
     return (
-      <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
-        On time
+      <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700">
+        Bài thiếu {safeMissing}
       </Badge>
     );
   }
+
+  if (safePending > 0) {
+    return (
+      <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
+        Bài còn lại {safePending}
+      </Badge>
+    );
+  }
+
   return (
-    <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700">
-      {safeMissing} missing
+    <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+      Chưa mở Bài tập
     </Badge>
   );
 }
-

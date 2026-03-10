@@ -126,9 +126,19 @@ export default function HomeworkProgressPage() {
         const selectedProgress = dailyProgress.find((entry) => entry?.date === selectedDate);
         // missing === -1 means progress hasn't loaded yet
         const missing = student?.missing === -1 ? -1 : Number(selectedProgress?.missing || 0);
+        const pending = student?.pending === -1 ? -1 : Number(selectedProgress?.pending || 0);
+        const progressStatus = missing === -1 || pending === -1
+          ? '_loading'
+          : missing > 0
+            ? 'missing'
+            : pending > 0
+              ? 'not_submitted'
+              : 'on_time';
         return {
           ...student,
           missing,
+          pending,
+          progressStatus,
           overallStatus: student?.overallStatus || 'on_track',
         };
       }),
@@ -141,9 +151,10 @@ export default function HomeworkProgressPage() {
         if (search && !String(student?.name || '').toLowerCase().includes(search.toLowerCase())) return false;
         if (levelFilter !== 'all' && String(student?.level || '') !== levelFilter) return false;
         // When progress is still loading, skip progress-based filters
-        if (student.missing !== -1) {
-          if (progressFilter === 'ontime' && student.missing > 0) return false;
-          if (progressFilter === 'missing' && student.missing === 0) return false;
+        if (student.progressStatus !== '_loading') {
+          if (progressFilter === 'ontime' && student.progressStatus !== 'on_time') return false;
+          if (progressFilter === 'pending' && student.progressStatus !== 'not_submitted') return false;
+          if (progressFilter === 'missing' && student.progressStatus !== 'missing') return false;
         }
         return true;
       }),
@@ -157,7 +168,7 @@ export default function HomeworkProgressPage() {
       <Card className="border-border/70 shadow-sm">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl tracking-tight">Homework Progress</CardTitle>
-          <CardDescription>Track student completion and missing submissions by date.</CardDescription>
+          <CardDescription>Track on-time, pending, and missing submissions by date.</CardDescription>
         </CardHeader>
       </Card>
 
@@ -192,6 +203,7 @@ export default function HomeworkProgressPage() {
               <SelectContent>
                 <SelectItem value="all">All Progress</SelectItem>
                 <SelectItem value="ontime">On time</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
                 <SelectItem value="missing">Missing</SelectItem>
               </SelectContent>
             </Select>
@@ -224,7 +236,7 @@ export default function HomeworkProgressPage() {
               <>
                 <span className="text-border">|</span>
                 <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
-                <span className="text-xs">Loading progress…</span>
+                <span className="text-xs">Loading progress...</span>
               </>
             ) : null}
           </div>
@@ -279,14 +291,14 @@ export default function HomeworkProgressPage() {
                     <TableRow className="bg-muted/30">
                       <TableHead>Student Name</TableHead>
                       <TableHead>Level</TableHead>
-                      <TableHead>Overall Status</TableHead>
-                      <TableHead>Daily Progress</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Homework Progress</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredStudents.map((student) => {
-                      const isProgressPending = student.overallStatus === '_loading';
+                      const isProgressPending = student.progressStatus === '_loading';
                       return (
                         <TableRow key={student.id}>
                           <TableCell className="font-medium">{student.name}</TableCell>
@@ -299,7 +311,7 @@ export default function HomeworkProgressPage() {
                             {isProgressPending ? <CellSkeleton /> : <StatusBadge status={student.overallStatus} />}
                           </TableCell>
                           <TableCell>
-                            {isProgressPending ? <CellSkeleton /> : <DailyProgressBadge missing={student.missing} />}
+                            {isProgressPending ? <CellSkeleton /> : <DailyProgressBadge missing={student.missing} pending={student.pending} />}
                           </TableCell>
                           <TableCell className="text-right">
                             <Button
@@ -324,7 +336,7 @@ export default function HomeworkProgressPage() {
               {/* Mobile cards */}
               <div className="space-y-3 md:hidden">
                 {filteredStudents.map((student) => {
-                  const isProgressPending = student.overallStatus === '_loading';
+                  const isProgressPending = student.progressStatus === '_loading';
                   return (
                     <Card key={student.id} className="border-border/70 shadow-sm">
                       <CardContent className="space-y-3 p-4">
@@ -356,7 +368,7 @@ export default function HomeworkProgressPage() {
                           ) : (
                             <>
                               <StatusBadge status={student.overallStatus} />
-                              <DailyProgressBadge missing={student.missing} />
+                              <DailyProgressBadge missing={student.missing} pending={student.pending} />
                             </>
                           )}
                         </div>

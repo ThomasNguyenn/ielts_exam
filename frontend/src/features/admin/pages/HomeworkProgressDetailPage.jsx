@@ -217,7 +217,7 @@ export default function HomeworkProgressDetailPage() {
                 className="flex items-center justify-between rounded-lg border border-border/70 px-3 py-2"
               >
                 <p className="text-sm font-medium">{toDateLabel(entry.date)}</p>
-                <DailyProgressBadge missing={entry.missing} />
+                <DailyProgressBadge missing={entry.missing} pending={entry.pending} />
               </div>
             ))
           ) : (
@@ -265,7 +265,8 @@ export default function HomeworkProgressDetailPage() {
                         const submissionTiming = String(taskSub?.submission_timing || '').toLowerCase();
                         const isLateSubmission = Boolean(taskSub?.is_late) || submissionTiming === 'late';
                         const doneCount = Number(taskSub?.done_count || 0);
-                        const isSubmitted = doneCount > 0;
+                        const hasSubmissionTiming = submissionTiming === 'on_time' || submissionTiming === 'late';
+                        const isSubmitted = hasSubmissionTiming || Boolean(taskSub?.submitted_at) || Boolean(taskSub?.homework_submission_id);
                         const isGraded =
                           Boolean(taskSub?.graded_at)
                           || (taskSub?.score !== null && taskSub?.score !== undefined && taskStatus === 'completed');

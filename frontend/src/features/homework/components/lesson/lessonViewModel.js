@@ -2,14 +2,14 @@
 import { resolveInternalBlockData, resolveInternalSlotKeyFromBlock } from "./blocks/blockUtils";
 
 const FALLBACK_CHECKLIST = [
-  "Äá»c ká»¹ hÆ°á»›ng dáº«n vÃ  ghi chÃº cÃ¡c Ä‘iá»ƒm quan trá»ng.",
-  "HoÃ n thÃ nh toÃ n bá»™ ná»™i dung trÆ°á»›c khi ná»™p bÃ i.",
-  "Kiá»ƒm tra láº¡i Ä‘Ã¡p Ã¡n vÃ  tá»‡p Ä‘Ã­nh kÃ¨m trÆ°á»›c khi gá»­i.",
+  "Đọc kỹ hướng dẫn và ghi chú các điểm quan trọng.",
+  "Hoàn thành toàn bộ nội dung trước khi nộp bài.",
+  "Kiểm tra lại đáp án và tệp đính kèm trước khi gửi.",
 ];
 
 const cleanChecklistLine = (value = "") =>
   String(value || "")
-    .replace(/^\s*(?:[-*â€¢]|\d+[.)])\s*/, "")
+    .replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "")
     .replace(/\s+/g, " ")
     .trim();
 
@@ -76,10 +76,10 @@ export const buildMissionResources = ({ taskBlocks, taskId, getBlockKey }) => {
           block,
           blockType,
           anchorId: buildLessonBlockAnchorId({ taskId, blockKey }),
-          title: `Äoáº¡n Ä‘á»c ${passageCounter.value}`,
-          subtitle: "Äá»c Ä‘oáº¡n vÄƒn vÃ  hoÃ n thÃ nh cÃ¢u há»i liÃªn quan.",
-          tag: "Báº¯t buá»™c",
-          actionLabel: "Má»Ÿ Ä‘oáº¡n Ä‘á»c",
+          title: `Đoạn đọc ${passageCounter.value}`,
+          subtitle: "Đọc đoạn văn và hoàn thành câu hỏi liên quan.",
+          tag: "Bắt buộc",
+          actionLabel: "Mở đoạn đọc",
         };
       }
 
@@ -92,12 +92,12 @@ export const buildMissionResources = ({ taskBlocks, taskId, getBlockKey }) => {
           block,
           blockType,
           anchorId: buildLessonBlockAnchorId({ taskId, blockKey }),
-          title: isImage ? `TÃ i liá»‡u áº£nh ${videoCounter.value}` : `Video ${videoCounter.value}`,
+          title: isImage ? `Tài liệu ảnh ${videoCounter.value}` : `Video ${videoCounter.value}`,
           subtitle: isImage
-            ? "Má»Ÿ hÃ¬nh áº£nh tham kháº£o trÆ°á»›c khi ná»™p bÃ i."
-            : "Xem video hÆ°á»›ng dáº«n trÆ°á»›c khi lÃ m bÃ i.",
-          tag: "TÃ i liá»‡u",
-          actionLabel: isImage ? "Má»Ÿ áº£nh" : "Má»Ÿ video",
+            ? "Mở hình ảnh tham khảo trước khi nộp bài."
+            : "Xem video hướng dẫn trước khi làm bài.",
+          tag: "Tài liệu",
+          actionLabel: isImage ? "Mở ảnh" : "Mở video",
         };
       }
 
@@ -111,9 +111,9 @@ export const buildMissionResources = ({ taskBlocks, taskId, getBlockKey }) => {
         block,
         blockType,
         anchorId: buildLessonBlockAnchorId({ taskId, blockKey }),
-        title: refType ? `${refType} ${internalCounter.value}` : `TÃ i nguyÃªn ná»™i bá»™ ${internalCounter.value}`,
-        subtitle: refId ? `ID: ${refId}` : "Má»Ÿ ná»™i dung ná»™i bá»™ Ä‘Æ°á»£c gÃ¡n cho bÃ i há»c.",
-        tag: "Báº¯t buá»™c",
+        title: refType ? `${refType} ${internalCounter.value}` : `Tài nguyên nội bộ ${internalCounter.value}`,
+        subtitle: refId ? `ID: ${refId}` : "Mở nội dung nội bộ được gắn cho bài học.",
+        tag: "Bắt buộc",
         actionLabel: "Launch Resource",
         resourceRefType: refType,
         resourceRefId: refId,

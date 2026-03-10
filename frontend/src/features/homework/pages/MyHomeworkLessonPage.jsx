@@ -34,6 +34,7 @@ import {
   resolveTaskInputType,
 } from "./myHomeworkStudentUtils";
 import { useHomeworkAssignmentDetail } from "./useHomeworkAssignmentDetail";
+import { resolveHomeworkDueBoundary } from "@/shared/utils/homeworkDueDate";
 
 const countWords = (value = "") => {
   const matches = String(value || "").trim().match(/\S+/g);
@@ -179,11 +180,7 @@ export default function MyHomeworkLessonPage() {
   const draft = drafts[selectedTaskId] || createDraft(submission);
 
   const effectiveTaskDueAt = useMemo(() => {
-    const dueValue = selectedTask?.due_date || assignment?.due_date || null;
-    if (!dueValue) return null;
-    const dueDate = new Date(dueValue);
-    if (Number.isNaN(dueDate.getTime())) return null;
-    return dueDate;
+    return resolveHomeworkDueBoundary(selectedTask?.due_date || assignment?.due_date || null);
   }, [assignment?.due_date, selectedTask?.due_date]);
 
   const isDeadlinePassed = useMemo(() => {

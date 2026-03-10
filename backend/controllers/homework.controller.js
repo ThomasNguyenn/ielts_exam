@@ -43,10 +43,19 @@ import { calculateIELTSBand } from "../utils/ieltsUtils.js";
 
 
 const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
+const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+const DATE_PREFIX_PATTERN = /^(\d{4})-(\d{2})-(\d{2})(?:$|[T\s])/;
+const LEGACY_MIDNIGHT_UTC_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T00:00(?::00(?:\.0{1,3})?)?(?:Z|[+-]00:00)$/i;
 const TASK_RESOURCE_MODES_SET = new Set(TASK_RESOURCE_MODES);
 const TASK_RESOURCE_REF_TYPES_SET = new Set(["passage", "section", "speaking", "writing", "test"]);
 const CONTENT_BLOCK_TYPES_SET = new Set(CONTENT_BLOCK_TYPES);
 const MATCH_COLOR_TOKENS = ["emerald", "sky", "amber", "fuchsia", "teal", "rose", "indigo", "lime"];
+const DEFAULT_HOMEWORK_DUE_TZ_OFFSET_MINUTES = 7 * 60;
+const HOMEWORK_DUE_TZ_OFFSET_MINUTES = (() => {
+  const parsed = Number.parseInt(String(process.env.HOMEWORK_DUE_TZ_OFFSET_MINUTES || ""), 10);
+  if (!Number.isFinite(parsed)) return DEFAULT_HOMEWORK_DUE_TZ_OFFSET_MINUTES;
+  return Math.max(-14 * 60, Math.min(14 * 60, parsed));
+})();
 
 const HOMEWORK_IMAGE_MAX_BYTES = getHomeworkImageUploadLimitBytes();
 const HOMEWORK_IMAGE_MAX_FILES = getHomeworkImageMaxFiles();
@@ -225,9 +234,111 @@ const toBoolean = (value, fallback = false) => {
   return fallback;
 };
 
+const toNumber = (value) => Number.parseInt(String(value || ""), 10);
+
+const isValidDateParts = (year, month, day) => {
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return false;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year
+    && date.getUTCMonth() === month - 1
+    && date.getUTCDate() === day
+  );
+};
+
+const buildDateAtDueTimezone = ({
+  year,
+  month,
+  day,
+  hours = 0,
+  minutes = 0,
+  seconds = 0,
+  milliseconds = 0,
+}) => {
+  if (!isValidDateParts(year, month, day)) return null;
+  const utcMs = Date.UTC(
+    year,
+    month - 1,
+    day,
+    hours,
+    minutes,
+    seconds,
+    milliseconds,
+  ) - HOMEWORK_DUE_TZ_OFFSET_MINUTES * 60 * 1000;
+  const nextDate = new Date(utcMs);
+  return Number.isNaN(nextDate.getTime()) ? null : nextDate;
+};
+
 const parseDateOrNull = (value) => {
   if (!value) return null;
-  const date = new Date(value);
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  const normalized = String(value || "").trim();
+  if (!normalized) return null;
+
+  const dateOnlyMatch = normalized.match(DATE_ONLY_PATTERN);
+  if (dateOnlyMatch) {
+    return buildDateAtDueTimezone({
+      year: toNumber(dateOnlyMatch[1]),
+      month: toNumber(dateOnlyMatch[2]),
+      day: toNumber(dateOnlyMatch[3]),
+      hours: 23,
+      minutes: 59,
+      seconds: 59,
+      milliseconds: 999,
+    });
+  }
+
+  const legacyMidnightMatch = normalized.match(LEGACY_MIDNIGHT_UTC_PATTERN);
+  if (legacyMidnightMatch) {
+    return buildDateAtDueTimezone({
+      year: toNumber(legacyMidnightMatch[1]),
+      month: toNumber(legacyMidnightMatch[2]),
+      day: toNumber(legacyMidnightMatch[3]),
+      hours: 23,
+      minutes: 59,
+      seconds: 59,
+      milliseconds: 999,
+    });
+  }
+
+  const datePrefixMatch = normalized.match(DATE_PREFIX_PATTERN);
+  const datePrefixParts = datePrefixMatch
+    ? {
+      year: toNumber(datePrefixMatch[1]),
+      month: toNumber(datePrefixMatch[2]),
+      day: toNumber(datePrefixMatch[3]),
+    }
+    : null;
+
+  const date = new Date(normalized);
+  if (datePrefixParts && isValidDateParts(datePrefixParts.year, datePrefixParts.month, datePrefixParts.day)) {
+    const literalDayKey = `${datePrefixParts.year}-${String(datePrefixParts.month).padStart(2, "0")}-${String(datePrefixParts.day).padStart(2, "0")}`;
+    if (Number.isNaN(date.getTime())) {
+      return buildDateAtDueTimezone({
+        ...datePrefixParts,
+        hours: 23,
+        minutes: 59,
+        seconds: 59,
+        milliseconds: 999,
+      });
+    }
+
+    const shifted = new Date(date.getTime() + HOMEWORK_DUE_TZ_OFFSET_MINUTES * 60 * 1000);
+    const parsedDayKey = `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, "0")}-${String(shifted.getUTCDate()).padStart(2, "0")}`;
+    if (parsedDayKey !== literalDayKey) {
+      return buildDateAtDueTimezone({
+        ...datePrefixParts,
+        hours: 23,
+        minutes: 59,
+        seconds: 59,
+        milliseconds: 999,
+      });
+    }
+  }
+
   if (Number.isNaN(date.getTime())) return null;
   return date;
 };

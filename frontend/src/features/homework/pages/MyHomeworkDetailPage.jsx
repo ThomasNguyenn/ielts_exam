@@ -18,6 +18,7 @@ import {
 } from "@/features/homework/components/detail";
 import { formatDate } from "./homework.utils";
 import { useHomeworkAssignmentDetail } from "./useHomeworkAssignmentDetail";
+import { resolveHomeworkDueBoundary } from "@/shared/utils/homeworkDueDate";
 
 const PAGE_WRAPPER_CLASS =
   "min-h-screen bg-[radial-gradient(circle_at_top,_#ffffff,_#eefbf3_30%,_#f5f7fb_70%)] text-slate-900";
@@ -58,7 +59,7 @@ export default function MyHomeworkDetailPage() {
   );
 
   const isDeadlinePassed = useMemo(() => {
-    const due = assignment?.due_date ? new Date(assignment.due_date) : null;
+    const due = resolveHomeworkDueBoundary(assignment?.due_date || null);
     if (!due || Number.isNaN(due.getTime())) return false;
     return Date.now() > due.getTime();
   }, [assignment?.due_date]);

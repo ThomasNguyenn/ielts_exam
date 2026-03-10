@@ -1,11 +1,17 @@
 import { api } from '@/shared/api/client';
+import {
+  getHomeworkTodayDayKey,
+  resolveHomeworkDayEndTimestamp,
+  resolveHomeworkDueCutoffTimestamp,
+  resolveHomeworkDueDayKey,
+} from '@/shared/utils/homeworkDueDate';
 
 const MAX_FETCH_PAGES = 50;
 const USER_FETCH_LIMIT = 100;
 const ASSIGNMENT_FETCH_LIMIT = 50;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-export const TODAY = new Date().toISOString().slice(0, 10);
+export const TODAY = getHomeworkTodayDayKey() || new Date().toISOString().slice(0, 10);
 
 const toIsoDay = (value) => {
   const normalized = String(value || '').trim();
@@ -13,6 +19,26 @@ const toIsoDay = (value) => {
   const date = new Date(normalized);
   if (Number.isNaN(date.getTime())) return '';
   return date.toISOString().slice(0, 10);
+};
+
+const toLocalIsoDay = (value) => {
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return '';
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  const normalized = String(value || '').trim();
+  if (!normalized) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return normalized;
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 
 const shiftMonthValue = (monthValue, offset = 0) => {
@@ -73,6 +99,7 @@ const toBaseStudent = (user) => ({
   dailyProgress: [],
   assignments: [],
   missing: 0,
+  pending: 0,
   hasMissing: false,
   hasPendingReview: false,
 });
@@ -123,10 +150,14 @@ const fetchAllPublishedAssignmentsForMonth = async (monthValue) => {
   return rows;
 };
 
-const toUtcDayStart = (value = new Date()) =>
-  new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
+const toLocalDayStart = (value = new Date()) =>
+  new Date(value.getFullYear(), value.getMonth(), value.getDate());
 
-const addUtcDays = (date, days) => new Date(date.getTime() + (Number(days) || 0) * MS_PER_DAY);
+const addLocalDays = (date, days) => {
+  const next = new Date(date);
+  next.setDate(next.getDate() + (Number(days) || 0));
+  return next;
+};
 
 const toTimestamp = (value) => {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -137,20 +168,23 @@ const toTimestamp = (value) => {
 };
 
 const toDayEndTimestamp = (isoDay) => {
-  const normalized = String(isoDay || '').trim();
-  if (!normalized) return null;
-  const start = toTimestamp(`${normalized}T00:00:00.000Z`);
-  if (start === null) return null;
-  return start + MS_PER_DAY - 1;
+  return resolveHomeworkDayEndTimestamp(isoDay);
 };
 
-const resolveTaskSubmissionTiming = ({ task = {}, metrics = null, dueAt = null } = {}) => {
-  const safeMetrics = metrics || resolveTaskGroupMetrics(task);
-  const doneCount = Number(safeMetrics?.doneCount || 0);
-  const hasSubmission = doneCount > 0;
+const resolveEffectiveDueAt = (taskDueAt, assignmentDueAt) => {
+  const taskDueTs = resolveHomeworkDueCutoffTimestamp(taskDueAt);
+  const assignmentDueTs = resolveHomeworkDueCutoffTimestamp(assignmentDueAt);
+  if (taskDueTs === null) return assignmentDueAt || taskDueAt || null;
+  if (assignmentDueTs === null) return taskDueAt || assignmentDueAt || null;
+  return assignmentDueTs < taskDueTs ? assignmentDueAt : taskDueAt;
+};
+
+const resolveTaskSubmissionTiming = ({ task = {}, dueAt = null } = {}) => {
+  const submissionId = String(task?.submission_id || task?.homework_submission_id || '').trim();
   const submittedAtTs = toTimestamp(task?.submitted_at);
-  const dueTs = toTimestamp(dueAt);
-  const dueDay = toIsoDay(dueAt);
+  const hasSubmission = Boolean(submissionId) || submittedAtTs !== null;
+  const dueTs = resolveHomeworkDueCutoffTimestamp(dueAt);
+  const dueDay = resolveHomeworkDueDayKey(dueAt) || toIsoDay(dueAt);
   const isLate = hasSubmission && dueTs !== null && submittedAtTs !== null && submittedAtTs > dueTs;
   const isOnTime = hasSubmission && !isLate;
 
@@ -234,9 +268,12 @@ const formatJoinedAgo = (createdAt) => {
 
 const buildRangeDays = (rangeDaysInput = 7) => {
   const safeRangeDays = Number(rangeDaysInput) === 30 ? 30 : 7;
-  const end = toUtcDayStart(new Date());
-  const start = addUtcDays(end, -(safeRangeDays - 1));
-  const days = Array.from({ length: safeRangeDays }, (_, index) => toIsoDay(addUtcDays(start, index)));
+  const end = toLocalDayStart(new Date());
+  const start = addLocalDays(end, -(safeRangeDays - 1));
+  const days = Array.from(
+    { length: safeRangeDays },
+    (_, index) => toLocalIsoDay(addLocalDays(start, index)),
+  );
   return {
     safeRangeDays,
     days,
@@ -298,6 +335,7 @@ export const loadHomeroomStudentsQuick = async () => {
       name: String(student?.name || 'Unnamed student'),
       level: normalizeStudentLevel(student?.role),
       missing: -1, // sentinel: progress not loaded yet
+      pending: -1,
       dailyProgress: [],
       assignments: [],
       overallStatus: '_loading',
@@ -370,12 +408,12 @@ export const loadHomeroomHomeworkProgress = async ({ selectedDate = TODAY } = {}
       if (!taskId) return;
       taskMetaMap.set(taskId, {
         title: String(task?.title || task?.type || 'Task').trim(),
-        due_date: toIsoDay(task?.due_date) || null,
+        due_date: resolveHomeworkDueDayKey(task?.due_date) || toIsoDay(task?.due_date) || null,
         due_at: task?.due_date || null,
       });
     });
     const assignmentDueAt = dashboardData?.assignment?.due_date || assignment?.due_date || null;
-    const assignmentDueDay = toIsoDay(assignmentDueAt) || null;
+    const assignmentDueDay = resolveHomeworkDueDayKey(assignmentDueAt) || toIsoDay(assignmentDueAt) || null;
 
     dashboardStudents.forEach((dashboardStudent) => {
       const studentId = String(dashboardStudent?._id || '').trim();
@@ -393,6 +431,7 @@ export const loadHomeroomHomeworkProgress = async ({ selectedDate = TODAY } = {}
       let gradedTaskGroups = 0;
       let pendingReviewTaskGroups = 0;
       let missingTaskGroups = 0;
+      let pendingTaskGroups = 0;
       const taskSubmissions = [];
       let assignmentDoneCount = 0;
       let assignmentTotalCount = 0;
@@ -403,8 +442,12 @@ export const loadHomeroomHomeworkProgress = async ({ selectedDate = TODAY } = {}
         const taskId = String(task?.task_id || '').trim();
         const taskSlotId = String(task?.task_slot_id || '').trim();
         const meta = taskMetaMap.get(taskId) || {};
-        const taskDueAt = task?.task_due_date || meta.due_at || assignmentDueAt;
-        const taskDueDay = toIsoDay(taskDueAt) || meta.due_date || assignmentDueDay;
+        const taskDueAtRaw = task?.task_due_date || meta.due_at || assignmentDueAt;
+        const taskDueAt = resolveEffectiveDueAt(taskDueAtRaw, assignmentDueAt);
+        const taskDueDay =
+          resolveHomeworkDueDayKey(taskDueAt)
+          || meta.due_date
+          || assignmentDueDay;
         const taskTiming = resolveTaskSubmissionTiming({
           task,
           metrics,
@@ -413,6 +456,8 @@ export const loadHomeroomHomeworkProgress = async ({ selectedDate = TODAY } = {}
         const isDeadlinePassedOnSelectedDate = taskTiming.dueTs !== null
           ? (selectedDateDayEndTs !== null ? taskTiming.dueTs <= selectedDateDayEndTs : false)
           : true;
+        const isMissingByRule = !taskTiming.hasSubmission && isDeadlinePassedOnSelectedDate;
+        const isPendingByRule = !taskTiming.hasSubmission && !isDeadlinePassedOnSelectedDate;
 
         assignmentDoneCount += metrics.doneCount;
         assignmentTotalCount += metrics.totalCount;
@@ -421,9 +466,8 @@ export const loadHomeroomHomeworkProgress = async ({ selectedDate = TODAY } = {}
         if (metrics.isCompleted) completedTaskGroups += 1;
         if (metrics.isGraded) gradedTaskGroups += 1;
         if (metrics.isStarted && !metrics.isGraded) pendingReviewTaskGroups += 1;
-        if (isDeadlinePassedOnSelectedDate && !taskTiming.isOnTime) {
-          missingTaskGroups += 1;
-        }
+        if (isMissingByRule) missingTaskGroups += 1;
+        if (isPendingByRule) pendingTaskGroups += 1;
         if (taskDueDay) dateSet.add(taskDueDay);
 
         const submissionIdRaw = task?.submission_id || task?.homework_submission_id || null;
@@ -441,11 +485,17 @@ export const loadHomeroomHomeworkProgress = async ({ selectedDate = TODAY } = {}
           group_id: String(task?.group_id || '').trim() || null,
           done_count: metrics.doneCount,
           total_count: metrics.totalCount,
-          submission_timing: taskTiming.hasSubmission
-            ? (taskTiming.isLate ? 'late' : 'on_time')
-            : 'missing',
+          submission_timing: taskTiming.isOnTime
+            ? 'on_time'
+            : taskTiming.isLate
+              ? 'late'
+              : isMissingByRule
+                ? 'missing'
+                : 'not_submitted',
           is_late: taskTiming.isLate,
           is_on_time: taskTiming.isOnTime,
+          is_missing: isMissingByRule,
+          is_not_submitted: isPendingByRule,
           internal_items: Array.isArray(task?.internal_items) ? task.internal_items : [],
         });
       });
@@ -480,6 +530,7 @@ export const loadHomeroomHomeworkProgress = async ({ selectedDate = TODAY } = {}
         taskSubmissions,
       });
       target.missing += missingTaskGroups;
+      target.pending += pendingTaskGroups;
       if (missingTaskGroups > 0) target.hasMissing = true;
       const hasPending = pendingReviewTaskGroups > 0;
       if (hasPending) target.hasPendingReview = true;
@@ -498,7 +549,12 @@ export const loadHomeroomHomeworkProgress = async ({ selectedDate = TODAY } = {}
         name: student.name,
         level: student.level,
         missing: student.missing,
-        dailyProgress: [{ date: normalizedSelectedDate || TODAY, missing: student.missing }],
+        pending: student.pending,
+        dailyProgress: [{
+          date: normalizedSelectedDate || TODAY,
+          missing: student.missing,
+          pending: student.pending,
+        }],
         assignments: student.assignments,
         overallStatus,
       };
@@ -517,6 +573,7 @@ export const loadStaffDashboardData = async ({ rangeDays = 7, scope = 'homeroom'
   const currentUser = api.getUser();
   const currentUserId = String(currentUser?._id || '').trim();
   const isAdminUser = String(currentUser?.role || '').toLowerCase() === 'admin';
+  const localToday = TODAY;
 
   const { safeRangeDays, days, daySet, startDay, endDay } = buildRangeDays(rangeDays);
   const emptyData = createEmptyStaffDashboardData(safeRangeDays);
@@ -541,7 +598,7 @@ export const loadStaffDashboardData = async ({ rangeDays = 7, scope = 'homeroom'
       id,
       name: String(student?.name || 'Unnamed student'),
       level: normalizeStudentLevel(student?.role),
-      joinedAtIso: toIsoDay(student?.createdAt),
+      joinedAtIso: toLocalIsoDay(student?.createdAt),
       joinedAt: formatJoinedAgo(student?.createdAt),
       assignments: [],
       totalMissing: 0,
@@ -558,7 +615,7 @@ export const loadStaffDashboardData = async ({ rangeDays = 7, scope = 'homeroom'
   const monthKeys = Array.from(new Set(days.map((day) => String(day).slice(0, 7)).filter(Boolean)));
   const publishedAssignments = await fetchPublishedAssignmentsByMonths(expandMonthKeys(monthKeys));
 
-  const dayTotals = new Map(days.map((day) => [day, { submitted: 0, total: 0 }]));
+  const daySubmittedStudents = new Map(days.map((day) => [day, new Set()]));
   const eventRows = [];
 
   let totalSlots = 0;
@@ -570,7 +627,7 @@ export const loadStaffDashboardData = async ({ rangeDays = 7, scope = 'homeroom'
     .filter((assignment) => String(assignment?._id || '').trim())
     .map(async (assignment) => {
       const assignmentId = String(assignment._id).trim();
-      const dueDay = toIsoDay(assignment?.due_date);
+      const dueDay = resolveHomeworkDueDayKey(assignment?.due_date) || toLocalIsoDay(assignment?.due_date);
       const dashboardResponse = await api.homeworkGetAssignmentDashboard(assignmentId);
       return { assignmentId, assignment, dueDay, dashboardData: dashboardResponse?.data || {} };
     });
@@ -607,12 +664,13 @@ export const loadStaffDashboardData = async ({ rangeDays = 7, scope = 'homeroom'
       tasks.forEach((task) => {
         const metrics = resolveTaskGroupMetrics(task);
         const submittedAtTs = toTimestamp(task?.submitted_at);
-        const submittedAtDay = toIsoDay(task?.submitted_at);
+        const submittedAtDay = toLocalIsoDay(task?.submitted_at);
         const submittedInRange = submittedAtTs !== null && submittedAtDay && daySet.has(submittedAtDay);
         const submissionIdRaw = task?.submission_id || task?.homework_submission_id || '';
         const submissionId = String(submissionIdRaw || '').trim();
-        const taskDueAt = task?.task_due_date || assignmentDueAt;
-        const taskDueDay = toIsoDay(taskDueAt) || dueDay;
+        const taskDueAtRaw = task?.task_due_date || assignmentDueAt;
+        const taskDueAt = resolveEffectiveDueAt(taskDueAtRaw, assignmentDueAt);
+        const taskDueDay = resolveHomeworkDueDayKey(taskDueAt) || dueDay;
         const taskDueInRange = Boolean(taskDueDay && daySet.has(taskDueDay));
         const taskTiming = resolveTaskSubmissionTiming({
           task,
@@ -623,18 +681,17 @@ export const loadStaffDashboardData = async ({ rangeDays = 7, scope = 'homeroom'
         if (taskDueInRange) {
           hasDueInRange = true;
           const onTimeDoneCount = taskTiming.isOnTime ? metrics.doneCount : 0;
-          const isPastDue = taskDueDay ? taskDueDay <= TODAY : true;
+          const isPastDue = taskDueDay ? taskDueDay <= localToday : true;
 
           totalUnits += metrics.totalCount;
           doneUnits += onTimeDoneCount;
           if (metrics.isStarted && !metrics.isGraded) pendingReviewUnits += metrics.doneCount;
           if (isPastDue && !taskTiming.isOnTime) missingGroups += 1;
+        }
 
-          const dayBucket = dayTotals.get(taskDueDay);
-          if (dayBucket) {
-            dayBucket.submitted += onTimeDoneCount;
-            dayBucket.total += metrics.totalCount;
-          }
+        if (submittedInRange && taskTiming.hasSubmission) {
+          const submittedStudents = daySubmittedStudents.get(submittedAtDay);
+          if (submittedStudents) submittedStudents.add(studentId);
         }
 
         if (submittedInRange) {
@@ -667,7 +724,7 @@ export const loadStaffDashboardData = async ({ rangeDays = 7, scope = 'homeroom'
         if (missingGroups > 0) targetStudent.hasMissing = true;
         if (pendingReviewUnits > 0) targetStudent.hasPendingReview = true;
 
-        if (dueDay === TODAY) {
+        if (dueDay === localToday) {
           targetStudent.todayMissingSlots += missingGroups;
           targetStudent.todayTotalSlots += totalUnits;
         }
@@ -707,18 +764,16 @@ export const loadStaffDashboardData = async ({ rangeDays = 7, scope = 'homeroom'
     }))
     .sort((left, right) => String(left.name).localeCompare(String(right.name)));
 
-  const startTs = toTimestamp(startDay);
-  const endTs = toTimestamp(endDay);
   const newStudents = students
     .filter((student) => {
-      const joinedTs = toTimestamp(student.joinedAtIso);
-      if (joinedTs === null || startTs === null || endTs === null) return false;
-      return joinedTs >= startTs && joinedTs <= endTs + MS_PER_DAY - 1;
+      const joinedDay = String(student.joinedAtIso || '').trim();
+      if (!joinedDay || !startDay || !endDay) return false;
+      return joinedDay >= startDay && joinedDay <= endDay;
     })
     .sort((left, right) => {
-      const leftTs = toTimestamp(left.joinedAtIso) || 0;
-      const rightTs = toTimestamp(right.joinedAtIso) || 0;
-      return rightTs - leftTs;
+      const leftDay = String(left.joinedAtIso || '').trim();
+      const rightDay = String(right.joinedAtIso || '').trim();
+      return rightDay.localeCompare(leftDay);
     })
     .slice(0, 4);
 
@@ -726,14 +781,14 @@ export const loadStaffDashboardData = async ({ rangeDays = 7, scope = 'homeroom'
     .filter((student) => student.todayTotalSlots > 0 && student.todayMissingSlots === 0)
     .slice(0, 8);
 
+  const totalStudents = Number(students.length || 0);
   const submissionStackedSeries = days.map((day) => {
-    const bucket = dayTotals.get(day) || { submitted: 0, total: 0 };
-    const submitted = Number(bucket.submitted || 0);
-    const total = Number(bucket.total || 0);
+    const submittedStudents = daySubmittedStudents.get(day);
+    const submitted = submittedStudents instanceof Set ? submittedStudents.size : 0;
     return {
       date: day,
       submitted,
-      notSubmitted: Math.max(0, total - submitted),
+      notSubmitted: Math.max(0, totalStudents - submitted),
     };
   });
 
