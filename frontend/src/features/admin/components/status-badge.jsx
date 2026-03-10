@@ -29,7 +29,7 @@ export function DailyProgressBadge({ missing, pending = 0 }) {
   if (safeMissing > 0) {
     return (
       <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700">
-        Bài thiếu {safeMissing}
+        Sắp hết hạn {safeMissing} bài
       </Badge>
     );
   }

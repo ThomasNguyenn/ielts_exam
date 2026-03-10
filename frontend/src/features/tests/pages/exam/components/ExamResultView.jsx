@@ -102,9 +102,9 @@ export default function ExamResultView({
 
         <div className="result-summary-card">
           <div className="result-card-header">
-            <h2>K?t qu? l‡m b‡i</h2>
+            <h2>K?t qu? l√†m b√†i</h2>
             <div className="time-taken-small">
-              <span>Th?i gian l‡m b‡i</span>
+              <span>Th?i gian l√†m b√†i</span>
               <strong>{timeTaken}</strong>
             </div>
           </div>
@@ -120,7 +120,7 @@ export default function ExamResultView({
               >
                 <div className="doughnut-inner">
                   <span className="doughnut-score">{safeScore}/{safeTotal}</span>
-                  <span className="doughnut-subtext">c‚u d˙ng</span>
+                  <span className="doughnut-subtext">c√¢u ƒë√∫ng</span>
                 </div>
               </div>
             </div>
@@ -128,18 +128,18 @@ export default function ExamResultView({
             <div className="stats-legend">
               <div className="legend-item">
                 <span className="dot dot-correct" />
-                <span className="label">–˙ng:</span>
-                <span className="value">{safeScore} c‚u</span>
+                <span className="label">ƒê√∫ng:</span>
+                <span className="value">{safeScore} c√¢u</span>
               </div>
               <div className="legend-item">
                 <span className="dot dot-wrong" />
                 <span className="label">Sai:</span>
-                <span className="value">{wrongCount} c‚u</span>
+                <span className="value">{wrongCount} c√¢u</span>
               </div>
               <div className="legend-item">
                 <span className="dot dot-skipped" />
                 <span className="label">B? qua:</span>
-                <span className="value">{skippedCount} c‚u</span>
+                <span className="value">{skippedCount} c√¢u</span>
               </div>
             </div>
           </div>
@@ -147,15 +147,15 @@ export default function ExamResultView({
           <div className="result-card-footer">
             {!exam.is_real_test ? (
               <button className="btn-orange-round" onClick={onEnterReview}>
-                Xem gi?i thÌch chi ti?t
+                Xem gi·∫£i th√≠ch chi ti·∫øt
               </button>
             ) : (
               <div className="real-test-notice" style={{ color: '#6366F1', fontWeight: 'bold', padding: '0.5rem 1rem', background: '#fff5f5', borderRadius: '8px', border: '1px solid #feb2b2' }}>
-                –‚y l‡ b‡i thi th?t - B?n khÙng th? xem chi ti?t d·p ·n.
+                ƒê√¢y l√† b√†i thi th·∫≠t - B·∫°n kh√¥ng th·ªÉ xem chi ti?t ƒë√°p √°n.
               </div>
             )}
             <Link to="/student-ielts/tests" className="btn-exit-result">
-              Tho·t k?t qu?
+              Tho√°t k·∫øt qu·∫£
             </Link>
           </div>
         </div>
@@ -174,9 +174,9 @@ export default function ExamResultView({
         <table className="stats-table">
           <thead>
             <tr>
-              <th>Lo?i c‚u h?i</th>
-              <th>S? c‚u h?i</th>
-              <th className="th-correct">–˙ng</th>
+              <th>Lo?i c√¢u h?i</th>
+              <th>S? c√¢u h?i</th>
+              <th className="th-correct">ƒê√∫ng</th>
               <th>Sai</th>
               <th>B? qua</th>
             </tr>

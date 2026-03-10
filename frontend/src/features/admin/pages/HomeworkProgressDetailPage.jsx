@@ -4,6 +4,9 @@ import { ArrowLeft, CalendarDays, CheckCircle2, ClipboardList, Clock, FileText, 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { sanitizeActiveUIRoleForUser } from '@/app/activeUIRole';
+import { USER_ROLE_SUPERVISOR } from '@/app/roleRouting';
+import { api } from '@/shared/api/client';
 import { TODAY, loadHomeroomHomeworkProgress } from '../data/homeworkProgress.data';
 import { DailyProgressBadge } from '../components/status-badge';
 
@@ -82,6 +85,8 @@ export default function HomeworkProgressDetailPage() {
   const navigate = useNavigate();
   const { studentId } = useParams();
   const location = useLocation();
+  const activeUIRole = sanitizeActiveUIRoleForUser(api.getUser(), '');
+  const isAllStudentsScope = activeUIRole === USER_ROLE_SUPERVISOR;
 
   const selectedDate = String(location?.state?.selectedDate || TODAY).slice(0, 10);
   const stateStudent = location?.state?.studentSnapshot || null;
@@ -142,7 +147,9 @@ export default function HomeworkProgressDetailPage() {
           <CardHeader>
             <CardTitle>Student not found</CardTitle>
             <CardDescription>
-              {error || 'This student is not in your homeroom scope for Homework Progress.'}
+              {error || (isAllStudentsScope
+                ? 'This student is not available in Homework Progress scope.'
+                : 'This student is not in your homeroom scope for Homework Progress.')}
             </CardDescription>
           </CardHeader>
           <CardContent>

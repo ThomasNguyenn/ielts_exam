@@ -167,6 +167,7 @@ export default function QuestionGroup({
 }) {
   const isMatchingType = MATCHING_GROUP_TYPES.has(group.type);
   const isMatchingInformationType = group.type === 'matching_information';
+  const supportsMatchingRangeGenerator = isMatchingInformationType || group.type === 'matching_headings';
   const isBooleanType = BOOLEAN_GROUP_TYPES.has(group.type);
   const isMultipleChoiceType = group.type === 'mult_choice';
   const isTableCompletionType = group.type === 'table_completion';
@@ -574,7 +575,7 @@ export default function QuestionGroup({
 
                 <div className='space-y-2'>
                   <Label>Headings / Labels</Label>
-                  {isMatchingInformationType ? (
+                  {supportsMatchingRangeGenerator ? (
                     <div className='space-y-2'>
                       <div className='flex flex-wrap items-center gap-2'>
                         <Input

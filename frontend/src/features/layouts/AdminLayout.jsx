@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   BookCheck,
@@ -47,6 +47,7 @@ import {
   SidebarRail,
   SidebarSeparator,
   SidebarTrigger,
+  useSidebar,
 } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
 import {
@@ -121,6 +122,7 @@ const SUPERVISOR_UI_ROLE_OPTIONS = [
 
 const isTabMatch = (pathname, to) => pathname === to || pathname.startsWith(`${to}/`);
 const isAdminPeoplePath = (pathname) => ADMIN_PEOPLE_SUB_ITEMS.some((item) => isTabMatch(pathname, item.to));
+const isHomeworkLessonEditorPath = (pathname) => /^\/homework\/assignments\/[^/]+\/lessons\/[^/]+$/.test(pathname);
 const toSafeText = (value) => String(value || '').trim();
 const resolveSidebarAvatar = (user) => {
   const avatarSeed = toSafeText(user?.avatarSeed);
@@ -272,6 +274,30 @@ const buildBreadcrumbItems = (pathname, overrides = {}) => {
   return crumbs;
 };
 
+function SidebarAutoCollapseOnLessonEditor({ pathname }) {
+  const { isMobile, setOpen, setOpenMobile } = useSidebar();
+  const lastAutoCollapsedPathRef = useRef('');
+
+  useEffect(() => {
+    if (!isHomeworkLessonEditorPath(pathname)) return;
+    if (lastAutoCollapsedPathRef.current === pathname) return;
+    lastAutoCollapsedPathRef.current = pathname;
+
+    if (isMobile) {
+      setOpenMobile(false);
+      return;
+    }
+    setOpen(false);
+  }, [pathname, isMobile, setOpen, setOpenMobile]);
+
+  useEffect(() => {
+    if (isHomeworkLessonEditorPath(pathname)) return;
+    lastAutoCollapsedPathRef.current = '';
+  }, [pathname]);
+
+  return null;
+}
+
 export default function AdminLayout() {
   const navigate = useNavigate();
   const pathname = useLocation().pathname;
@@ -330,7 +356,16 @@ export default function AdminLayout() {
     [pathname, breadcrumbOverrides],
   );
   const switcherRole = useMemo(() => {
-    if (isAdminUser) return ADMIN_SWITCHER_DEFAULT_VALUE;
+    if (isAdminUser) {
+      if (
+        selectedRole
+        && selectedRole !== USER_ROLE_ADMIN
+        && uiRoleOptions.some((option) => option.value === selectedRole)
+      ) {
+        return selectedRole;
+      }
+      return ADMIN_SWITCHER_DEFAULT_VALUE;
+    }
     if (uiRoleOptions.some((option) => option.value === selectedRole)) {
       return selectedRole;
     }
@@ -356,11 +391,15 @@ export default function AdminLayout() {
 
   useEffect(() => {
     if (isAdminUser) {
-      setActiveUIRole(USER_ROLE_ADMIN);
+      if (switcherRole === ADMIN_SWITCHER_DEFAULT_VALUE) {
+        setActiveUIRole(USER_ROLE_ADMIN);
+        return;
+      }
+      setActiveUIRole(sanitizeActiveUIRoleForUser(user, switcherRole));
       return;
     }
     setActiveUIRole(switcherRole);
-  }, [switcherRole]);
+  }, [isAdminUser, switcherRole, user]);
 
   useEffect(() => {
     if (pathname.startsWith('/admin/people')) {
@@ -403,6 +442,7 @@ export default function AdminLayout() {
 
   return (
     <SidebarProvider>
+      <SidebarAutoCollapseOnLessonEditor pathname={pathname} />
       <Sidebar className="admin-sidebar-shell" collapsible="icon">
         <SidebarHeader>
           <SidebarMenu>

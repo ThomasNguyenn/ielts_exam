@@ -76,7 +76,7 @@ Giao vien nhap:
 - `Question Text` cho tung dong can match (vd: Paragraph A/B/C)
 - `Correct Answer(s)`: co the nhap `id` hoac `text` (uu tien `id`)
 
-Rieng `matching_information`:
+Rieng `matching_information` va `matching_headings`:
 
 - Co nut `Generate from range`.
 - Nhap `A-G` hoac `I-VII` de tao nhanh danh sach:

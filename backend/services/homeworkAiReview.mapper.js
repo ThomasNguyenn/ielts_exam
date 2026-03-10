@@ -12,6 +12,7 @@ const MEDIA_KEY_BLOCKLIST = new Set([
 ]);
 
 const OBJECTIVE_BLOCK_TYPES = new Set(["quiz", "gapfill", "find_mistake", "matching"]);
+const IMAGE_EXTENSION_PATTERN = /\.(png|jpe?g|webp|gif|bmp|svg)(\?.*)?$/i;
 
 const normalizeText = (value = "") => String(value ?? "").trim();
 
@@ -532,6 +533,37 @@ const resolveEligibleAudioItem = (audioItem = null) => {
   };
 };
 
+const resolveEligibleImageItem = (imageItem = null) => {
+  const candidate = imageItem && typeof imageItem === "object" ? imageItem : null;
+  const url = normalizeText(candidate?.url);
+  if (!url) return null;
+
+  const mime = normalizeText(candidate?.mime).toLowerCase();
+  const isImageMime = mime.startsWith("image/");
+  const isImageByExtension = IMAGE_EXTENSION_PATTERN.test(url);
+  if (!isImageMime && !isImageByExtension) return null;
+
+  return {
+    url,
+    mime: isImageMime ? mime : "",
+    size: Number.isFinite(Number(candidate?.size)) ? Number(candidate.size) : null,
+  };
+};
+
+const resolveEligibleImageItems = (imageItems = []) => {
+  const seen = new Set();
+  const output = [];
+
+  (Array.isArray(imageItems) ? imageItems : []).forEach((item) => {
+    const normalized = resolveEligibleImageItem(item);
+    if (!normalized?.url || seen.has(normalized.url)) return;
+    seen.add(normalized.url);
+    output.push(normalized);
+  });
+
+  return output;
+};
+
 const createHttpError = (message, { statusCode = 400, code = "BAD_REQUEST" } = {}) => {
   const error = new Error(message);
   error.statusCode = statusCode;
@@ -589,6 +621,7 @@ export const buildHomeworkAiReviewPayload = ({ submission, assignment, student }
     promptBlocks: promptBlocks.filter((block) => OBJECTIVE_BLOCK_TYPES.has(normalizeBlockType(block?.type))),
   });
   const audioItem = resolveEligibleAudioItem(normalizedSubmission?.audio_item);
+  const imageItems = resolveEligibleImageItems(normalizedSubmission?.image_items);
 
   const studentAnswerSegments = [];
   if (studentTextAnswer) {
@@ -600,9 +633,19 @@ export const buildHomeworkAiReviewPayload = ({ submission, assignment, student }
   if (audioItem?.url) {
     studentAnswerSegments.push(`Audio submission URL:\n${audioItem.url}`);
   }
+  if (imageItems.length > 0) {
+    studentAnswerSegments.push(
+      `Image submission URLs:\n${imageItems.map((item, index) => `${index + 1}. ${item.url}`).join("\n")}`,
+    );
+  }
   const studentAnswerText = studentAnswerSegments.join("\n\n").trim();
 
-  const hasEligibleStudentContent = Boolean(studentTextAnswer || objectiveAnswerText || audioItem?.url);
+  const hasEligibleStudentContent = Boolean(
+    studentTextAnswer
+    || objectiveAnswerText
+    || audioItem?.url
+    || imageItems.length > 0,
+  );
   if (!hasEligibleStudentContent) {
     throw createHttpError("Submission has no AI-review-eligible content", {
       statusCode: 400,
@@ -625,10 +668,13 @@ export const buildHomeworkAiReviewPayload = ({ submission, assignment, student }
     objectiveAnswerText,
     objectiveAnswers,
     audioItem,
+    imageItems,
     meta: {
       has_student_text_answer: Boolean(studentTextAnswer),
       has_objective_answers: Boolean(objectiveAnswerText),
       has_audio_submission: Boolean(audioItem?.url),
+      has_image_submission: imageItems.length > 0,
+      image_submission_count: imageItems.length,
       objective_answer_count: countObjectiveAnswers(objectiveAnswers),
       prompt_block_count: promptBlocks.length,
       answer_block_count: answerBlocks.length,

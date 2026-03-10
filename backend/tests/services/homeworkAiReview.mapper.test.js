@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildHomeworkAiReviewPayload } from "../../services/homeworkAiReview.mapper.js";
 
 describe("homeworkAiReview.mapper", () => {
-  it("builds AI payload from backend data and excludes non-eligible media", () => {
+  it("builds AI payload from backend data and includes eligible image submissions", () => {
     const assignment = {
       _id: "assignment-1",
       title: "Weekly Homework",
@@ -91,8 +91,56 @@ describe("homeworkAiReview.mapper", () => {
     expect(payload.studentAnswerText).toContain("Student written answer");
     expect(payload.studentAnswerText).toContain("Quiz - Main idea?: Option B");
     expect(payload.studentAnswerText).toContain("https://example.com/audio.mp3");
-    expect(payload.studentAnswerText).not.toContain("https://example.com/image.jpg");
+    expect(payload.studentAnswerText).toContain("https://example.com/image.jpg");
+    expect(payload.imageItems).toHaveLength(1);
+    expect(payload.imageItems[0]?.url).toBe("https://example.com/image.jpg");
     expect(payload.meta.has_audio_submission).toBe(true);
+    expect(payload.meta.has_image_submission).toBe(true);
+    expect(payload.meta.image_submission_count).toBe(1);
+  });
+
+  it("builds AI payload when submission has image-only content", () => {
+    const assignment = {
+      _id: "assignment-1",
+      title: "Weekly Homework",
+      tasks: [
+        {
+          _id: "task-1",
+          title: "Task 1",
+          instruction: "Describe what you see",
+          content_blocks: [],
+        },
+      ],
+    };
+
+    const submission = {
+      _id: "submission-1",
+      assignment_id: "assignment-1",
+      task_id: "task-1",
+      student_id: "student-1",
+      text_answer: "",
+      image_items: [
+        {
+          url: "https://example.com/worksheet-photo.webp",
+          mime: "image/webp",
+        },
+      ],
+      audio_item: null,
+      meta: {},
+    };
+
+    const payload = buildHomeworkAiReviewPayload({
+      submission,
+      assignment,
+      student: { _id: "student-1", name: "Alice" },
+    });
+
+    expect(payload.studentAnswerText).toContain("Image submission URLs");
+    expect(payload.studentAnswerText).toContain("https://example.com/worksheet-photo.webp");
+    expect(payload.meta.has_student_text_answer).toBe(false);
+    expect(payload.meta.has_audio_submission).toBe(false);
+    expect(payload.meta.has_image_submission).toBe(true);
+    expect(payload.meta.image_submission_count).toBe(1);
   });
 
   it("throws BAD_REQUEST when submission has no eligible content", () => {
@@ -117,8 +165,8 @@ describe("homeworkAiReview.mapper", () => {
       text_answer: "",
       image_items: [
         {
-          url: "https://example.com/image.jpg",
-          mime: "image/jpeg",
+          url: "https://example.com/submission.mp4",
+          mime: "video/mp4",
         },
       ],
       audio_item: {

@@ -21,6 +21,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { sanitizeActiveUIRoleForUser } from '@/app/activeUIRole';
+import { USER_ROLE_SUPERVISOR } from '@/app/roleRouting';
+import { api } from '@/shared/api/client';
 import { TODAY, loadHomeroomHomeworkProgress, loadHomeroomStudentsQuick } from '../data/homeworkProgress.data';
 import { DailyProgressBadge, StatusBadge } from '../components/status-badge';
 
@@ -41,6 +44,8 @@ const CellSkeleton = () => <Skeleton className="h-5 w-20 rounded-full" />;
 
 export default function HomeworkProgressPage() {
   const navigate = useNavigate();
+  const activeUIRole = sanitizeActiveUIRoleForUser(api.getUser(), '');
+  const isAllStudentsScope = activeUIRole === USER_ROLE_SUPERVISOR;
   const [search, setSearch] = useState('');
   const [levelFilter, setLevelFilter] = useState('all');
   const [progressFilter, setProgressFilter] = useState('all');
@@ -202,9 +207,9 @@ export default function HomeworkProgressPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Progress</SelectItem>
-                <SelectItem value="ontime">On time</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="missing">Missing</SelectItem>
+                <SelectItem value="ontime">Chưa mở bài tập</SelectItem>
+                <SelectItem value="pending">Đang làm</SelectItem>
+                <SelectItem value="missing">Sắp hết hạn</SelectItem>
               </SelectContent>
             </Select>
 
@@ -267,9 +272,13 @@ export default function HomeworkProgressPage() {
           {!isInitialLoading && !error && students.length === 0 ? (
             <div className="rounded-lg border p-12 text-center">
               <Users className="mx-auto mb-3 size-10 text-muted-foreground" />
-              <p className="text-muted-foreground">No homeroom students yet</p>
+              <p className="text-muted-foreground">
+                {isAllStudentsScope ? 'No students yet' : 'No homeroom students yet'}
+              </p>
               <p className="mt-1 text-sm text-muted-foreground">
-                This teacher/admin does not have homeroom students assigned.
+                {isAllStudentsScope
+                  ? 'No student data is available in this scope yet.'
+                  : 'This teacher/admin does not have homeroom students assigned.'}
               </p>
             </div>
           ) : null}

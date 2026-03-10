@@ -94,9 +94,9 @@ export const formatTimeTaken = (start, end) => {
   const diffSecs = Math.floor((diffMs % 60000) / 1000);
 
   if (diffMins > 0) {
-    return `${diffMins} phút ${diffSecs} giây`;
+    return `${diffMins} phÃºt ${diffSecs} giÃ¢y`;
   }
-  return `${diffSecs} giây`;
+  return `${diffSecs} giÃ¢y`;
 };
 
 export const getTimeTakenLabel = ({ submitted, startTime }) => {

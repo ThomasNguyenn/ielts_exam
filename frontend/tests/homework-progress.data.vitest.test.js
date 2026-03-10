@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { loadHomeroomHomeworkProgress, loadStaffDashboardData, TODAY } from "../src/features/admin/data/homeworkProgress.data";
+import {
+  loadHomeroomHomeworkProgress,
+  loadHomeroomStudentsQuick,
+  loadStaffDashboardData,
+  TODAY,
+} from "../src/features/admin/data/homeworkProgress.data";
 
 const { mockApi } = vi.hoisted(() => ({
   mockApi: {
@@ -15,10 +20,12 @@ vi.mock("@/shared/api/client", () => ({
 }));
 
 const toIsoDateString = (day) => `${day}T00:00:00.000Z`;
+const ACTIVE_UI_ROLE_KEY = "activeUIRole";
 
 describe("homeworkProgress.data grouped task mapping", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.removeItem(ACTIVE_UI_ROLE_KEY);
 
     const selectedMonth = String(TODAY).slice(0, 7);
     const yesterday = new Date(`${TODAY}T00:00:00.000Z`);
@@ -285,9 +292,80 @@ describe("homeworkProgress.data grouped task mapping", () => {
     expect(task?.submission_timing).toBe("not_submitted");
   });
 
-  it("staff chart counts notSubmitted as total students minus students who submitted that day", async () => {
+  it("returns all students for supervisor active UI role and deduplicates merged student roles", async () => {
+    mockApi.getUser.mockReturnValue({
+      _id: "teacher-1",
+      role: "supervisor",
+    });
+    window.localStorage.setItem(ACTIVE_UI_ROLE_KEY, "supervisor");
+
+    mockApi.getUsers.mockImplementation(async ({ role }) => {
+      if (role === "student") {
+        return {
+          data: [
+            {
+              _id: "student-1",
+              name: "Alice",
+              role: "student",
+              homeroom_teacher_id: "teacher-2",
+            },
+          ],
+          pagination: { hasNextPage: false },
+        };
+      }
+      if (role === "studentIELTS") {
+        return {
+          data: [
+            {
+              _id: "student-2",
+              name: "Bob",
+              role: "studentIELTS",
+              homeroom_teacher_id: "teacher-3",
+            },
+            {
+              _id: "student-1",
+              name: "Alice",
+              role: "studentIELTS",
+              homeroom_teacher_id: "teacher-2",
+            },
+          ],
+          pagination: { hasNextPage: false },
+        };
+      }
+      if (role === "studentACA") {
+        return {
+          data: [
+            {
+              _id: "student-3",
+              name: "Chris",
+              role: "studentACA",
+              homeroom_teacher_id: "teacher-4",
+            },
+          ],
+          pagination: { hasNextPage: false },
+        };
+      }
+      return { data: [], pagination: { hasNextPage: false } };
+    });
+
+    const result = await loadHomeroomStudentsQuick();
+
+    expect(result).toHaveLength(3);
+    expect(result.map((student) => student.id).sort()).toEqual(["student-1", "student-2", "student-3"]);
+    expect(mockApi.getUsers).toHaveBeenCalledWith(expect.objectContaining({ role: "student" }));
+    expect(mockApi.getUsers).toHaveBeenCalledWith(expect.objectContaining({ role: "studentIELTS" }));
+    expect(mockApi.getUsers).toHaveBeenCalledWith(expect.objectContaining({ role: "studentACA" }));
+  });
+
+  it("keeps admin UI on homeroom scope unless StaffDashboard explicitly requests all", async () => {
     const selectedMonth = String(TODAY).slice(0, 7);
-    const assignmentId = "assignment-staff";
+    const assignmentId = "assignment-admin-scope";
+
+    mockApi.getUser.mockReturnValue({
+      _id: "teacher-1",
+      role: "admin",
+    });
+    window.localStorage.setItem(ACTIVE_UI_ROLE_KEY, "admin");
 
     mockApi.getUsers.mockResolvedValue({
       data: [
@@ -302,7 +380,111 @@ describe("homeworkProgress.data grouped task mapping", () => {
           _id: "student-2",
           name: "Bob",
           role: "student",
+          homeroom_teacher_id: "teacher-99",
+          createdAt: `${TODAY}T00:00:00.000Z`,
+        },
+      ],
+      pagination: { hasNextPage: false },
+    });
+
+    mockApi.homeworkGetAssignments.mockResolvedValue({
+      data: [
+        {
+          _id: assignmentId,
+          title: "Admin Scope Homework",
+          status: "published",
+          month: selectedMonth,
+          due_date: toIsoDateString(TODAY),
+        },
+      ],
+      pagination: { totalPages: 1 },
+    });
+
+    mockApi.homeworkGetAssignmentDashboard.mockResolvedValue({
+      data: {
+        assignment: {
+          _id: assignmentId,
+          title: "Admin Scope Homework",
+          month: selectedMonth,
+          due_date: toIsoDateString(TODAY),
+          tasks: [{ _id: "task-1", title: "Task 1", due_date: toIsoDateString(TODAY) }],
+        },
+        students: [
+          {
+            _id: "student-1",
+            tasks: [
+              {
+                task_id: "task-1",
+                task_title: "Task 1",
+                task_due_date: TODAY,
+                status: "completed",
+                done_count: 1,
+                total_count: 1,
+                group_id: "submission:sub-1",
+                submission_id: "sub-1",
+                homework_submission_id: "sub-1",
+                submitted_at: `${TODAY}T08:00:00.000Z`,
+                graded_at: null,
+                score: null,
+                internal_items: [],
+              },
+            ],
+          },
+          {
+            _id: "student-2",
+            tasks: [
+              {
+                task_id: "task-1",
+                task_title: "Task 1",
+                task_due_date: TODAY,
+                status: "not_started",
+                done_count: 0,
+                total_count: 1,
+                group_id: `virtual:${assignmentId}:student-2:task-1`,
+                submission_id: null,
+                homework_submission_id: null,
+                submitted_at: null,
+                graded_at: null,
+                score: null,
+                internal_items: [],
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const homeroomResult = await loadStaffDashboardData({ rangeDays: 7, scope: "homeroom" });
+    const allResult = await loadStaffDashboardData({ rangeDays: 7, scope: "all" });
+
+    expect(homeroomResult?.stats?.totalStudents).toBe(1);
+    expect(allResult?.stats?.totalStudents).toBe(2);
+  });
+
+  it("staff chart counts notSubmitted as total students minus students who submitted that day", async () => {
+    const selectedMonth = String(TODAY).slice(0, 7);
+    const assignmentId = "assignment-staff";
+
+    mockApi.getUser.mockReturnValue({
+      _id: "teacher-1",
+      role: "supervisor",
+    });
+    window.localStorage.setItem(ACTIVE_UI_ROLE_KEY, "supervisor");
+
+    mockApi.getUsers.mockResolvedValue({
+      data: [
+        {
+          _id: "student-1",
+          name: "Alice",
+          role: "student",
           homeroom_teacher_id: "teacher-1",
+          createdAt: `${TODAY}T00:00:00.000Z`,
+        },
+        {
+          _id: "student-2",
+          name: "Bob",
+          role: "student",
+          homeroom_teacher_id: "teacher-99",
           createdAt: `${TODAY}T00:00:00.000Z`,
         },
       ],

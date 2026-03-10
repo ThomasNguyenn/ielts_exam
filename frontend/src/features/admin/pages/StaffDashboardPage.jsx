@@ -20,7 +20,8 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { USER_ROLE_ADMIN, normalizeUserRole } from '@/app/roleRouting';
+import { sanitizeActiveUIRoleForUser } from '@/app/activeUIRole';
+import { USER_ROLE_ADMIN, USER_ROLE_SUPERVISOR } from '@/app/roleRouting';
 import { api } from '@/shared/api/client';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -122,15 +123,27 @@ const resolveSubmissionGradePath = (event = {}) => {
 export default function StaffDashboardPage() {
   const navigate = useNavigate();
   const user = api.getUser();
-  const isAdminUser = normalizeUserRole(user?.role) === USER_ROLE_ADMIN;
+  const activeUIRole = sanitizeActiveUIRoleForUser(user, '');
+  const isAdminView = activeUIRole === USER_ROLE_ADMIN;
+  const isSupervisorView = activeUIRole === USER_ROLE_SUPERVISOR;
 
   const [rangeDays, setRangeDays] = useState(7);
-  const [scope, setScope] = useState('homeroom');
+  const [scope, setScope] = useState(() => (isSupervisorView ? 'all' : 'homeroom'));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [dashboardData, setDashboardData] = useState(EMPTY_DASHBOARD_DATA);
 
-  const effectiveScope = isAdminUser ? scope : 'homeroom';
+  useEffect(() => {
+    if (isSupervisorView && scope !== 'all') {
+      setScope('all');
+      return;
+    }
+    if (!isSupervisorView && !isAdminView && scope !== 'homeroom') {
+      setScope('homeroom');
+    }
+  }, [isAdminView, isSupervisorView, scope]);
+
+  const effectiveScope = isSupervisorView ? 'all' : isAdminView ? scope : 'homeroom';
 
   useEffect(() => {
     let isActive = true;
@@ -235,7 +248,7 @@ export default function StaffDashboardPage() {
             </Button>
           </div>
 
-          {isAdminUser ? (
+          {isAdminView ? (
             <div className="inline-flex rounded-md border bg-muted/30 p-1">
               <Button
                 type="button"
@@ -268,7 +281,7 @@ export default function StaffDashboardPage() {
 
       {noStudentsInScope ? (
         <div className="rounded-lg border border-border/80 bg-card px-4 py-3 text-sm text-muted-foreground">
-          No students found in current scope.
+          {effectiveScope === 'all' ? 'No students found.' : 'No students found in current scope.'}
         </div>
       ) : null}
 
@@ -448,7 +461,7 @@ export default function StaffDashboardPage() {
             </CardContent>
           </Card>
 
-          {isAdminUser ? (
+          {isAdminView ? (
             <Card className="border-border/70 shadow-sm">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Admin Quick Actions</CardTitle>

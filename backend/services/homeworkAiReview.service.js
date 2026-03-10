@@ -19,6 +19,18 @@ const buildGeminiModelList = () => {
 };
 
 const GEMINI_MODELS = buildGeminiModelList();
+const HOMEWORK_AI_REVIEW_MAX_IMAGE_ITEMS = (() => {
+  const parsed = Number(process.env.HOMEWORK_AI_REVIEW_MAX_IMAGE_ITEMS);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 4;
+})();
+const HOMEWORK_AI_REVIEW_MAX_IMAGE_BYTES = (() => {
+  const parsed = Number(process.env.HOMEWORK_AI_REVIEW_MAX_IMAGE_BYTES);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : (4 * 1024 * 1024);
+})();
+const HOMEWORK_AI_REVIEW_IMAGE_FETCH_TIMEOUT_MS = (() => {
+  const parsed = Number(process.env.HOMEWORK_AI_REVIEW_IMAGE_FETCH_TIMEOUT_MS);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 12000;
+})();
 
 const normalizeStringArray = (value) => {
   const rows = Array.isArray(value)
@@ -159,6 +171,65 @@ const createServiceError = (message, { statusCode = 500, code = "INTERNAL_SERVER
   return error;
 };
 
+const resolveImageMimeType = ({ fromPayload = "", fromResponse = "" } = {}) => {
+  const responseMime = normalizeText(fromResponse).split(";")[0].trim().toLowerCase();
+  if (responseMime.startsWith("image/")) return responseMime;
+
+  const payloadMime = normalizeText(fromPayload).toLowerCase();
+  if (payloadMime.startsWith("image/")) return payloadMime;
+
+  return "";
+};
+
+const fetchImageAsInlinePart = async (imageItem = {}) => {
+  const imageUrl = normalizeText(imageItem?.url);
+  if (!imageUrl) return null;
+
+  const controller = new AbortController();
+  const timeoutHandle = setTimeout(() => controller.abort(), HOMEWORK_AI_REVIEW_IMAGE_FETCH_TIMEOUT_MS);
+  try {
+    const response = await fetch(imageUrl, {
+      method: "GET",
+      signal: controller.signal,
+    });
+    if (!response?.ok) return null;
+
+    const contentLength = Number(response.headers.get("content-length") || 0);
+    if (Number.isFinite(contentLength) && contentLength > HOMEWORK_AI_REVIEW_MAX_IMAGE_BYTES) {
+      return null;
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const byteLength = Number(arrayBuffer?.byteLength || 0);
+    if (!byteLength || byteLength > HOMEWORK_AI_REVIEW_MAX_IMAGE_BYTES) return null;
+
+    const mimeType = resolveImageMimeType({
+      fromPayload: imageItem?.mime,
+      fromResponse: response.headers.get("content-type"),
+    });
+    if (!mimeType) return null;
+
+    return {
+      inlineData: {
+        mimeType,
+        data: Buffer.from(arrayBuffer).toString("base64"),
+      },
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeoutHandle);
+  }
+};
+
+const buildGeminiImageParts = async (imageItems = []) => {
+  const limited = (Array.isArray(imageItems) ? imageItems : []).slice(0, HOMEWORK_AI_REVIEW_MAX_IMAGE_ITEMS);
+  if (limited.length === 0) return [];
+
+  const settled = await Promise.all(limited.map((item) => fetchImageAsInlinePart(item)));
+  return settled.filter(Boolean);
+};
+
 const buildSystemPrompt = () => `
 You are an English homework reviewer for teachers.
 Evaluate the student's answer against the assignment/task prompt and reference answer when available.
@@ -196,7 +267,8 @@ Rules:
 5) When possible, provide a corrected version of the sentence.
 6) Keep feedback concise but educational for the student.
 7) If audio URL is present, treat it as metadata only (no transcription assumption).
-8) Ignore all image/video content.
+8) If student image submissions are provided, analyze visible content from those images and include concrete observations.
+9) If an image cannot be accessed or analyzed, state that limitation briefly and do not fabricate visual details.
 `;
 const buildGeminiPrompt = (payload = {}) => `
 ${buildSystemPrompt()}
@@ -231,20 +303,33 @@ export const generateHomeworkSubmissionAiReview = async ({
     prompt_text: reviewPayload.promptText,
     reference_answer_text: reviewPayload.referenceAnswerText || "",
     student_answer_text: reviewPayload.studentAnswerText,
+    student_image_urls: (Array.isArray(reviewPayload?.imageItems) ? reviewPayload.imageItems : [])
+      .map((item) => normalizeText(item?.url))
+      .filter(Boolean),
     reviewer: {
       id: normalizeText(reviewer?.id || reviewer?.userId),
       role: normalizeText(reviewer?.role),
     },
-    constraints: {
-      allow_audio_url: Boolean(reviewPayload?.audioItem?.url),
-      allow_image_video: false,
-    },
   };
+  const geminiImageParts = await buildGeminiImageParts(reviewPayload?.imageItems || []);
+  const submittedImageCount = Array.isArray(reviewPayload?.imageItems) ? reviewPayload.imageItems.length : 0;
+  userPromptPayload.constraints = {
+    allow_audio_url: Boolean(reviewPayload?.audioItem?.url),
+    allow_image_submission: submittedImageCount > 0,
+    allow_image_analysis: geminiImageParts.length > 0,
+    image_submission_count: submittedImageCount,
+    image_analysis_count: geminiImageParts.length,
+  };
+
+  const geminiContents = [
+    { text: buildGeminiPrompt(userPromptPayload) },
+    ...geminiImageParts,
+  ];
 
   const aiResult = await requestGeminiJsonWithFallback({
     genAI,
     models: GEMINI_MODELS,
-    contents: [buildGeminiPrompt(userPromptPayload)],
+    contents: geminiContents,
     generationConfig: {
       responseMimeType: "application/json",
       temperature: 0.25,
@@ -274,6 +359,9 @@ export const generateHomeworkSubmissionAiReview = async ({
       has_prompt_text: Boolean(reviewPayload.promptText),
       has_reference_answer: Boolean(reviewPayload.referenceAnswerText),
       source_summary: reviewPayload.meta,
+      image_submission_count: submittedImageCount,
+      image_analysis_count: geminiImageParts.length,
+      image_analysis_skipped_count: Math.max(0, submittedImageCount - geminiImageParts.length),
     },
   };
 };

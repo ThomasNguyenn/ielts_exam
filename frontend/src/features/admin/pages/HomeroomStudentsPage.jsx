@@ -48,6 +48,12 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
+import { sanitizeActiveUIRoleForUser } from '@/app/activeUIRole';
+import {
+  USER_ROLE_ADMIN,
+  USER_ROLE_SUPERVISOR,
+  normalizeUserRole as normalizeAppUserRole,
+} from '@/app/roleRouting';
 import PaginationControls from '@/shared/components/PaginationControls';
 import { api } from '@/shared/api/client';
 import { useNotification } from '@/shared/context/NotificationContext';
@@ -166,7 +172,6 @@ const normalizeTeacherRoleLabel = (role) => {
   return 'Teacher';
 };
 
-const normalizeUserRole = (role) => String(role || '').trim().toLowerCase();
 const normalizeLookupValue = (value) => String(value || '').trim().toLowerCase();
 const escapeCsvCell = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
 
@@ -210,12 +215,14 @@ export default function HomeroomStudentsPage() {
   const { showNotification } = useNotification();
 
   const currentUser = api.getUser();
-  const isAdminUser = normalizeUserRole(currentUser?.role) === 'admin';
+  const activeUIRole = sanitizeActiveUIRoleForUser(currentUser, '');
+  const isSupervisorView = activeUIRole === USER_ROLE_SUPERVISOR;
+  const isAdminUser = normalizeAppUserRole(currentUser?.role) === USER_ROLE_ADMIN;
 
   const [search, setSearch] = useState('');
   const [levelFilter, setLevelFilter] = useState('all');
   const [genderFilter, setGenderFilter] = useState('all');
-  const [studentScopeTab, setStudentScopeTab] = useState('my-homeroom');
+  const [studentScopeTab, setStudentScopeTab] = useState(() => (isSupervisorView ? 'all-students' : 'my-homeroom'));
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [students, setStudents] = useState([]);
@@ -285,17 +292,26 @@ export default function HomeroomStudentsPage() {
   }, []);
 
   useEffect(() => {
+    if (isSupervisorView && studentScopeTab !== 'all-students') {
+      setStudentScopeTab('all-students');
+    }
+  }, [isSupervisorView, studentScopeTab]);
+
+  useEffect(() => {
     setCurrentPage(1);
   }, [search, levelFilter, genderFilter, studentScopeTab]);
 
   const currentUserId = String(currentUser?._id || '');
   const scopedStudents = useMemo(() => {
+    if (isSupervisorView) {
+      return students;
+    }
     if (studentScopeTab !== 'my-homeroom') {
       return students;
     }
     if (!currentUserId) return [];
     return students.filter((student) => String(student?.homeroom_teacher_id || '') === currentUserId);
-  }, [students, studentScopeTab, currentUserId]);
+  }, [currentUserId, isSupervisorView, studentScopeTab, students]);
 
   const filteredStudents = useMemo(
     () =>
@@ -600,7 +616,7 @@ export default function HomeroomStudentsPage() {
         <div>
           <h1 className="text-foreground">Homeroom Students</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Manage and view all students in your homeroom class.
+            {isSupervisorView ? 'Manage and view all students.' : 'Manage and view all students in your homeroom class.'}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -616,8 +632,10 @@ export default function HomeroomStudentsPage() {
 
       <div className="mb-4">
         <Tabs value={studentScopeTab} onValueChange={setStudentScopeTab}>
-          <TabsList className="grid w-full max-w-md grid-cols-2">
-            <TabsTrigger value='my-homeroom'>Học sinh mình chủ nhiệm</TabsTrigger>
+          <TabsList className={`grid w-full max-w-md ${isSupervisorView ? 'grid-cols-1' : 'grid-cols-2'}`}>
+            {!isSupervisorView ? (
+              <TabsTrigger value='my-homeroom'>Học sinh mình chủ nhiệm</TabsTrigger>
+            ) : null}
             <TabsTrigger value='all-students'>Tất cả học sinh</TabsTrigger>
           </TabsList>
         </Tabs>

@@ -8,7 +8,10 @@ const baseProps = {
   totalGroups: 1,
   isGroupCollapsed: false,
   collapsedQuestions: new Set(),
-  questionTypeOptions: [{ value: "matching_information", label: "Matching Information" }],
+  questionTypeOptions: [
+    { value: "matching_information", label: "Matching Information" },
+    { value: "matching_headings", label: "Matching Headings" },
+  ],
   onToggleGroupCollapse: vi.fn(),
   onToggleQuestionCollapse: vi.fn(),
   onMove: vi.fn(),
@@ -33,8 +36,8 @@ const baseProps = {
   handleBoldShortcut: vi.fn(),
 };
 
-const buildGroup = () => ({
-  type: "matching_information",
+const buildGroup = (type = "matching_information") => ({
+  type,
   group_layout: "default",
   required_count: "",
   use_once: false,
@@ -59,13 +62,35 @@ afterEach(() => {
 });
 
 describe("QuestionGroup matching range generator", () => {
-  it("generates and replaces headings from A-C range", () => {
+  it("generates and replaces headings from A-C range for matching_information", () => {
     const onUpdateGroup = vi.fn();
     render(
       <QuestionGroup
         {...baseProps}
         onUpdateGroup={onUpdateGroup}
         group={buildGroup()}
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("A-G or I-VII"), {
+      target: { value: "A-C" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+
+    expect(onUpdateGroup).toHaveBeenCalledWith(0, "headings", [
+      { id: "A", text: "A" },
+      { id: "B", text: "B" },
+      { id: "C", text: "C" },
+    ]);
+  });
+
+  it("generates and replaces headings from A-C range for matching_headings", () => {
+    const onUpdateGroup = vi.fn();
+    render(
+      <QuestionGroup
+        {...baseProps}
+        onUpdateGroup={onUpdateGroup}
+        group={buildGroup("matching_headings")}
       />,
     );
 

@@ -11,6 +11,7 @@ const MEDIA_KEY_BLOCKLIST = new Set([
   'poster_url',
   'src',
 ]);
+const IMAGE_EXTENSION_PATTERN = /\.(png|jpe?g|webp|gif|bmp|svg)(\?.*)?$/i;
 
 const HTML_TAG_PATTERN = /<[^>]*>/g;
 
@@ -204,6 +205,27 @@ const resolveAudioUrl = (submission = {}) => {
   return rawUrl;
 };
 
+const resolveImageUrls = (submission = {}) => {
+  const imageItems = Array.isArray(submission?.image_items) ? submission.image_items : [];
+  const seen = new Set();
+  const urls = [];
+
+  imageItems.forEach((item) => {
+    const rawUrl = String(item?.url || '').trim();
+    if (!rawUrl || seen.has(rawUrl)) return;
+
+    const mime = String(item?.mime || '').trim().toLowerCase();
+    const isImageMime = mime.startsWith('image/');
+    const isImageByExtension = IMAGE_EXTENSION_PATTERN.test(rawUrl);
+    if (!isImageMime && !isImageByExtension) return;
+
+    seen.add(rawUrl);
+    urls.push(rawUrl);
+  });
+
+  return urls;
+};
+
 export const buildAiReviewPayload = ({
   assignment,
   payload,
@@ -218,12 +240,14 @@ export const buildAiReviewPayload = ({
   const studentText = toPlainText(submission?.text_answer || '');
   const objectiveText = buildObjectiveText({ objectiveBlocks, objectiveAnswerMaps });
   const audioUrl = resolveAudioUrl(submission);
+  const imageUrls = resolveImageUrls(submission);
 
   const hasPrompt = Boolean(promptText);
   const hasStudentText = Boolean(studentText);
+  const hasImage = imageUrls.length > 0;
   const hasAudio = Boolean(audioUrl);
   const hasObjective = Boolean(objectiveText);
-  const hasStudentData = Boolean(hasStudentText || hasAudio || hasObjective);
+  const hasStudentData = Boolean(hasStudentText || hasImage || hasAudio || hasObjective);
 
   const requestPayload = {
     assignmentTitle: String(assignment?.title || '').trim(),
@@ -232,6 +256,7 @@ export const buildAiReviewPayload = ({
     referenceAnswerText,
     studentAnswer: {
       text: studentText,
+      imageUrls,
       audioUrl,
       objectiveText,
     },
@@ -239,9 +264,9 @@ export const buildAiReviewPayload = ({
 
   let disabledReason = '';
   if (!hasStudentData && !hasPrompt) {
-    disabledReason = 'No prompt and no eligible student answer (text/audio/objective).';
+    disabledReason = 'No prompt and no eligible student answer (text/image/audio/objective).';
   } else if (!hasStudentData) {
-    disabledReason = 'Student submission has no eligible text/audio/objective data for AI review.';
+    disabledReason = 'Student submission has no eligible text/image/audio/objective data for AI review.';
   }
 
   return {
@@ -251,6 +276,7 @@ export const buildAiReviewPayload = ({
     meta: {
       hasPrompt,
       hasStudentText,
+      hasImage,
       hasAudio,
       hasObjective,
       hasStudentData,

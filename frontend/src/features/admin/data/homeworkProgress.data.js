@@ -1,4 +1,6 @@
 import { api } from '@/shared/api/client';
+import { sanitizeActiveUIRoleForUser } from '@/app/activeUIRole';
+import { USER_ROLE_ADMIN, USER_ROLE_SUPERVISOR } from '@/app/roleRouting';
 import {
   getHomeworkTodayDayKey,
   resolveHomeworkDayEndTimestamp,
@@ -10,8 +12,33 @@ const MAX_FETCH_PAGES = 50;
 const USER_FETCH_LIMIT = 100;
 const ASSIGNMENT_FETCH_LIMIT = 50;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const STUDENT_ROLE_KEYS = ['student', 'studentIELTS', 'studentACA'];
 
 export const TODAY = getHomeworkTodayDayKey() || new Date().toISOString().slice(0, 10);
+
+const resolveViewerScopeContext = (user = api.getUser()) => {
+  const currentUser = user || {};
+  const currentUserId = String(currentUser?._id || '').trim();
+  const activeUIRole = sanitizeActiveUIRoleForUser(currentUser, '');
+  const viewerRole = String(activeUIRole || '').trim();
+  return {
+    currentUserId,
+    viewerRole,
+  };
+};
+
+const resolveEffectiveStudentScope = ({ viewerRole = '', requestedScope = 'homeroom' } = {}) => {
+  if (viewerRole === USER_ROLE_SUPERVISOR) return 'all';
+  const normalizedScope = String(requestedScope || '').trim().toLowerCase();
+  if (viewerRole === USER_ROLE_ADMIN && normalizedScope === 'all') return 'all';
+  return 'homeroom';
+};
+
+const filterStudentsByScope = ({ students = [], currentUserId = '', scope = 'homeroom' } = {}) => {
+  if (scope === 'all') return students;
+  if (!currentUserId) return [];
+  return students.filter((student) => String(student?.homeroom_teacher_id || '').trim() === currentUserId);
+};
 
 const toIsoDay = (value) => {
   const normalized = String(value || '').trim();
@@ -124,6 +151,23 @@ const fetchAllUsersByRole = async (role) => {
   }
 
   return rows;
+};
+
+const fetchAllStudentUsers = async () => {
+  const roleFetches = await Promise.allSettled(STUDENT_ROLE_KEYS.map((role) => fetchAllUsersByRole(role)));
+  const dedupMap = new Map();
+
+  roleFetches.forEach((result) => {
+    if (result.status !== 'fulfilled') return;
+    const users = Array.isArray(result.value) ? result.value : [];
+    users.forEach((user) => {
+      const id = String(user?._id || '').trim();
+      if (!id) return;
+      dedupMap.set(id, user);
+    });
+  });
+
+  return Array.from(dedupMap.values());
 };
 
 const fetchAllPublishedAssignmentsForMonth = async (monthValue) => {
@@ -323,13 +367,14 @@ const fetchPublishedAssignmentsByMonths = async (months = []) => {
 };
 
 export const loadHomeroomStudentsQuick = async () => {
-  const currentUser = api.getUser();
-  const currentUserId = String(currentUser?._id || '').trim();
+  const { currentUserId, viewerRole } = resolveViewerScopeContext();
   if (!currentUserId) return [];
 
-  const allStudents = await fetchAllUsersByRole('student');
-  return allStudents
-    .filter((student) => String(student?.homeroom_teacher_id || '').trim() === currentUserId)
+  const effectiveScope = resolveEffectiveStudentScope({ viewerRole, requestedScope: 'homeroom' });
+  const allStudents = await fetchAllStudentUsers();
+  const scopedStudents = filterStudentsByScope({ students: allStudents, currentUserId, scope: effectiveScope });
+
+  return scopedStudents
     .map((student) => ({
       id: String(student?._id || ''),
       name: String(student?.name || 'Unnamed student'),
@@ -344,8 +389,7 @@ export const loadHomeroomStudentsQuick = async () => {
 };
 
 export const loadHomeroomHomeworkProgress = async ({ selectedDate = TODAY } = {}) => {
-  const currentUser = api.getUser();
-  const currentUserId = String(currentUser?._id || '').trim();
+  const { currentUserId, viewerRole } = resolveViewerScopeContext();
   const normalizedSelectedDate = String(selectedDate || TODAY).slice(0, 10);
   const selectedDateDayEndTs = toDayEndTimestamp(normalizedSelectedDate);
 
@@ -356,13 +400,12 @@ export const loadHomeroomHomeworkProgress = async ({ selectedDate = TODAY } = {}
     };
   }
 
-  const allStudents = await fetchAllUsersByRole('student');
-  const homeroomStudents = allStudents.filter(
-    (student) => String(student?.homeroom_teacher_id || '').trim() === currentUserId,
-  );
+  const effectiveScope = resolveEffectiveStudentScope({ viewerRole, requestedScope: 'homeroom' });
+  const allStudents = await fetchAllStudentUsers();
+  const scopedStudents = filterStudentsByScope({ students: allStudents, currentUserId, scope: effectiveScope });
 
   const studentById = new Map();
-  homeroomStudents.forEach((student) => {
+  scopedStudents.forEach((student) => {
     const normalized = toBaseStudent(student);
     if (!normalized.id) return;
     studentById.set(normalized.id, normalized);
@@ -570,9 +613,7 @@ export const loadHomeroomHomeworkProgress = async ({ selectedDate = TODAY } = {}
 };
 
 export const loadStaffDashboardData = async ({ rangeDays = 7, scope = 'homeroom' } = {}) => {
-  const currentUser = api.getUser();
-  const currentUserId = String(currentUser?._id || '').trim();
-  const isAdminUser = String(currentUser?.role || '').toLowerCase() === 'admin';
+  const { currentUserId, viewerRole } = resolveViewerScopeContext();
   const localToday = TODAY;
 
   const { safeRangeDays, days, daySet, startDay, endDay } = buildRangeDays(rangeDays);
@@ -580,13 +621,10 @@ export const loadStaffDashboardData = async ({ rangeDays = 7, scope = 'homeroom'
 
   if (!currentUserId) return emptyData;
 
-  const normalizedScope = String(scope || '').trim().toLowerCase();
-  const effectiveScope = isAdminUser && normalizedScope === 'all' ? 'all' : 'homeroom';
+  const effectiveScope = resolveEffectiveStudentScope({ viewerRole, requestedScope: scope });
 
-  const allStudents = await fetchAllUsersByRole('student');
-  const scopedStudents = effectiveScope === 'all'
-    ? allStudents
-    : allStudents.filter((student) => String(student?.homeroom_teacher_id || '').trim() === currentUserId);
+  const allStudents = await fetchAllStudentUsers();
+  const scopedStudents = filterStudentsByScope({ students: allStudents, currentUserId, scope: effectiveScope });
 
   if (scopedStudents.length === 0) return emptyData;
 

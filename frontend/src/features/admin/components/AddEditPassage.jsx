@@ -16,10 +16,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { toSanitizedInnerHtml } from '@/shared/utils/safeHtml';
 
 
 const OPTION_LABELS = ['A', 'B', 'C', 'D'];
 const MAX_DIAGRAM_IMAGE_BYTES = 5 * 1024 * 1024;
+const PASSAGE_QUESTION_TYPE_LABELS = PASSAGE_QUESTION_TYPE_OPTIONS.reduce((acc, option) => {
+  acc[option.value] = option.label;
+  return acc;
+}, {});
 
 function isFlowOrPlanType(type = '') {
   const normalized = canonicalizeQuestionType(type);
@@ -82,6 +87,20 @@ function canonicalizeQuestionType(type = '') {
   if (normalized === 'matching_info') return 'matching_information';
   if (normalized === 'gap_fill') return 'note_completion';
   return normalized || 'mult_choice';
+}
+
+function toPreviewInnerHtml(raw = '') {
+  const normalized = String(raw || '').replace(/\r\n?/g, '\n').replace(/\n/g, '<br />');
+  return toSanitizedInnerHtml(normalized);
+}
+
+function getQuestionAnswersPreview(question = {}) {
+  const answerList = Array.isArray(question?.correct_answers)
+    ? question.correct_answers.filter(Boolean)
+    : [];
+  if (answerList.length) return answerList.join(', ');
+  const parsedFromRaw = parseCorrectAnswersRaw(question?.correct_answers_raw || '');
+  return parsedFromRaw.join(', ');
 }
 
 function parseUseOnceFlag(value) {
@@ -243,6 +262,7 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
   const [existingSearch, setExistingSearch] = useState('');
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [isMetadataOpen, setIsMetadataOpen] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
   const [confirmModal, setConfirmModal] = useState({
     isOpen: false,
@@ -1030,8 +1050,8 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
                 <X className='h-4 w-4' />
               </Button>
               <div className='space-y-1'>
-                <CardTitle className='text-2xl tracking-tight'>{editId ? 'Edit Reading Passage' : 'Create Reading Passage'}</CardTitle>
-                <CardDescription>Reading comprehension passage with question groups.</CardDescription>
+                <CardTitle className='text-2xl tracking-tight'>{editId ? 'Edit Passage' : 'Create Passage'}</CardTitle>
+                <CardDescription>Soạn đề Reading</CardDescription>
               </div>
             </div>
             <div className='flex flex-wrap items-center gap-3'>
@@ -1039,6 +1059,7 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
                 <Switch checked={form.isActive} onCheckedChange={(checked) => updateForm('isActive', checked)} />
                 <span className='text-sm'>{form.isActive ? 'Active' : 'Inactive'}</span>
               </div>
+              <Button type='button' variant='outline' onClick={() => setIsPreviewOpen(true)}>Preview</Button>
               <Button type='button' variant='outline' onClick={handleSaveDraft}>Save Draft</Button>
               <Button type='button' variant='outline' size='icon' onClick={() => setIsMetadataOpen(true)} aria-label='Open metadata'>
                 <MoreVertical className='h-4 w-4' />
@@ -1075,6 +1096,130 @@ export default function AddEditPassage({ editIdOverride = null, embedded = false
               <div className='flex items-center justify-between text-sm'>
                 <span className='text-muted-foreground'>Question Groups</span>
                 <Badge variant='outline'>{form.question_groups.length}</Badge>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+          <DialogContent className='max-h-[85vh] overflow-y-auto sm:max-w-4xl'>
+            <DialogHeader>
+              <DialogTitle>Passage Preview</DialogTitle>
+            </DialogHeader>
+            <div className='space-y-6'>
+              <div className='space-y-1'>
+                <h3 className='text-xl font-semibold'>{form.title?.trim() || 'Untitled passage'}</h3>
+                {form.source?.trim() ? (
+                  <p className='text-sm text-muted-foreground'>Source: {form.source.trim()}</p>
+                ) : null}
+              </div>
+
+              <div className='space-y-2'>
+                <Label className='text-sm font-medium'>Passage Content</Label>
+                {String(form.content || '').trim() ? (
+                  <div
+                    className='rounded-md border bg-background p-4 text-sm leading-7 [&_strong]:font-semibold'
+                    dangerouslySetInnerHTML={toPreviewInnerHtml(form.content)}
+                  />
+                ) : (
+                  <p className='rounded-md border border-dashed p-4 text-sm text-muted-foreground'>No passage content yet.</p>
+                )}
+              </div>
+
+              <div className='space-y-3'>
+                <Label className='text-sm font-medium'>Question Groups ({form.question_groups.length})</Label>
+                {form.question_groups.length === 0 ? (
+                  <p className='rounded-md border border-dashed p-4 text-sm text-muted-foreground'>No question groups yet.</p>
+                ) : (
+                  form.question_groups.map((group, groupIndex) => {
+                    const normalizedType = canonicalizeQuestionType(group.type);
+                    const groupTypeLabel = PASSAGE_QUESTION_TYPE_LABELS[normalizedType] || normalizedType || 'Unknown';
+                    const hasGroupSteps = Array.isArray(group.steps) && group.steps.some((step) => String(step || '').trim());
+                    const hasGroupImage = String(group.image_url || '').trim().length > 0;
+                    const hasGroupText = String(group.text || '').trim().length > 0;
+                    const hasGroupInstructions = String(group.instructions || '').trim().length > 0;
+
+                    return (
+                      <Card key={`preview-group-${groupIndex}`} className='border-border/70 shadow-none'>
+                        <CardHeader className='space-y-1 pb-3'>
+                          <CardTitle className='text-base'>Group {groupIndex + 1}: {groupTypeLabel}</CardTitle>
+                          <CardDescription>{(group.questions || []).length} question(s)</CardDescription>
+                        </CardHeader>
+                        <CardContent className='space-y-3'>
+                          {hasGroupInstructions ? (
+                            <div className='space-y-1'>
+                              <p className='text-xs font-medium uppercase tracking-wide text-muted-foreground'>Instructions</p>
+                              <p className='whitespace-pre-wrap rounded-md border bg-muted/20 p-3 text-sm'>{group.instructions}</p>
+                            </div>
+                          ) : null}
+
+                          {hasGroupText ? (
+                            <div className='space-y-1'>
+                              <p className='text-xs font-medium uppercase tracking-wide text-muted-foreground'>Reference Text</p>
+                              <div
+                                className='rounded-md border bg-background p-3 text-sm leading-6 [&_strong]:font-semibold'
+                                dangerouslySetInnerHTML={toPreviewInnerHtml(group.text)}
+                              />
+                            </div>
+                          ) : null}
+
+                          {hasGroupSteps ? (
+                            <div className='space-y-1'>
+                              <p className='text-xs font-medium uppercase tracking-wide text-muted-foreground'>Steps</p>
+                              <ol className='list-decimal space-y-1 pl-5 text-sm'>
+                                {(group.steps || []).map((step, stepIndex) => {
+                                  const value = String(step || '').trim();
+                                  if (!value) return null;
+                                  return <li key={`preview-step-${groupIndex}-${stepIndex}`}>{value}</li>;
+                                })}
+                              </ol>
+                            </div>
+                          ) : null}
+
+                          {hasGroupImage ? (
+                            <div className='space-y-1'>
+                              <p className='text-xs font-medium uppercase tracking-wide text-muted-foreground'>Diagram</p>
+                              <img
+                                src={group.image_url}
+                                alt={`Group ${groupIndex + 1} diagram`}
+                                className='max-h-80 w-full rounded-md border bg-muted/20 object-contain'
+                              />
+                            </div>
+                          ) : null}
+
+                          <div className='space-y-2'>
+                            {(group.questions || []).map((question, questionIndex) => {
+                              const answersPreview = getQuestionAnswersPreview(question);
+                              const options = Array.isArray(question.option) ? question.option.filter((option) => option?.text) : [];
+                              return (
+                                <div
+                                  key={`preview-question-${groupIndex}-${questionIndex}`}
+                                  className='rounded-md border bg-muted/20 px-3 py-2'
+                                >
+                                  <p className='text-sm font-medium'>
+                                    Q{question.q_number || questionIndex + 1}. {question.text || 'No question text'}
+                                  </p>
+                                  {options.length ? (
+                                    <ul className='mt-2 list-disc space-y-1 pl-5 text-xs text-muted-foreground'>
+                                      {options.map((option, optionIndex) => (
+                                        <li key={`preview-question-option-${groupIndex}-${questionIndex}-${optionIndex}`}>
+                                          <span className='font-semibold'>{option.label || option.id || optionIndex + 1}.</span> {option.text}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  ) : null}
+                                  {answersPreview ? (
+                                    <p className='mt-2 text-xs font-medium text-primary'>Answer: {answersPreview}</p>
+                                  ) : null}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })
+                )}
               </div>
             </div>
           </DialogContent>

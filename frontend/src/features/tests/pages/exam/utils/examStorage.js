@@ -74,7 +74,7 @@ export const loadExamDraft = ({
       listening = {
         audioIndex: restoredAudioIndex,
         audioPositionSec: rewoundAudioPosition,
-        resumeNotice: '–„ ti?p t?c b‡i nghe: audio l˘i 5 gi‚y, d?ng h? l˘i 10 gi‚y.',
+        resumeNotice: 'ƒê·ªÉ ti·∫øp t·ª•c b√†i nghe: audio l√πi 5 gi√¢y, ƒë·ªìng h·ªì l√πi 10 gi√¢y.',
       };
     }
 
