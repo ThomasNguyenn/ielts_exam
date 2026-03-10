@@ -33,6 +33,7 @@ const toAssignmentStatusLabel = (status) => {
   if (normalized === 'completed') return 'Completed';
   if (normalized === 'in_progress') return 'In progress';
   if (normalized === 'not_started') return 'Not started';
+  if (normalized === 'missing') return 'Missing';
   return status || '--';
 };
 
@@ -261,6 +262,8 @@ export default function HomeworkProgressDetailPage() {
                     <div className="divide-y divide-border/40">
                       {taskSubmissions.map((taskSub, taskIndex) => {
                         const taskStatus = String(taskSub?.status || '').toLowerCase();
+                        const submissionTiming = String(taskSub?.submission_timing || '').toLowerCase();
+                        const isLateSubmission = Boolean(taskSub?.is_late) || submissionTiming === 'late';
                         const doneCount = Number(taskSub?.done_count || 0);
                         const isSubmitted = doneCount > 0;
                         const isGraded =
@@ -291,6 +294,11 @@ export default function HomeworkProgressDetailPage() {
                                 <Badge variant="outline" className={toAssignmentStatusTone(taskStatus)}>
                                   {toTaskStatusLabel(taskStatus)}
                                 </Badge>
+                                {isLateSubmission ? (
+                                  <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700">
+                                    Late
+                                  </Badge>
+                                ) : null}
                                 <Badge variant="outline" className="border-border/60 bg-muted/30 text-foreground">
                                   {toTaskProgressLabel(taskSub)}
                                 </Badge>

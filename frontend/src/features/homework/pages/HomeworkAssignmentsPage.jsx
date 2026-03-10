@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FolderKanban, Plus, RefreshCw, Trash2 } from "lucide-react";
+import {
+  normalizeUserRole,
+  USER_ROLE_ADMIN,
+  USER_ROLE_SUPERVISOR,
+  USER_ROLE_TEACHER,
+} from "@/app/roleRouting";
 import { api } from "@/shared/api/client";
 import { useNotification } from "@/shared/context/NotificationContext";
 import { formatDate, statusLabel, toMonthValue } from "./homework.utils";
@@ -28,6 +34,7 @@ export default function HomeworkAssignmentsPage() {
   const navigate = useNavigate();
   const { showNotification } = useNotification();
   const user = api.getUser();
+  const normalizedRole = normalizeUserRole(user?.role);
 
   const [items, setItems] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, limit: 20, totalItems: 0, totalPages: 1 });
@@ -38,7 +45,7 @@ export default function HomeworkAssignmentsPage() {
   const [filters, setFilters] = useState({
     month: toMonthValue(),
     status: "all",
-    owner: user?.role === "teacher" ? "me" : "all",
+    owner: normalizedRole === USER_ROLE_TEACHER || normalizedRole === USER_ROLE_SUPERVISOR ? "me" : "all",
     page: 1,
   });
 
@@ -90,7 +97,7 @@ export default function HomeworkAssignmentsPage() {
     }
   };
 
-  const canCreate = user?.role === "admin" || user?.role === "teacher";
+  const canCreate = [USER_ROLE_ADMIN, USER_ROLE_SUPERVISOR, USER_ROLE_TEACHER].includes(normalizedRole);
   const statusVariant = (status) => {
     const normalized = String(status || "").toLowerCase();
     if (normalized === "published") return "default";

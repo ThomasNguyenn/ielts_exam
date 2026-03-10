@@ -290,7 +290,7 @@ export default function StaffDashboardPage() {
                 <MetricItem
                   icon={<CheckCircle2 className="h-4 w-4" />}
                   toneClass="bg-orange-100 text-orange-600"
-                  label="Submissions"
+                  label="On-time submissions"
                   value={String(stats.totalSubmitted || 0)}
                 />
                 <MetricItem
@@ -402,7 +402,7 @@ export default function StaffDashboardPage() {
           <Card className="border-border/70 shadow-sm">
             <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-base">Events Log</CardTitle>
-              <Button type="button" variant="ghost" size="sm" onClick={() => navigate('/homework')}>
+              <Button type="button" variant="ghost" size="sm" onClick={() => navigate('/dashboard/homework-progress')}>
                 See All
               </Button>
             </CardHeader>

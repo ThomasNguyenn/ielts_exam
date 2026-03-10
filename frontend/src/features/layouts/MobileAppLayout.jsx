@@ -22,7 +22,7 @@ const MOBILE_LAYOUTS = {
     tabs: [
       {
         key: 'homework',
-        label: 'Bai tap',
+        label: 'Bài tập',
         to: `${IELTS_BASE}/homework`,
         icon: ClipboardList,
         matchPrefix: `${IELTS_BASE}/homework`,
@@ -63,19 +63,19 @@ const MOBILE_LAYOUTS = {
     ],
   },
   aca: {
-    brand: 'ACA MASTER',
+    brand: 'ACA GOLD',
     subnavTabKey: null,
     tabs: [
       {
         key: 'homework',
-        label: 'Bai tap',
+        label: 'Bài tập',
         to: `${ACA_BASE}/homework`,
         icon: ClipboardList,
         matchPrefix: `${ACA_BASE}/homework`,
       },
       {
         key: 'account',
-        label: 'Tai khoan',
+        label: 'Tài khoản',
         to: `${ACA_BASE}/account-security`,
         icon: ShieldCheck,
         matchPrefix: `${ACA_BASE}/account-security`,

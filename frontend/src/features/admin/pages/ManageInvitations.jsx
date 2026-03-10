@@ -21,11 +21,13 @@ const STATUS_FILTERS = [
 
 const ROLE_LABEL = {
   teacher: 'Teacher',
+  supervisor: 'Supervisor',
   admin: 'Admin',
 };
 
 const ROLE_CHIP_CLASS = {
   admin: 'admin-people-chip admin-people-chip--admin',
+  supervisor: 'admin-people-chip admin-people-chip--teacher',
   teacher: 'admin-people-chip admin-people-chip--teacher',
 };
 
@@ -171,7 +173,7 @@ export default function ManageInvitations() {
         <div className="admin-people-title-row">
           <div>
             <h1>Manage Invitations</h1>
-            <p>Send and track invitation links for teacher and admin accounts.</p>
+            <p>Send and track invitation links for teacher, supervisor, and admin accounts.</p>
           </div>
           <span className="admin-people-count-chip">{totalCount}</span>
         </div>
@@ -217,6 +219,7 @@ export default function ManageInvitations() {
                 onChange={(event) => setInviteForm((prev) => ({ ...prev, role: event.target.value }))}
               >
                 <option value="teacher">Teacher</option>
+                <option value="supervisor">Supervisor</option>
                 <option value="admin">Admin</option>
               </select>
             </div>

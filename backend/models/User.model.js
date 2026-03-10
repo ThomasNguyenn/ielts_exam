@@ -4,6 +4,7 @@ import {
   ROLE_STUDENT,
   ROLE_STUDENT_ACA,
   ROLE_STUDENT_IELTS,
+  ROLE_SUPERVISOR,
   ROLE_TEACHER,
 } from "../utils/role.utils.js";
 
@@ -33,7 +34,7 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: [ROLE_STUDENT, ROLE_STUDENT_IELTS, ROLE_STUDENT_ACA, ROLE_TEACHER, ROLE_ADMIN],
+    enum: [ROLE_STUDENT, ROLE_STUDENT_IELTS, ROLE_STUDENT_ACA, ROLE_TEACHER, ROLE_SUPERVISOR, ROLE_ADMIN],
     default: ROLE_STUDENT,
   },
   homeroom_teacher_id: {

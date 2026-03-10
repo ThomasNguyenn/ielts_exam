@@ -107,7 +107,7 @@ export default function StudentACALayout() {
         <div className="nav-container" ref={navContainerRef}>
           <div className="nav-mobile-head">
             <NavLink to="/student-aca/homework" className="nav-mobile-brand" onClick={closeAllMenus}>
-              <span className="nav-brand-text">ACA MASTER</span>
+              <span className="nav-brand-text">ACA GOLD</span>
             </NavLink>
             <button
               type="button"

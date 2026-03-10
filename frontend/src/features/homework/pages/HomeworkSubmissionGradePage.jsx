@@ -4,6 +4,8 @@ import { api } from "@/shared/api/client";
 import { useNotification } from "@/shared/context/NotificationContext";
 import { clampScore, formatDate, statusLabel } from "./homework.utils";
 import { getRenderableTaskBlocks, normalizeTaskBlockType } from "./myHomeworkStudentUtils";
+import HomeworkAiReviewCard from "./HomeworkAiReviewCard";
+import { buildAiReviewPayload, normalizeAiReviewOutput } from "./homeworkAiReview.utils";
 import {
   GAPFILL_MODE_PARAGRAPH,
   normalizeFindMistakeBlockData,
@@ -18,7 +20,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ChevronsUpDown, X } from "lucide-react";
+import { ChevronsUpDown, RotateCw, X } from "lucide-react";
 
 
 const HTML_TAG_PATTERN = /<\/?[a-z][\s\S]*>/i;
@@ -422,6 +424,9 @@ export default function HomeworkSubmissionGradePage() {
   const [feedback, setFeedback] = useState("");
   const [selectedImage, setSelectedImage] = useState(null);
   const [isLessonPromptOpen, setIsLessonPromptOpen] = useState(false);
+  const [aiReviewLoading, setAiReviewLoading] = useState(false);
+  const [aiReviewError, setAiReviewError] = useState("");
+  const [aiReviewResult, setAiReviewResult] = useState(null);
 
 
   const loadSubmission = async () => {
@@ -446,6 +451,12 @@ export default function HomeworkSubmissionGradePage() {
 
   useEffect(() => {
     setIsLessonPromptOpen(false);
+  }, [submissionId]);
+
+  useEffect(() => {
+    setAiReviewLoading(false);
+    setAiReviewError("");
+    setAiReviewResult(null);
   }, [submissionId]);
 
   const handleSave = async () => {
@@ -545,6 +556,48 @@ export default function HomeworkSubmissionGradePage() {
   const isInternalTask =
     String(task?.resource_mode || "").trim().toLowerCase() === "internal"
     || promptBlocks.some((block) => normalizeBlockType(block?.type) === "internal");
+
+  const aiReviewBuild = useMemo(
+    () => buildAiReviewPayload({
+      assignment,
+      payload,
+      promptBlocks,
+      answerBlocks,
+      submission,
+      objectiveBlocks,
+      objectiveAnswerMaps,
+    }),
+    [assignment, payload, promptBlocks, answerBlocks, submission, objectiveBlocks, objectiveAnswerMaps],
+  );
+
+  const aiReviewResultText = useMemo(
+    () => normalizeAiReviewOutput(aiReviewResult),
+    [aiReviewResult],
+  );
+
+  const handleGenerateAiReview = async () => {
+    if (!aiReviewBuild?.canSubmit) {
+      const reason = aiReviewBuild?.disabledReason || "No eligible data for AI review.";
+      setAiReviewError(reason);
+      showNotification(reason, "error");
+      return;
+    }
+
+    setAiReviewLoading(true);
+    setAiReviewError("");
+    try {
+      const response = await api.homeworkGenerateSubmissionAiReview(submissionId);
+      const data = response?.data ?? response;
+      setAiReviewResult(data);
+      showNotification("AI review generated", "success");
+    } catch (reviewError) {
+      const message = reviewError?.message || "Failed to generate AI review";
+      setAiReviewError(message);
+      showNotification(message, "error");
+    } finally {
+      setAiReviewLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -1023,41 +1076,53 @@ export default function HomeworkSubmissionGradePage() {
             </CardContent>
           </Card>
 
-          <Card className="border-border/70 shadow-sm xl:col-span-4">
-            <CardHeader>
-              <CardTitle>Grade</CardTitle>
-              <CardDescription>Save score and actionable teacher feedback.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="submission-score">Score (0-10)</Label>
-                <Input
-                  id="submission-score"
-                  type="number"
-                  step="0.1"
-                  min={0}
-                  max={10}
-                  value={score}
-                  onChange={(event) => setScore(event.target.value)}
-                />
-              </div>
+          <div className="space-y-6 xl:col-span-4">
+            <Card className="border-border/70 shadow-sm">
+              <CardHeader>
+                <CardTitle>Grade</CardTitle>
+                <CardDescription>Save score and actionable teacher feedback.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="submission-score">Score (0-10)</Label>
+                  <Input
+                    id="submission-score"
+                    type="number"
+                    step="0.1"
+                    min={0}
+                    max={10}
+                    value={score}
+                    onChange={(event) => setScore(event.target.value)}
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="submission-feedback">Feedback</Label>
-                <Textarea
-                  id="submission-feedback"
-                  value={feedback}
-                  onChange={(event) => setFeedback(event.target.value)}
-                  placeholder="Write actionable feedback for student..."
-                  rows={8}
-                />
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="submission-feedback">Feedback</Label>
+                  <Textarea
+                    id="submission-feedback"
+                    value={feedback}
+                    onChange={(event) => setFeedback(event.target.value)}
+                    placeholder="Write actionable feedback for student..."
+                    rows={8}
+                  />
+                </div>
 
-              <Button type="button" onClick={handleSave} disabled={saving} className="w-full">
-                {saving ? "Saving..." : "Save Grade"}
-              </Button>
-            </CardContent>
-          </Card>
+                <Button type="button" onClick={handleSave} disabled={saving} className="w-full">
+                  {saving ? "Saving..." : "Save Grade"}
+                </Button>
+              </CardContent>
+            </Card>
+
+            <HomeworkAiReviewCard
+              loading={aiReviewLoading}
+              canSubmit={aiReviewBuild.canSubmit}
+              disabledReason={aiReviewBuild.disabledReason}
+              onGenerate={handleGenerateAiReview}
+              resultText={aiReviewResultText}
+              error={aiReviewError}
+              hasResult={Boolean(aiReviewResultText)}
+            />
+          </div>
         </div>
       </div>
       {selectedImage && <ImageLightbox url={selectedImage} onClose={() => setSelectedImage(null)} />}
@@ -1067,9 +1132,18 @@ export default function HomeworkSubmissionGradePage() {
 }
 
 const ImageLightbox = ({ url, onClose }) => {
+  const [rotationDeg, setRotationDeg] = useState(0);
+
+  useEffect(() => {
+    setRotationDeg(0);
+  }, [url]);
+
   useEffect(() => {
     const handleEsc = (e) => {
       if (e.key === "Escape") onClose();
+      if (String(e.key || "").toLowerCase() === "r") {
+        setRotationDeg((prev) => (prev + 90) % 360);
+      }
     };
     window.addEventListener("keydown", handleEsc);
     document.body.style.overflow = "hidden";
@@ -1084,17 +1158,37 @@ const ImageLightbox = ({ url, onClose }) => {
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4 transition-all animate-in fade-in zoom-in duration-200"
       onClick={onClose}
     >
-      <button
-        onClick={onClose}
-        className="absolute top-6 right-6 rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
-        aria-label="Close"
-      >
-        <X size={32} />
-      </button>
+      <div className="absolute top-6 right-6 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            setRotationDeg((prev) => (prev + 90) % 360);
+          }}
+          className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-white/20"
+          aria-label="Rotate image"
+          title="Rotate 90°"
+        >
+          <RotateCw size={18} />
+          <span className="hidden sm:inline">Rotate</span>
+        </button>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onClose();
+          }}
+          className="rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
+          aria-label="Close"
+        >
+          <X size={32} />
+        </button>
+      </div>
       <img
         src={url}
         alt="Full width preview"
-        className="max-h-full max-w-full rounded-lg object-contain shadow-2xl"
+        className="max-h-full max-w-full rounded-lg object-contain shadow-2xl transition-transform duration-200"
+        style={{ transform: `rotate(${rotationDeg}deg)` }}
         onClick={(e) => e.stopPropagation()}
       />
     </div>

@@ -132,7 +132,12 @@ export const sendEmailChangeVerificationEmail = async (email, token) => {
 
 export const sendInvitationEmail = async (email, token, role) => {
     const registerUrl = `${getFrontendBaseUrl()}/register?invite=${token}`;
-    const roleLabel = role === 'admin' ? 'Quản trị viên' : 'Giáo viên';
+    const roleLabelByKey = {
+        admin: "Admin",
+        supervisor: "Supervisor",
+        teacher: "Teacher",
+    };
+    const roleLabel = roleLabelByKey[String(role || "").trim()] || "Teacher";
 
     const mailOptions = {
         from: process.env.SMTP_FROM || DEFAULT_EMAIL_FROM,
@@ -162,3 +167,4 @@ export const sendInvitationEmail = async (email, token, role) => {
         return null;
     }
 };
+

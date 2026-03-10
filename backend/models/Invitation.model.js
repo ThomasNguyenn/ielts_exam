@@ -10,7 +10,7 @@ const invitationSchema = new mongoose.Schema({
     },
     role: {
         type: String,
-        enum: ["teacher", "admin"],
+        enum: ["teacher", "supervisor", "admin"],
         required: true,
     },
     token: {

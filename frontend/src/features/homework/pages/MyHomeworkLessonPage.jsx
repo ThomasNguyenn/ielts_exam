@@ -178,11 +178,25 @@ export default function MyHomeworkLessonPage() {
   const submission = submissionsByTaskId.get(selectedTaskId);
   const draft = drafts[selectedTaskId] || createDraft(submission);
 
+  const effectiveTaskDueAt = useMemo(() => {
+    const dueValue = selectedTask?.due_date || assignment?.due_date || null;
+    if (!dueValue) return null;
+    const dueDate = new Date(dueValue);
+    if (Number.isNaN(dueDate.getTime())) return null;
+    return dueDate;
+  }, [assignment?.due_date, selectedTask?.due_date]);
+
   const isDeadlinePassed = useMemo(() => {
-    const due = assignment?.due_date ? new Date(assignment.due_date) : null;
-    if (!due || Number.isNaN(due.getTime())) return false;
-    return Date.now() > due.getTime();
-  }, [assignment?.due_date]);
+    if (!effectiveTaskDueAt) return false;
+    return Date.now() > effectiveTaskDueAt.getTime();
+  }, [effectiveTaskDueAt]);
+
+  const isLateSubmission = useMemo(() => {
+    if (!submission || !effectiveTaskDueAt) return false;
+    const submittedAt = submission?.submitted_at ? new Date(submission.submitted_at) : null;
+    if (!submittedAt || Number.isNaN(submittedAt.getTime())) return false;
+    return submittedAt.getTime() > effectiveTaskDueAt.getTime();
+  }, [effectiveTaskDueAt, submission]);
 
   const updateDraft = (taskId, patch) =>
     setDrafts((prev) => ({
@@ -691,7 +705,7 @@ export default function MyHomeworkLessonPage() {
     return renderState(
       <LessonStateCard
         message={isPreviewMode
-          ? "Preview mode is only available for teacher/admin accounts."
+          ? "Preview mode is only available for teacher/supervisor/admin accounts."
           : "This page is only available for student accounts."}
       />, 
     );
@@ -721,8 +735,8 @@ export default function MyHomeworkLessonPage() {
   const hasDictationBlock = taskBlocks.some((block) => normalizeTaskBlockType(block?.type) === "dictation");
   const shouldUseDictationTranscript = hasTextInput && hasDictationBlock;
 
-  const canSubmit = !isDeadlinePassed && !isPreviewMode;
-  const canInteract = !draft.submitting && (!isDeadlinePassed || isPreviewMode);
+  const canSubmit = !isPreviewMode;
+  const canInteract = !draft.submitting;
 
   const textAnswerPlaceholder =
     selectedTask?.min_words || selectedTask?.max_words
@@ -731,7 +745,12 @@ export default function MyHomeworkLessonPage() {
 
   const textAnswerWordCount = countWords(String(draft.text_answer || ""));
   const uploadInputId = `homework-upload-input-${String(selectedTaskId || "task").replace(/[^a-zA-Z0-9_-]/g, "-")}`;
-  const lessonStatusLabel = resolveLessonStatusLabel({ submission, isPreviewMode, isDeadlinePassed });
+  const lessonStatusLabel = resolveLessonStatusLabel({
+    submission,
+    isPreviewMode,
+    isDeadlinePassed,
+    isLateSubmission,
+  });
 
   const getBlockKey = (block, fallbackIndex) =>
     getTaskBlockKey({ taskId: selectedTaskId, block, fallbackIndex });
@@ -819,7 +838,7 @@ export default function MyHomeworkLessonPage() {
 
               {isDeadlinePassed ? (
                 <LessonStateCard
-                  message="Deadline has passed. You can still review your submissions."
+                  message="Deadline has passed. You can still submit, but the submission will be marked as late."
                   tone="danger"
                 />
               ) : null}
@@ -876,6 +895,7 @@ export default function MyHomeworkLessonPage() {
                   canSubmit={canSubmit}
                   isPreviewMode={isPreviewMode}
                   isDeadlinePassed={isDeadlinePassed}
+                  isLateSubmission={isLateSubmission}
                   shouldUseDictationTranscript={shouldUseDictationTranscript}
                   textAnswerPlaceholder={textAnswerPlaceholder}
                   textAnswerWordCount={textAnswerWordCount}

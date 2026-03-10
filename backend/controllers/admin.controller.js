@@ -20,6 +20,7 @@ import {
     INVITABLE_ROLE_VALUES,
     PROMOTABLE_ROLE_VALUES,
     ROLE_ADMIN,
+    ROLE_SUPERVISOR,
     ROLE_TEACHER,
     STUDENT_ROLE_VALUES,
     isStudentRole,
@@ -1045,7 +1046,7 @@ export const changeUserRole = async (req, res) => {
         }
 
         user.role = role;
-        if (role === ROLE_TEACHER || role === ROLE_ADMIN) {
+        if (role === ROLE_TEACHER || role === ROLE_SUPERVISOR || role === ROLE_ADMIN) {
             user.isConfirmed = true;
         }
         await user.save();
@@ -1129,7 +1130,10 @@ export const inviteUser = async (req, res) => {
         }
 
         if (!INVITABLE_ROLES.has(role)) {
-            return sendControllerError(req, res, { statusCode: 400, message: "Can only invite teacher or admin roles"  });
+            return sendControllerError(req, res, {
+                statusCode: 400,
+                message: `Can only invite roles: ${INVITABLE_ROLE_VALUES.join(", ")}`,
+            });
         }
 
         const existingUser = await User.findOne({ email: normalizedEmail }).select("_id").lean();

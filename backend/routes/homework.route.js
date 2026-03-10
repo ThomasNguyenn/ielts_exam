@@ -14,6 +14,7 @@ import {
   getMyHomeworkAssignmentById,
   getMyHomeworkAssignments,
   claimMyHomeworkChestReward,
+  generateHomeworkSubmissionAiReview,
   gradeHomeworkSubmission,
   launchMyHomeworkTaskTracking,
   createHomeworkAssignment,
@@ -313,6 +314,7 @@ router.put(
 router.get("/assignments/:id/dashboard", isTeacherOrAdmin, homeworkAssignmentDashboardCache, getHomeworkAssignmentDashboard);
 router.get("/assignments/:id/tasks/:taskId/submissions", isTeacherOrAdmin, homeworkTaskSubmissionsCache, getHomeworkTaskSubmissions);
 router.get("/submissions/:submissionId", isTeacherOrAdmin, getHomeworkSubmissionById);
+router.post("/submissions/:submissionId/ai-review", isTeacherOrAdmin, generateHomeworkSubmissionAiReview);
 router.put("/submissions/:submissionId/grade", isTeacherOrAdmin, invalidateHomeworkGradeReads, gradeHomeworkSubmission);
 
 export default router;

@@ -1,15 +1,15 @@
-import { normalizeTaskBlockType } from "@/features/homework/pages/myHomeworkStudentUtils";
+﻿import { normalizeTaskBlockType } from "@/features/homework/pages/myHomeworkStudentUtils";
 import { resolveInternalBlockData, resolveInternalSlotKeyFromBlock } from "./blocks/blockUtils";
 
 const FALLBACK_CHECKLIST = [
-  "Đọc kỹ hướng dẫn và ghi chú các điểm quan trọng.",
-  "Hoàn thành toàn bộ nội dung trước khi nộp bài.",
-  "Kiểm tra lại đáp án và tệp đính kèm trước khi gửi.",
+  "Äá»c ká»¹ hÆ°á»›ng dáº«n vÃ  ghi chÃº cÃ¡c Ä‘iá»ƒm quan trá»ng.",
+  "HoÃ n thÃ nh toÃ n bá»™ ná»™i dung trÆ°á»›c khi ná»™p bÃ i.",
+  "Kiá»ƒm tra láº¡i Ä‘Ã¡p Ã¡n vÃ  tá»‡p Ä‘Ã­nh kÃ¨m trÆ°á»›c khi gá»­i.",
 ];
 
 const cleanChecklistLine = (value = "") =>
   String(value || "")
-    .replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "")
+    .replace(/^\s*(?:[-*â€¢]|\d+[.)])\s*/, "")
     .replace(/\s+/g, " ")
     .trim();
 
@@ -76,10 +76,10 @@ export const buildMissionResources = ({ taskBlocks, taskId, getBlockKey }) => {
           block,
           blockType,
           anchorId: buildLessonBlockAnchorId({ taskId, blockKey }),
-          title: `Đoạn đọc ${passageCounter.value}`,
-          subtitle: "Đọc đoạn văn và hoàn thành câu hỏi liên quan.",
-          tag: "Bắt buộc",
-          actionLabel: "Mở đoạn đọc",
+          title: `Äoáº¡n Ä‘á»c ${passageCounter.value}`,
+          subtitle: "Äá»c Ä‘oáº¡n vÄƒn vÃ  hoÃ n thÃ nh cÃ¢u há»i liÃªn quan.",
+          tag: "Báº¯t buá»™c",
+          actionLabel: "Má»Ÿ Ä‘oáº¡n Ä‘á»c",
         };
       }
 
@@ -92,12 +92,12 @@ export const buildMissionResources = ({ taskBlocks, taskId, getBlockKey }) => {
           block,
           blockType,
           anchorId: buildLessonBlockAnchorId({ taskId, blockKey }),
-          title: isImage ? `Tài liệu ảnh ${videoCounter.value}` : `Video ${videoCounter.value}`,
+          title: isImage ? `TÃ i liá»‡u áº£nh ${videoCounter.value}` : `Video ${videoCounter.value}`,
           subtitle: isImage
-            ? "Mở hình ảnh tham khảo trước khi nộp bài."
-            : "Xem video hướng dẫn trước khi làm bài.",
-          tag: "Tài liệu",
-          actionLabel: isImage ? "Mở ảnh" : "Mở video",
+            ? "Má»Ÿ hÃ¬nh áº£nh tham kháº£o trÆ°á»›c khi ná»™p bÃ i."
+            : "Xem video hÆ°á»›ng dáº«n trÆ°á»›c khi lÃ m bÃ i.",
+          tag: "TÃ i liá»‡u",
+          actionLabel: isImage ? "Má»Ÿ áº£nh" : "Má»Ÿ video",
         };
       }
 
@@ -111,9 +111,9 @@ export const buildMissionResources = ({ taskBlocks, taskId, getBlockKey }) => {
         block,
         blockType,
         anchorId: buildLessonBlockAnchorId({ taskId, blockKey }),
-        title: refType ? `${refType} ${internalCounter.value}` : `Tài nguyên nội bộ ${internalCounter.value}`,
-        subtitle: refId ? `ID: ${refId}` : "Mở nội dung nội bộ được gán cho bài học.",
-        tag: "Bắt buộc",
+        title: refType ? `${refType} ${internalCounter.value}` : `TÃ i nguyÃªn ná»™i bá»™ ${internalCounter.value}`,
+        subtitle: refId ? `ID: ${refId}` : "Má»Ÿ ná»™i dung ná»™i bá»™ Ä‘Æ°á»£c gÃ¡n cho bÃ i há»c.",
+        tag: "Báº¯t buá»™c",
         actionLabel: "Launch Resource",
         resourceRefType: refType,
         resourceRefId: refId,
@@ -123,16 +123,23 @@ export const buildMissionResources = ({ taskBlocks, taskId, getBlockKey }) => {
     .filter(Boolean);
 };
 
-export const resolveLessonStatusLabel = ({ submission, isPreviewMode, isDeadlinePassed }) => {
+export const resolveLessonStatusLabel = ({
+  submission,
+  isPreviewMode,
+  isDeadlinePassed,
+  isLateSubmission,
+}) => {
   if (isPreviewMode) return "Preview";
-  if (isDeadlinePassed) return "Quá hạn";
-  if (submission?.status === "graded") return "Đã chấm";
-  if (submission) return "Đã nộp";
-  return "Đang làm";
+  if (submission?.status === "graded") return "Graded";
+  if (submission && isLateSubmission) return "Late submission";
+  if (submission) return "Submitted";
+  if (isDeadlinePassed) return "Overdue";
+  return "In progress";
 };
 
-export const resolveSubmissionStatusText = ({ isPreviewMode, isDeadlinePassed }) => {
+export const resolveSubmissionStatusText = ({ isPreviewMode, isDeadlinePassed, isLateSubmission }) => {
   if (isPreviewMode) return "Preview mode disables submit.";
-  if (isDeadlinePassed) return "Deadline has passed. You can review only.";
+  if (isLateSubmission) return "Submitted after deadline (late). You can update your answer if needed.";
+  if (isDeadlinePassed) return "Deadline has passed. You can still submit, but it will be marked as late.";
   return "Submitting will update your latest answer for this lesson.";
 };

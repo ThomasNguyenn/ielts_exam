@@ -113,4 +113,18 @@ describe("email.service domain and branding defaults", () => {
     expect(options.html).toContain("IELTS Hub");
     expect(options.html).toContain("https://ieltshub.online/register?invite=invite-token");
   });
+
+  it("renders supervisor role label in invitation content", async () => {
+    process.env.NODE_ENV = "production";
+    process.env.FRONTEND_ORIGINS = "https://ieltshub.online";
+    delete process.env.SMTP_FROM;
+
+    const { sendInvitationEmail } = await importEmailService();
+    await sendInvitationEmail("supervisor@example.com", "invite-supervisor-token", "supervisor");
+
+    const options = mocks.sendMail.mock.calls[0][0];
+    expect(options.subject).toContain("Supervisor");
+    expect(options.html).toContain("<strong>Supervisor</strong>");
+    expect(options.html).toContain("https://ieltshub.online/register?invite=invite-supervisor-token");
+  });
 });

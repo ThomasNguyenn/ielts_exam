@@ -2,6 +2,7 @@ export const ROLE_STUDENT = 'student';
 export const ROLE_STUDENT_IELTS = 'studentIELTS';
 export const ROLE_STUDENT_ACA = 'studentACA';
 export const ROLE_TEACHER = 'teacher';
+export const ROLE_SUPERVISOR = 'supervisor';
 export const ROLE_ADMIN = 'admin';
 
 export const STUDENT_ROLE_VALUES = [
@@ -15,10 +16,11 @@ export const PROMOTABLE_ROLE_VALUES = [
   ROLE_STUDENT_IELTS,
   ROLE_STUDENT_ACA,
   ROLE_TEACHER,
+  ROLE_SUPERVISOR,
   ROLE_ADMIN,
 ];
 
-export const INVITABLE_ROLE_VALUES = [ROLE_TEACHER, ROLE_ADMIN];
+export const INVITABLE_ROLE_VALUES = [ROLE_TEACHER, ROLE_SUPERVISOR, ROLE_ADMIN];
 
 export const isStudentRole = (role) => STUDENT_ROLE_VALUES.includes(String(role || '').trim());
 

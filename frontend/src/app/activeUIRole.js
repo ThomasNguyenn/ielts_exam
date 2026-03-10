@@ -1,8 +1,10 @@
 import {
   ADMIN_SWITCHABLE_UI_ROLES,
+  SUPERVISOR_SWITCHABLE_UI_ROLES,
   TEACHER_SWITCHABLE_UI_ROLES,
   normalizeUserRole,
   USER_ROLE_ADMIN,
+  USER_ROLE_SUPERVISOR,
   USER_ROLE_TEACHER,
 } from './roleRouting.js';
 
@@ -58,6 +60,12 @@ export const sanitizeActiveUIRoleForUser = (user, requestedRole = '') => {
     return TEACHER_SWITCHABLE_UI_ROLES.includes(normalizedRequestedRole)
       ? normalizedRequestedRole
       : USER_ROLE_TEACHER;
+  }
+
+  if (normalizedUserRole === USER_ROLE_SUPERVISOR) {
+    return SUPERVISOR_SWITCHABLE_UI_ROLES.includes(normalizedRequestedRole)
+      ? normalizedRequestedRole
+      : USER_ROLE_SUPERVISOR;
   }
 
   return normalizedUserRole;

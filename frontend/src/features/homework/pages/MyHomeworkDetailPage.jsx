@@ -122,7 +122,7 @@ export default function MyHomeworkDetailPage() {
     return renderState(
       <DetailStateCard
         message={isPreviewMode
-          ? "Preview mode is only available for teacher/admin accounts."
+          ? "Preview mode is only available for teacher/supervisor/admin accounts."
           : "This page is only available for student accounts."}
       />,
     );
@@ -165,7 +165,7 @@ export default function MyHomeworkDetailPage() {
           {isDeadlinePassed ? (
             <DetailStateCard
               tone="danger"
-              message="Deadline has passed. You can still review submissions and journey states."
+              message="Deadline has passed. You can still open lessons and submit, but new submissions are marked late."
             />
           ) : null}
 

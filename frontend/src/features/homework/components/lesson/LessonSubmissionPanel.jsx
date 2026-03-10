@@ -33,6 +33,7 @@ export default function LessonSubmissionPanel({
   canSubmit,
   isPreviewMode,
   isDeadlinePassed,
+  isLateSubmission,
   shouldUseDictationTranscript,
   textAnswerPlaceholder,
   textAnswerWordCount,
@@ -304,7 +305,7 @@ export default function LessonSubmissionPanel({
         <CardContent className="space-y-4 p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-slate-500">
-              {resolveSubmissionStatusText({ isPreviewMode, isDeadlinePassed })}
+              {resolveSubmissionStatusText({ isPreviewMode, isDeadlinePassed, isLateSubmission })}
             </p>
             {submission?.status === "graded" ? (
               <Badge className="rounded-full px-3 py-1">Score: {submission?.score ?? "--"} / 10</Badge>

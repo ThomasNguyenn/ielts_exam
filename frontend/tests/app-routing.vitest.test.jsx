@@ -88,6 +88,10 @@ vi.mock("@/features/layouts/AdminLayout", () => ({
   },
 }));
 
+vi.mock("@/features/admin/pages/StaffDashboardPage", () => ({
+  default: () => <div>Staff Dashboard Page</div>,
+}));
+
 const renderAppAt = (entry) =>
   render(
     <MemoryRouter initialEntries={[entry]}>
@@ -116,7 +120,7 @@ describe("App route guards", () => {
 
     renderAppAt("/admin/manage");
 
-    expect(await screen.findByText("Learn Page")).toBeInTheDocument();
+    expect(await screen.findByText("Profile Page")).toBeInTheDocument();
   });
 
   it("redirects unconfirmed students from public auth routes to wait page", async () => {
@@ -126,5 +130,14 @@ describe("App route guards", () => {
     renderAppAt("/login");
 
     expect(await screen.findByText("Wait For Confirmation")).toBeInTheDocument();
+  });
+
+  it("allows supervisor users to access staff dashboard routes", async () => {
+    mockApi.isAuthenticated.mockReturnValue(true);
+    mockApi.getUser.mockReturnValue({ role: "supervisor", isConfirmed: true });
+
+    renderAppAt("/dashboard");
+
+    expect(await screen.findByText("Staff Dashboard Page")).toBeInTheDocument();
   });
 });

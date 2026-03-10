@@ -30,6 +30,7 @@ const mockedControllers = vi.hoisted(() => ({
   getHomeworkAssignmentDashboard: vi.fn((_req, res) => res.status(200).json({ route: "dashboard" })),
   getHomeworkTaskSubmissions: vi.fn((_req, res) => res.status(200).json({ route: "task-submissions" })),
   getHomeworkSubmissionById: vi.fn((_req, res) => res.status(200).json({ route: "submission-by-id" })),
+  generateHomeworkSubmissionAiReview: vi.fn((_req, res) => res.status(200).json({ route: "submission-ai-review" })),
   gradeHomeworkSubmission: vi.fn((_req, res) => res.status(200).json({ route: "grade-submission" })),
 }));
 
@@ -163,5 +164,25 @@ describe("homework routes role guards", () => {
     expect(res.status).toBe(400);
     expect(res.body.route).toBe("quiz-ai-generate");
     expect(mockedControllers.generateHomeworkQuizBlockByAI).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows teacher to call submission AI review", async () => {
+    const res = await request(app)
+      .post("/api/homework/submissions/s1/ai-review")
+      .set("x-test-role", "teacher")
+      .send({ promptText: "frontend data should be ignored by backend" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.route).toBe("submission-ai-review");
+    expect(mockedControllers.generateHomeworkSubmissionAiReview).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects student on submission AI review route", async () => {
+    const res = await request(app)
+      .post("/api/homework/submissions/s1/ai-review")
+      .set("x-test-role", "student");
+
+    expect(res.status).toBe(403);
+    expect(mockedControllers.generateHomeworkSubmissionAiReview).not.toHaveBeenCalled();
   });
 });

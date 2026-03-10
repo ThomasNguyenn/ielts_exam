@@ -2,23 +2,27 @@ export const USER_ROLE_LEGACY_STUDENT = 'student';
 export const USER_ROLE_STUDENT_IELTS = 'studentIELTS';
 export const USER_ROLE_STUDENT_ACA = 'studentACA';
 export const USER_ROLE_TEACHER = 'teacher';
+export const USER_ROLE_SUPERVISOR = 'supervisor';
 export const USER_ROLE_ADMIN = 'admin';
 
 export const UI_ROLE_STUDENT_IELTS = USER_ROLE_STUDENT_IELTS;
 export const UI_ROLE_STUDENT_ACA = USER_ROLE_STUDENT_ACA;
 export const UI_ROLE_TEACHER = USER_ROLE_TEACHER;
+export const UI_ROLE_SUPERVISOR = USER_ROLE_SUPERVISOR;
 export const UI_ROLE_ADMIN = USER_ROLE_ADMIN;
 
 const ROLE_DEFAULT_PATH = {
-  [UI_ROLE_STUDENT_IELTS]: '/student-ielts/learn',
+  [UI_ROLE_STUDENT_IELTS]: '/student-ielts/profile',
   [UI_ROLE_STUDENT_ACA]: '/student-aca/homework',
   [UI_ROLE_TEACHER]: '/dashboard',
+  [UI_ROLE_SUPERVISOR]: '/dashboard',
   [UI_ROLE_ADMIN]: '/dashboard',
 };
 
 export const ADMIN_SWITCHABLE_UI_ROLES = [
   UI_ROLE_STUDENT_IELTS,
   UI_ROLE_STUDENT_ACA,
+  UI_ROLE_SUPERVISOR,
   UI_ROLE_ADMIN,
 ];
 
@@ -26,6 +30,10 @@ export const TEACHER_SWITCHABLE_UI_ROLES = [
   UI_ROLE_STUDENT_IELTS,
   UI_ROLE_STUDENT_ACA,
   UI_ROLE_TEACHER,
+];
+
+export const SUPERVISOR_SWITCHABLE_UI_ROLES = [
+  UI_ROLE_SUPERVISOR,
 ];
 
 export const STUDENT_FAMILY_ROLES = [
@@ -48,11 +56,15 @@ export const resolveAccessRolesForUserRole = (role) => {
   const normalized = normalizeUserRole(role);
 
   if (normalized === USER_ROLE_ADMIN) {
-    return [UI_ROLE_ADMIN, UI_ROLE_TEACHER, UI_ROLE_STUDENT_IELTS, UI_ROLE_STUDENT_ACA];
+    return [UI_ROLE_ADMIN, UI_ROLE_SUPERVISOR, UI_ROLE_TEACHER, UI_ROLE_STUDENT_IELTS, UI_ROLE_STUDENT_ACA];
   }
 
   if (normalized === USER_ROLE_TEACHER) {
     return [UI_ROLE_TEACHER, UI_ROLE_STUDENT_IELTS, UI_ROLE_STUDENT_ACA];
+  }
+
+  if (normalized === USER_ROLE_SUPERVISOR) {
+    return [UI_ROLE_SUPERVISOR];
   }
 
   if (normalized === USER_ROLE_STUDENT_ACA) {

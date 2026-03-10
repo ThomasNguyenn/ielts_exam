@@ -8,6 +8,7 @@ import {
   UI_ROLE_ADMIN,
   UI_ROLE_STUDENT_ACA,
   UI_ROLE_STUDENT_IELTS,
+  UI_ROLE_SUPERVISOR,
   UI_ROLE_TEACHER,
   getDefaultRouteForUser,
   isUnconfirmedStudentFamilyUser,
@@ -150,7 +151,7 @@ function StudentACARoutes() {
 function TeacherRoutes() {
   return (
     <RequireAuth>
-      <RequireRole allow={[UI_ROLE_TEACHER, UI_ROLE_ADMIN]}>
+      <RequireRole allow={[UI_ROLE_TEACHER, UI_ROLE_SUPERVISOR, UI_ROLE_ADMIN]}>
         {withSuspense(<AdminLayout />)}
       </RequireRole>
     </RequireAuth>
@@ -229,7 +230,7 @@ export default function App() {
         </Route>
 
         <Route path="/student-ielts" element={<StudentIELTSRoutes />}>
-          <Route index element={<Navigate to="/student-ielts/learn" replace />} />
+          <Route index element={<Navigate to="/student-ielts/profile" replace />} />
           <Route path="profile" element={withSuspense(<Profile />)} />
           <Route path="account-security" element={withSuspense(<StudentAccountSecurityPage />)} />
           <Route path="tests" element={withSuspense(<TestList />)} />
@@ -261,7 +262,7 @@ export default function App() {
           <Route path="homework/:assignmentId" element={withSuspense(<MyHomeworkDetailPage />)} />
           <Route path="homework/:assignmentId/lessons/:lessonId" element={withSuspense(<MyHomeworkLessonPage />)} />
 
-          <Route path="*" element={<Navigate to="/student-ielts/learn" replace />} />
+          <Route path="*" element={<Navigate to="/student-ielts/profile" replace />} />
         </Route>
 
         <Route path="/student-aca" element={<StudentACARoutes />}>

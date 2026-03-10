@@ -744,6 +744,11 @@ export const api = {
   homeworkGetSubmissionById: (submissionId) => request(`/api/homework/submissions/${submissionId}`),
   homeworkGradeSubmission: (submissionId, body) =>
     request(`/api/homework/submissions/${submissionId}/grade`, { method: 'PUT', body: JSON.stringify(body) }),
+  homeworkGenerateSubmissionAiReview: (submissionId, body) =>
+    request(`/api/homework/submissions/${submissionId}/ai-review`, {
+      method: 'POST',
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    }),
 
   // Speaking
   getSpeakings: (params = {}) => {

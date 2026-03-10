@@ -20,9 +20,11 @@ import {
 import {
   UI_ROLE_STUDENT_ACA,
   UI_ROLE_STUDENT_IELTS,
+  UI_ROLE_SUPERVISOR,
   getDefaultRouteForRole,
   normalizeUserRole,
   USER_ROLE_ADMIN,
+  USER_ROLE_SUPERVISOR,
 } from '@/app/roleRouting';
 import { api } from '@/shared/api/client';
 import { sanitizeActiveUIRoleForUser, setActiveUIRole } from '@/app/activeUIRole';
@@ -81,28 +83,29 @@ const ADMIN_MANAGE_SUB_ITEMS = [
 ];
 
 const ADMIN_PEOPLE_SUB_ITEMS = [
-  { key: 'people-request', label: 'Approve Students', to: '/admin/people/request' },
-  { key: 'people-users', label: 'Manage Users', to: '/admin/people/users' },
-  { key: 'people-invitation', label: 'Send Invitations', to: '/admin/people/invitation' },
+  { key: 'people-request', label: 'Duyệt học sinh', to: '/admin/people/request' },
+  { key: 'people-users', label: 'Quản lý Tài Khoản', to: '/admin/people/users' },
+  { key: 'people-invitation', label: 'Gửi lời mời', to: '/admin/people/invitation' },
 ];
 
 const OVERVIEW_NAV_ITEMS = [
-  { key: 'dashboard', label: 'Dashboard', to: '/dashboard', icon: LayoutDashboard, exact: true },
-  { key: 'homework-progress', label: 'Homework Progress', to: '/dashboard/homework-progress', icon: ListChecks },
-  { key: 'homeroom-students', label: 'Homeroom Students', to: '/dashboard/homeroom-students', icon: Users },
+  { key: 'dashboard', label: 'Thống Kê', to: '/dashboard', icon: LayoutDashboard, exact: true },
+  { key: 'homework-progress', label: 'Nhận xét Bài Tập', to: '/dashboard/homework-progress', icon: ListChecks },
+  { key: 'homeroom-students', label: 'Học sinh Chủ nhiệm', to: '/dashboard/homeroom-students', icon: Users },
 ];
 
 const TEACHER_NAV_ITEMS = [
-  { key: 'grading', label: 'Grading', to: '/grading', icon: BookCheck },
-  { key: 'scores', label: 'Scores', to: '/scores', icon: ClipboardList },
-  { key: 'evaluate', label: 'Evaluate', to: '/evaluate', icon: Sparkles },
-  { key: 'homework', label: 'Homework', to: '/homework', icon: FileText },
+  { key: 'grading', label: 'Chấm Điểm Writing', to: '/grading', icon: BookCheck },
+  { key: 'scores', label: 'Điểm Số', to: '/scores', icon: ClipboardList },
+  { key: 'evaluate', label: 'Nhận xét Tuần', to: '/evaluate', icon: Sparkles },
+  { key: 'homework', label: 'Bài Tập Tháng', to: '/homework', icon: FileText },
 ];
 
 const ADMIN_SWITCHER_DEFAULT_VALUE = '__admin_default__';
 
 const ADMIN_UI_ROLE_OPTIONS = [
   { value: ADMIN_SWITCHER_DEFAULT_VALUE, label: 'Admin' },
+  { value: UI_ROLE_SUPERVISOR, label: 'Supervisor UI' },
   { value: UI_ROLE_STUDENT_IELTS, label: 'Student IELTS UI' },
   { value: UI_ROLE_STUDENT_ACA, label: 'Student ACA UI' },
 ];
@@ -110,6 +113,10 @@ const ADMIN_UI_ROLE_OPTIONS = [
 const TEACHER_UI_ROLE_OPTIONS = [
   { value: UI_ROLE_STUDENT_IELTS, label: 'Student IELTS UI' },
   { value: UI_ROLE_STUDENT_ACA, label: 'Student ACA UI' },
+];
+
+const SUPERVISOR_UI_ROLE_OPTIONS = [
+  { value: UI_ROLE_SUPERVISOR, label: 'Supervisor' },
 ];
 
 const isTabMatch = (pathname, to) => pathname === to || pathname.startsWith(`${to}/`);
@@ -133,29 +140,29 @@ const resolveSidebarAvatar = (user) => {
 };
 
 const BREADCRUMB_LABELS = {
-  dashboard: 'Dashboard',
-  grading: 'Grading',
-  scores: 'Scores',
-  evaluate: 'Evaluate',
-  homework: 'Homework',
+  dashboard: 'Thống Kê',
+  grading: 'Chấm Điểm Writing',
+  scores: 'Điểm Số',
+  evaluate: 'Đánh Giá',
+  homework: 'Bài Tập Tháng',
   groups: 'Groups',
   assignments: 'Assignments',
   submissions: 'Submissions',
   analytics: 'Analytics',
   settings: 'Settings',
-  'homework-progress': 'Homework Progress',
-  'homeroom-students': 'Homeroom Students',
-  student: 'Student',
-  manage: 'Manage',
+  'homework-progress': 'Nhận xét Bài Tập',
+  'homeroom-students': 'Học sinh Chủ nhiệm',
+  student: 'Học Sinh',
+  manage: 'Quản Lý',
   passages: 'Passages',
   sections: 'Listening',
   writings: 'Writing Tasks',
   speaking: 'Speaking Topics',
   tests: 'Full Tests',
   'skill-modules': 'Skill Modules',
-  requests: 'Approve Students',
-  request: 'Approve Students',
-  users: 'Users',
+  requests: 'Duyệt học sinh',
+  request: 'Duyệt học sinh',
+  users: 'Quản lý Tài Khoản',
   people: 'People',
   invitations: 'Invitations',
   invitation: 'Invitations',
@@ -275,9 +282,15 @@ export default function AdminLayout() {
   const [isPeopleMenuOpen, setIsPeopleMenuOpen] = useState(pathname.startsWith('/admin/people'));
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const user = sessionUser;
-  const isAdminUser = normalizeUserRole(user?.role) === USER_ROLE_ADMIN;
-  const uiRoleOptions = isAdminUser ? ADMIN_UI_ROLE_OPTIONS : TEACHER_UI_ROLE_OPTIONS;
-  const workspaceLabel = isAdminUser ? 'Admin Workspace' : 'Teacher Workspace';
+  const normalizedRole = normalizeUserRole(user?.role);
+  const isAdminUser = normalizedRole === USER_ROLE_ADMIN;
+  const isSupervisorUser = normalizedRole === USER_ROLE_SUPERVISOR;
+  const uiRoleOptions = isAdminUser
+    ? ADMIN_UI_ROLE_OPTIONS
+    : (isSupervisorUser ? SUPERVISOR_UI_ROLE_OPTIONS : TEACHER_UI_ROLE_OPTIONS);
+  const workspaceLabel = isAdminUser
+    ? 'Admin Workspace'
+    : (isSupervisorUser ? 'Supervisor Workspace' : 'Teacher Workspace');
   const workspaceHome = '/dashboard';
   const navUser = useMemo(() => {
     const email = String(user?.email || '').trim() || 'no-email@local';
@@ -402,7 +415,7 @@ export default function AdminLayout() {
                   <div className="admin-sidebar-shell__brand-meta">
                     <span className="admin-sidebar-shell__brand-title">{workspaceLabel}</span>
                     <span className="admin-sidebar-shell__brand-subtitle">
-                      {isAdminUser ? 'Administrator' : 'Teacher'}
+                      {isAdminUser ? 'Administrator' : (isSupervisorUser ? 'Supervisor' : 'Teacher')}
                     </span>
                   </div>
                 </Link>

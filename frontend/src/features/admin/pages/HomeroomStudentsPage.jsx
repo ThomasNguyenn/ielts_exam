@@ -97,9 +97,22 @@ const normalizeGender = (value) => {
   return 'Other';
 };
 
-const normalizeLevel = (role) => {
-  const normalized = String(role || '').toLowerCase();
-  if (normalized === 'studentaca') return 'ACA';
+const normalizeProgramToken = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, '');
+
+const normalizeLevel = ({ role, studyTrack } = {}) => {
+  const normalizedRole = normalizeProgramToken(role);
+  const normalizedTrack = normalizeProgramToken(studyTrack);
+
+  if (normalizedRole === 'studentaca' || normalizedRole === 'aca') return 'ACA';
+  if (normalizedRole === 'studentielts' || normalizedRole === 'ielts') return 'IELTS';
+
+  if (normalizedTrack === 'aca' || normalizedTrack === 'academic' || normalizedTrack === 'studentaca') return 'ACA';
+  if (normalizedTrack === 'ielts' || normalizedTrack === 'studentielts') return 'IELTS';
+
   return 'IELTS';
 };
 
@@ -127,7 +140,16 @@ const toUiStudent = (user) => ({
   address: user?.address || '--',
   dateOfBirth: user?.dob || user?.dateOfBirth || '',
   gender: normalizeGender(user?.gender),
-  level: normalizeLevel(user?.role),
+  level: normalizeLevel({
+    role: user?.role,
+    studyTrack:
+      user?.studyTrack
+      || user?.study_track
+      || user?.studentTrack
+      || user?.track
+      || user?.program
+      || user?.program_type,
+  }),
   parentName: user?.parentName || '--',
   parentPhone: user?.parentPhone || '--',
   enrolledDate: user?.createdAt || '',
@@ -217,12 +239,29 @@ export default function HomeroomStudentsPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [studentRows, teacherRows, adminRows] = await Promise.all([
-        fetchAllUsersByRole('student', 100),
+      const [studentResults, teacherRows, adminRows] = await Promise.all([
+        Promise.allSettled([
+          fetchAllUsersByRole('student', 100),
+          fetchAllUsersByRole('studentIELTS', 100),
+          fetchAllUsersByRole('studentACA', 100),
+        ]),
         fetchAllUsersByRole('teacher', 100),
         fetchAllUsersByRole('admin', 100),
       ]);
 
+      const studentById = new Map();
+      studentResults.forEach((result) => {
+        if (result.status !== 'fulfilled') return;
+        (Array.isArray(result.value) ? result.value : []).forEach((user) => {
+          const userId = String(user?._id || '');
+          if (!userId) return;
+          if (!studentById.has(userId)) {
+            studentById.set(userId, user);
+          }
+        });
+      });
+
+      const studentRows = Array.from(studentById.values());
       setStudents(studentRows.map(toUiStudent));
       setTeachers(
         [...teacherRows, ...adminRows].map((user) => ({
@@ -249,17 +288,18 @@ export default function HomeroomStudentsPage() {
     setCurrentPage(1);
   }, [search, levelFilter, genderFilter, studentScopeTab]);
 
+  const currentUserId = String(currentUser?._id || '');
+  const scopedStudents = useMemo(() => {
+    if (studentScopeTab !== 'my-homeroom') {
+      return students;
+    }
+    if (!currentUserId) return [];
+    return students.filter((student) => String(student?.homeroom_teacher_id || '') === currentUserId);
+  }, [students, studentScopeTab, currentUserId]);
+
   const filteredStudents = useMemo(
     () =>
-      students.filter((student) => {
-        if (studentScopeTab === 'my-homeroom') {
-          const currentUserId = String(currentUser?._id || '');
-          const studentTeacherId = String(student?.homeroom_teacher_id || '');
-          if (!currentUserId || !studentTeacherId || studentTeacherId !== currentUserId) {
-            return false;
-          }
-        }
-
+      scopedStudents.filter((student) => {
         const normalizedSearch = search.trim().toLowerCase();
         if (
           normalizedSearch
@@ -273,7 +313,7 @@ export default function HomeroomStudentsPage() {
         if (genderFilter !== 'all' && student.gender !== genderFilter) return false;
         return true;
       }),
-    [students, search, levelFilter, genderFilter, studentScopeTab, currentUser?._id],
+    [scopedStudents, search, levelFilter, genderFilter],
   );
 
   const totalFilteredStudents = filteredStudents.length;
@@ -317,8 +357,8 @@ export default function HomeroomStudentsPage() {
     return map;
   }, [teachers]);
 
-  const totalIelts = students.filter((student) => student.level === 'IELTS').length;
-  const totalAca = students.filter((student) => student.level === 'ACA').length;
+  const totalIelts = scopedStudents.filter((student) => student.level === 'IELTS').length;
+  const totalAca = scopedStudents.filter((student) => student.level === 'ACA').length;
   const assignableStudents = useMemo(
     () => (assignScope === 'all' ? students : unassignedStudents),
     [assignScope, students, unassignedStudents],
@@ -588,7 +628,7 @@ export default function HomeroomStudentsPage() {
           icon={<Users className="size-4" />}
           iconBg="bg-violet-100 text-violet-600"
           label="Total Students"
-          value={students.length}
+          value={scopedStudents.length}
         />
         <SummaryCard
           icon={<FileText className="size-4" />}

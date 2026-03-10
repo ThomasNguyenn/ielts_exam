@@ -34,6 +34,7 @@ import {
   trackHomeworkActivityOpen,
 } from "../services/homeworkTrackingBridge.service.js";
 import { generateHomeworkQuizBlock } from "../services/homeworkGen.service.js";
+import { generateHomeworkSubmissionAiReview as generateHomeworkSubmissionAiReviewService } from "../services/homeworkAiReview.service.js";
 import { addXP } from "../services/gamification.service.js";
 import { parsePagination, buildPaginationMeta } from "../utils/pagination.js";
 import { handleControllerError, sendControllerError } from "../utils/controllerError.js";
@@ -2946,16 +2947,6 @@ export const upsertMyHomeworkTaskSubmission = async (req, res) => {
       });
     }
     const task = lessonToTaskPayload(lesson, 0);
-    const lessonDueDate = parseDateOrNull(task?.due_date);
-    const assignmentDueDate = parseDateOrNull(assignment?.due_date);
-    const effectiveDueDate = lessonDueDate || assignmentDueDate;
-    if (!effectiveDueDate || Date.now() > effectiveDueDate.getTime()) {
-      return sendControllerError(req, res, {
-        statusCode: 403,
-        code: "HOMEWORK_DEADLINE_PASSED",
-        message: "Submission deadline has passed",
-      });
-    }
 
     const existingSubmission = await MonthlyAssignmentSubmission.findOne({
       assignment_id: assignmentId,
@@ -3708,6 +3699,67 @@ export const getHomeworkSubmissionById = async (req, res) => {
       },
     });
   } catch (error) {
+    return handleControllerError(req, res, error);
+  }
+};
+
+export const generateHomeworkSubmissionAiReview = async (req, res) => {
+  try {
+    const submissionId = req.params.submissionId;
+    if (!mongoose.Types.ObjectId.isValid(submissionId)) {
+      return sendControllerError(req, res, { statusCode: 400, message: "Invalid submission id" });
+    }
+
+    const submission = await MonthlyAssignmentSubmission.findById(submissionId).lean();
+    if (!submission) {
+      return sendControllerError(req, res, { statusCode: 404, message: "Submission not found" });
+    }
+
+    const [assignment, student] = await Promise.all([
+      MonthlyAssignment.findById(submission.assignment_id).lean(),
+      User.findById(submission.student_id).select("_id name email role homeroom_teacher_id").lean(),
+    ]);
+
+    if (!assignment) {
+      return sendControllerError(req, res, { statusCode: 404, message: "Assignment not found" });
+    }
+    if (!student) {
+      return sendControllerError(req, res, { statusCode: 404, message: "Student not found" });
+    }
+
+    const gradePermission = canGradeStudentForAssignment({
+      assignment,
+      student,
+      user: req.user,
+    });
+    if (!gradePermission.allowed) {
+      return sendControllerError(req, res, {
+        statusCode: 403,
+        code: gradePermission.code,
+        message: "You do not have permission to review this submission",
+      });
+    }
+
+    const review = await generateHomeworkSubmissionAiReviewService({
+      submission,
+      assignment,
+      student,
+      reviewer: req.user,
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: review,
+    });
+  } catch (error) {
+    if (error?.statusCode) {
+      return sendControllerError(req, res, {
+        statusCode: error.statusCode,
+        code: error.code,
+        message: error.message,
+        details: error.details,
+      });
+    }
     return handleControllerError(req, res, error);
   }
 };

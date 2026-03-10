@@ -19,7 +19,13 @@ import WorkspacesOutlined from '@mui/icons-material/WorkspacesOutlined';
 import AssignmentTurnedInOutlined from '@mui/icons-material/AssignmentTurnedInOutlined';
 import ManageAccountsOutlined from '@mui/icons-material/ManageAccountsOutlined';
 import { api } from '@/shared/api/client';
-import { isStudentFamilyRole } from '@/app/roleRouting';
+import {
+  isStudentFamilyRole,
+  normalizeUserRole,
+  USER_ROLE_ADMIN,
+  USER_ROLE_SUPERVISOR,
+  USER_ROLE_TEACHER,
+} from '@/app/roleRouting';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -202,10 +208,13 @@ const NAV_ICON_COMPONENTS = {
 };
 
 const isItemVisible = (item, user) => {
+  const normalizedRole = normalizeUserRole(user?.role);
   if (item.visibility === 'all') return true;
   if (item.visibility === 'auth') return Boolean(user);
-  if (item.visibility === 'teacher_admin') return user?.role === 'teacher' || user?.role === 'admin';
-  if (item.visibility === 'admin') return user?.role === 'admin';
+  if (item.visibility === 'teacher_admin') {
+    return [USER_ROLE_TEACHER, USER_ROLE_SUPERVISOR, USER_ROLE_ADMIN].includes(normalizedRole);
+  }
+  if (item.visibility === 'admin') return normalizedRole === USER_ROLE_ADMIN;
   if (item.visibility === 'student') return isStudentFamilyRole(user?.role);
   return false;
 };

@@ -24,6 +24,7 @@ const ROLE_FILTERS = [
 
 const ROLE_CHIP_CLASS = {
   admin: 'admin-people-chip admin-people-chip--admin',
+  supervisor: 'admin-people-chip admin-people-chip--teacher',
   teacher: 'admin-people-chip admin-people-chip--teacher',
   student: 'admin-people-chip admin-people-chip--student',
   studentIELTS: 'admin-people-chip admin-people-chip--student',
@@ -34,6 +35,7 @@ const PROMOTABLE_ROLES = [
   { value: 'student', label: 'Student' },
   { value: 'studentIELTS', label: 'Student IELTS' },
   { value: 'studentACA', label: 'Student ACA' },
+  { value: 'supervisor', label: 'Supervisor' },
   { value: 'teacher', label: 'Teacher' },
   { value: 'admin', label: 'Admin' },
 ];

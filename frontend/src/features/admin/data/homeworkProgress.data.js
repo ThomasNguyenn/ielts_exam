@@ -136,6 +136,34 @@ const toTimestamp = (value) => {
   return date.getTime();
 };
 
+const toDayEndTimestamp = (isoDay) => {
+  const normalized = String(isoDay || '').trim();
+  if (!normalized) return null;
+  const start = toTimestamp(`${normalized}T00:00:00.000Z`);
+  if (start === null) return null;
+  return start + MS_PER_DAY - 1;
+};
+
+const resolveTaskSubmissionTiming = ({ task = {}, metrics = null, dueAt = null } = {}) => {
+  const safeMetrics = metrics || resolveTaskGroupMetrics(task);
+  const doneCount = Number(safeMetrics?.doneCount || 0);
+  const hasSubmission = doneCount > 0;
+  const submittedAtTs = toTimestamp(task?.submitted_at);
+  const dueTs = toTimestamp(dueAt);
+  const dueDay = toIsoDay(dueAt);
+  const isLate = hasSubmission && dueTs !== null && submittedAtTs !== null && submittedAtTs > dueTs;
+  const isOnTime = hasSubmission && !isLate;
+
+  return {
+    hasSubmission,
+    submittedAtTs,
+    dueTs,
+    dueDay,
+    isLate,
+    isOnTime,
+  };
+};
+
 const clampNumber = (value, min, max) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return min;
@@ -280,11 +308,13 @@ export const loadHomeroomStudentsQuick = async () => {
 export const loadHomeroomHomeworkProgress = async ({ selectedDate = TODAY } = {}) => {
   const currentUser = api.getUser();
   const currentUserId = String(currentUser?._id || '').trim();
+  const normalizedSelectedDate = String(selectedDate || TODAY).slice(0, 10);
+  const selectedDateDayEndTs = toDayEndTimestamp(normalizedSelectedDate);
 
   if (!currentUserId) {
     return {
       students: [],
-      dateOptions: [selectedDate || TODAY],
+      dateOptions: [normalizedSelectedDate || TODAY],
     };
   }
 
@@ -303,14 +333,14 @@ export const loadHomeroomHomeworkProgress = async ({ selectedDate = TODAY } = {}
   if (studentById.size === 0) {
     return {
       students: [],
-      dateOptions: [selectedDate || TODAY],
+      dateOptions: [normalizedSelectedDate || TODAY],
     };
   }
 
-  const assignmentMonth = String(selectedDate || TODAY).slice(0, 7);
+  const assignmentMonth = normalizedSelectedDate.slice(0, 7);
   const assignmentMonths = buildLookbackMonthKeys(assignmentMonth, 6, 1);
   const assignments = await fetchPublishedAssignmentsByMonths(assignmentMonths);
-  const dateSet = new Set([selectedDate || TODAY, TODAY]);
+  const dateSet = new Set([normalizedSelectedDate || TODAY, TODAY]);
 
   // Fetch all assignment dashboards in parallel instead of sequentially
   const dashboardPromises = assignments
@@ -341,9 +371,11 @@ export const loadHomeroomHomeworkProgress = async ({ selectedDate = TODAY } = {}
       taskMetaMap.set(taskId, {
         title: String(task?.title || task?.type || 'Task').trim(),
         due_date: toIsoDay(task?.due_date) || null,
+        due_at: task?.due_date || null,
       });
     });
-    const assignmentDueDay = toIsoDay(dashboardData?.assignment?.due_date || assignment?.due_date) || null;
+    const assignmentDueAt = dashboardData?.assignment?.due_date || assignment?.due_date || null;
+    const assignmentDueDay = toIsoDay(assignmentDueAt) || null;
 
     dashboardStudents.forEach((dashboardStudent) => {
       const studentId = String(dashboardStudent?._id || '').trim();
@@ -371,8 +403,16 @@ export const loadHomeroomHomeworkProgress = async ({ selectedDate = TODAY } = {}
         const taskId = String(task?.task_id || '').trim();
         const taskSlotId = String(task?.task_slot_id || '').trim();
         const meta = taskMetaMap.get(taskId) || {};
-        const taskDueDay = toIsoDay(task?.task_due_date) || meta.due_date || assignmentDueDay;
-        const isDeadlinePassed = taskDueDay ? taskDueDay <= TODAY : true;
+        const taskDueAt = task?.task_due_date || meta.due_at || assignmentDueAt;
+        const taskDueDay = toIsoDay(taskDueAt) || meta.due_date || assignmentDueDay;
+        const taskTiming = resolveTaskSubmissionTiming({
+          task,
+          metrics,
+          dueAt: taskDueAt,
+        });
+        const isDeadlinePassedOnSelectedDate = taskTiming.dueTs !== null
+          ? (selectedDateDayEndTs !== null ? taskTiming.dueTs <= selectedDateDayEndTs : false)
+          : true;
 
         assignmentDoneCount += metrics.doneCount;
         assignmentTotalCount += metrics.totalCount;
@@ -381,9 +421,10 @@ export const loadHomeroomHomeworkProgress = async ({ selectedDate = TODAY } = {}
         if (metrics.isCompleted) completedTaskGroups += 1;
         if (metrics.isGraded) gradedTaskGroups += 1;
         if (metrics.isStarted && !metrics.isGraded) pendingReviewTaskGroups += 1;
-        if (isDeadlinePassed && !metrics.isCompleted) {
+        if (isDeadlinePassedOnSelectedDate && !taskTiming.isOnTime) {
           missingTaskGroups += 1;
         }
+        if (taskDueDay) dateSet.add(taskDueDay);
 
         const submissionIdRaw = task?.submission_id || task?.homework_submission_id || null;
         const submissionId = submissionIdRaw ? String(submissionIdRaw) : null;
@@ -400,6 +441,11 @@ export const loadHomeroomHomeworkProgress = async ({ selectedDate = TODAY } = {}
           group_id: String(task?.group_id || '').trim() || null,
           done_count: metrics.doneCount,
           total_count: metrics.totalCount,
+          submission_timing: taskTiming.hasSubmission
+            ? (taskTiming.isLate ? 'late' : 'on_time')
+            : 'missing',
+          is_late: taskTiming.isLate,
+          is_on_time: taskTiming.isOnTime,
           internal_items: Array.isArray(task?.internal_items) ? task.internal_items : [],
         });
       });
@@ -410,11 +456,13 @@ export const loadHomeroomHomeworkProgress = async ({ selectedDate = TODAY } = {}
       const shouldInclude = assignmentMonthValue === assignmentMonth || startedTaskGroups > 0;
       if (!shouldInclude) return;
       const assignmentCompletionStatus =
-        assignmentDoneCount <= 0
-          ? 'not_started'
-          : assignmentDoneCount >= assignmentTotalCount
-            ? 'completed'
-            : 'in_progress';
+        missingTaskGroups > 0
+          ? 'missing'
+          : assignmentDoneCount <= 0
+            ? 'not_started'
+            : assignmentDoneCount >= assignmentTotalCount
+              ? 'completed'
+              : 'in_progress';
 
       target.assignments.push({
         id: assignmentId,
@@ -450,7 +498,7 @@ export const loadHomeroomHomeworkProgress = async ({ selectedDate = TODAY } = {}
         name: student.name,
         level: student.level,
         missing: student.missing,
-        dailyProgress: [{ date: selectedDate || TODAY, missing: student.missing }],
+        dailyProgress: [{ date: normalizedSelectedDate || TODAY, missing: student.missing }],
         assignments: student.assignments,
         overallStatus,
       };
@@ -523,22 +571,21 @@ export const loadStaffDashboardData = async ({ rangeDays = 7, scope = 'homeroom'
     .map(async (assignment) => {
       const assignmentId = String(assignment._id).trim();
       const dueDay = toIsoDay(assignment?.due_date);
-      const dueInRange = Boolean(dueDay && daySet.has(dueDay));
       const dashboardResponse = await api.homeworkGetAssignmentDashboard(assignmentId);
-      return { assignmentId, assignment, dueDay, dueInRange, dashboardData: dashboardResponse?.data || {} };
+      return { assignmentId, assignment, dueDay, dashboardData: dashboardResponse?.data || {} };
     });
 
   const staffDashResults = await Promise.allSettled(staffDashPromises);
 
   for (const result of staffDashResults) {
     if (result.status !== 'fulfilled') continue;
-    const { assignmentId, assignment, dueDay, dueInRange, dashboardData } = result.value;
+    const { assignmentId, assignment, dueDay, dashboardData } = result.value;
 
     const assignmentTitle = String(
       dashboardData?.assignment?.title || assignment?.title || 'Untitled assignment',
     ).trim();
     const dashboardStudents = Array.isArray(dashboardData?.students) ? dashboardData.students : [];
-    const assignmentDueTs = toTimestamp(dashboardData?.assignment?.due_date || assignment?.due_date);
+    const assignmentDueAt = dashboardData?.assignment?.due_date || assignment?.due_date || null;
 
     dashboardStudents.forEach((dashboardStudent) => {
       const studentId = String(dashboardStudent?._id || '').trim();
@@ -549,15 +596,13 @@ export const loadStaffDashboardData = async ({ rangeDays = 7, scope = 'homeroom'
       if (tasks.length === 0) return;
 
       let doneUnits = 0;
-      let doneUnitsInRange = 0;
       let totalUnits = 0;
-      let totalUnitsInRange = 0;
       let pendingReviewUnits = 0;
-      let pendingReviewUnitsInRange = 0;
       let missingGroups = 0;
+      let hasDueInRange = false;
       let latestSubmittedAt = null;
       let latestSubmissionId = '';
-      const submittedUnitsByDay = new Map();
+      let latestSubmissionIsLate = false;
 
       tasks.forEach((task) => {
         const metrics = resolveTaskGroupMetrics(task);
@@ -566,84 +611,71 @@ export const loadStaffDashboardData = async ({ rangeDays = 7, scope = 'homeroom'
         const submittedInRange = submittedAtTs !== null && submittedAtDay && daySet.has(submittedAtDay);
         const submissionIdRaw = task?.submission_id || task?.homework_submission_id || '';
         const submissionId = String(submissionIdRaw || '').trim();
-        const taskDueDay = toIsoDay(task?.task_due_date) || dueDay;
-        const isPastDue = taskDueDay ? taskDueDay <= TODAY : true;
+        const taskDueAt = task?.task_due_date || assignmentDueAt;
+        const taskDueDay = toIsoDay(taskDueAt) || dueDay;
+        const taskDueInRange = Boolean(taskDueDay && daySet.has(taskDueDay));
+        const taskTiming = resolveTaskSubmissionTiming({
+          task,
+          metrics,
+          dueAt: taskDueAt,
+        });
 
-        totalUnits += metrics.totalCount;
-        doneUnits += metrics.doneCount;
+        if (taskDueInRange) {
+          hasDueInRange = true;
+          const onTimeDoneCount = taskTiming.isOnTime ? metrics.doneCount : 0;
+          const isPastDue = taskDueDay ? taskDueDay <= TODAY : true;
 
-        if (submittedInRange) {
-          totalUnitsInRange += metrics.doneCount;
-          doneUnitsInRange += metrics.doneCount;
-          const currentSubmittedUnits = Number(submittedUnitsByDay.get(submittedAtDay) || 0);
-          submittedUnitsByDay.set(submittedAtDay, currentSubmittedUnits + metrics.doneCount);
+          totalUnits += metrics.totalCount;
+          doneUnits += onTimeDoneCount;
+          if (metrics.isStarted && !metrics.isGraded) pendingReviewUnits += metrics.doneCount;
+          if (isPastDue && !taskTiming.isOnTime) missingGroups += 1;
+
+          const dayBucket = dayTotals.get(taskDueDay);
+          if (dayBucket) {
+            dayBucket.submitted += onTimeDoneCount;
+            dayBucket.total += metrics.totalCount;
+          }
         }
-        if (metrics.isStarted && !metrics.isGraded) {
-          pendingReviewUnits += metrics.doneCount;
-          if (submittedInRange) pendingReviewUnitsInRange += metrics.doneCount;
-        }
-        if (isPastDue && !metrics.isCompleted) missingGroups += 1;
 
         if (submittedInRange) {
           if (!latestSubmittedAt || submittedAtTs > latestSubmittedAt) {
             latestSubmittedAt = submittedAtTs;
             latestSubmissionId = submissionId;
+            latestSubmissionIsLate = taskTiming.isLate;
           } else if (submittedAtTs === latestSubmittedAt && !latestSubmissionId && submissionId) {
             latestSubmissionId = submissionId;
           }
         }
       });
 
-      const hasSubmissionInRange = doneUnitsInRange > 0;
-      if (!dueInRange && !hasSubmissionInRange) return;
-
-      const effectiveDoneUnits = dueInRange ? doneUnits : doneUnitsInRange;
-      const effectivePendingReviewUnits = dueInRange ? pendingReviewUnits : pendingReviewUnitsInRange;
-      const effectiveMissingGroups = dueInRange ? missingGroups : 0;
-      const effectiveTotalUnits = dueInRange ? totalUnits : totalUnitsInRange;
-
-      targetStudent.assignments.push({
-        id: assignmentId,
-        title: assignmentTitle || 'Untitled assignment',
-        dueDay,
-        status: effectiveDoneUnits > 0 && effectiveMissingGroups === 0 ? 'Submitted' : 'Missing',
-        gradingStatus: effectivePendingReviewUnits > 0 ? 'Pending' : 'Done',
-        totalSlots: effectiveTotalUnits,
-        submittedSlots: effectiveDoneUnits,
-        missingSlots: effectiveMissingGroups,
-      });
-
-      targetStudent.totalMissing += effectiveMissingGroups;
-      targetStudent.totalSubmitted += effectiveDoneUnits;
-      targetStudent.totalSlots += effectiveTotalUnits;
-      targetStudent.pendingReviewSlots += effectivePendingReviewUnits;
-      if (effectiveMissingGroups > 0) targetStudent.hasMissing = true;
-      if (effectivePendingReviewUnits > 0) targetStudent.hasPendingReview = true;
-
-      if (dueInRange && dueDay === TODAY) {
-        targetStudent.todayMissingSlots += effectiveMissingGroups;
-        targetStudent.todayTotalSlots += effectiveTotalUnits;
-      }
-
-      if (dueInRange) {
-        const dayBucket = dayTotals.get(dueDay);
-        if (dayBucket) {
-          dayBucket.submitted += effectiveDoneUnits;
-          dayBucket.total += effectiveTotalUnits;
-        }
-      } else if (submittedUnitsByDay.size > 0) {
-        submittedUnitsByDay.forEach((submittedUnits, dayKey) => {
-          const dayBucket = dayTotals.get(dayKey);
-          if (!dayBucket) return;
-          const normalizedSubmittedUnits = Number(submittedUnits || 0);
-          dayBucket.submitted += normalizedSubmittedUnits;
-          dayBucket.total += normalizedSubmittedUnits;
+      if (hasDueInRange) {
+        targetStudent.assignments.push({
+          id: assignmentId,
+          title: assignmentTitle || 'Untitled assignment',
+          dueDay,
+          status: doneUnits > 0 && missingGroups === 0 ? 'Submitted' : 'Missing',
+          gradingStatus: pendingReviewUnits > 0 ? 'Pending' : 'Done',
+          totalSlots: totalUnits,
+          submittedSlots: doneUnits,
+          missingSlots: missingGroups,
         });
-      }
 
-      totalSubmitted += effectiveDoneUnits;
-      totalSlots += effectiveTotalUnits;
-      totalPendingReviews += effectivePendingReviewUnits;
+        targetStudent.totalMissing += missingGroups;
+        targetStudent.totalSubmitted += doneUnits;
+        targetStudent.totalSlots += totalUnits;
+        targetStudent.pendingReviewSlots += pendingReviewUnits;
+        if (missingGroups > 0) targetStudent.hasMissing = true;
+        if (pendingReviewUnits > 0) targetStudent.hasPendingReview = true;
+
+        if (dueDay === TODAY) {
+          targetStudent.todayMissingSlots += missingGroups;
+          targetStudent.todayTotalSlots += totalUnits;
+        }
+
+        totalSubmitted += doneUnits;
+        totalSlots += totalUnits;
+        totalPendingReviews += pendingReviewUnits;
+      }
 
       if (latestSubmittedAt !== null) {
         eventRows.push({
@@ -652,7 +684,7 @@ export const loadStaffDashboardData = async ({ rangeDays = 7, scope = 'homeroom'
           assignmentName: assignmentTitle || 'Untitled assignment',
           submittedAtTs: latestSubmittedAt,
           submissionId: latestSubmissionId || null,
-          status: assignmentDueTs !== null && latestSubmittedAt > assignmentDueTs ? 'Late' : 'Submitted',
+          status: latestSubmissionIsLate ? 'Late' : 'Submitted',
         });
       }
     });
