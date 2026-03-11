@@ -63,7 +63,7 @@ export default function HomeworkProgressPage() {
   // Track which phase-2 load is current to avoid stale updates
   const progressSeqRef = useRef(0);
 
-  // ── Phase 1: load student list immediately ──
+  // Phase 1: load student list immediately
   useEffect(() => {
     let isActive = true;
 
@@ -87,7 +87,7 @@ export default function HomeworkProgressPage() {
     };
   }, []); // only once on mount
 
-  // ── Phase 2: load full progress data (can re-run when date changes) ──
+  // Phase 2: load full progress data (can re-run when date changes)
   useEffect(() => {
     progressSeqRef.current += 1;
     const currentSeq = progressSeqRef.current;
@@ -132,18 +132,28 @@ export default function HomeworkProgressPage() {
         // missing === -1 means progress hasn't loaded yet
         const missing = student?.missing === -1 ? -1 : Number(selectedProgress?.missing || 0);
         const pending = student?.pending === -1 ? -1 : Number(selectedProgress?.pending || 0);
+        const completed = missing === -1 || pending === -1
+          ? false
+          : Boolean(selectedProgress?.completed ?? student?.completed);
         const progressStatus = missing === -1 || pending === -1
           ? '_loading'
           : missing > 0
             ? 'missing'
             : pending > 0
               ? 'not_submitted'
-              : 'on_time';
+              : completed
+                ? 'completed'
+                : 'not_opened';
         return {
           ...student,
           missing,
           pending,
+          completed,
           progressStatus,
+          statusDisplay:
+            progressStatus === 'not_opened'
+              ? 'not_opened'
+              : (student?.overallStatus || 'on_track'),
           overallStatus: student?.overallStatus || 'on_track',
         };
       }),
@@ -157,7 +167,8 @@ export default function HomeworkProgressPage() {
         if (levelFilter !== 'all' && String(student?.level || '') !== levelFilter) return false;
         // When progress is still loading, skip progress-based filters
         if (student.progressStatus !== '_loading') {
-          if (progressFilter === 'ontime' && student.progressStatus !== 'on_time') return false;
+          if (progressFilter === 'not_opened' && student.progressStatus !== 'not_opened') return false;
+          if (progressFilter === 'completed' && student.progressStatus !== 'completed') return false;
           if (progressFilter === 'pending' && student.progressStatus !== 'not_submitted') return false;
           if (progressFilter === 'missing' && student.progressStatus !== 'missing') return false;
         }
@@ -173,7 +184,7 @@ export default function HomeworkProgressPage() {
       <Card className="border-border/70 shadow-sm">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl tracking-tight">Homework Progress</CardTitle>
-          <CardDescription>Track on-time, pending, and missing submissions by date.</CardDescription>
+          <CardDescription>Track unopened, completed, pending, and missing submissions by date.</CardDescription>
         </CardHeader>
       </Card>
 
@@ -207,7 +218,8 @@ export default function HomeworkProgressPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Progress</SelectItem>
-                <SelectItem value="ontime">Chưa mở bài tập</SelectItem>
+                <SelectItem value="not_opened">Chưa mở bài tập</SelectItem>
+                <SelectItem value="completed">Đã hoàn thành</SelectItem>
                 <SelectItem value="pending">Đang làm</SelectItem>
                 <SelectItem value="missing">Sắp hết hạn</SelectItem>
               </SelectContent>
@@ -317,10 +329,18 @@ export default function HomeworkProgressPage() {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            {isProgressPending ? <CellSkeleton /> : <StatusBadge status={student.overallStatus} />}
+                            {isProgressPending ? <CellSkeleton /> : <StatusBadge status={student.statusDisplay} />}
                           </TableCell>
                           <TableCell>
-                            {isProgressPending ? <CellSkeleton /> : <DailyProgressBadge missing={student.missing} pending={student.pending} />}
+                            {isProgressPending ? (
+                              <CellSkeleton />
+                            ) : (
+                              <DailyProgressBadge
+                                missing={student.missing}
+                                pending={student.pending}
+                                completed={student.completed}
+                              />
+                            )}
                           </TableCell>
                           <TableCell className="text-right">
                             <Button
@@ -376,8 +396,12 @@ export default function HomeworkProgressPage() {
                             </>
                           ) : (
                             <>
-                              <StatusBadge status={student.overallStatus} />
-                              <DailyProgressBadge missing={student.missing} pending={student.pending} />
+                              <StatusBadge status={student.statusDisplay} />
+                              <DailyProgressBadge
+                                missing={student.missing}
+                                pending={student.pending}
+                                completed={student.completed}
+                              />
                             </>
                           )}
                         </div>

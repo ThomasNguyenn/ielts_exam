@@ -165,6 +165,9 @@ export default function HomeworkProgressDetailPage() {
   const dailyProgress = Array.isArray(student.dailyProgress) ? student.dailyProgress : [];
   const assignments = Array.isArray(student.assignments) ? student.assignments : [];
   const missingTotal = Number(student.missing || 0);
+  const isAllAssignmentsCompleted = assignments.length > 0 && assignments.every(
+    (item) => String(item?.status || '').trim().toLowerCase() === 'completed',
+  );
   const completedAssignmentCount = assignments.filter(
     (item) => String(item?.status || '').toLowerCase() === 'completed',
   ).length;
@@ -224,7 +227,11 @@ export default function HomeworkProgressDetailPage() {
                 className="flex items-center justify-between rounded-lg border border-border/70 px-3 py-2"
               >
                 <p className="text-sm font-medium">{toDateLabel(entry.date)}</p>
-                <DailyProgressBadge missing={entry.missing} pending={entry.pending} />
+                <DailyProgressBadge
+                  missing={entry.missing}
+                  pending={entry.pending}
+                  completed={Boolean(entry?.completed ?? isAllAssignmentsCompleted)}
+                />
               </div>
             ))
           ) : (

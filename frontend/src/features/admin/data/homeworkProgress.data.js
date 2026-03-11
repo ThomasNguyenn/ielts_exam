@@ -127,6 +127,7 @@ const toBaseStudent = (user) => ({
   assignments: [],
   missing: 0,
   pending: 0,
+  completed: false,
   hasMissing: false,
   hasPendingReview: false,
 });
@@ -381,6 +382,7 @@ export const loadHomeroomStudentsQuick = async () => {
       level: normalizeStudentLevel(student?.role),
       missing: -1, // sentinel: progress not loaded yet
       pending: -1,
+      completed: false,
       dailyProgress: [],
       assignments: [],
       overallStatus: '_loading',
@@ -582,6 +584,10 @@ export const loadHomeroomHomeworkProgress = async ({ selectedDate = TODAY } = {}
 
   const students = Array.from(studentById.values())
     .map((student) => {
+      const hasAssignments = Array.isArray(student.assignments) && student.assignments.length > 0;
+      const completed = hasAssignments && student.assignments.every(
+        (assignment) => String(assignment?.status || '').trim().toLowerCase() === 'completed',
+      );
       const overallStatus = student.hasMissing
         ? 'needs_attention'
         : student.hasPendingReview
@@ -593,10 +599,12 @@ export const loadHomeroomHomeworkProgress = async ({ selectedDate = TODAY } = {}
         level: student.level,
         missing: student.missing,
         pending: student.pending,
+        completed,
         dailyProgress: [{
           date: normalizedSelectedDate || TODAY,
           missing: student.missing,
           pending: student.pending,
+          completed,
         }],
         assignments: student.assignments,
         overallStatus,
