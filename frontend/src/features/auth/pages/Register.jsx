@@ -60,11 +60,12 @@ export default function SignupPage() {
       .finally(() => setInviteLoading(false))
   }, [normalizedInviteToken])
 
-  const roleLabel = inviteData?.role === "admin"
-    ? "Admin"
-    : inviteData?.role === "teacher"
-      ? "Teacher"
-      : "Student"
+  const roleLabelMap = {
+    admin: "Admin",
+    teacher: "Teacher",
+    supervisor: "Supervisor",
+  }
+  const roleLabel = roleLabelMap[String(inviteData?.role || "").trim().toLowerCase()] || "Student"
 
   const handleSubmit = async (event) => {
     event.preventDefault()

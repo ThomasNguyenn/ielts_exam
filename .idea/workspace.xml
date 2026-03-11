@@ -6,25 +6,7 @@
   <component name="ChangeListManager">
     <list default="true" id="b588cd8d-9883-4ae9-b90e-a4650d93adc1" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/controllers/homework.controller.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/controllers/homework.controller.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/routes/homework.route.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/routes/homework.route.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/tests/routes/homework.routes.test.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/tests/routes/homework.routes.test.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/app/App.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/app/App.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/app/roleRouting.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/app/roleRouting.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/HomeroomStudentsPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/HomeroomStudentsPage.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/pages/StaffDashboardPage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/pages/StaffDashboardPage.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/homework/pages/HomeworkSubmissionGradePage.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/homework/pages/HomeworkSubmissionGradePage.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/layouts/AdminLayout.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/layouts/AdminLayout.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/layouts/MobileAppLayout.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/layouts/MobileAppLayout.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/layouts/StudentACALayout.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/layouts/StudentACALayout.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/tests/pages/Exam.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/tests/pages/Exam.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/features/tests/pages/examHelpers.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/tests/pages/examHelpers.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/shared/api/client.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/shared/api/client.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/tests/app-routing.vitest.test.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/tests/app-routing.vitest.test.jsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/plan_daily_homework.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/start_log.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/temp.txt" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/tmp-tsx-test/a.tsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/features/admin/components/status-badge.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/features/admin/components/status-badge.jsx" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

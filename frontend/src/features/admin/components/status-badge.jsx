@@ -42,6 +42,13 @@ export function DailyProgressBadge({ missing, pending = 0 }) {
     );
   }
 
+  // if (safePending == 0) {
+  //   return (
+  //     <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
+  //       Đã hoàn thành
+  //     </Badge>
+  //   );
+  // }
   return (
     <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
       Chưa mở Bài tập
