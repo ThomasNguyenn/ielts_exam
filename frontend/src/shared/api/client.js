@@ -36,7 +36,7 @@ function getLocalStorageSafe() {
   }
 }
 
-function readWithLegacyMigration(key) {
+function readFromAuthStorage(key) {
   const session = getSessionStorage();
   const local = getLocalStorageSafe();
 
@@ -45,29 +45,29 @@ function readWithLegacyMigration(key) {
     return sessionValue;
   }
 
-  const legacyValue = local?.getItem(key);
-  if (legacyValue !== null && legacyValue !== undefined && session) {
-    session.setItem(key, legacyValue);
-    local?.removeItem(key);
-    return legacyValue;
+  const localValue = local?.getItem(key);
+  if (localValue !== null && localValue !== undefined) {
+    // Warm this tab's session copy while preserving cross-tab persistence.
+    session?.setItem(key, localValue);
+    return localValue;
   }
 
   return null;
 }
 
-// Get token from sessionStorage (with one-time migration from localStorage)
+// Get token from auth storage.
 function getToken() {
-  const token = readWithLegacyMigration(TOKEN_KEY);
+  const token = readFromAuthStorage(TOKEN_KEY);
   if (!token || token === 'undefined' || token === 'null') return null;
   return token;
 }
 
-// Set token in sessionStorage
+// Set token in both sessionStorage and localStorage to support new tabs.
 function setToken(token) {
   const session = getSessionStorage();
   const local = getLocalStorageSafe();
   session?.setItem(TOKEN_KEY, token);
-  local?.removeItem(TOKEN_KEY);
+  local?.setItem(TOKEN_KEY, token);
 }
 
 // Remove token from both storage scopes
@@ -78,9 +78,9 @@ function removeToken() {
   local?.removeItem(TOKEN_KEY);
 }
 
-// Get user from sessionStorage (with one-time migration from localStorage)
+// Get user from auth storage.
 function getUser() {
-  const user = readWithLegacyMigration(USER_KEY);
+  const user = readFromAuthStorage(USER_KEY);
   if (!user || user === 'undefined' || user === 'null') return null;
   try {
     return JSON.parse(user);
@@ -90,12 +90,13 @@ function getUser() {
   }
 }
 
-// Set user in sessionStorage
+// Set user in both sessionStorage and localStorage to support new tabs.
 function setUser(user) {
   const session = getSessionStorage();
   const local = getLocalStorageSafe();
-  session?.setItem(USER_KEY, JSON.stringify(user));
-  local?.removeItem(USER_KEY);
+  const serializedUser = JSON.stringify(user);
+  session?.setItem(USER_KEY, serializedUser);
+  local?.setItem(USER_KEY, serializedUser);
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('auth-user-updated', { detail: user }));
   }
