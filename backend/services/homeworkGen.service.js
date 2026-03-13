@@ -13,7 +13,22 @@ const OPENAI_MODELS = [
   process.env.OPENAI_FALLBACK_MODEL || "gpt-4o-mini",
 ];
 
+const HOMEWORK_QUIZ_MIN_QUESTION_COUNT = 1;
+const HOMEWORK_QUIZ_MAX_QUESTION_COUNT = 200;
+const HOMEWORK_QUIZ_MIN_OPTIONS_PER_QUESTION = 2;
+const HOMEWORK_QUIZ_MAX_OPTIONS_PER_QUESTION = 6;
+
 const normalizeText = (value = "") => String(value ?? "").trim();
+
+const toPositiveInt = (value, fallback) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
+};
+
+const QUIZ_OUTPUT_TOKENS_BASE = toPositiveInt(process.env.OPENAI_QUIZ_BASE_MAX_TOKENS, 2200);
+const QUIZ_OUTPUT_TOKENS_PER_QUESTION = toPositiveInt(process.env.OPENAI_QUIZ_TOKENS_PER_QUESTION, 32);
+const QUIZ_OUTPUT_TOKENS_PER_OPTION = toPositiveInt(process.env.OPENAI_QUIZ_TOKENS_PER_OPTION, 8);
+const QUIZ_OUTPUT_TOKENS_CAP = toPositiveInt(process.env.OPENAI_QUIZ_MAX_OUTPUT_TOKENS, 16384);
 
 const parseNumber = (value, fallback) => {
   if (value === undefined || value === null || String(value).trim() === "") return fallback;
@@ -27,9 +42,35 @@ export const clampHomeworkQuizGenerationConfig = ({
   questionCount = 4,
   optionsPerQuestion = 4,
 } = {}) => ({
-  questionCount: clamp(parseNumber(questionCount, 4), 1, 20),
-  optionsPerQuestion: clamp(parseNumber(optionsPerQuestion, 4), 2, 6),
+  questionCount: clamp(parseNumber(questionCount, 4), HOMEWORK_QUIZ_MIN_QUESTION_COUNT, HOMEWORK_QUIZ_MAX_QUESTION_COUNT),
+  optionsPerQuestion: clamp(
+    parseNumber(optionsPerQuestion, 4),
+    HOMEWORK_QUIZ_MIN_OPTIONS_PER_QUESTION,
+    HOMEWORK_QUIZ_MAX_OPTIONS_PER_QUESTION,
+  ),
 });
+
+export const resolveHomeworkQuizMaxOutputTokens = ({
+  questionCount = 4,
+  optionsPerQuestion = 4,
+} = {}) => {
+  const normalizedQuestionCount = clamp(
+    parseNumber(questionCount, 4),
+    HOMEWORK_QUIZ_MIN_QUESTION_COUNT,
+    HOMEWORK_QUIZ_MAX_QUESTION_COUNT,
+  );
+  const normalizedOptionsPerQuestion = clamp(
+    parseNumber(optionsPerQuestion, 4),
+    HOMEWORK_QUIZ_MIN_OPTIONS_PER_QUESTION,
+    HOMEWORK_QUIZ_MAX_OPTIONS_PER_QUESTION,
+  );
+  const computed =
+    QUIZ_OUTPUT_TOKENS_BASE
+    + (normalizedQuestionCount * QUIZ_OUTPUT_TOKENS_PER_QUESTION)
+    + (normalizedQuestionCount * normalizedOptionsPerQuestion * QUIZ_OUTPUT_TOKENS_PER_OPTION);
+  const normalizedCap = Math.max(QUIZ_OUTPUT_TOKENS_BASE, QUIZ_OUTPUT_TOKENS_CAP);
+  return clamp(computed, QUIZ_OUTPUT_TOKENS_BASE, normalizedCap);
+};
 
 const toOptionTextList = (options = [], desiredCount = 4) => {
   const normalized = (Array.isArray(options) ? options : [])
@@ -105,6 +146,10 @@ export const generateHomeworkQuizBlock = async ({
 
   const normalizedPassageText = normalizeText(passageText);
   const clampedConfig = clampHomeworkQuizGenerationConfig({ questionCount, optionsPerQuestion });
+  const maxOutputTokens = resolveHomeworkQuizMaxOutputTokens({
+    questionCount: clampedConfig.questionCount,
+    optionsPerQuestion: clampedConfig.optionsPerQuestion,
+  });
 
   const systemPrompt = `
 You are an assistant that creates quiz question blocks for homework lessons.
@@ -156,7 +201,7 @@ ${normalizedPassageText || "[No passage context provided]"}
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      max_tokens: 2200,
+      max_tokens: maxOutputTokens,
       temperature: 0.5,
       response_format: { type: "json_object" },
     }),

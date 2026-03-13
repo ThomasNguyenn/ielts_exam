@@ -72,12 +72,27 @@ describe("homeworkGen.service", () => {
   it("clamps generation config to supported ranges", async () => {
     const { clampHomeworkQuizGenerationConfig } = await importService();
     const clamped = clampHomeworkQuizGenerationConfig({
-      questionCount: 200,
+      questionCount: 999,
       optionsPerQuestion: 0,
     });
 
-    expect(clamped.questionCount).toBe(20);
+    expect(clamped.questionCount).toBe(200);
     expect(clamped.optionsPerQuestion).toBe(2);
+  });
+
+  it("scales output token budget for larger quiz requests", async () => {
+    const { resolveHomeworkQuizMaxOutputTokens } = await importService();
+    const smallBudget = resolveHomeworkQuizMaxOutputTokens({
+      questionCount: 4,
+      optionsPerQuestion: 4,
+    });
+    const largeBudget = resolveHomeworkQuizMaxOutputTokens({
+      questionCount: 200,
+      optionsPerQuestion: 4,
+    });
+
+    expect(largeBudget).toBeGreaterThan(smallBudget);
+    expect(largeBudget).toBeGreaterThan(2200);
   });
 });
 

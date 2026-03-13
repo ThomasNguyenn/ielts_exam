@@ -270,25 +270,43 @@ Rules:
 8) If student image submissions are provided, analyze visible content from those images and include concrete observations.
 9) If an image cannot be accessed or analyzed, state that limitation briefly and do not fabricate visual details.
 `;
-const buildGeminiPrompt = (payload = {}) => `
+const buildGeminiPrompt = (payload = {}, { scopeLabel = "submission" } = {}) => `
 ${buildSystemPrompt()}
 
-Review this homework submission JSON:
+Review this homework ${scopeLabel} JSON:
 ${JSON.stringify(payload, null, 2)}
 `;
 
-export const generateHomeworkSubmissionAiReview = async ({
-  submission,
-  assignment,
-  student,
-  reviewer,
-} = {}) => {
-  const reviewPayload = buildHomeworkAiReviewPayload({
-    submission,
-    assignment,
-    student,
-  });
+const isSkippableEligibilityError = (error) =>
+  Number(error?.statusCode) === 400 && String(error?.code || "") === "BAD_REQUEST";
 
+const resolveSubmissionTimestamp = (submission = {}) => {
+  const candidates = [submission?.submitted_at, submission?.updatedAt, submission?.createdAt];
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const parsed = new Date(candidate).getTime();
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return 0;
+};
+
+const dedupeImageItemsByUrl = (imageItems = []) => {
+  const seen = new Set();
+  const output = [];
+  (Array.isArray(imageItems) ? imageItems : []).forEach((item) => {
+    const url = normalizeText(item?.url);
+    if (!url || seen.has(url)) return;
+    seen.add(url);
+    output.push(item);
+  });
+  return output;
+};
+
+const generateHomeworkAiReview = async ({
+  userPromptPayload = {},
+  imageItems = [],
+  scopeLabel = "submission",
+} = {}) => {
   if (!genAI) {
     throw createServiceError("Gemini API key is not configured", {
       statusCode: 503,
@@ -296,33 +314,25 @@ export const generateHomeworkSubmissionAiReview = async ({
     });
   }
 
-  const userPromptPayload = {
-    assignment_title: reviewPayload.assignmentTitle,
-    task_title: reviewPayload.taskTitle,
-    student_name: reviewPayload.studentName,
-    prompt_text: reviewPayload.promptText,
-    reference_answer_text: reviewPayload.referenceAnswerText || "",
-    student_answer_text: reviewPayload.studentAnswerText,
-    student_image_urls: (Array.isArray(reviewPayload?.imageItems) ? reviewPayload.imageItems : [])
-      .map((item) => normalizeText(item?.url))
-      .filter(Boolean),
-    reviewer: {
-      id: normalizeText(reviewer?.id || reviewer?.userId),
-      role: normalizeText(reviewer?.role),
+  const safeImageItems = Array.isArray(imageItems) ? imageItems : [];
+  const geminiImageParts = await buildGeminiImageParts(safeImageItems);
+  const submittedImageCount = safeImageItems.length;
+
+  const promptPayload = {
+    ...userPromptPayload,
+    constraints: {
+      ...(userPromptPayload?.constraints && typeof userPromptPayload.constraints === "object"
+        ? userPromptPayload.constraints
+        : {}),
+      allow_image_submission: submittedImageCount > 0,
+      allow_image_analysis: geminiImageParts.length > 0,
+      image_submission_count: submittedImageCount,
+      image_analysis_count: geminiImageParts.length,
     },
-  };
-  const geminiImageParts = await buildGeminiImageParts(reviewPayload?.imageItems || []);
-  const submittedImageCount = Array.isArray(reviewPayload?.imageItems) ? reviewPayload.imageItems.length : 0;
-  userPromptPayload.constraints = {
-    allow_audio_url: Boolean(reviewPayload?.audioItem?.url),
-    allow_image_submission: submittedImageCount > 0,
-    allow_image_analysis: geminiImageParts.length > 0,
-    image_submission_count: submittedImageCount,
-    image_analysis_count: geminiImageParts.length,
   };
 
   const geminiContents = [
-    { text: buildGeminiPrompt(userPromptPayload) },
+    { text: buildGeminiPrompt(promptPayload, { scopeLabel }) },
     ...geminiImageParts,
   ];
 
@@ -348,6 +358,56 @@ export const generateHomeworkSubmissionAiReview = async ({
   }
 
   return {
+    normalizedReview,
+    aiResult,
+    geminiImageParts,
+    submittedImageCount,
+  };
+};
+
+export const generateHomeworkSubmissionAiReview = async ({
+  submission,
+  assignment,
+  student,
+  reviewer,
+} = {}) => {
+  const reviewPayload = buildHomeworkAiReviewPayload({
+    submission,
+    assignment,
+    student,
+  });
+
+  const userPromptPayload = {
+    assignment_title: reviewPayload.assignmentTitle,
+    task_title: reviewPayload.taskTitle,
+    student_name: reviewPayload.studentName,
+    prompt_text: reviewPayload.promptText,
+    reference_answer_text: reviewPayload.referenceAnswerText || "",
+    student_answer_text: reviewPayload.studentAnswerText,
+    student_image_urls: (Array.isArray(reviewPayload?.imageItems) ? reviewPayload.imageItems : [])
+      .map((item) => normalizeText(item?.url))
+      .filter(Boolean),
+    reviewer: {
+      id: normalizeText(reviewer?.id || reviewer?.userId),
+      role: normalizeText(reviewer?.role),
+    },
+    constraints: {
+      allow_audio_url: Boolean(reviewPayload?.audioItem?.url),
+    },
+  };
+
+  const {
+    normalizedReview,
+    aiResult,
+    geminiImageParts,
+    submittedImageCount,
+  } = await generateHomeworkAiReview({
+    userPromptPayload,
+    imageItems: reviewPayload?.imageItems || [],
+    scopeLabel: "submission",
+  });
+
+  return {
     ...normalizedReview,
     meta: {
       model: aiResult?.model || null,
@@ -359,6 +419,185 @@ export const generateHomeworkSubmissionAiReview = async ({
       has_prompt_text: Boolean(reviewPayload.promptText),
       has_reference_answer: Boolean(reviewPayload.referenceAnswerText),
       source_summary: reviewPayload.meta,
+      image_submission_count: submittedImageCount,
+      image_analysis_count: geminiImageParts.length,
+      image_analysis_skipped_count: Math.max(0, submittedImageCount - geminiImageParts.length),
+    },
+  };
+};
+
+export const generateHomeworkSectionAiReview = async ({
+  assignment,
+  section,
+  submissions,
+  student,
+  reviewer,
+} = {}) => {
+  const normalizedSection =
+    section && typeof section === "object" && !Array.isArray(section) ? section : {};
+  const sectionLessons = (Array.isArray(normalizedSection?.lessons) ? normalizedSection.lessons : [])
+    .map((lesson, lessonIndex) => ({
+      task_id: normalizeText(lesson?._id),
+      task_title: normalizeText(lesson?.name || lesson?.title || `Task ${lessonIndex + 1}`),
+    }))
+    .filter((lesson) => lesson.task_id);
+
+  if (sectionLessons.length === 0) {
+    throw createServiceError("Section has no lessons", {
+      statusCode: 400,
+      code: "BAD_REQUEST",
+    });
+  }
+
+  const latestSubmissionByTaskId = new Map();
+  (Array.isArray(submissions) ? submissions : []).forEach((submission) => {
+    const taskId = normalizeText(submission?.task_id);
+    if (!taskId) return;
+    const current = latestSubmissionByTaskId.get(taskId);
+    if (!current) {
+      latestSubmissionByTaskId.set(taskId, submission);
+      return;
+    }
+    if (resolveSubmissionTimestamp(submission) >= resolveSubmissionTimestamp(current)) {
+      latestSubmissionByTaskId.set(taskId, submission);
+    }
+  });
+
+  const reviewedTasks = [];
+  const missingTasks = [];
+  const skippedTasks = [];
+
+  sectionLessons.forEach((lesson) => {
+    const submission = latestSubmissionByTaskId.get(lesson.task_id);
+    if (!submission) {
+      missingTasks.push(lesson.task_title || lesson.task_id);
+      return;
+    }
+
+    try {
+      const taskPayload = buildHomeworkAiReviewPayload({
+        submission,
+        assignment,
+        student,
+      });
+      reviewedTasks.push({
+        task_id: taskPayload.taskId || lesson.task_id,
+        task_title: taskPayload.taskTitle || lesson.task_title,
+        submission_id: taskPayload.submissionId || normalizeText(submission?._id),
+        prompt_text: taskPayload.promptText,
+        reference_answer_text: taskPayload.referenceAnswerText || "",
+        student_answer_text: taskPayload.studentAnswerText,
+        source_summary: taskPayload.meta,
+        has_audio_submission: Boolean(taskPayload?.audioItem?.url),
+        image_items: Array.isArray(taskPayload?.imageItems) ? taskPayload.imageItems : [],
+      });
+    } catch (error) {
+      if (!isSkippableEligibilityError(error)) {
+        throw error;
+      }
+      skippedTasks.push({
+        task_id: lesson.task_id,
+        task_title: lesson.task_title || lesson.task_id,
+        reason: normalizeText(error?.message || "Submission has no AI-review-eligible content"),
+      });
+    }
+  });
+
+  if (reviewedTasks.length === 0) {
+    throw createServiceError("Section has no AI-review-eligible submissions", {
+      statusCode: 400,
+      code: "BAD_REQUEST",
+    });
+  }
+
+  const sectionPromptText = reviewedTasks
+    .map((task, index) => `Task ${index + 1} - ${task.task_title}\n${task.prompt_text}`)
+    .join("\n\n");
+
+  const sectionReferenceAnswerText = reviewedTasks
+    .filter((task) => normalizeText(task.reference_answer_text))
+    .map((task, index) => `Task ${index + 1} - ${task.task_title}\n${task.reference_answer_text}`)
+    .join("\n\n");
+
+  const sectionStudentAnswerText = reviewedTasks
+    .map((task, index) => `Task ${index + 1} - ${task.task_title}\n${task.student_answer_text}`)
+    .join("\n\n");
+
+  const sectionImageItems = dedupeImageItemsByUrl(
+    reviewedTasks.flatMap((task) => (Array.isArray(task.image_items) ? task.image_items : [])),
+  );
+
+  const userPromptPayload = {
+    assignment_title: normalizeText(assignment?.title),
+    section_title: normalizeText(normalizedSection?.name || normalizedSection?.title),
+    student_name: normalizeText(student?.name),
+    prompt_text: sectionPromptText,
+    reference_answer_text: sectionReferenceAnswerText,
+    student_answer_text: sectionStudentAnswerText,
+    student_image_urls: sectionImageItems
+      .map((item) => normalizeText(item?.url))
+      .filter(Boolean),
+    section_context: {
+      total_tasks: sectionLessons.length,
+      reviewed_task_count: reviewedTasks.length,
+      missing_task_count: missingTasks.length,
+      skipped_task_count: skippedTasks.length,
+      missing_tasks: missingTasks,
+      skipped_tasks: skippedTasks,
+    },
+    tasks: reviewedTasks.map((task) => ({
+      task_id: task.task_id,
+      task_title: task.task_title,
+      prompt_text: task.prompt_text,
+      reference_answer_text: task.reference_answer_text,
+      student_answer_text: task.student_answer_text,
+      source_summary: task.source_summary,
+    })),
+    reviewer: {
+      id: normalizeText(reviewer?.id || reviewer?.userId),
+      role: normalizeText(reviewer?.role),
+    },
+    constraints: {
+      allow_audio_url: reviewedTasks.some((task) => Boolean(task?.has_audio_submission)),
+    },
+  };
+
+  const {
+    normalizedReview,
+    aiResult,
+    geminiImageParts,
+    submittedImageCount,
+  } = await generateHomeworkAiReview({
+    userPromptPayload,
+    imageItems: sectionImageItems,
+    scopeLabel: "section",
+  });
+
+  return {
+    ...normalizedReview,
+    meta: {
+      model: aiResult?.model || null,
+      generated_at: new Date().toISOString(),
+      assignment_id: normalizeText(assignment?._id),
+      section_id: normalizeText(normalizedSection?._id),
+      student_id: normalizeText(student?._id),
+      reviewed_task_count: reviewedTasks.length,
+      total_task_count: sectionLessons.length,
+      missing_task_count: missingTasks.length,
+      skipped_task_count: skippedTasks.length,
+      reviewed_task_ids: reviewedTasks.map((task) => task.task_id),
+      reviewed_submission_ids: reviewedTasks
+        .map((task) => normalizeText(task?.submission_id))
+        .filter(Boolean),
+      missing_tasks: missingTasks,
+      skipped_tasks: skippedTasks,
+      has_prompt_text: Boolean(sectionPromptText),
+      has_reference_answer: Boolean(sectionReferenceAnswerText),
+      source_summary: reviewedTasks.map((task) => ({
+        task_id: task.task_id,
+        task_title: task.task_title,
+        summary: task.source_summary,
+      })),
       image_submission_count: submittedImageCount,
       image_analysis_count: geminiImageParts.length,
       image_analysis_skipped_count: Math.max(0, submittedImageCount - geminiImageParts.length),

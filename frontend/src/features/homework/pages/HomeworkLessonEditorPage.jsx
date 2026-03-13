@@ -83,6 +83,7 @@ const QUIZ_LAYOUT_OPTIONS = [
   { value: "grid", label: "Grid (2x2)" },
   { value: "list", label: "List" },
 ];
+const QUIZ_AI_MAX_QUESTION_COUNT = 200;
 const QUIZ_AI_DEFAULT_QUESTION_COUNT = 4;
 const QUIZ_AI_DEFAULT_OPTIONS_PER_QUESTION = 4;
 
@@ -1020,7 +1021,7 @@ export default function HomeworkLessonEditorPage() {
 
     const questionCount = clampQuizAiInteger(quizAiDialog.questionCount, {
       min: 1,
-      max: 20,
+      max: QUIZ_AI_MAX_QUESTION_COUNT,
       fallback: QUIZ_AI_DEFAULT_QUESTION_COUNT,
     });
     const optionsPerQuestion = clampQuizAiInteger(quizAiDialog.optionsPerQuestion, {
@@ -3081,7 +3082,7 @@ export default function HomeworkLessonEditorPage() {
                   <Input
                     type="number"
                     min={1}
-                    max={20}
+                    max={QUIZ_AI_MAX_QUESTION_COUNT}
                     value={quizAiDialog.questionCount}
                     onChange={(event) =>
                       setQuizAiDialog((prev) => ({ ...prev, questionCount: event.target.value }))}

@@ -15,6 +15,8 @@ const TOKEN_KEY = 'token';
 const USER_KEY = 'user';
 let refreshInFlight = null;
 let sessionBootstrapInFlight = null;
+let refreshBlockedUntil = 0;
+const REFRESH_FAILURE_COOLDOWN_MS = 15 * 1000;
 
 function getSessionStorage() {
   if (typeof window === 'undefined') return null;
@@ -222,6 +224,7 @@ function canAttemptAuthRefresh(path, skipAuthRefresh = false) {
 
 async function refreshAccessToken() {
   if (refreshInFlight) return refreshInFlight;
+  if (Date.now() < refreshBlockedUntil) return false;
 
   refreshInFlight = (async () => {
     try {
@@ -233,6 +236,7 @@ async function refreshAccessToken() {
 
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
+        refreshBlockedUntil = Date.now() + REFRESH_FAILURE_COOLDOWN_MS;
         return false;
       }
 
@@ -240,16 +244,19 @@ async function refreshAccessToken() {
       const user = payload?.data?.user || payload?.user || null;
 
       if (!token) {
+        refreshBlockedUntil = Date.now() + REFRESH_FAILURE_COOLDOWN_MS;
         removeToken();
         return false;
       }
 
+      refreshBlockedUntil = 0;
       setToken(token);
       if (user) {
         setUser(user);
       }
       return true;
     } catch {
+      refreshBlockedUntil = Date.now() + REFRESH_FAILURE_COOLDOWN_MS;
       return false;
     } finally {
       refreshInFlight = null;
@@ -261,6 +268,7 @@ async function refreshAccessToken() {
 
 async function bootstrapSession() {
   if (hasValidAccessSession()) return true;
+  if (!hasStoredSession()) return false;
   if (sessionBootstrapInFlight) return sessionBootstrapInFlight;
 
   sessionBootstrapInFlight = (async () => {
@@ -311,7 +319,11 @@ function emitAchievementEvent(detail) {
 }
 
 async function request(path, options = {}) {
-  const { skipAuthRefresh = false, ...fetchOptions } = options;
+  const {
+    skipAuthRefresh = false,
+    suppressUnauthorizedRedirect = false,
+    ...fetchOptions
+  } = options;
   const url = `${API_BASE}${path}`;
   const token = getToken();
 
@@ -337,11 +349,15 @@ async function request(path, options = {}) {
     if (res.status === 401 && canAttemptAuthRefresh(path, skipAuthRefresh)) {
       const refreshed = await refreshAccessToken();
       if (refreshed) {
-        return request(path, { ...fetchOptions, skipAuthRefresh: true });
+        return request(path, {
+          ...fetchOptions,
+          skipAuthRefresh: true,
+          suppressUnauthorizedRedirect,
+        });
       }
     }
 
-    if (res.status === 401) {
+    if (res.status === 401 && !suppressUnauthorizedRedirect) {
       handleUnauthorized(path);
     }
 
@@ -428,13 +444,30 @@ export const api = {
   getTestById: (id) => request(`/api/tests/${id}`),
   getExam: (id, options = {}) => request(`/api/tests/${id}/exam`, options),
   trackTestActivityOpen: (id, body) =>
-    request(`/api/tests/${id}/activity/open`, { method: 'POST', body: JSON.stringify(body || {}) }),
+    request(`/api/tests/${id}/activity/open`, {
+      method: 'POST',
+      body: JSON.stringify(body || {}),
+      suppressUnauthorizedRedirect: true,
+    }),
   trackTestActivityStart: (id, body) =>
-    request(`/api/tests/${id}/activity/start`, { method: 'POST', body: JSON.stringify(body || {}) }),
+    request(`/api/tests/${id}/activity/start`, {
+      method: 'POST',
+      body: JSON.stringify(body || {}),
+      suppressUnauthorizedRedirect: true,
+    }),
   trackTestActivityHeartbeat: (id, body, options = {}) =>
-    request(`/api/tests/${id}/activity/heartbeat`, { method: 'POST', body: JSON.stringify(body || {}), ...options }),
+    request(`/api/tests/${id}/activity/heartbeat`, {
+      method: 'POST',
+      body: JSON.stringify(body || {}),
+      suppressUnauthorizedRedirect: true,
+      ...options,
+    }),
   trackTestActivityAnswer: (id, body) =>
-    request(`/api/tests/${id}/activity/answer`, { method: 'PATCH', body: JSON.stringify(body || {}) }),
+    request(`/api/tests/${id}/activity/answer`, {
+      method: 'PATCH',
+      body: JSON.stringify(body || {}),
+      suppressUnauthorizedRedirect: true,
+    }),
   submitExam: (id, body) => request(`/api/tests/${id}/submit`, { method: 'POST', body: JSON.stringify(body) }),
   createTest: (body) => request('/api/tests', { method: 'POST', body: JSON.stringify(body) }),
   updateTest: (id, body) => request(`/api/tests/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
@@ -748,6 +781,11 @@ export const api = {
     request(`/api/homework/submissions/${submissionId}/ai-review`, {
       method: 'POST',
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    }),
+  homeworkGenerateSectionAiReview: (assignmentId, sectionId, body) =>
+    request(`/api/homework/assignments/${assignmentId}/sections/${sectionId}/ai-review`, {
+      method: 'POST',
+      body: JSON.stringify(body || {}),
     }),
 
   // Speaking

@@ -30,6 +30,7 @@ const mockedControllers = vi.hoisted(() => ({
   getHomeworkAssignmentDashboard: vi.fn((_req, res) => res.status(200).json({ route: "dashboard" })),
   getHomeworkTaskSubmissions: vi.fn((_req, res) => res.status(200).json({ route: "task-submissions" })),
   getHomeworkSubmissionById: vi.fn((_req, res) => res.status(200).json({ route: "submission-by-id" })),
+  generateHomeworkSectionAiReview: vi.fn((_req, res) => res.status(200).json({ route: "section-ai-review" })),
   generateHomeworkSubmissionAiReview: vi.fn((_req, res) => res.status(200).json({ route: "submission-ai-review" })),
   gradeHomeworkSubmission: vi.fn((_req, res) => res.status(200).json({ route: "grade-submission" })),
 }));
@@ -184,5 +185,26 @@ describe("homework routes role guards", () => {
 
     expect(res.status).toBe(403);
     expect(mockedControllers.generateHomeworkSubmissionAiReview).not.toHaveBeenCalled();
+  });
+
+  it("allows teacher to call section AI review", async () => {
+    const res = await request(app)
+      .post("/api/homework/assignments/a1/sections/s1/ai-review")
+      .set("x-test-role", "teacher")
+      .send({ student_id: "u1" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.route).toBe("section-ai-review");
+    expect(mockedControllers.generateHomeworkSectionAiReview).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects student on section AI review route", async () => {
+    const res = await request(app)
+      .post("/api/homework/assignments/a1/sections/s1/ai-review")
+      .set("x-test-role", "student")
+      .send({ student_id: "u1" });
+
+    expect(res.status).toBe(403);
+    expect(mockedControllers.generateHomeworkSectionAiReview).not.toHaveBeenCalled();
   });
 });

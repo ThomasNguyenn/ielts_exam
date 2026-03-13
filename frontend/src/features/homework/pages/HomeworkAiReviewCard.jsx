@@ -2,6 +2,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function HomeworkAiReviewCard({
+  title = 'AI Review',
+  description = 'Generate AI feedback from lesson prompt and student submission.',
+  generateLabel = 'Generate AI Review',
+  regenerateLabel = 'Re-generate AI Review',
+  refreshLabel = 'Refresh',
   loading,
   canSubmit,
   disabledReason,
@@ -13,10 +18,8 @@ export default function HomeworkAiReviewCard({
   return (
     <Card className="border-border/70 shadow-sm">
       <CardHeader>
-        <CardTitle>AI Review</CardTitle>
-        <CardDescription>
-          Generate AI feedback from lesson prompt and student submission.
-        </CardDescription>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex flex-wrap gap-2">
@@ -24,12 +27,12 @@ export default function HomeworkAiReviewCard({
             {loading
               ? 'Generating...'
               : hasResult
-                ? 'Re-generate AI Review'
-                : 'Generate AI Review'}
+                ? regenerateLabel
+                : generateLabel}
           </Button>
           {hasResult ? (
             <Button type="button" variant="outline" onClick={onGenerate} disabled={loading || !canSubmit}>
-              Refresh
+              {refreshLabel}
             </Button>
           ) : null}
         </div>

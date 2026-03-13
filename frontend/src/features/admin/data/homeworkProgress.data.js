@@ -445,16 +445,37 @@ export const loadHomeroomHomeworkProgress = async ({ selectedDate = TODAY } = {}
       dashboardData?.assignment?.title || assignment?.title || 'Untitled assignment',
     ).trim();
 
-    // Build a map of task_id → { due_date, title } from dashboard tasks
+    // Build a map of task_id -> { due_date, title, section_id, section_title } from dashboard assignment data
     const dashboardTasks = Array.isArray(dashboardData?.assignment?.tasks) ? dashboardData.assignment.tasks : [];
+    const dashboardSections = Array.isArray(dashboardData?.assignment?.sections)
+      ? dashboardData.assignment.sections
+      : [];
+    const taskSectionMetaMap = new Map();
+    dashboardSections.forEach((section, sectionIndex) => {
+      const sectionId = String(section?._id || '').trim();
+      const sectionTitle = String(section?.name || section?.title || `Section ${sectionIndex + 1}`).trim() || `Section ${sectionIndex + 1}`;
+      const lessons = Array.isArray(section?.lessons) ? section.lessons : [];
+      lessons.forEach((lesson) => {
+        const lessonId = String(lesson?._id || '').trim();
+        if (!lessonId) return;
+        taskSectionMetaMap.set(lessonId, {
+          section_id: sectionId || null,
+          section_title: sectionTitle,
+        });
+      });
+    });
+
     const taskMetaMap = new Map();
     dashboardTasks.forEach((task) => {
       const taskId = String(task?._id || '').trim();
       if (!taskId) return;
+      const sectionMeta = taskSectionMetaMap.get(taskId) || {};
       taskMetaMap.set(taskId, {
         title: String(task?.title || task?.type || 'Task').trim(),
         due_date: resolveHomeworkDueDayKey(task?.due_date) || toIsoDay(task?.due_date) || null,
         due_at: task?.due_date || null,
+        section_id: sectionMeta.section_id || null,
+        section_title: sectionMeta.section_title || null,
       });
     });
     const assignmentDueAt = dashboardData?.assignment?.due_date || assignment?.due_date || null;
@@ -521,6 +542,8 @@ export const loadHomeroomHomeworkProgress = async ({ selectedDate = TODAY } = {}
           task_id: taskId,
           task_slot_id: taskSlotId || `task:${taskId || taskSubmissions.length}`,
           task_title: String(task?.task_title || meta.title || 'Task').trim(),
+          section_id: String(meta?.section_id || '').trim() || null,
+          section_title: String(meta?.section_title || '').trim() || null,
           task_due_date: taskDueDay || null,
           status: taskStatus,
           submitted_at: task?.submitted_at || null,

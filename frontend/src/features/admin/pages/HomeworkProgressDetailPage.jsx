@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, CalendarDays, CheckCircle2, ClipboardList, Clock, FileText, UserRound } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -7,6 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { sanitizeActiveUIRoleForUser } from '@/app/activeUIRole';
 import { USER_ROLE_SUPERVISOR } from '@/app/roleRouting';
 import { api } from '@/shared/api/client';
+import { useNotification } from '@/shared/context/NotificationContext';
+import { normalizeAiReviewOutput } from '@/features/homework/pages/homeworkAiReview.utils';
 import { TODAY, loadHomeroomHomeworkProgress } from '../data/homeworkProgress.data';
 import { DailyProgressBadge } from '../components/status-badge';
 
@@ -81,10 +83,14 @@ const toDeadlineTone = (dueDate) => {
   return 'text-muted-foreground';
 };
 
+const buildSectionReviewKey = (assignmentId, sectionId) =>
+  `${String(assignmentId || '').trim()}:${String(sectionId || '').trim()}`;
+
 export default function HomeworkProgressDetailPage() {
   const navigate = useNavigate();
   const { studentId } = useParams();
   const location = useLocation();
+  const { showNotification } = useNotification();
   const activeUIRole = sanitizeActiveUIRoleForUser(api.getUser(), '');
   const isAllStudentsScope = activeUIRole === USER_ROLE_SUPERVISOR;
 
@@ -95,6 +101,9 @@ export default function HomeworkProgressDetailPage() {
   const [student, setStudent] = useState(hasMatchedStateStudent ? stateStudent : null);
   const [loading, setLoading] = useState(!hasMatchedStateStudent);
   const [error, setError] = useState('');
+  const [sectionAiLoadingKey, setSectionAiLoadingKey] = useState('');
+  const [sectionAiErrorByKey, setSectionAiErrorByKey] = useState({});
+  const [sectionAiResultByKey, setSectionAiResultByKey] = useState({});
 
   useEffect(() => {
     if (hasMatchedStateStudent) {
@@ -130,6 +139,93 @@ export default function HomeworkProgressDetailPage() {
     };
   }, [hasMatchedStateStudent, selectedDate, stateStudent, studentId]);
 
+  const dailyProgress = Array.isArray(student?.dailyProgress) ? student.dailyProgress : [];
+  const assignments = Array.isArray(student?.assignments) ? student.assignments : [];
+  const missingTotal = Number(student?.missing || 0);
+  const isAllAssignmentsCompleted = assignments.length > 0 && assignments.every(
+    (item) => String(item?.status || '').trim().toLowerCase() === 'completed',
+  );
+  const completedAssignmentCount = assignments.filter(
+    (item) => String(item?.status || '').toLowerCase() === 'completed',
+  ).length;
+  const sectionReviewTargets = useMemo(() => {
+    const rows = [];
+    assignments.forEach((assignment, assignmentIndex) => {
+      const assignmentId = String(assignment?.assignmentId || assignment?.id || '').trim();
+      if (!assignmentId) return;
+
+      const assignmentTitle = toSubmissionLabel(assignment, assignmentIndex);
+      const groupedBySection = new Map();
+      const taskSubmissions = Array.isArray(assignment?.taskSubmissions) ? assignment.taskSubmissions : [];
+      taskSubmissions.forEach((taskSub) => {
+        const sectionId = String(taskSub?.section_id || '').trim();
+        if (!sectionId) return;
+        const sectionTitle = String(taskSub?.section_title || '').trim() || 'Section';
+        const key = buildSectionReviewKey(assignmentId, sectionId);
+        const existing = groupedBySection.get(key) || {
+          key,
+          assignmentId,
+          assignmentTitle,
+          sectionId,
+          sectionTitle,
+          submittedTasks: 0,
+          totalTasks: 0,
+        };
+        existing.totalTasks += 1;
+        if (Boolean(taskSub?.homework_submission_id) || Boolean(taskSub?.submitted_at)) {
+          existing.submittedTasks += 1;
+        }
+        groupedBySection.set(key, existing);
+      });
+
+      rows.push(...Array.from(groupedBySection.values()));
+    });
+
+    return rows.sort((left, right) => {
+      const byAssignment = String(left.assignmentTitle || '').localeCompare(String(right.assignmentTitle || ''));
+      if (byAssignment !== 0) return byAssignment;
+      return String(left.sectionTitle || '').localeCompare(String(right.sectionTitle || ''));
+    });
+  }, [assignments]);
+
+  const handleGenerateSectionAiReview = async (target) => {
+    const assignmentId = String(target?.assignmentId || '').trim();
+    const sectionId = String(target?.sectionId || '').trim();
+    const currentStudentId = String(student?.id || '').trim();
+    const reviewKey = buildSectionReviewKey(assignmentId, sectionId);
+
+    if (!assignmentId || !sectionId || !currentStudentId) {
+      const message = 'Missing assignment/section/student context for AI review.';
+      setSectionAiErrorByKey((prev) => ({ ...prev, [reviewKey]: message }));
+      showNotification(message, 'error');
+      return;
+    }
+
+    setSectionAiLoadingKey(reviewKey);
+    setSectionAiErrorByKey((prev) => ({ ...prev, [reviewKey]: '' }));
+    try {
+      const response = await api.homeworkGenerateSectionAiReview(assignmentId, sectionId, {
+        student_id: currentStudentId,
+      });
+      const data = response?.data ?? response;
+      const resultText = normalizeAiReviewOutput(data) || JSON.stringify(data, null, 2);
+      setSectionAiResultByKey((prev) => ({ ...prev, [reviewKey]: resultText }));
+      showNotification('AI section review generated', 'success');
+    } catch (reviewError) {
+      const message = reviewError?.message || 'Failed to generate AI section review.';
+      setSectionAiErrorByKey((prev) => ({ ...prev, [reviewKey]: message }));
+      showNotification(message, 'error');
+    } finally {
+      setSectionAiLoadingKey('');
+    }
+  };
+
+  useEffect(() => {
+    setSectionAiLoadingKey('');
+    setSectionAiErrorByKey({});
+    setSectionAiResultByKey({});
+  }, [selectedDate, student?.id]);
+
   if (loading) {
     return (
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 md:p-6">
@@ -161,16 +257,6 @@ export default function HomeworkProgressDetailPage() {
       </div>
     );
   }
-
-  const dailyProgress = Array.isArray(student.dailyProgress) ? student.dailyProgress : [];
-  const assignments = Array.isArray(student.assignments) ? student.assignments : [];
-  const missingTotal = Number(student.missing || 0);
-  const isAllAssignmentsCompleted = assignments.length > 0 && assignments.every(
-    (item) => String(item?.status || '').trim().toLowerCase() === 'completed',
-  );
-  const completedAssignmentCount = assignments.filter(
-    (item) => String(item?.status || '').toLowerCase() === 'completed',
-  ).length;
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 md:p-6">
@@ -219,7 +305,7 @@ export default function HomeworkProgressDetailPage() {
         <CardHeader>
           <CardTitle className="text-base">Daily Progress</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent className="space-y-3">
           {dailyProgress.length ? (
             dailyProgress.map((entry) => (
               <div
@@ -239,6 +325,68 @@ export default function HomeworkProgressDetailPage() {
               No daily progress data.
             </div>
           )}
+
+          <div className="pt-2">
+            <div className="mb-2 flex items-center justify-between gap-2 border-t border-border/50 pt-3">
+              <p className="text-sm font-medium text-foreground">AI Quick Review by Section</p>
+              <Badge variant="outline" className="border-border/60 bg-muted/40 text-foreground">
+                {sectionReviewTargets.length} sections
+              </Badge>
+            </div>
+
+            {sectionReviewTargets.length > 0 ? (
+              <div className="space-y-3">
+                {sectionReviewTargets.map((target) => {
+                  const reviewKey = target.key;
+                  const isLoading = sectionAiLoadingKey === reviewKey;
+                  const isBusy = Boolean(sectionAiLoadingKey) && !isLoading;
+                  const errorText = String(sectionAiErrorByKey?.[reviewKey] || '').trim();
+                  const resultText = String(sectionAiResultByKey?.[reviewKey] || '').trim();
+
+                  return (
+                    <div key={reviewKey} className="rounded-lg border border-border/70 p-3">
+                      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium text-foreground">{target.sectionTitle}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {target.assignmentTitle} - {target.submittedTasks}/{target.totalTasks} submitted
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={isBusy}
+                          onClick={() => {
+                            void handleGenerateSectionAiReview(target);
+                          }}
+                        >
+                          {isLoading ? 'Generating...' : 'Nhan xet nhanh AI'}
+                        </Button>
+                      </div>
+
+                      {errorText ? (
+                        <div className="mt-2 rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive">
+                          {errorText}
+                        </div>
+                      ) : null}
+
+                      {resultText ? (
+                        <div className="mt-2 rounded-md border border-border/70 p-3">
+                          <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Result</p>
+                          <pre className="whitespace-pre-wrap break-words text-sm text-foreground/90">{resultText}</pre>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
+                No section data available for AI quick review.
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 

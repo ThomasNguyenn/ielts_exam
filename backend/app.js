@@ -275,7 +275,11 @@ export const createApp = ({ startBackgroundJobs = true } = {}) => {
     });
   });
 
-  app.use("/api/auth", applyIf((req) => req.path !== "/profile", authRateLimit));
+  const shouldApplyAuthRateLimit = (path = "") => {
+    const normalizedPath = String(path || "").trim().toLowerCase();
+    return normalizedPath !== "/profile" && normalizedPath !== "/refresh";
+  };
+  app.use("/api/auth", applyIf((req) => shouldApplyAuthRateLimit(req.path), authRateLimit));
   app.use("/api/content-gen", aiRateLimit);
   app.use(
     "/api/homework",

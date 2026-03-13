@@ -34,7 +34,10 @@ import {
   trackHomeworkActivityOpen,
 } from "../services/homeworkTrackingBridge.service.js";
 import { generateHomeworkQuizBlock } from "../services/homeworkGen.service.js";
-import { generateHomeworkSubmissionAiReview as generateHomeworkSubmissionAiReviewService } from "../services/homeworkAiReview.service.js";
+import {
+  generateHomeworkSectionAiReview as generateHomeworkSectionAiReviewService,
+  generateHomeworkSubmissionAiReview as generateHomeworkSubmissionAiReviewService,
+} from "../services/homeworkAiReview.service.js";
 import { addXP } from "../services/gamification.service.js";
 import { parsePagination, buildPaginationMeta } from "../utils/pagination.js";
 import { handleControllerError, sendControllerError } from "../utils/controllerError.js";
@@ -2438,7 +2441,7 @@ export const generateHomeworkQuizBlockByAI = async (req, res) => {
 
     const questionCount = parseBoundedInt(req.body?.question_count, {
       min: 1,
-      max: 20,
+      max: 200,
       fallback: 4,
     });
     const optionsPerQuestion = parseBoundedInt(req.body?.options_per_question, {
@@ -3854,6 +3857,88 @@ export const generateHomeworkSubmissionAiReview = async (req, res) => {
     const review = await generateHomeworkSubmissionAiReviewService({
       submission,
       assignment,
+      student,
+      reviewer: req.user,
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: review,
+    });
+  } catch (error) {
+    if (error?.statusCode) {
+      return sendControllerError(req, res, {
+        statusCode: error.statusCode,
+        code: error.code,
+        message: error.message,
+        details: error.details,
+      });
+    }
+    return handleControllerError(req, res, error);
+  }
+};
+
+export const generateHomeworkSectionAiReview = async (req, res) => {
+  try {
+    const assignmentId = req.params.assignmentId;
+    const sectionId = req.params.sectionId;
+    const studentId = normalizeOptionalString(req.body?.student_id || req.body?.studentId);
+
+    if (!mongoose.Types.ObjectId.isValid(assignmentId) || !mongoose.Types.ObjectId.isValid(sectionId)) {
+      return sendControllerError(req, res, { statusCode: 400, message: "Invalid assignment/section id" });
+    }
+    if (!mongoose.Types.ObjectId.isValid(studentId || "")) {
+      return sendControllerError(req, res, { statusCode: 400, message: "Invalid student id" });
+    }
+
+    const [assignment, student] = await Promise.all([
+      MonthlyAssignment.findById(assignmentId).lean(),
+      User.findById(studentId).select("_id name email role homeroom_teacher_id").lean(),
+    ]);
+
+    if (!assignment) {
+      return sendControllerError(req, res, { statusCode: 404, message: "Assignment not found" });
+    }
+    if (!student) {
+      return sendControllerError(req, res, { statusCode: 404, message: "Student not found" });
+    }
+
+    const sections = getAssignmentSections(assignment);
+    const section = sections.find((item) => String(item?._id || "") === String(sectionId || ""));
+    if (!section) {
+      return sendControllerError(req, res, { statusCode: 404, message: "Section not found" });
+    }
+
+    const gradePermission = canGradeStudentForAssignment({
+      assignment,
+      student,
+      user: req.user,
+    });
+    if (!gradePermission.allowed) {
+      return sendControllerError(req, res, {
+        statusCode: 403,
+        code: gradePermission.code,
+        message: "You do not have permission to review this section",
+      });
+    }
+
+    const lessonIds = (Array.isArray(section?.lessons) ? section.lessons : [])
+      .map((lesson) => normalizeOptionalString(lesson?._id))
+      .filter((lessonId) => mongoose.Types.ObjectId.isValid(lessonId))
+      .map((lessonId) => new mongoose.Types.ObjectId(lessonId));
+
+    const submissions = lessonIds.length > 0
+      ? await MonthlyAssignmentSubmission.find({
+        assignment_id: assignment._id,
+        student_id: student._id,
+        task_id: { $in: lessonIds },
+      }).lean()
+      : [];
+
+    const review = await generateHomeworkSectionAiReviewService({
+      assignment,
+      section,
+      submissions,
       student,
       reviewer: req.user,
     });
