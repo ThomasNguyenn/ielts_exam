@@ -23,9 +23,13 @@ const HOMEWORK_AI_REVIEW_MAX_IMAGE_ITEMS = (() => {
   const parsed = Number(process.env.HOMEWORK_AI_REVIEW_MAX_IMAGE_ITEMS);
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 4;
 })();
+const HOMEWORK_UPLOAD_IMAGE_MAX_BYTES = (() => {
+  const parsed = Number(process.env.HOMEWORK_IMAGE_MAX_BYTES);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : (20 * 1024 * 1024);
+})();
 const HOMEWORK_AI_REVIEW_MAX_IMAGE_BYTES = (() => {
   const parsed = Number(process.env.HOMEWORK_AI_REVIEW_MAX_IMAGE_BYTES);
-  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : (4 * 1024 * 1024);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : HOMEWORK_UPLOAD_IMAGE_MAX_BYTES;
 })();
 const HOMEWORK_AI_REVIEW_IMAGE_FETCH_TIMEOUT_MS = (() => {
   const parsed = Number(process.env.HOMEWORK_AI_REVIEW_IMAGE_FETCH_TIMEOUT_MS);
