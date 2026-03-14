@@ -135,23 +135,30 @@ export default function HomeworkProgressPage() {
         const completed = missing === -1 || pending === -1
           ? false
           : Boolean(selectedProgress?.completed ?? student?.completed);
+        const assignments = Array.isArray(student?.assignments) ? student.assignments : [];
+        const hasSubmissionActivity = assignments.some((assignment) =>
+            Number(assignment?.submittedTasks || 0) > 0
+            || Number(assignment?.doneCount || 0) > 0,
+          );
+        const completedForDisplay = completed
+          || (hasSubmissionActivity && missing <= 0 && pending <= 0);
         const progressStatus = missing === -1 || pending === -1
           ? '_loading'
           : missing > 0
             ? 'missing'
             : pending > 0
               ? 'not_submitted'
-              : completed
+              : completedForDisplay
                 ? 'completed'
                 : 'not_opened';
         return {
           ...student,
           missing,
           pending,
-          completed,
+          completed: completedForDisplay,
           progressStatus,
           statusDisplay:
-            progressStatus === 'not_opened'
+            progressStatus === 'not_opened' && !hasSubmissionActivity
               ? 'not_opened'
               : (student?.overallStatus || 'on_track'),
           overallStatus: student?.overallStatus || 'on_track',
